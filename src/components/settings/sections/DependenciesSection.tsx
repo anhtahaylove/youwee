@@ -5,6 +5,7 @@ import {
   ExternalLink,
   Film,
   Github,
+  Images,
   Loader2,
   Package,
   RefreshCw,
@@ -94,6 +95,10 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     denoDownloadProgress,
     checkDenoUpdate,
     downloadDeno,
+    galleryDlStatus,
+    galleryDlLoading,
+    galleryDlError,
+    checkGalleryDl,
   } = useDependencies();
 
   // Compare versions with normalization to avoid false positives (e.g. "v2026.02.04")
@@ -743,6 +748,79 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
             >
               <Github className="w-3 h-3" />
               deno.land
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </SettingsCard>
+
+          {/* gallery-dl */}
+          <SettingsCard id="gallerydl" highlight={highlightId === 'gallerydl'}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-500 to-rose-500 flex items-center justify-center shadow-lg shadow-fuchsia-500/20">
+                  <Images className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{t('dependencies.gallerydl')}</span>
+                    {galleryDlLoading ? (
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      </Badge>
+                    ) : galleryDlStatus?.installed ? (
+                      <Badge variant="secondary" className="font-mono text-xs">
+                        {galleryDlStatus.version || t('dependencies.installed')}
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="text-xs">
+                        {t('dependencies.notFound')}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {galleryDlLoading ? (
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        {t('dependencies.checkingUpdates')}
+                      </span>
+                    ) : galleryDlError ? (
+                      <span className="text-destructive">{galleryDlError}</span>
+                    ) : galleryDlStatus?.installed ? (
+                      t('dependencies.systemGallerydl')
+                    ) : (
+                      <span className="text-amber-500">
+                        {t('dependencies.systemGallerydlNotFound')}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => void checkGalleryDl()}
+                disabled={galleryDlLoading}
+                title={t('dependencies.checkForUpdates')}
+              >
+                {galleryDlLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              {t('dependencies.galleryCollectionsEngine')}
+            </p>
+
+            <a
+              href="https://github.com/mikf/gallery-dl"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-3 pt-3 border-t border-border/50"
+            >
+              <Github className="w-3 h-3" />
+              mikf/gallery-dl
               <ExternalLink className="w-3 h-3" />
             </a>
           </SettingsCard>

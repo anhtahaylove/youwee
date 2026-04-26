@@ -8,15 +8,25 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thêm mới
+
+### Thay đổi
+
+### Sửa lỗi
+
+## [0.13.0] - 2026-04-15
+
+### Thêm mới
+- **Trình phát nhạc nổi** - Thêm player âm thanh trong ứng dụng với hàng đợi, điều khiển phát, tốc độ và âm lượng
 - **Tích hợp Aria2 làm trình tải ngoài** - Bổ sung hỗ trợ `aria2c` làm external downloader với tham số tùy chỉnh và xử lý lỗi đã bản địa hóa
 - **Đổi tên file đã tải từ Queue và Thư viện** - Thêm thao tác đổi tên sau khi tải xong (queue YouTube + Universal và Thư viện), đồng bộ đường dẫn/tên trong DB và giao diện đa ngôn ngữ
 - **Bộ lọc nâng cao và sắp xếp trong Thư viện** - Thêm panel Advanced Filters (loại media, khoảng ngày, định dạng, chất lượng), tìm kiếm theo `title + filepath`, và sắp xếp lịch sử có ghi nhớ lựa chọn sort
+- **Trang tải Gallery riêng** - Thêm menu `Gallery` mới nằm dưới Universal, có ô nhập URL riêng, import hàng loạt, hàng đợi, chọn thư mục lưu và luồng Start/Stop dành cho các nguồn kiểu gallery chạy bằng `gallery-dl`
 
 ### Thay đổi
 - **Xử lý queue động khi đang tải** - Worker queue giờ claim item theo thời gian thực, nên video thêm mới sẽ vào cuối hàng đợi và tự tải tiếp mà không cần bấm Start lại
 
 ### Sửa lỗi
-
+- **Ổn định test đổi tên lịch sử trên CI** - Serialize các test dùng chung DB in-memory để tránh lỗi flaky `History entry not found` khi `cargo test` chạy song song
 ## [0.12.0] - 2026-03-04
 
 ### Thêm mới

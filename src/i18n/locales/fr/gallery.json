@@ -1,0 +1,62 @@
+{
+  "title": "Gallery",
+  "page": {
+    "systemManagedOnly": "System managed only"
+  },
+  "missing": {
+    "title": "gallery-dl is required",
+    "checking": "Checking system gallery-dl...",
+    "description": "Install gallery-dl on your system to download galleries, collections, and creator feeds.",
+    "refresh": "Refresh status",
+    "openDependencies": "Open Dependencies",
+    "installGuide": "Install guide"
+  },
+  "actions": {
+    "startDownload": "Start download",
+    "stopDownload": "Stop download",
+    "clearAll": "Clear all"
+  },
+  "settings": {
+    "notSelected": "Select folder",
+    "selectFolder": "Select output folder",
+    "systemManagedOnly": "System managed only",
+    "advanced": "Advanced",
+    "more": "More",
+    "parallelDownloads": "Parallel downloads",
+    "atATime": "{{count}} at a time",
+    "systemManagedHint": "Youwee uses the system gallery-dl binary only for this screen."
+  },
+  "queue": {
+    "title": "Queue",
+    "pending": "{{count}} pending",
+    "clearCompleted": "Clear completed ({{count}})",
+    "openFolder": "Open folder",
+    "remove": "Remove item",
+    "status": {
+      "pending": "Pending",
+      "downloading": "Downloading",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "empty": {
+      "title": "Drop a gallery URL to begin",
+      "description": "Use this screen for image galleries, artist feeds, manga chapters, and other collection-style sources that fit gallery-dl better than Universal.",
+      "moreCount": "and many more",
+      "viewFullList": "View supported sites"
+    }
+  },
+  "urlInput": {
+    "single": "Single",
+    "singleHint": "Add one gallery URL",
+    "multiple": "Batch",
+    "multipleHint": "Add multiple URLs at once",
+    "paste": "Paste",
+    "import": "Import",
+    "detectedMultiple": "{{count}} URLs detected",
+    "placeholder": "Paste a gallery, post, or creator URL",
+    "placeholderMultiple": "One URL per line. Lines starting with # are ignored.",
+    "urlCount": "{{count}} URL",
+    "urlCount_plural": "{{count}} URLs",
+    "addToQueue": "Add to queue"
+  }
+}

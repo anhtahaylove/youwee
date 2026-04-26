@@ -144,6 +144,8 @@ pub fn run() {
             // Download commands
             commands::download_video,
             commands::stop_download,
+            commands::download_gallery,
+            commands::stop_gallery_download,
             // Video info commands
             commands::get_video_info,
             commands::get_playlist_entries,
@@ -172,6 +174,7 @@ pub fn run() {
             commands::check_deno,
             commands::check_deno_update,
             commands::download_deno,
+            commands::check_gallerydl,
             // Browser detection
             commands::detect_installed_browsers,
             commands::get_browser_profiles,
@@ -183,11 +186,15 @@ pub fn run() {
             // History commands
             commands::add_history,
             commands::get_history,
+            commands::get_history_entries_by_ids,
             commands::delete_history,
             commands::clear_history,
             commands::get_history_count,
             commands::open_file_location,
             commands::check_file_exists,
+            // Asset scope & history helpers
+            commands::allow_asset_file,
+            commands::sync_asset_scope_paths,
             commands::rename_downloaded_file,
             commands::sync_history_renamed_entry,
             commands::update_summary,

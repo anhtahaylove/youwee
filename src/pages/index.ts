@@ -1,5 +1,6 @@
 export { ChannelsPage } from './ChannelsPage';
 export { DownloadPage } from './DownloadPage';
+export { GalleryPage } from './GalleryPage';
 export { HistoryPage } from './HistoryPage';
 export { LogsPage } from './LogsPage';
 export { MetadataPage } from './MetadataPage';

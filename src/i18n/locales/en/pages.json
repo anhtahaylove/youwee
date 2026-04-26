@@ -281,5 +281,18 @@
         "other": "Other"
       }
     }
+  },
+  "player": {
+    "trackCount": "{{count}} tracks",
+    "oneTrack": "1 track",
+    "prev": "Previous",
+    "next": "Next",
+    "play": "Play",
+    "pause": "Pause",
+    "playbackSpeed": "Playback speed: {{rate}}x",
+    "modeSequence": "Play in order",
+    "modeRepeatOne": "Repeat current track",
+    "modeShuffle": "Shuffle",
+    "close": "Close player"
   }
 }

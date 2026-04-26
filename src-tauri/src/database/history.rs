@@ -3,6 +3,32 @@ use crate::types::{HistoryAdvancedFilters, HistoryEntry, HistoryMediaType, Histo
 use chrono::Utc;
 use rusqlite::{params, params_from_iter, types::Value};
 
+fn parse_history_row(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
+    let filepath: String = row.get(4)?;
+    let file_exists = std::path::Path::new(&filepath).exists();
+    let downloaded_at: i64 = row.get(10)?;
+    let dt = chrono::DateTime::from_timestamp(downloaded_at, 0)
+        .map(|d| d.to_rfc3339())
+        .unwrap_or_default();
+
+    Ok(HistoryEntry {
+        id: row.get(0)?,
+        url: row.get(1)?,
+        title: row.get(2)?,
+        thumbnail: row.get(3)?,
+        filepath,
+        filesize: row.get(5)?,
+        duration: row.get(6)?,
+        quality: row.get(7)?,
+        format: row.get(8)?,
+        source: row.get(9)?,
+        downloaded_at: dt,
+        file_exists,
+        summary: row.get(11)?,
+        time_range: row.get(12)?,
+    })
+}
+
 /// Add a history entry (internal use)
 pub fn add_history_internal(
     url: String,
@@ -301,34 +327,36 @@ pub fn get_history_from_db(
         .prepare(&query)
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
 
-    fn parse_row(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
-        let filepath: String = row.get(4)?;
-        let file_exists = std::path::Path::new(&filepath).exists();
-        let downloaded_at: i64 = row.get(10)?;
-        let dt = chrono::DateTime::from_timestamp(downloaded_at, 0)
-            .map(|d| d.to_rfc3339())
-            .unwrap_or_default();
+    let entries: Vec<HistoryEntry> = stmt
+        .query_map(params_from_iter(query_params.iter()), parse_history_row)
+        .map_err(|e| format!("Query failed: {}", e))?
+        .filter_map(|r| r.ok())
+        .collect();
 
-        Ok(HistoryEntry {
-            id: row.get(0)?,
-            url: row.get(1)?,
-            title: row.get(2)?,
-            thumbnail: row.get(3)?,
-            filepath,
-            filesize: row.get(5)?,
-            duration: row.get(6)?,
-            quality: row.get(7)?,
-            format: row.get(8)?,
-            source: row.get(9)?,
-            downloaded_at: dt,
-            file_exists,
-            summary: row.get(11)?,
-            time_range: row.get(12)?,
-        })
+    Ok(entries)
+}
+
+pub fn get_history_entries_by_ids_from_db(ids: Vec<String>) -> Result<Vec<HistoryEntry>, String> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
     }
 
+    let conn = get_db()?;
+    let placeholders = vec!["?"; ids.len()].join(", ");
+    let query = format!(
+        "SELECT id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, summary, time_range
+         FROM history
+         WHERE id IN ({})",
+        placeholders
+    );
+    let query_params: Vec<Value> = ids.into_iter().map(Value::from).collect();
+
+    let mut stmt = conn
+        .prepare(&query)
+        .map_err(|e| format!("Failed to prepare query: {}", e))?;
+
     let entries: Vec<HistoryEntry> = stmt
-        .query_map(params_from_iter(query_params.iter()), parse_row)
+        .query_map(params_from_iter(query_params.iter()), parse_history_row)
         .map_err(|e| format!("Query failed: {}", e))?
         .filter_map(|r| r.ok())
         .collect();

@@ -1,8 +1,10 @@
+import { revealItemInDir } from '@tauri-apps/plugin-opener';
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
+  FolderOpen,
   Globe,
   HardDrive,
   Lightbulb,
@@ -188,6 +190,16 @@ export function UniversalQueueItem({
     setRenameError(null);
     setShowRenameEditor(true);
   }, [item.title]);
+
+  const handleOpenCompletedFileLocation = useCallback(async () => {
+    if (!item.completedFilepath) return;
+
+    try {
+      await revealItemInDir(item.completedFilepath);
+    } catch (error) {
+      console.error('Failed to open completed file location:', error);
+    }
+  }, [item.completedFilepath]);
 
   const handleCancelRename = useCallback(() => {
     setShowRenameEditor(false);
@@ -539,6 +551,17 @@ export function UniversalQueueItem({
               >
                 <Sparkles className="w-3 h-3" />
                 {t('queue.summarize')}
+              </button>
+            )}
+
+            {isCompleted && item.completedFilepath && (
+              <button
+                type="button"
+                onClick={handleOpenCompletedFileLocation}
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-blue-500/30 text-blue-600 dark:text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/10 transition-colors font-medium"
+              >
+                <FolderOpen className="w-3 h-3" />
+                {t('queue.openFolder')}
               </button>
             )}
 

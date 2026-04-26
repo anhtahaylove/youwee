@@ -1,0 +1,62 @@
+{
+  "title": "图库",
+  "page": {
+    "systemManagedOnly": "仅支持系统管理"
+  },
+  "missing": {
+    "title": "需要 gallery-dl",
+    "checking": "正在检查系统 gallery-dl...",
+    "description": "请先在系统中安装 gallery-dl，才能下载图库、合集和创作者动态。",
+    "refresh": "刷新状态",
+    "openDependencies": "打开 Dependencies",
+    "installGuide": "安装指南"
+  },
+  "actions": {
+    "startDownload": "开始下载",
+    "stopDownload": "停止下载",
+    "clearAll": "清空全部"
+  },
+  "settings": {
+    "notSelected": "选择文件夹",
+    "selectFolder": "选择输出文件夹",
+    "systemManagedOnly": "仅支持系统管理",
+    "advanced": "高级",
+    "more": "更多",
+    "parallelDownloads": "并行下载",
+    "atATime": "每次 {{count}} 个",
+    "systemManagedHint": "这个页面只使用系统中的 gallery-dl 二进制。"
+  },
+  "queue": {
+    "title": "队列",
+    "pending": "{{count}} 个待处理",
+    "clearCompleted": "清除已完成（{{count}}）",
+    "openFolder": "打开文件夹",
+    "remove": "移除项目",
+    "status": {
+      "pending": "等待中",
+      "downloading": "下载中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "empty": {
+      "title": "拖入图库 URL 开始",
+      "description": "此页面适合图片图库、作者动态、漫画章节等比 Universal 更适合交给 gallery-dl 的合集型来源。",
+      "moreCount": "以及更多",
+      "viewFullList": "查看支持站点"
+    }
+  },
+  "urlInput": {
+    "single": "单个",
+    "singleHint": "添加一个图库 URL",
+    "multiple": "批量",
+    "multipleHint": "一次添加多个 URL",
+    "paste": "粘贴",
+    "import": "导入",
+    "detectedMultiple": "检测到 {{count}} 个 URL",
+    "placeholder": "粘贴图库、帖子或创作者 URL",
+    "placeholderMultiple": "每行一个 URL。以 # 开头的行会被忽略。",
+    "urlCount": "{{count}} 个 URL",
+    "urlCount_plural": "{{count}} 个 URL",
+    "addToQueue": "加入队列"
+  }
+}

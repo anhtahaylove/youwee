@@ -29,6 +29,7 @@ const NON_RETRYABLE_CODES = new Set([
   'VALIDATION_INVALID_URL',
   'VALIDATION_INVALID_INPUT',
   'ARIA2_NOT_FOUND',
+  'GALLERYDL_NOT_FOUND',
 ]);
 
 function asMessage(error: unknown): string {
@@ -78,6 +79,9 @@ export function inferBackendErrorCode(message: string): string {
   if (m.includes('app-managed yt-dlp not found')) return 'YTDLP_APP_NOT_FOUND';
   if (m.includes('system yt-dlp is managed externally')) return 'YTDLP_SYSTEM_MANAGED';
   if (m.includes('yt-dlp not found')) return 'YTDLP_NOT_FOUND';
+  if (m.includes('gallery-dl not found') || m.includes('system gallery-dl not found')) {
+    return 'GALLERYDL_NOT_FOUND';
+  }
   if (
     m.includes('aria2c not found') ||
     ((m.includes('aria2c') || m.includes('aria2')) &&

@@ -4,12 +4,13 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command;
 use tokio::io::AsyncWriteExt;
 use futures_util::StreamExt;
-use crate::types::{BackendError, DependencySource, YtdlpVersionInfo, FfmpegStatus, DenoStatus, YtdlpChannel, YtdlpAllVersions, YtdlpChannelUpdateInfo};
+use crate::types::{BackendError, DependencySource, YtdlpVersionInfo, FfmpegStatus, DenoStatus, GalleryDlStatus, YtdlpChannel, YtdlpAllVersions, YtdlpChannelUpdateInfo};
 use crate::services::{
     get_ytdlp_version_internal, get_ytdlp_download_info, verify_sha256,
     check_ffmpeg_internal, get_ffmpeg_download_info, parse_ffmpeg_version,
     get_ffmpeg_path, check_ffmpeg_update_internal, FfmpegUpdateInfo,
     check_deno_internal, get_deno_download_url, check_deno_update_internal, DenoUpdateInfo,
+    check_gallerydl_internal,
     get_ytdlp_channel, set_ytdlp_channel, get_all_ytdlp_versions, get_ytdlp_source, set_ytdlp_source,
     get_ytdlp_channel_download_url, get_channel_api_url, system_ytdlp_upgrade_message,
     get_ffmpeg_source, set_ffmpeg_source, system_ffmpeg_upgrade_message,
@@ -654,6 +655,11 @@ pub async fn get_ffmpeg_path_for_ytdlp(app: AppHandle) -> Result<Option<String>,
 #[tauri::command]
 pub async fn check_deno(app: AppHandle) -> Result<DenoStatus, String> {
     check_deno_internal(&app).await
+}
+
+#[tauri::command]
+pub async fn check_gallerydl(app: AppHandle) -> Result<GalleryDlStatus, String> {
+    check_gallerydl_internal(&app).await
 }
 
 #[tauri::command]

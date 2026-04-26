@@ -2,6 +2,7 @@ import { Loader2, Waves, Workflow } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSubtitle } from '@/contexts/SubtitleContext';
+import { toAssetUrl } from '@/lib/asset-access';
 import { cn } from '@/lib/utils';
 
 interface DragState {
@@ -30,7 +31,7 @@ function formatTimelineTick(ms: number): string {
 }
 
 async function decodeAudioDataFromPath(path: string) {
-  const src = (await import('@tauri-apps/api/core')).convertFileSrc(path);
+  const src = await toAssetUrl(path);
   const response = await fetch(src);
   const arrayBuffer = await response.arrayBuffer();
   const audioContext = new AudioContext();

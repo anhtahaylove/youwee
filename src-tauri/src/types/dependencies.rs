@@ -111,3 +111,12 @@ pub struct DenoStatus {
     pub binary_path: Option<String>,
     pub is_system: bool,
 }
+
+/// gallery-dl installation status
+#[derive(Clone, Serialize, Debug)]
+pub struct GalleryDlStatus {
+    pub installed: bool,
+    pub version: Option<String>,
+    pub binary_path: Option<String>,
+    pub is_system: bool,
+}

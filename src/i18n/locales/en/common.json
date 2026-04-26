@@ -2,6 +2,7 @@
   "sidebar": {
     "youtube": "YouTube",
     "universal": "Universal",
+    "gallery": "Gallery",
     "summary": "AI Summary",
     "processing": "Processing",
     "subtitles": "Subtitles",
@@ -68,6 +69,7 @@
     "YTDLP_SYSTEM_NOT_FOUND": "System yt-dlp not found. Install it via your package manager or switch to App managed.",
     "YTDLP_APP_NOT_FOUND": "App-managed yt-dlp not found. Install it from Settings > Dependencies.",
     "YTDLP_SYSTEM_MANAGED": "System yt-dlp is managed externally. Update it with your package manager or switch to App managed.",
+    "GALLERYDL_NOT_FOUND": "System gallery-dl not found. Install it with your package manager or pip, then retry.",
     "ARIA2_NOT_FOUND": "aria2c not found. Install aria2 and make sure aria2c is available in PATH.",
     "FFMPEG_NOT_FOUND": "FFmpeg not found. Check Dependencies settings.",
     "FFMPEG_SYSTEM_MANAGED": "System FFmpeg is managed externally. Update it with your package manager or switch to App managed.",

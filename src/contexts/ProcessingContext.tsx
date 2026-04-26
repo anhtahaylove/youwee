@@ -1,4 +1,4 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { toAssetUrl } from '@/lib/asset-access';
 import { localizeUnknownError } from '@/lib/backend-error';
 import type {
   ChatAttachment,
@@ -241,8 +242,8 @@ export function ProcessingProvider({ children }: { children: ReactNode }) {
 
   // Helper: load video source URL
   // Uses convertFileSrc (streaming via asset protocol) for standard codecs
-  const loadVideoSrc = useCallback((filePath: string): string => {
-    return convertFileSrc(filePath);
+  const loadVideoSrc = useCallback(async (filePath: string): Promise<string> => {
+    return toAssetUrl(filePath);
   }, []);
 
   const getDirectoryFromPath = useCallback((filePath: string): string => {
@@ -388,12 +389,12 @@ export function ProcessingProvider({ children }: { children: ReactNode }) {
 
               // Load audio preview via asset protocol (streaming, no RAM copy)
               if (audioPath) {
-                const audioSrcUrl = loadVideoSrc(audioPath);
+                const audioSrcUrl = await loadVideoSrc(audioPath);
                 setAudioSrc(audioSrcUrl);
               }
 
               // Load H.264 no-audio preview via asset protocol
-              const previewSrcUrl = loadVideoSrc(previewPath);
+              const previewSrcUrl = await loadVideoSrc(previewPath);
               setVideoSrc(previewSrcUrl);
               setIsUsingPreview(true);
               console.warn(
@@ -451,7 +452,7 @@ export function ProcessingProvider({ children }: { children: ReactNode }) {
           }
         } else {
           // Standard codec in supported container: stream directly via asset protocol
-          const videoSrcUrl = loadVideoSrc(path);
+          const videoSrcUrl = await loadVideoSrc(path);
           setVideoSrc(videoSrcUrl);
           console.warn(`[PROCESSING] Direct streaming: ${videoSrcUrl}`);
           addMessage('system', `${metadata.filename} loaded`);

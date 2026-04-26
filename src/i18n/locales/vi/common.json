@@ -2,6 +2,7 @@
   "sidebar": {
     "youtube": "YouTube",
     "universal": "Đa nền tảng",
+    "gallery": "Gallery",
     "summary": "Tóm tắt AI",
     "processing": "Xử lý video",
     "subtitles": "Phụ đề",
@@ -68,6 +69,7 @@
     "YTDLP_SYSTEM_NOT_FOUND": "Không tìm thấy yt-dlp hệ thống. Hãy cài đặt qua trình quản lý gói hoặc chuyển sang App managed.",
     "YTDLP_APP_NOT_FOUND": "Không tìm thấy yt-dlp do ứng dụng quản lý. Hãy cài đặt từ Cài đặt > Dependencies.",
     "YTDLP_SYSTEM_MANAGED": "yt-dlp hệ thống được quản lý bên ngoài. Hãy cập nhật qua trình quản lý gói hoặc chuyển sang App managed.",
+    "GALLERYDL_NOT_FOUND": "Không tìm thấy gallery-dl hệ thống. Hãy cài qua trình quản lý gói hoặc pip rồi thử lại.",
     "ARIA2_NOT_FOUND": "Không tìm thấy aria2c. Hãy cài aria2 và đảm bảo aria2c có trong PATH.",
     "FFMPEG_NOT_FOUND": "Không tìm thấy FFmpeg. Hãy kiểm tra phần Dependencies.",
     "FFMPEG_SYSTEM_MANAGED": "FFmpeg hệ thống được quản lý bên ngoài. Hãy cập nhật qua trình quản lý gói hoặc chuyển sang App managed.",

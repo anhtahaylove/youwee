@@ -99,6 +99,7 @@
       "retrying": "Retry {{current}}/{{total}} in {{seconds}}s"
     },
     "summarize": "Summarize",
+    "openFolder": "Show in folder",
     "rename": "Rename",
     "renamePlaceholder": "Enter new file name",
     "renameSave": "Save",

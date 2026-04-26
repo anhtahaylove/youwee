@@ -99,6 +99,7 @@
       "retrying": "{{seconds}}秒后重试 {{current}}/{{total}}"
     },
     "summarize": "摘要",
+    "openFolder": "打开所在文件夹",
     "rename": "重命名",
     "renamePlaceholder": "输入新文件名",
     "renameSave": "保存",

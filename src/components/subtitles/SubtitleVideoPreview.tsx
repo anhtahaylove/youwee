@@ -1,10 +1,11 @@
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { AlertTriangle, Eye, Loader2, Pause, Play, Video } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SubtitleWaveformTimeline } from '@/components/subtitles/SubtitleWaveformTimeline';
 import { useSubtitle } from '@/contexts/SubtitleContext';
+import { toAssetUrl } from '@/lib/asset-access';
 import { localizeUnknownError } from '@/lib/backend-error';
 import { formatTimeDisplay } from '@/lib/subtitle-parser';
 import type { VideoMetadata } from '@/lib/types';
@@ -25,7 +26,7 @@ export function SubtitleVideoPreview() {
   const animFrameRef = useRef<number>(0);
   const metadataRef = useRef<VideoMetadata | null>(null);
 
-  const loadVideoSrc = useCallback((filePath: string) => convertFileSrc(filePath), []);
+  const loadVideoSrc = useCallback(async (filePath: string) => toAssetUrl(filePath), []);
 
   const loadVideo = useCallback(
     async (path: string) => {
@@ -59,7 +60,7 @@ export function SubtitleVideoPreview() {
         const needsPreview = hasUnsupportedContainer || hasProblematicCodec;
 
         if (!needsPreview) {
-          setVideoSrc(loadVideoSrc(path));
+          setVideoSrc(await loadVideoSrc(path));
           return;
         }
 
@@ -76,12 +77,12 @@ export function SubtitleVideoPreview() {
               : Promise.resolve(null),
           ]);
 
-          setVideoSrc(loadVideoSrc(previewPath));
-          setAudioSrc(audioPath ? loadVideoSrc(audioPath) : null);
+          setVideoSrc(await loadVideoSrc(previewPath));
+          setAudioSrc(audioPath ? await loadVideoSrc(audioPath) : null);
           setIsUsingPreview(true);
         } catch (previewErr) {
           console.error('Failed to generate subtitle preview video:', previewErr);
-          setVideoSrc(loadVideoSrc(path));
+          setVideoSrc(await loadVideoSrc(path));
           setAudioSrc(null);
         } finally {
           setIsGeneratingPreview(false);

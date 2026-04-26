@@ -1,8 +1,10 @@
 mod logs;
 mod history;
+mod assets;
 mod video;
 mod download;
 mod dependencies;
+mod gallery;
 mod ai;
 mod processing;
 mod whisper;
@@ -12,9 +14,11 @@ mod external;
 
 pub use logs::*;
 pub use history::*;
+pub use assets::*;
 pub use video::*;
 pub use download::*;
 pub use dependencies::*;
+pub use gallery::*;
 pub use ai::*;
 pub use processing::*;
 pub use whisper::*;

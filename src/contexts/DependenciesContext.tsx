@@ -32,6 +32,13 @@ export interface DenoStatus {
   is_system: boolean;
 }
 
+export interface GalleryDlStatus {
+  installed: boolean;
+  version: string | null;
+  binary_path: string | null;
+  is_system: boolean;
+}
+
 export interface FfmpegUpdateInfo {
   has_update: boolean;
   current_version: string | null;
@@ -120,6 +127,12 @@ interface DependenciesContextType {
   checkDeno: () => Promise<DenoStatus | null>;
   checkDenoUpdate: () => Promise<void>;
   downloadDeno: () => Promise<void>;
+
+  // gallery-dl state/actions
+  galleryDlStatus: GalleryDlStatus | null;
+  galleryDlLoading: boolean;
+  galleryDlError: string | null;
+  checkGalleryDl: () => Promise<GalleryDlStatus | null>;
 }
 
 const DependenciesContext = createContext<DependenciesContextType | null>(null);
@@ -170,6 +183,9 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
   const [denoCheckingUpdate, setDenoCheckingUpdate] = useState(false);
   const [isAutoDownloadingDeno, setIsAutoDownloadingDeno] = useState(false);
   const [denoDownloadProgress, setDenoDownloadProgress] = useState<DownloadProgress | null>(null);
+  const [galleryDlStatus, setGalleryDlStatus] = useState<GalleryDlStatus | null>(null);
+  const [galleryDlLoading, setGalleryDlLoading] = useState(false);
+  const [galleryDlError, setGalleryDlError] = useState<string | null>(null);
 
   // Load yt-dlp version (only once on first mount)
   const refreshYtdlpVersion = useCallback(async () => {
@@ -428,6 +444,21 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     }
   }, [checkDeno]);
 
+  const checkGalleryDl = useCallback(async () => {
+    setGalleryDlLoading(true);
+    setGalleryDlError(null);
+    try {
+      const status = await invoke<GalleryDlStatus>('check_gallerydl');
+      setGalleryDlStatus(status);
+      return status;
+    } catch (err) {
+      setGalleryDlError(localizeUnknownError(err));
+      return null;
+    } finally {
+      setGalleryDlLoading(false);
+    }
+  }, []);
+
   // Initialize on first mount - auto download Deno and yt-dlp stable if not installed
   useEffect(() => {
     if (!initialized) {
@@ -505,6 +536,10 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
           }
         }
       });
+
+      checkGalleryDl().catch(() => {
+        // gallery-dl is system-managed only, so failure here is non-fatal
+      });
     }
   }, [
     initialized,
@@ -513,6 +548,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     checkFfmpeg,
     checkFfmpegUpdate,
     checkDeno,
+    checkGalleryDl,
   ]);
 
   // Listen to download progress events
@@ -637,6 +673,10 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
         checkDeno,
         checkDenoUpdate,
         downloadDeno,
+        galleryDlStatus,
+        galleryDlLoading,
+        galleryDlError,
+        checkGalleryDl,
       }}
     >
       {children}

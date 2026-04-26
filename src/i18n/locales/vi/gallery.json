@@ -1,0 +1,62 @@
+{
+  "title": "Gallery",
+  "page": {
+    "systemManagedOnly": "Chỉ hỗ trợ hệ thống quản lý"
+  },
+  "missing": {
+    "title": "Cần có gallery-dl",
+    "checking": "Đang kiểm tra gallery-dl hệ thống...",
+    "description": "Hãy cài gallery-dl trên hệ thống để tải gallery, bộ sưu tập và feed của creator.",
+    "refresh": "Làm mới trạng thái",
+    "openDependencies": "Mở Dependencies",
+    "installGuide": "Hướng dẫn cài đặt"
+  },
+  "actions": {
+    "startDownload": "Bắt đầu tải",
+    "stopDownload": "Dừng tải",
+    "clearAll": "Xóa tất cả"
+  },
+  "settings": {
+    "notSelected": "Chọn thư mục",
+    "selectFolder": "Chọn thư mục lưu",
+    "systemManagedOnly": "Chỉ hỗ trợ hệ thống quản lý",
+    "advanced": "Nâng cao",
+    "more": "Thêm",
+    "parallelDownloads": "Tải song song",
+    "atATime": "{{count}} mục mỗi lượt",
+    "systemManagedHint": "Màn hình này chỉ dùng binary gallery-dl của hệ thống."
+  },
+  "queue": {
+    "title": "Hàng đợi",
+    "pending": "{{count}} đang chờ",
+    "clearCompleted": "Xóa mục hoàn tất ({{count}})",
+    "openFolder": "Mở thư mục",
+    "remove": "Xóa mục",
+    "status": {
+      "pending": "Đang chờ",
+      "downloading": "Đang tải",
+      "completed": "Hoàn tất",
+      "failed": "Thất bại"
+    },
+    "empty": {
+      "title": "Thả URL gallery để bắt đầu",
+      "description": "Dùng màn hình này cho gallery ảnh, feed tác giả, chapter manga và các nguồn dạng bộ sưu tập phù hợp với gallery-dl hơn Universal.",
+      "moreCount": "và nhiều nguồn khác",
+      "viewFullList": "Xem danh sách hỗ trợ"
+    }
+  },
+  "urlInput": {
+    "single": "Một URL",
+    "singleHint": "Thêm một URL gallery",
+    "multiple": "Hàng loạt",
+    "multipleHint": "Thêm nhiều URL cùng lúc",
+    "paste": "Dán",
+    "import": "Nhập file",
+    "detectedMultiple": "Phát hiện {{count}} URL",
+    "placeholder": "Dán URL gallery, bài post hoặc creator",
+    "placeholderMultiple": "Mỗi dòng một URL. Dòng bắt đầu bằng # sẽ bị bỏ qua.",
+    "urlCount": "{{count}} URL",
+    "urlCount_plural": "{{count}} URL",
+    "addToQueue": "Thêm vào hàng đợi"
+  }
+}

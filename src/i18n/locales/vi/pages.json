@@ -281,5 +281,18 @@
         "other": "Khác"
       }
     }
+  },
+  "player": {
+    "trackCount": "{{count}} bài",
+    "oneTrack": "1 bài",
+    "prev": "Bài trước",
+    "next": "Bài tiếp",
+    "play": "Phát",
+    "pause": "Tạm dừng",
+    "playbackSpeed": "Tốc độ phát: {{rate}}x",
+    "modeSequence": "Phát lần lượt",
+    "modeRepeatOne": "Lặp lại một bài",
+    "modeShuffle": "Phát ngẫu nhiên",
+    "close": "Đóng trình phát"
   }
 }

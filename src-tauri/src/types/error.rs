@@ -31,6 +31,7 @@ pub mod code {
     pub const YTDLP_SYSTEM_NOT_FOUND: &str = "YTDLP_SYSTEM_NOT_FOUND";
     pub const YTDLP_APP_NOT_FOUND: &str = "YTDLP_APP_NOT_FOUND";
     pub const YTDLP_SYSTEM_MANAGED: &str = "YTDLP_SYSTEM_MANAGED";
+    pub const GALLERYDL_NOT_FOUND: &str = "GALLERYDL_NOT_FOUND";
     pub const ARIA2_NOT_FOUND: &str = "ARIA2_NOT_FOUND";
     pub const FFMPEG_NOT_FOUND: &str = "FFMPEG_NOT_FOUND";
     pub const FFMPEG_SYSTEM_MANAGED: &str = "FFMPEG_SYSTEM_MANAGED";
@@ -203,6 +204,9 @@ pub fn infer_error_code(message: &str) -> &'static str {
     }
     if m.contains("yt-dlp not found") {
         return code::YTDLP_NOT_FOUND;
+    }
+    if m.contains("gallery-dl not found") || m.contains("system gallery-dl not found") {
+        return code::GALLERYDL_NOT_FOUND;
     }
     if m.contains("aria2c not found")
         || (m.contains("aria2c") || m.contains("aria2"))

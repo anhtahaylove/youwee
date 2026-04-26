@@ -99,6 +99,7 @@
       "retrying": "Thử lại {{current}}/{{total}} sau {{seconds}}s"
     },
     "summarize": "Tóm tắt",
+    "openFolder": "Mở vị trí file",
     "rename": "Đổi tên",
     "renamePlaceholder": "Nhập tên file mới",
     "renameSave": "Lưu",

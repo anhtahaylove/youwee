@@ -1,3 +1,7 @@
+export { GalleryQueueItem } from './GalleryQueueItem';
+export { GalleryQueueList } from './GalleryQueueList';
+export { GallerySettingsPanel } from './GallerySettingsPanel';
+export { GalleryUrlInput } from './GalleryUrlInput';
 export { QueueItem } from './QueueItem';
 export { QueueList } from './QueueList';
 export { SchedulePopover } from './SchedulePopover';

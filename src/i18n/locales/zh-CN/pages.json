@@ -281,5 +281,18 @@
         "other": "其他"
       }
     }
+  },
+  "player": {
+    "trackCount": "{{count}} 首音频",
+    "oneTrack": "1 首音频",
+    "prev": "上一首",
+    "next": "下一首",
+    "play": "播放",
+    "pause": "暂停",
+    "playbackSpeed": "播放速度：{{rate}}x",
+    "modeSequence": "顺序播放",
+    "modeRepeatOne": "单曲循环",
+    "modeShuffle": "随机播放",
+    "close": "关闭播放器"
   }
 }

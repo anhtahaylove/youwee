@@ -2,8 +2,9 @@ use std::path::{Path, PathBuf};
 
 use crate::database::{
     add_history_internal, add_history_with_summary, clear_history_from_db, delete_history_from_db,
-    get_history_count_from_db, get_history_from_db, update_history_filepath_and_title,
-    update_history_filepath_and_title_by_id, update_history_summary,
+    get_history_count_from_db, get_history_entries_by_ids_from_db, get_history_from_db,
+    update_history_filepath_and_title, update_history_filepath_and_title_by_id,
+    update_history_summary,
 };
 use crate::types::{HistoryAdvancedFilters, HistoryEntry, HistorySort};
 
@@ -52,6 +53,11 @@ pub fn get_history(
     sort: Option<HistorySort>,
 ) -> Result<Vec<HistoryEntry>, String> {
     get_history_from_db(limit, offset, source, search, filters, sort)
+}
+
+#[tauri::command]
+pub fn get_history_entries_by_ids(ids: Vec<String>) -> Result<Vec<HistoryEntry>, String> {
+    get_history_entries_by_ids_from_db(ids)
 }
 
 #[tauri::command]
@@ -272,7 +278,9 @@ mod tests {
     use crate::database::{get_db, DB_CONNECTION};
     use rusqlite::params;
     use std::fs;
-    use std::sync::Mutex;
+    use std::sync::{Mutex, OnceLock};
+
+    static HISTORY_TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
     fn make_temp_file(name: &str) -> PathBuf {
         let dir =
@@ -353,8 +361,16 @@ mod tests {
             .expect("clear history table");
     }
 
+    fn history_test_guard() -> std::sync::MutexGuard<'static, ()> {
+        HISTORY_TEST_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("lock history test mutex")
+    }
+
     #[test]
     fn rename_downloaded_file_updates_history_by_id() {
+        let _guard = history_test_guard();
         ensure_test_history_table();
         let old = make_temp_file("video.mp4");
         let old_path = old.to_string_lossy().to_string();
@@ -400,6 +416,7 @@ mod tests {
 
     #[test]
     fn rename_downloaded_file_updates_history_by_filepath_fallback() {
+        let _guard = history_test_guard();
         ensure_test_history_table();
         let old = make_temp_file("movie.mkv");
         let old_path = old.to_string_lossy().to_string();
