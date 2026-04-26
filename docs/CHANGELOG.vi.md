@@ -13,6 +13,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Thay đổi
 
 ### Sửa lỗi
+- **Hậu xử lý WebM 4K** - Sửa lỗi tải WebM có thể chọn nhầm stream tương thích MP4/H.264 khiến FFmpeg thất bại ở bước post-processing conversion
 
 ## [0.13.0] - 2026-04-15
 

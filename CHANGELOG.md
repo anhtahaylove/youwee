@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **4K WebM post-processing** - Fixed WebM downloads selecting MP4/H.264-compatible streams that could make FFmpeg fail during post-processing conversion
 
 ## [0.13.0] - 2026-04-15
 
