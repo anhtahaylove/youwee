@@ -391,6 +391,7 @@ export interface AIConfig {
 // Available languages (shared between transcript extraction and summary output)
 export const LANGUAGE_OPTIONS = [
   { code: 'en', name: 'English' },
+  { code: 'ar', name: 'Arabic' },
   { code: 'vi', name: 'Vietnamese' },
   { code: 'ja', name: 'Japanese' },
   { code: 'ko', name: 'Korean' },

@@ -1,0 +1,62 @@
+{
+  "title": "المعرض",
+  "page": {
+    "systemManagedOnly": "مدار عبر النظام فقط"
+  },
+  "missing": {
+    "title": "gallery-dl مطلوب",
+    "checking": "جارٍ التحقق من gallery-dl الخاص بالنظام...",
+    "description": "ثبّت gallery-dl على نظامك لتنزيل المعارض والمجموعات وتغذيات المنشئين.",
+    "refresh": "تحديث الحالة",
+    "openDependencies": "فتح Dependencies",
+    "installGuide": "دليل التثبيت"
+  },
+  "actions": {
+    "startDownload": "بدء التنزيل",
+    "stopDownload": "إيقاف التنزيل",
+    "clearAll": "مسح الكل"
+  },
+  "settings": {
+    "notSelected": "اختر مجلدًا",
+    "selectFolder": "اختر مجلد الإخراج",
+    "systemManagedOnly": "مدار عبر النظام فقط",
+    "advanced": "متقدم",
+    "more": "المزيد",
+    "parallelDownloads": "التنزيلات المتوازية",
+    "atATime": "{{count}} في المرة",
+    "systemManagedHint": "تستخدم Youwee في هذه الشاشة فقط binary النظام لـ gallery-dl."
+  },
+  "queue": {
+    "title": "الطابور",
+    "pending": "{{count}} بانتظار التنفيذ",
+    "clearCompleted": "مسح المكتمل ({{count}})",
+    "openFolder": "فتح المجلد",
+    "remove": "إزالة العنصر",
+    "status": {
+      "pending": "قيد الانتظار",
+      "downloading": "جارٍ التنزيل",
+      "completed": "مكتمل",
+      "failed": "فشل"
+    },
+    "empty": {
+      "title": "أفلت رابط معرض للبدء",
+      "description": "استخدم هذه الشاشة لمعارض الصور وتغذيات الفنانين وفصول المانغا وغيرها من المصادر المناسبة لـ gallery-dl أكثر من Universal.",
+      "moreCount": "والمزيد كثيرًا",
+      "viewFullList": "عرض المواقع المدعومة"
+    }
+  },
+  "urlInput": {
+    "single": "واحد",
+    "singleHint": "أضف رابط معرض واحد",
+    "multiple": "دفعة",
+    "multipleHint": "أضف عدة روابط دفعة واحدة",
+    "paste": "لصق",
+    "import": "استيراد",
+    "detectedMultiple": "تم اكتشاف {{count}} رابطًا",
+    "placeholder": "الصق رابط معرض أو منشور أو منشئ",
+    "placeholderMultiple": "رابط واحد في كل سطر. سيتم تجاهل الأسطر التي تبدأ بـ #.",
+    "urlCount": "{{count}} رابط",
+    "urlCount_plural": "{{count}} روابط",
+    "addToQueue": "أضف إلى الطابور"
+  }
+}

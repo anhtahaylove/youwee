@@ -88,6 +88,7 @@ const subtitleFormatOptions: { value: SubtitleFormat; label: string }[] = [
 
 const commonLanguageCodes = [
   'en',
+  'ar',
   'vi',
   'ja',
   'ko',

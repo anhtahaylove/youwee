@@ -54,7 +54,17 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     id: 'language',
     labelKey: 'common:language.label',
     descriptionKey: 'common:language.select',
-    keywords: ['language', 'english', 'vietnamese', 'french', 'francais', 'thai', 'locale', 'i18n'],
+    keywords: [
+      'language',
+      'english',
+      'arabic',
+      'vietnamese',
+      'french',
+      'francais',
+      'thai',
+      'locale',
+      'i18n',
+    ],
     section: 'general',
   },
   {

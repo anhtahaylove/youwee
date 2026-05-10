@@ -24,6 +24,7 @@ interface WhisperGenerateDialogProps {
 const WHISPER_LANGUAGE_OPTIONS = [
   { value: 'auto', label: 'whisper.autoDetect' },
   { value: 'en', label: 'English' },
+  { value: 'ar', label: 'Arabic' },
   { value: 'vi', label: 'Vietnamese' },
   { value: 'ja', label: 'Japanese' },
   { value: 'ko', label: 'Korean' },

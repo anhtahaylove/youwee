@@ -11,6 +11,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Nhà cung cấp AI LM Studio** - Thêm LM Studio làm nhà cung cấp AI nội bộ tương thích OpenAI, có endpoint local tùy chỉnh và không yêu cầu khóa API
 - **Phân trang video kênh với Tải thêm** - Trang Kênh giờ tải mặc định 100 video đầu tiên và cho phép tải thêm theo từng đợt trong cả màn hình duyệt và màn hình chi tiết
 - **Hỗ trợ tiếng Thái** - Bổ sung bản địa hóa đầy đủ tiếng Thái cho toàn bộ ứng dụng, bao gồm màn hình giao diện, cài đặt, công cụ phụ đề, luồng tải xuống và bộ chọn ngôn ngữ
+- **Hỗ trợ tiếng Ả Rập** - Bổ sung bản địa hóa đầy đủ tiếng Ả Rập cho toàn bộ ứng dụng, bao gồm màn hình giao diện, cài đặt, công cụ phụ đề, luồng tải xuống, đồng thời thêm xử lý hướng chữ RTL
 
 ### Thay đổi
 
