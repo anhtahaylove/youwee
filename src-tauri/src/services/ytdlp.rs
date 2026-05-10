@@ -440,6 +440,52 @@ pub fn parse_ytdlp_error(stderr: &str) -> Option<BackendError> {
         );
     }
 
+    // Windows Chromium App-Bound Encryption / DPAPI cookie decryption failures
+    if stderr_lower.contains("app-bound encryption")
+        || stderr_lower.contains("app.bound.encryption")
+        || stderr_lower.contains("failed to decrypt")
+            && (stderr_lower.contains("dpapi") || stderr_lower.contains("cookie"))
+        || stderr_lower.contains("could not decrypt")
+            && (stderr_lower.contains("dpapi") || stderr_lower.contains("cookie"))
+    {
+        return Some(
+            BackendError::from_message(
+                "Browser cookie decryption failed on Windows. Chrome/Edge may be blocking cookie access. Please close the browser completely, use Firefox browser-cookie mode, or switch to Cookie File mode in Settings → Network."
+            ),
+        );
+    }
+
+    // Browser-cookie extraction failures
+    if stderr_lower.contains("cookies from browser")
+        && (stderr_lower.contains("failed")
+            || stderr_lower.contains("unsupported")
+            || stderr_lower.contains("cannot")
+            || stderr_lower.contains("could not"))
+    {
+        return Some(
+            BackendError::from_message(
+                "Failed to read cookies from the selected browser profile. Please verify the browser/profile selection, close the browser completely, or switch to Cookie File mode in Settings → Network."
+            ),
+        );
+    }
+
+    // Cookie file path / format issues
+    if stderr_lower.contains("cookie")
+        && stderr_lower.contains("file")
+        && (stderr_lower.contains("no such file")
+            || stderr_lower.contains("not found")
+            || stderr_lower.contains("cannot open")
+            || stderr_lower.contains("permission denied")
+            || stderr_lower.contains("invalid")
+            || stderr_lower.contains("malformed"))
+    {
+        return Some(
+            BackendError::from_message(
+                "Cookie File mode is enabled, but the cookie file could not be read. Please verify that the file exists, is accessible, and is in Netscape cookies.txt format."
+            ),
+        );
+    }
+
     // Douyin / TikTok fresh cookies requirement
     if stderr_lower.contains("fresh cookies")
         || (stderr_lower.contains("douyin") && stderr_lower.contains("cookies") && stderr_lower.contains("needed"))

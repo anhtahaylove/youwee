@@ -236,6 +236,10 @@ export function VideoPreview({ url, onClose, onFormatSelect, className }: VideoP
   }
 
   if (error) {
+    const errorTitle =
+      error.length <= 120 && !error.includes('\n') ? error : 'Failed to fetch video info';
+    const errorDetails = errorTitle === error ? null : error;
+
     return (
       <div
         className={cn('rounded-xl border bg-destructive/5 border-destructive/20 p-4', className)}
@@ -243,8 +247,8 @@ export function VideoPreview({ url, onClose, onFormatSelect, className }: VideoP
         <div className="flex items-start gap-3 text-destructive">
           <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium">Failed to fetch video info</p>
-            <p className="text-xs mt-1 opacity-80">{error}</p>
+            <p className="text-sm font-medium">{errorTitle}</p>
+            {errorDetails && <p className="text-xs mt-1 opacity-80">{errorDetails}</p>}
           </div>
           {onClose && (
             <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={onClose}>

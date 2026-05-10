@@ -3,7 +3,7 @@ use tauri::AppHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
 use crate::types::{BackendError, VideoInfo, FormatOption, VideoInfoResponse, PlaylistVideoEntry, SubtitleInfo};
-use crate::services::{parse_ytdlp_error, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr_and_cookies, run_ytdlp_with_stderr, build_cookie_args, get_deno_path};
+use crate::services::{parse_ytdlp_error, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr_and_cookies, run_ytdlp_with_stderr, build_cookie_args, build_proxy_args, get_deno_path};
 use crate::utils::{normalize_url, validate_url};
 use crate::database::add_log_internal;
 
@@ -601,21 +601,49 @@ pub async fn get_video_info(
     
     args.push("--".to_string());
     args.push(url.clone());
-    
-    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    
-    let json_output = run_ytdlp_json_with_cookies(
-        &app,
-        &args_ref,
+
+    let mut extra_args = build_cookie_args(
         cookie_mode.as_deref(),
         cookie_browser.as_deref(),
         cookie_browser_profile.as_deref(),
         cookie_file_path.as_deref(),
-        proxy_url.as_deref(),
-    ).await?;
-    
+    );
+    extra_args.extend(build_proxy_args(proxy_url.as_deref()));
+
+    if let Some(separator_index) = args.iter().position(|arg| arg == "--") {
+        args.splice(separator_index..separator_index, extra_args);
+    }
+
+    let command_str = format!("yt-dlp {}", args.join(" "));
+    add_log_internal("command", &command_str, None, Some(&url)).ok();
+
+    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+    let output = run_ytdlp_with_stderr(&app, &args_ref).await?;
+
+    if !output.stderr.trim().is_empty() {
+        add_log_internal("stderr", output.stderr.trim(), None, Some(&url)).ok();
+    }
+
+    if !output.success {
+        let parsed_error = parse_ytdlp_error(&output.stderr).unwrap_or_else(|| {
+            let stderr = output.stderr.trim();
+            if stderr.is_empty() {
+                BackendError::from_message("Failed to fetch video info.")
+            } else {
+                BackendError::from_message(format!("Failed to fetch video info: {}", stderr))
+            }
+        });
+        add_log_internal("error", parsed_error.message(), None, Some(&url)).ok();
+        return Err(parsed_error.to_wire_string());
+    }
+
+    let json_output = output.stdout;
     let json: serde_json::Value = serde_json::from_str(&json_output)
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+        .map_err(|e| {
+            let message = format!("Failed to parse video info JSON: {}", e);
+            add_log_internal("error", &message, None, Some(&url)).ok();
+            BackendError::from_message(message).to_wire_string()
+        })?;
     
     let is_playlist = json.get("_type").and_then(|v| v.as_str()) == Some("playlist");
     let playlist_count = if is_playlist {
@@ -675,6 +703,8 @@ pub async fn get_video_info(
         Vec::new()
     };
     
+    add_log_internal("info", &format!("Fetched video info - title: '{}'", info.title), None, Some(&url)).ok();
+
     Ok(VideoInfoResponse { info, formats })
 }
 
