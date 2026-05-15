@@ -10,8 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- **Gallery URL input alignment** - Updated the Gallery input to match the YouTube single/multiple flow more closely, including the Add button style, batch layout, URL hints, and language copy across locales
 
 ### Fixed
+- **Arch Linux startup crash with GBM EGL display** - Added a Linux WebKitGTK fallback that disables the GBM renderer by default to avoid startup aborts on some Arch-based systems
 
 ## [0.13.3] - 2026-05-14
 

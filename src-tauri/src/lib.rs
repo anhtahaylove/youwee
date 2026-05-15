@@ -30,6 +30,15 @@ static TRAY_LANG: Mutex<String> = Mutex::new(String::new());
 /// Schedule status text for tray menu (empty = no schedule active)
 static TRAY_SCHEDULE_STATUS: Mutex<String> = Mutex::new(String::new());
 
+#[cfg(target_os = "linux")]
+fn configure_linux_webkit_env() {
+    // Work around WebKitGTK/GBM crashes seen on some Arch-based systems.
+    // Let advanced users override this manually if they want to re-enable GBM.
+    if std::env::var_os("WEBKIT_DMABUF_RENDERER_DISABLE_GBM").is_none() {
+        std::env::set_var("WEBKIT_DMABUF_RENDERER_DISABLE_GBM", "1");
+    }
+}
+
 /// Show the main window and restore dock icon if needed
 fn show_main_window(app_handle: &tauri::AppHandle) {
     if let Some(window) = app_handle.get_webview_window("main") {
@@ -70,6 +79,9 @@ fn update_tray_schedule(app: tauri::AppHandle, status: String) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    configure_linux_webkit_env();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let links = commands::extract_external_links_from_argv(&argv);

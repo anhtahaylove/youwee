@@ -10,8 +10,10 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Thêm mới
 
 ### Thay đổi
+- **Đồng bộ ô nhập URL của Gallery** - Cập nhật ô nhập Gallery để bám sát hơn luồng single/multiple của YouTube, gồm style nút Add, layout batch, hint URL và wording đa ngôn ngữ
 
 ### Sửa lỗi
+- **Crash khởi động trên Arch Linux với GBM EGL display** - Thêm fallback cho WebKitGTK trên Linux, mặc định tắt GBM renderer để tránh app bị abort khi khởi động trên một số hệ Arch-based
 
 ## [0.13.3] - 2026-05-14
 

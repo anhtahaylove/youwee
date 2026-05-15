@@ -10,8 +10,10 @@ Youwee 的所有重要更改都将记录在此文件中。
 ### 新增
 
 ### 变更
+- **Gallery URL 输入与 YouTube 对齐** - 更新 Gallery 输入区域，使其更接近 YouTube 的 single/multiple 流程，包括 Add 按钮样式、批量布局、URL 提示以及多语言文案
 
 ### 修复
+- **Arch Linux 启动时的 GBM EGL display 崩溃** - 为 Linux 上的 WebKitGTK 添加后备处理，默认禁用 GBM renderer，以避免部分 Arch 系发行版在启动时直接中止
 
 ## [0.13.3] - 2026-05-14
 
