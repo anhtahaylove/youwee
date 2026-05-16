@@ -140,6 +140,40 @@ pub fn get_logs_from_db(
     Ok(logs)
 }
 
+pub fn get_plugin_logs_from_db(plugin_id: String, limit: Option<i64>) -> Result<Vec<LogEntry>, String> {
+    let conn = get_db()?;
+    let limit = limit.unwrap_or(100).min(500);
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, timestamp, log_type, message, details, url
+             FROM logs
+             WHERE details LIKE ?1 OR details LIKE ?2
+             ORDER BY created_at DESC
+             LIMIT ?3",
+        )
+        .map_err(|e| format!("Failed to prepare plugin log query: {}", e))?;
+
+    let legacy_pattern = format!("%Plugin ID: {}%", plugin_id);
+    let runtime_pattern = format!("%pluginId: {}%", plugin_id);
+
+    let logs = stmt
+        .query_map(params![legacy_pattern, runtime_pattern, limit], |row| {
+            Ok(LogEntry {
+                id: row.get(0)?,
+                timestamp: row.get(1)?,
+                log_type: row.get(2)?,
+                message: row.get(3)?,
+                details: row.get(4)?,
+                url: row.get(5)?,
+            })
+        })
+        .map_err(|e| format!("Plugin log query failed: {}", e))?
+        .filter_map(|row| row.ok())
+        .collect();
+
+    Ok(logs)
+}
+
 /// Clear all logs
 pub fn clear_logs_from_db() -> Result<(), String> {
     let conn = get_db()?;

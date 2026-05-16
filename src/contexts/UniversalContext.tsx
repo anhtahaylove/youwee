@@ -25,6 +25,10 @@ import {
   isRetryableError,
   waitWithCancellation,
 } from '@/lib/download-retry';
+import {
+  loadEnabledPostDownloadPlugins,
+  refreshEnabledPostDownloadPlugins,
+} from '@/lib/post-download-plugins';
 import { parseUniversalUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
@@ -319,6 +323,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   useEffect(() => {
+    refreshEnabledPostDownloadPlugins();
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (focusClearTimerRef.current !== null) {
         window.clearTimeout(focusClearTimerRef.current);
@@ -495,6 +503,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         audioBitrate: currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
+        postDownloadPlugins: loadEnabledPostDownloadPlugins(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
         autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
@@ -563,6 +572,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
+        postDownloadPlugins: loadEnabledPostDownloadPlugins(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
         autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
@@ -815,6 +825,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             thumbnail: item.thumbnail || null,
             // Source/extractor from video info fetch (e.g. "BiliBili", "TikTok")
             source: item.extractor || null,
+            postDownloadPlugins:
+              itemSettings?.postDownloadPlugins ?? loadEnabledPostDownloadPlugins(),
+            downloadKind: 'universal',
           });
 
           setItems((items) =>

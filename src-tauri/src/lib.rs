@@ -192,6 +192,7 @@ pub fn run() {
             commands::get_browser_profiles,
             // Log commands
             commands::get_logs,
+            commands::get_plugin_logs,
             commands::add_log,
             commands::clear_logs,
             commands::export_logs,
@@ -258,6 +259,23 @@ pub fn run() {
             commands::generate_subtitles_with_whisper,
             // Metadata commands
             commands::fetch_metadata,
+            // Plugin commands
+            commands::list_plugins,
+            commands::get_plugin_details,
+            commands::inspect_plugin_folder,
+            commands::inspect_plugin_zip,
+            commands::inspect_plugin_url,
+            commands::install_plugin,
+            commands::create_plugin_scaffold,
+            commands::update_plugin_state,
+            commands::approve_plugin_permissions,
+            commands::update_plugin_env_values,
+            commands::set_plugin_trust,
+            commands::set_plugin_provider,
+            commands::open_plugin_directory,
+            commands::list_runtime_providers,
+            commands::get_runtime_provider_status,
+            commands::set_default_provider_for_language,
             commands::cancel_metadata_fetch,
             // Channel commands
             commands::get_channel_videos,

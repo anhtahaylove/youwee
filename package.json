@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:sdk": "tsc -p tsconfig.sdk.json",
     "lint": "biome check .",
     "preview": "vite preview",
     "tauri": "tauri",

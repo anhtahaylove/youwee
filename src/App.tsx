@@ -1,6 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification';
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DenoDialog } from '@/components/DenoDialog';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -31,6 +37,12 @@ import {
   resolveExternalRouteTarget,
 } from '@/lib/external-link';
 import {
+  appendPluginToastOutput,
+  type PluginToastState,
+  upsertPluginToast,
+} from '@/lib/plugin-toast';
+import type { PluginExecutionOutputEvent, PluginExecutionStatusEvent } from '@/lib/types';
+import {
   ChannelsPage,
   DownloadPage,
   GalleryPage,
@@ -43,6 +55,21 @@ import {
   SummaryPage,
   UniversalPage,
 } from '@/pages';
+
+async function notify(title: string, body: string) {
+  try {
+    let granted = await isPermissionGranted();
+    if (!granted) {
+      const permission = await requestPermission();
+      granted = permission === 'granted';
+    }
+    if (granted) {
+      sendNotification({ title, body });
+    }
+  } catch {
+    // best effort only
+  }
+}
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<Page>('youtube');
@@ -61,6 +88,95 @@ function AppContent() {
   const externalStartLockRef = useRef({ youtube: false, universal: false });
   const externalRequestRateRef = useRef<number[]>([]);
   const externalApprovalCacheRef = useRef<Map<string, number>>(new Map());
+  const pluginNotificationRef = useRef<Map<string, { status: string; at: number }>>(new Map());
+  const activePluginRunRef = useRef<Map<string, string>>(new Map());
+  const toastTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const pluginRuntimeNameRef = useRef(new Map<string, string>());
+  const [pluginToasts, setPluginToasts] = useState<PluginToastState[]>([]);
+
+  const appendOutputToToast = useCallback(
+    (
+      pluginId: string,
+      pluginName: string | undefined,
+      runId: string | undefined,
+      chunk: string,
+    ) => {
+      const activeRunId = runId ?? activePluginRunRef.current.get(pluginId) ?? 'unknown';
+      setPluginToasts((current) =>
+        appendPluginToastOutput(current, {
+          pluginId,
+          pluginName: pluginName ?? pluginRuntimeNameRef.current.get(pluginId),
+          runId: activeRunId,
+          chunk,
+        }),
+      );
+    },
+    [],
+  );
+
+  const removeToast = useCallback((id: string) => {
+    setPluginToasts((current) => current.filter((item) => item.id !== id));
+    const timeout = toastTimeoutRef.current.get(id);
+    if (timeout) {
+      clearTimeout(timeout);
+      toastTimeoutRef.current.delete(id);
+    }
+  }, []);
+
+  const pushPluginToast = useCallback(
+    (
+      pluginId: string,
+      status: string,
+      runId: string | undefined,
+      pluginName?: string,
+      message?: string,
+      durationMs?: number,
+    ) => {
+      const normalizedRunId = runId ?? 'unknown';
+      if (status === 'running') {
+        activePluginRunRef.current.set(pluginId, normalizedRunId);
+      }
+      const toastId = `${pluginId}-${status}-${Date.now()}`;
+      const resolvedMessage =
+        message ||
+        (status === 'running'
+          ? `Plugin ${pluginName ?? pluginId} is running`
+          : status === 'error'
+            ? `Plugin ${pluginName ?? pluginId} failed`
+            : `Plugin ${pluginName ?? pluginId} finished`);
+
+      setPluginToasts((current) =>
+        upsertPluginToast(current, {
+          toastId,
+          pluginId,
+          runId: normalizedRunId,
+          pluginName,
+          status,
+          message: resolvedMessage,
+        }),
+      );
+
+      if (durationMs === 0) {
+        return;
+      }
+      const timeout = setTimeout(
+        () => {
+          removeToast(toastId);
+        },
+        durationMs ?? (status === 'running' ? 15000 : 7000),
+      );
+      toastTimeoutRef.current.set(toastId, timeout);
+    },
+    [removeToast],
+  );
+
+  const clearPluginToasts = useCallback(() => {
+    for (const timeout of toastTimeoutRef.current.values()) {
+      clearTimeout(timeout);
+    }
+    toastTimeoutRef.current.clear();
+    setPluginToasts([]);
+  }, []);
 
   // Show FFmpeg dialog on startup if not installed
   useEffect(() => {
@@ -148,6 +264,103 @@ function AppContent() {
       unlisten.then((fn) => fn());
     };
   }, []);
+
+  // Show desktop notifications when plugins start / finish / fail
+  useEffect(() => {
+    const unlisten = listen<PluginExecutionStatusEvent>('plugin-execution-status', (event) => {
+      const { pluginId, runId, pluginName, status, message, resolvedProvider, resolvedSource } =
+        event.payload;
+      const normalizedRunId = runId ?? activePluginRunRef.current.get(pluginId) ?? 'unknown';
+      const now = Date.now();
+      const notificationKey = `${pluginId}:${normalizedRunId}:${status}`;
+      const last = pluginNotificationRef.current.get(notificationKey);
+      if (last && last.status === status && now - last.at < 1500) {
+        return;
+      }
+      if (pluginName) {
+        pluginRuntimeNameRef.current.set(pluginId, pluginName);
+      }
+      activePluginRunRef.current.set(pluginId, normalizedRunId);
+
+      const normalizedMessage = message ?? undefined;
+      const normalizedPluginName =
+        pluginName ||
+        pluginRuntimeNameRef.current.get(pluginId) ||
+        normalizedMessage?.replace('Running ', '').replace(' failed', '') ||
+        undefined;
+
+      if (status === 'running') {
+        pluginNotificationRef.current.set(notificationKey, { status, at: now });
+        const statusMessage =
+          normalizedMessage || `Plugin ${normalizedPluginName ?? pluginId} is running`;
+        void notify('Youwee Plugin', statusMessage);
+        pushPluginToast(
+          pluginId,
+          status,
+          normalizedRunId,
+          normalizedPluginName,
+          statusMessage,
+          status === 'running' ? 0 : 7000,
+        );
+        return;
+      }
+
+      if (status === 'error') {
+        pluginNotificationRef.current.set(notificationKey, { status, at: now });
+        const statusMessage =
+          normalizedMessage || `Plugin ${normalizedPluginName ?? pluginId} failed`;
+        const toastMessage =
+          resolvedProvider || resolvedSource
+            ? `${statusMessage}\n${resolvedProvider || ''} ${resolvedSource || ''}`.trim()
+            : statusMessage;
+        void notify('Youwee Plugin Error', statusMessage);
+        pushPluginToast(
+          pluginId,
+          status,
+          normalizedRunId,
+          normalizedPluginName,
+          toastMessage,
+          7000,
+        );
+        return;
+      }
+
+      if (status === 'success') {
+        pluginNotificationRef.current.set(notificationKey, { status, at: now });
+        const statusMessage =
+          normalizedMessage || `Plugin ${normalizedPluginName ?? pluginId} finished successfully`;
+        void notify('Youwee Plugin', statusMessage);
+        pushPluginToast(
+          pluginId,
+          status,
+          normalizedRunId,
+          normalizedPluginName,
+          statusMessage,
+          7000,
+        );
+      }
+    });
+
+    return () => {
+      clearPluginToasts();
+      unlisten.then((fn) => fn());
+    };
+  }, [clearPluginToasts, pushPluginToast]);
+
+  // Stream plugin logs while they run
+  useEffect(() => {
+    const unlisten = listen<PluginExecutionOutputEvent>('plugin-execution-output', (event) => {
+      const { pluginId, pluginName, runId, chunk } = event.payload;
+      if (pluginName) {
+        pluginRuntimeNameRef.current.set(pluginId, pluginName);
+      }
+      appendOutputToToast(pluginId, pluginName ?? undefined, runId ?? undefined, chunk);
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [appendOutputToToast]);
 
   // Sync UI language to system tray on mount
   useEffect(() => {
@@ -354,6 +567,42 @@ function AppContent() {
       {showFfmpegDialog && <FFmpegDialog onDismiss={() => setShowFfmpegDialog(false)} />}
 
       {showDenoDialog && <DenoDialog onDismiss={() => setShowDenoDialog(false)} />}
+
+      <div className="fixed top-4 right-4 z-50 flex w-[min(380px,calc(100%-2rem))] flex-col gap-2">
+        {pluginToasts.map((toast) => {
+          const icon =
+            toast.status === 'running' ? (
+              <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+            ) : toast.status === 'success' ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            ) : (
+              <XCircle className="h-4 w-4 text-red-400" />
+            );
+
+          return (
+            <div
+              key={toast.id}
+              className="toast-slide-in flex items-center gap-2 rounded-xl border px-3 py-2 shadow-lg bg-background/95 border-border/60"
+            >
+              {icon}
+              <div className="flex-1 min-w-0 text-xs">
+                <p className="font-medium text-foreground">
+                  {toast.pluginName ? `Plugin: ${toast.pluginName}` : 'Plugin hook'}
+                </p>
+                <p className="text-xs text-muted-foreground break-words">{toast.message}</p>
+              </div>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => removeToast(toast.id)}
+                aria-label="Dismiss plugin notification"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
 
       <MeteorTransition
         isActive={isTransitioning}

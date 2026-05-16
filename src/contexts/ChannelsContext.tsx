@@ -11,6 +11,10 @@ import {
   useState,
 } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import {
+  loadEnabledPostDownloadPlugins,
+  refreshEnabledPostDownloadPlugins,
+} from '@/lib/post-download-plugins';
 import type {
   ChannelVideo,
   DownloadProgress,
@@ -257,6 +261,10 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
+
+  useEffect(() => {
+    refreshEnabledPostDownloadPlugins();
+  }, []);
 
   // Per-video download progress: videoId -> state
   const [videoStates, setVideoStates] = useState<Map<string, VideoDownloadState>>(new Map());
@@ -870,6 +878,8 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
             title: video.title || null,
             thumbnail: video.thumbnail || null,
             source: detectPlatform(browseUrl) || 'youtube',
+            postDownloadPlugins: loadEnabledPostDownloadPlugins(),
+            downloadKind: 'channel-manual',
           });
         } catch (error) {
           const msg = localizeUnknownError(error);
@@ -1230,6 +1240,8 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
               proxyUrl,
               useAria2,
               aria2Args,
+              postDownloadPlugins: loadEnabledPostDownloadPlugins(),
+              downloadKind: 'channel-auto',
             });
 
             await invoke('update_channel_video_status', { id: video.id, status: 'downloaded' });

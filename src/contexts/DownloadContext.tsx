@@ -25,6 +25,10 @@ import {
   isRetryableError,
   waitWithCancellation,
 } from '@/lib/download-retry';
+import {
+  loadEnabledPostDownloadPlugins,
+  refreshEnabledPostDownloadPlugins,
+} from '@/lib/post-download-plugins';
 import type {
   AudioBitrate,
   CookieSettings,
@@ -371,6 +375,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     syncPollingNetworkConfig(loadCookieSettings(), loadProxySettings());
   }, [syncPollingNetworkConfig]);
 
+  useEffect(() => {
+    refreshEnabledPostDownloadPlugins();
+  }, []);
+
   const [currentPlaylistInfo, setCurrentPlaylistInfo] = useState<PlaylistInfo | null>(null);
 
   const isDownloadingRef = useRef(false);
@@ -566,6 +574,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       subtitleLangs: [...currentSettings.subtitleLangs],
       subtitleEmbed: currentSettings.subtitleEmbed,
       subtitleFormat: currentSettings.subtitleFormat,
+      postDownloadPlugins: loadEnabledPostDownloadPlugins(),
       autoRetryEnabled: currentSettings.autoRetryEnabled,
       autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
       autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
@@ -638,6 +647,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         subtitleLangs: [...currentSettings.subtitleLangs],
         subtitleEmbed: currentSettings.subtitleEmbed,
         subtitleFormat: currentSettings.subtitleFormat,
+        postDownloadPlugins: loadEnabledPostDownloadPlugins(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
         autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
@@ -692,6 +702,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           subtitleLangs: [...settingsRef.current.subtitleLangs],
           subtitleEmbed: settingsRef.current.subtitleEmbed,
           subtitleFormat: settingsRef.current.subtitleFormat,
+          postDownloadPlugins: loadEnabledPostDownloadPlugins(),
           autoRetryEnabled: settingsRef.current.autoRetryEnabled,
           autoRetryMaxAttempts: settingsRef.current.autoRetryMaxAttempts,
           autoRetryDelaySeconds: settingsRef.current.autoRetryDelaySeconds,
@@ -1004,6 +1015,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             thumbnail: item.thumbnail || null,
             // Source/extractor from video info fetch
             source: item.extractor || null,
+            postDownloadPlugins:
+              itemSettings?.postDownloadPlugins ?? loadEnabledPostDownloadPlugins(),
+            downloadKind: 'download',
           });
 
           setItems((items) =>

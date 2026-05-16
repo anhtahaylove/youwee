@@ -62,6 +62,7 @@ export interface ItemDownloadSettings {
   subtitleFormat: SubtitleFormat;
   timeRangeStart?: string;
   timeRangeEnd?: string;
+  postDownloadPlugins?: string[];
   autoRetryEnabled: boolean;
   autoRetryMaxAttempts: number;
   autoRetryDelaySeconds: number;
@@ -77,6 +78,7 @@ export interface ItemUniversalSettings {
   aria2Args: string;
   timeRangeStart?: string;
   timeRangeEnd?: string;
+  postDownloadPlugins?: string[];
   autoRetryEnabled: boolean;
   autoRetryMaxAttempts: number;
   autoRetryDelaySeconds: number;
@@ -197,6 +199,128 @@ export interface DownloadProgress {
   elapsed_time?: string; // e.g. "00:00:07"
 }
 
+export type PluginRuntimeLanguage = 'javascript' | 'python';
+export type PluginProvider = 'deno' | 'node' | 'bun' | 'python';
+export type PluginPackageSourceKind = 'app-scaffold' | 'local-folder' | 'local-zip' | 'remote-url';
+
+export interface PluginPermissionSet {
+  network: boolean;
+  readPaths: string[];
+  writePaths: string[];
+  env: string[];
+}
+
+export interface PluginPermissionApproval {
+  network: boolean;
+  readPaths: boolean;
+  writePaths: boolean;
+  env: boolean;
+}
+
+export interface PluginRuntimeSpec {
+  language: PluginRuntimeLanguage;
+  supportedProviders: PluginProvider[];
+  preferredProvider?: PluginProvider | null;
+  entrypoint: string;
+}
+
+export interface PluginCompatibilitySpec {
+  appVersion?: string | null;
+  sdkVersion?: string | null;
+}
+
+export interface PluginManifest {
+  pluginId: string;
+  slug: string;
+  name: string;
+  version: string;
+  description?: string | null;
+  author?: string | null;
+  homepage?: string | null;
+  repository?: string | null;
+  license?: string | null;
+  runtime: PluginRuntimeSpec;
+  compatibility?: PluginCompatibilitySpec | null;
+  triggers: string[];
+  permissions: PluginPermissionSet;
+  timeoutSec: number;
+  readme?: string | null;
+  checksum?: string | null;
+  publishedAt?: string | null;
+}
+
+export interface PluginPackageSource {
+  kind: PluginPackageSourceKind;
+  value: string;
+  checksum?: string | null;
+}
+
+export interface PluginInstallation {
+  pluginId: string;
+  enabled: boolean;
+  trusted: boolean;
+  approvedPermissions: PluginPermissionApproval;
+  selectedProvider?: PluginProvider | null;
+  installedPath: string;
+  source: PluginPackageSource;
+  lastResolvedProvider?: PluginProvider | null;
+  lastResolvedSource?: string | null;
+  lastExecutionStatus?: string | null;
+  lastError?: string | null;
+  envValueStatus: Record<string, boolean>;
+}
+
+export interface PluginSummary {
+  manifest: PluginManifest;
+  installation: PluginInstallation;
+  warnings: string[];
+}
+
+export interface PluginPackageInspection {
+  manifest: PluginManifest;
+  source: PluginPackageSource;
+  warnings: string[];
+}
+
+export interface RuntimeProviderStatus {
+  provider: PluginProvider;
+  available: boolean;
+  resolvedPath?: string | null;
+  resolvedSource?: string | null;
+  details?: string | null;
+}
+
+export interface PluginExecutionResult {
+  pluginId: string;
+  success: boolean;
+  message?: string | null;
+  artifacts?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
+  stdout?: string | null;
+  stderr?: string | null;
+}
+
+export interface PluginExecutionStatusEvent {
+  pluginId: string;
+  runId?: string | null;
+  pluginName?: string | null;
+  runtime?: string | null;
+  provider?: string | null;
+  resolvedProvider?: string | null;
+  resolvedSource?: string | null;
+  status: string;
+  message?: string | null;
+  details?: string | null;
+}
+
+export interface PluginExecutionOutputEvent {
+  pluginId: string;
+  runId?: string | null;
+  pluginName?: string | null;
+  stream: 'stdout' | 'stderr';
+  chunk: string;
+}
+
 export interface VideoInfo {
   id: string;
   title: string;
@@ -277,7 +401,7 @@ export interface LogEntry {
   url?: string;
 }
 
-export type LogFilter = 'all' | 'command' | 'success' | 'error' | 'stderr';
+export type LogFilter = 'all' | 'command' | 'success' | 'error' | 'stderr' | 'info';
 
 // History types
 export interface HistoryTag {

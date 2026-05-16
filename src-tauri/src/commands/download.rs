@@ -22,10 +22,10 @@ use crate::database::add_history_internal;
 use crate::database::add_log_internal;
 use crate::database::update_history_download;
 use crate::services::{
-    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source,
+    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, run_post_download_plugins,
     system_ytdlp_not_found_message,
 };
-use crate::types::{BackendError, DependencySource, DownloadProgress};
+use crate::types::{BackendError, DependencySource, DownloadProgress, PostDownloadPluginPayload};
 use crate::utils::{
     build_format_string, format_size, parse_progress, sanitize_output_path, CommandExt,
 };
@@ -33,6 +33,69 @@ use crate::utils::{
 pub static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
 
 const RECENT_OUTPUT_LIMIT: usize = 30;
+
+fn extract_time_range(download_sections: &Option<String>) -> Option<String> {
+    download_sections.as_ref().and_then(|s| {
+        let stripped = s.strip_prefix('*').unwrap_or(s);
+        if stripped.is_empty() {
+            None
+        } else {
+            Some(stripped.to_string())
+        }
+    })
+}
+
+async fn run_completed_plugins(
+    app: &AppHandle,
+    plugin_ids: &[String],
+    job_id: &str,
+    source: Option<String>,
+    filepath: &str,
+    filesize: Option<u64>,
+    format: Option<String>,
+    quality: Option<String>,
+    url: &str,
+    title: Option<String>,
+    thumbnail: Option<String>,
+    history_id: Option<String>,
+    time_range: Option<String>,
+    download_kind: &str,
+) {
+    if plugin_ids.is_empty() {
+        return;
+    }
+
+    let path = std::path::Path::new(filepath);
+    let filename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(filepath)
+        .to_string();
+    let directory = path
+        .parent()
+        .map(|parent| parent.to_string_lossy().to_string())
+        .unwrap_or_default();
+
+    let payload = PostDownloadPluginPayload {
+        job_id: job_id.to_string(),
+        source,
+        trigger: "download.completed".to_string(),
+        filepath: filepath.to_string(),
+        filename,
+        directory,
+        filesize,
+        format,
+        quality,
+        url: url.to_string(),
+        title,
+        thumbnail,
+        history_id,
+        time_range,
+        download_kind: download_kind.to_string(),
+    };
+
+    let _ = run_post_download_plugins(app, plugin_ids, &payload).await;
+}
 
 /// Decode raw bytes from a child process into a Rust String.
 ///
@@ -268,10 +331,16 @@ pub async fn download_video(
     thumbnail: Option<String>,
     // Source/extractor name (optional, from yt-dlp extractor e.g. "BiliBili", "TikTok")
     source: Option<String>,
+    // Snapshot of plugin ids enabled when the job was queued
+    post_download_plugins: Option<Vec<String>>,
+    // Caller context used in plugin payload
+    download_kind: Option<String>,
 ) -> Result<(), String> {
     CANCEL_FLAG.store(false, Ordering::SeqCst);
     validate_url(&url).map_err(|e| BackendError::from_message(e).to_wire_string())?;
     let url = normalize_url(&url);
+    let post_download_plugins = post_download_plugins.unwrap_or_default();
+    let download_kind = download_kind.unwrap_or_else(|| "download".to_string());
 
     let should_log_stderr = log_stderr.unwrap_or(true);
     let sanitized_path = sanitize_output_path(&output_path)
@@ -533,6 +602,8 @@ pub async fn download_video(
             download_sections,
             history_id.clone(),
             filepath_tmp.clone(),
+            post_download_plugins.clone(),
+            download_kind.clone(),
         )
         .await;
     }
@@ -822,14 +893,7 @@ pub async fn download_video(
                             // Save to history (update existing or create new)
                             let progress_history_id = if let Some(ref filepath) = final_filepath {
                                 // Extract time range from download_sections (strip "*" prefix)
-                                let time_range = download_sections.as_ref().and_then(|s| {
-                                    let stripped = s.strip_prefix('*').unwrap_or(s);
-                                    if stripped.is_empty() {
-                                        None
-                                    } else {
-                                        Some(stripped.to_string())
-                                    }
-                                });
+                                let time_range = extract_time_range(&download_sections);
 
                                 if let Some(ref hist_id) = history_id {
                                     // Update existing history entry (re-download)
@@ -875,7 +939,7 @@ pub async fn download_video(
                                 speed: String::new(),
                                 eta: String::new(),
                                 status: "finished".to_string(),
-                                title: display_title,
+                                title: display_title.clone(),
                                 playlist_index: current_index,
                                 playlist_count: total_count,
                                 filesize: reported_filesize,
@@ -884,12 +948,31 @@ pub async fn download_video(
                                 error_message: None,
                                 error_code: None,
                                 error_params: None,
-                                history_id: progress_history_id,
+                                history_id: progress_history_id.clone(),
                                 filepath: final_filepath.clone(),
                                 downloaded_size: None,
                                 elapsed_time: None,
                             };
                             app.emit("download-progress", progress).ok();
+                            if let Some(ref filepath) = final_filepath {
+                                run_completed_plugins(
+                                    &app,
+                                    &post_download_plugins,
+                                    &id,
+                                    source.clone().or_else(|| detect_source(&url)),
+                                    filepath,
+                                    reported_filesize,
+                                    Some(format.clone()),
+                                    quality_display.clone().or_else(|| Some(quality.clone())),
+                                    &url,
+                                    display_title.clone(),
+                                    thumbnail.clone().or_else(|| generate_thumbnail_url(&url)),
+                                    progress_history_id.clone(),
+                                    extract_time_range(&download_sections),
+                                    &download_kind,
+                                )
+                                .await;
+                            }
                             return Ok(());
                         } else {
                             let recent_lines: Vec<String> = recent_output.iter().cloned().collect();
@@ -963,6 +1046,8 @@ pub async fn download_video(
                 download_sections,
                 history_id.clone(),
                 filepath_tmp,
+                post_download_plugins,
+                download_kind,
             )
             .await
         }
@@ -983,6 +1068,8 @@ async fn handle_tokio_download(
     download_sections: Option<String>,
     history_id: Option<String>,
     filepath_tmp: std::path::PathBuf,
+    post_download_plugins: Vec<String>,
+    download_kind: String,
 ) -> Result<(), String> {
     let stdout = process
         .stdout
@@ -1315,14 +1402,7 @@ async fn handle_tokio_download(
         // Save to history (update existing or create new)
         let progress_history_id = if let Some(ref filepath) = final_filepath {
             // Extract time range from download_sections (strip "*" prefix)
-            let time_range = download_sections.as_ref().and_then(|s| {
-                let stripped = s.strip_prefix('*').unwrap_or(s);
-                if stripped.is_empty() {
-                    None
-                } else {
-                    Some(stripped.to_string())
-                }
-            });
+            let time_range = extract_time_range(&download_sections);
 
             if let Some(ref hist_id) = history_id {
                 update_history_download(
@@ -1365,21 +1445,40 @@ async fn handle_tokio_download(
             speed: String::new(),
             eta: String::new(),
             status: "finished".to_string(),
-            title: display_title,
+            title: display_title.clone(),
             playlist_index: current_index,
             playlist_count: total_count,
             filesize: reported_filesize,
-            resolution: quality_display,
-            format_ext: Some(format),
+            resolution: quality_display.clone(),
+            format_ext: Some(format.clone()),
             error_message: None,
             error_code: None,
             error_params: None,
-            history_id: progress_history_id,
+            history_id: progress_history_id.clone(),
             filepath: final_filepath.clone(),
             downloaded_size: None,
             elapsed_time: None,
         };
         app.emit("download-progress", progress).ok();
+        if let Some(ref filepath) = final_filepath {
+            run_completed_plugins(
+                &app,
+                &post_download_plugins,
+                &id,
+                source.clone().or_else(|| detect_source(&url)),
+                filepath,
+                reported_filesize,
+                Some(format.clone()),
+                quality_display.clone().or_else(|| Some(quality.clone())),
+                &url,
+                display_title.clone(),
+                thumbnail.clone().or_else(|| generate_thumbnail_url(&url)),
+                progress_history_id.clone(),
+                extract_time_range(&download_sections),
+                &download_kind,
+            )
+            .await;
+        }
         Ok(())
     } else {
         let recent_lines = recent_output_snapshot(&recent_output);
