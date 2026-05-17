@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::OnceLock;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -15,11 +16,13 @@ use zip::ZipArchive;
 
 use crate::database::add_log_internal;
 use crate::types::{
-    PluginCompatibilitySpec, PluginExecutionOutputEvent, PluginExecutionResult,
-    PluginExecutionStatusEvent, PluginInstallation, PluginManifest,
+    PluginChainMutation, PluginChainState, PluginCompatibilitySpec, PluginExecutionOutputEvent,
+    PluginExecutionResult, PluginExecutionStatusEvent, PluginInstallation, PluginManifest,
     PluginPackageInspection, PluginPackageSource, PluginPackageSourceKind,
     PluginPermissionApproval, PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage,
-    PluginRuntimeSpec, PluginSummary, PostDownloadPluginPayload, RuntimeProviderStatus,
+    PluginRuntimeSpec, PluginSummary, PluginTriggerWorkflow, PluginWorkflowFailurePolicy,
+    PluginWorkflowRun, PluginWorkflowRunStatus, PluginWorkflowStepConfig,
+    PluginWorkflowStepSnapshot, PostDownloadPluginPayload, RuntimeProviderStatus,
 };
 use crate::utils::CommandExt;
 
@@ -60,6 +63,8 @@ const SDK_JS_SHARED_TYPES: &str =
 const SDK_JS_SHARED_RUNTIME_TYPES: &str =
     include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../sdk-js/dist/types.js"));
 const SDK_JS_README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../sdk-js/README.md"));
+
+static PLUGIN_WORKFLOW_QUEUE: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -116,11 +121,20 @@ struct PluginRegistryEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+struct PluginTriggerWorkflowRegistry {
+    #[serde(default)]
+    steps: Vec<PluginWorkflowStepConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 struct PluginRegistry {
     #[serde(default)]
     installations: BTreeMap<String, PluginRegistryEntry>,
     #[serde(default)]
     default_providers: BTreeMap<String, PluginProvider>,
+    #[serde(default)]
+    trigger_workflows: BTreeMap<String, PluginTriggerWorkflowRegistry>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,6 +144,7 @@ struct PluginScriptOutput {
     message: Option<String>,
     artifacts: Option<Value>,
     metadata: Option<Value>,
+    mutations: Option<PluginChainMutation>,
 }
 
 #[derive(Debug, Clone)]
@@ -229,6 +244,17 @@ fn write_registry(app: &AppHandle, registry: &PluginRegistry) -> Result<(), Stri
         .map_err(|e| format!("Failed to write plugin registry {}: {}", path.display(), e))
 }
 
+fn workflow_queue_lock() -> &'static tokio::sync::Mutex<()> {
+    PLUGIN_WORKFLOW_QUEUE.get_or_init(|| tokio::sync::Mutex::new(()))
+}
+
+fn workflow_registry_for_trigger<'a>(
+    registry: &'a PluginRegistry,
+    trigger: &str,
+) -> Option<&'a PluginTriggerWorkflowRegistry> {
+    registry.trigger_workflows.get(trigger)
+}
+
 fn sanitize_slug(input: &str) -> String {
     let mut slug = String::new();
     let mut previous_dash = false;
@@ -272,6 +298,15 @@ fn default_supported_providers(language: &PluginRuntimeLanguage) -> Vec<PluginPr
         }
         PluginRuntimeLanguage::Python => vec![PluginProvider::Python],
     }
+}
+
+fn allowed_manifest_triggers() -> &'static [&'static str] {
+    &[
+        "download.queued",
+        "download.beforeStart",
+        "download.completed",
+        "download.failed",
+    ]
 }
 
 fn validate_manifest(manifest: &PluginManifest, manifest_path: &Path) -> Result<(), String> {
@@ -346,6 +381,29 @@ fn validate_manifest(manifest: &PluginManifest, manifest_path: &Path) -> Result<
                 ));
             }
         }
+    }
+    if manifest.triggers.is_empty() {
+        return Err(format!(
+            "Plugin manifest {} must declare at least one trigger",
+            manifest_path.display()
+        ));
+    }
+    for trigger in &manifest.triggers {
+        if allowed_manifest_triggers().iter().any(|allowed| allowed == trigger) {
+            continue;
+        }
+        if trigger.starts_with("triggers.") {
+            return Err(format!(
+                "Plugin manifest {} contains invalid trigger {}. plugin.json must use raw runtime names like download.completed, not SDK identifiers like triggers.downloadCompleted",
+                manifest_path.display(),
+                trigger
+            ));
+        }
+        return Err(format!(
+            "Plugin manifest {} contains unsupported trigger {}",
+            manifest_path.display(),
+            trigger
+        ));
     }
     Ok(())
 }
@@ -753,6 +811,160 @@ fn build_installation_from_registry(
         last_execution_status: entry.and_then(|value| value.last_execution_status.clone()),
         last_error: entry.and_then(|value| value.last_error.clone()),
         env_value_status,
+    }
+}
+
+fn get_trigger_workflow_internal(app: &AppHandle, trigger: &str) -> Result<PluginTriggerWorkflow, String> {
+    let registry = read_registry(app)?;
+    Ok(PluginTriggerWorkflow {
+        trigger: trigger.to_string(),
+        steps: workflow_registry_for_trigger(&registry, trigger)
+            .map(|workflow| workflow.steps.clone())
+            .unwrap_or_default(),
+    })
+}
+
+fn snapshot_step_from_plugin(
+    plugin: &PluginSummary,
+    step: &PluginWorkflowStepConfig,
+) -> PluginWorkflowStepSnapshot {
+    PluginWorkflowStepSnapshot {
+        plugin_id: plugin.manifest.plugin_id.clone(),
+        plugin_name: plugin.manifest.name.clone(),
+        plugin_version: plugin.manifest.version.clone(),
+        selected_provider: plugin.installation.selected_provider.clone(),
+        approved_permissions: plugin.installation.approved_permissions.clone(),
+        failure_policy: step.failure_policy.clone(),
+    }
+}
+
+fn resolve_workflow_step_snapshots(
+    plugins_by_id: &BTreeMap<String, PluginSummary>,
+    workflow: &PluginTriggerWorkflow,
+) -> Vec<PluginWorkflowStepSnapshot> {
+    workflow
+        .steps
+        .iter()
+        .filter_map(|step| {
+            plugins_by_id
+                .get(&step.plugin_id)
+                .filter(|plugin| plugin.installation.enabled)
+                .map(|plugin| snapshot_step_from_plugin(plugin, step))
+        })
+        .collect()
+}
+
+fn build_legacy_workflow_snapshots(
+    plugins_by_id: &BTreeMap<String, PluginSummary>,
+    registry: &PluginRegistry,
+    trigger: &str,
+    plugin_ids: &[String],
+) -> Vec<PluginWorkflowStepSnapshot> {
+    let workflow = workflow_registry_for_trigger(registry, trigger);
+
+    plugin_ids
+        .iter()
+        .filter_map(|plugin_id| {
+            let plugin = plugins_by_id.get(plugin_id)?;
+            let step = workflow
+                .and_then(|workflow| workflow.steps.iter().find(|step| step.plugin_id == *plugin_id))
+                .cloned()
+                .unwrap_or(PluginWorkflowStepConfig {
+                    plugin_id: plugin_id.clone(),
+                    failure_policy: PluginWorkflowFailurePolicy::Continue,
+                });
+            Some(snapshot_step_from_plugin(plugin, &step))
+        })
+        .collect()
+}
+
+fn build_chain_state(payload: &PostDownloadPluginPayload) -> PluginChainState {
+    PluginChainState {
+        job_id: payload.job_id.clone(),
+        source: payload.source.clone(),
+        download_kind: payload.download_kind.clone(),
+        url: payload.url.clone(),
+        title: payload.title.clone(),
+        thumbnail: payload.thumbnail.clone(),
+        history_id: payload.history_id.clone(),
+        time_range: payload.time_range.clone(),
+        active_filepath: payload.filepath.clone(),
+        active_filename: payload.filename.clone(),
+        directory: payload.directory.clone(),
+        filesize: payload.filesize,
+        format: payload.format.clone(),
+        quality: payload.quality.clone(),
+        extra_files: Vec::new(),
+        metadata: None,
+    }
+}
+
+fn payload_from_chain_state(
+    payload: &PostDownloadPluginPayload,
+    workflow_run_id: &str,
+    step_index: usize,
+    step_plugin_id: &str,
+    chain_state: &PluginChainState,
+) -> PostDownloadPluginPayload {
+    PostDownloadPluginPayload {
+        job_id: payload.job_id.clone(),
+        source: payload.source.clone(),
+        trigger: payload.trigger.clone(),
+        filepath: chain_state.active_filepath.clone(),
+        filename: chain_state.active_filename.clone(),
+        directory: chain_state.directory.clone(),
+        filesize: chain_state.filesize,
+        format: chain_state.format.clone(),
+        quality: chain_state.quality.clone(),
+        url: chain_state.url.clone(),
+        title: chain_state.title.clone(),
+        thumbnail: chain_state.thumbnail.clone(),
+        history_id: chain_state.history_id.clone(),
+        time_range: chain_state.time_range.clone(),
+        download_kind: chain_state.download_kind.clone(),
+        workflow_run_id: Some(workflow_run_id.to_string()),
+        workflow_step_index: Some(step_index),
+        workflow_step_plugin_id: Some(step_plugin_id.to_string()),
+        chain_state: Some(chain_state.clone()),
+    }
+}
+
+fn merge_chain_mutation(chain_state: &mut PluginChainState, mutation: &PluginChainMutation) {
+    if let Some(active_filepath) = mutation.active_filepath.as_ref() {
+        chain_state.active_filepath = active_filepath.clone();
+        let path = Path::new(active_filepath);
+        if let Some(filename) = path.file_name().and_then(|name| name.to_str()) {
+            chain_state.active_filename = filename.to_string();
+        }
+        if let Some(directory) = path.parent() {
+            chain_state.directory = directory.to_string_lossy().to_string();
+        }
+    }
+    if let Some(active_filename) = mutation.active_filename.as_ref() {
+        chain_state.active_filename = active_filename.clone();
+    }
+    if !mutation.extra_files.is_empty() {
+        for file in &mutation.extra_files {
+            if !chain_state.extra_files.iter().any(|existing| existing == file) {
+                chain_state.extra_files.push(file.clone());
+            }
+        }
+    }
+    if let Some(metadata_patch) = mutation.metadata_patch.as_ref() {
+        match chain_state.metadata.as_mut() {
+            Some(Value::Object(current)) => {
+                if let Value::Object(patch) = metadata_patch {
+                    for (key, value) in patch {
+                        current.insert(key.clone(), value.clone());
+                    }
+                } else {
+                    chain_state.metadata = Some(metadata_patch.clone());
+                }
+            }
+            _ => {
+                chain_state.metadata = Some(metadata_patch.clone());
+            }
+        }
     }
 }
 
@@ -1172,6 +1384,43 @@ pub fn update_plugin_state_internal(
         .ok_or_else(|| format!("Plugin not found: {}", plugin_id))?;
     entry.enabled = enabled;
     write_registry(app, &registry)
+}
+
+pub fn get_plugin_trigger_workflow_internal(
+    app: &AppHandle,
+    trigger: &str,
+) -> Result<PluginTriggerWorkflow, String> {
+    get_trigger_workflow_internal(app, trigger)
+}
+
+pub fn update_plugin_trigger_workflow_internal(
+    app: &AppHandle,
+    workflow: PluginTriggerWorkflow,
+) -> Result<PluginTriggerWorkflow, String> {
+    let valid_plugin_ids = list_plugins_internal(app)?
+        .into_iter()
+        .map(|plugin| plugin.manifest.plugin_id)
+        .collect::<Vec<_>>();
+
+    let steps = workflow
+        .steps
+        .into_iter()
+        .filter(|step| valid_plugin_ids.iter().any(|plugin_id| plugin_id == &step.plugin_id))
+        .collect::<Vec<_>>();
+
+    let mut registry = read_registry(app)?;
+    registry.trigger_workflows.insert(
+        workflow.trigger.clone(),
+        PluginTriggerWorkflowRegistry {
+            steps: steps.clone(),
+        },
+    );
+    write_registry(app, &registry)?;
+
+    Ok(PluginTriggerWorkflow {
+        trigger: workflow.trigger,
+        steps,
+    })
 }
 
 pub fn approve_plugin_permissions_internal(
@@ -2012,6 +2261,7 @@ async fn execute_plugin(
             message: parsed_output.as_ref().and_then(|value| value.message.clone()),
             artifacts: parsed_output.as_ref().and_then(|value| value.artifacts.clone()),
             metadata: parsed_output.as_ref().and_then(|value| value.metadata.clone()),
+            mutations: parsed_output.as_ref().and_then(|value| value.mutations.clone()),
             stdout: if stdout.is_empty() { None } else { Some(stdout) },
             stderr: if stderr.is_empty() { None } else { Some(stderr) },
         },
@@ -2020,23 +2270,50 @@ async fn execute_plugin(
     ))
 }
 
-pub async fn run_post_download_plugins(
-    app: &AppHandle,
-    plugin_ids: &[String],
-    payload: &PostDownloadPluginPayload,
-) -> Vec<PluginExecutionResult> {
-    if plugin_ids.is_empty() {
-        return Vec::new();
+fn workflow_result_status(
+    results: &[PluginExecutionResult],
+    stopped_early: bool,
+) -> PluginWorkflowRunStatus {
+    if results.is_empty() {
+        return PluginWorkflowRunStatus::Completed;
     }
+    let success_count = results.iter().filter(|result| result.success).count();
+    if success_count == results.len() {
+        PluginWorkflowRunStatus::Completed
+    } else if success_count == 0 || stopped_early {
+        PluginWorkflowRunStatus::Failed
+    } else {
+        PluginWorkflowRunStatus::PartialFailed
+    }
+}
 
-    let plugins = match list_plugins_internal(app) {
+async fn execute_plugin_workflow_run(
+    app: AppHandle,
+    workflow_run: PluginWorkflowRun,
+) -> Vec<PluginExecutionResult> {
+    let _queue_guard = workflow_queue_lock().lock().await;
+
+    add_log_internal(
+        "info",
+        "Post-processing workflow started",
+        Some(&format!(
+            "Workflow Run ID: {}\nTrigger: {}\nSteps: {}",
+            workflow_run.run_id,
+            workflow_run.trigger,
+            workflow_run.steps.len()
+        )),
+        Some(&workflow_run.initial_payload.url),
+    )
+    .ok();
+
+    let plugins = match list_plugins_internal(&app) {
         Ok(plugins) => plugins,
         Err(error) => {
             add_log_internal(
                 "error",
-                "Failed to load post-download plugins",
+                "Failed to load plugins for workflow execution",
                 Some(&error),
-                Some(&payload.url),
+                Some(&workflow_run.initial_payload.url),
             )
             .ok();
             return Vec::new();
@@ -2047,43 +2324,83 @@ pub async fn run_post_download_plugins(
         .map(|plugin| (plugin.manifest.plugin_id.clone(), plugin))
         .collect();
 
-    let mut registry = read_registry(app).unwrap_or_default();
+    let mut chain_state = workflow_run.current_chain_state.clone();
+    let mut registry = read_registry(&app).unwrap_or_default();
     let mut results = Vec::new();
+    let mut stopped_early = false;
 
-    for plugin_id in plugin_ids {
-        let Some(plugin) = plugins_by_id.get(plugin_id) else {
+    for (step_index, step) in workflow_run.steps.iter().enumerate() {
+        let Some(base_plugin) = plugins_by_id.get(&step.plugin_id) else {
+            let message = format!(
+                "Workflow step plugin not found: {}",
+                step.plugin_id
+            );
             add_log_internal(
                 "error",
-                &format!("Post-download plugin not found: {}", plugin_id),
-                None,
-                Some(&payload.url),
+                "Post-processing step missing",
+                Some(&format!(
+                    "Workflow Run ID: {}\nStep: {}\n{}",
+                    workflow_run.run_id,
+                    step_index + 1,
+                    message
+                )),
+                Some(&chain_state.url),
             )
             .ok();
+            results.push(PluginExecutionResult {
+                plugin_id: step.plugin_id.clone(),
+                success: false,
+                message: Some(message),
+                artifacts: None,
+                metadata: None,
+                mutations: None,
+                stdout: None,
+                stderr: None,
+            });
+            if step.failure_policy == PluginWorkflowFailurePolicy::StopChain {
+                stopped_early = true;
+                break;
+            }
             continue;
         };
+
+        let mut plugin = base_plugin.clone();
+        plugin.installation.enabled = true;
+        plugin.installation.selected_provider = step.selected_provider.clone();
+        plugin.installation.approved_permissions = step.approved_permissions.clone();
+
         let selected_provider = plugin
             .installation
             .selected_provider
             .clone()
             .or(plugin.manifest.runtime.preferred_provider.clone())
             .unwrap_or_else(|| default_provider_for_language(&plugin.manifest.runtime.language));
-        if !plugin.installation.enabled {
-            continue;
-        }
+        let step_payload = payload_from_chain_state(
+            &workflow_run.initial_payload,
+            &workflow_run.run_id,
+            step_index,
+            &plugin.manifest.plugin_id,
+            &chain_state,
+        );
 
-        let run_id = Uuid::new_v4().to_string();
         add_log_internal(
             "info",
-            &format!("Running post-download plugin: {}", plugin.manifest.name),
+            &format!("Running post-processing step: {}", plugin.manifest.name),
             Some(&format!(
-                "Plugin ID: {}; Run ID: {}",
-                plugin.manifest.plugin_id,
-                run_id
+                "Workflow Run ID: {}\nStep: {} / {}\nPolicy: {}",
+                workflow_run.run_id,
+                step_index + 1,
+                workflow_run.steps.len(),
+                match step.failure_policy {
+                    PluginWorkflowFailurePolicy::Continue => "continue",
+                    PluginWorkflowFailurePolicy::StopChain => "stop-chain",
+                }
             )),
-            Some(&payload.url),
+            Some(&step_payload.url),
         )
         .ok();
-        if let Some(entry) = registry.installations.get_mut(plugin_id) {
+
+        if let Some(entry) = registry.installations.get_mut(&plugin.manifest.plugin_id) {
             entry.last_execution_status = Some("running".to_string());
             entry.last_error = None;
         }
@@ -2091,7 +2408,7 @@ pub async fn run_post_download_plugins(
             "plugin-execution-status",
             PluginExecutionStatusEvent {
                 plugin_id: plugin.manifest.plugin_id.clone(),
-                run_id: Some(run_id.clone()),
+                run_id: Some(workflow_run.run_id.clone()),
                 plugin_name: Some(plugin.manifest.name.clone()),
                 runtime: Some(plugin.manifest.runtime.language.as_str().to_string()),
                 provider: Some(selected_provider.as_str().to_string()),
@@ -2100,21 +2417,23 @@ pub async fn run_post_download_plugins(
                 status: "running".to_string(),
                 message: Some(format!("Running {}", plugin.manifest.name)),
                 details: Some(format!(
-                    "Runtime: {}\nTimeout: {}s",
+                    "Runtime: {}\nTimeout: {}s\nStep: {} / {}",
                     plugin.manifest.runtime.language.as_str(),
-                    plugin.manifest.timeout_sec
+                    plugin.manifest.timeout_sec,
+                    step_index + 1,
+                    workflow_run.steps.len()
                 )),
-                media_title: payload.title.clone(),
-                filename: Some(payload.filename.clone()),
-                media_url: Some(payload.url.clone()),
+                media_title: step_payload.title.clone(),
+                filename: Some(step_payload.filename.clone()),
+                media_url: Some(step_payload.url.clone()),
             },
         )
         .ok();
-        write_registry(app, &registry).ok();
+        write_registry(&app, &registry).ok();
 
-        match execute_plugin(app, plugin, &run_id, payload).await {
+        match execute_plugin(&app, &plugin, &workflow_run.run_id, &step_payload).await {
             Ok((result, resolved_provider, resolved_source)) => {
-                if let Some(entry) = registry.installations.get_mut(plugin_id) {
+                if let Some(entry) = registry.installations.get_mut(&plugin.manifest.plugin_id) {
                     entry.last_resolved_provider = Some(resolved_provider.clone());
                     entry.last_resolved_source = resolved_source.clone();
                     entry.last_execution_status = Some(if result.success {
@@ -2122,13 +2441,22 @@ pub async fn run_post_download_plugins(
                     } else {
                         "error".to_string()
                     });
-                    entry.last_error = None;
+                    entry.last_error = if result.success {
+                        None
+                    } else {
+                        result.message.clone()
+                    };
                 }
+
+                if let Some(mutation) = result.mutations.as_ref() {
+                    merge_chain_mutation(&mut chain_state, mutation);
+                }
+
                 app.emit(
                     "plugin-execution-status",
                     PluginExecutionStatusEvent {
                         plugin_id: plugin.manifest.plugin_id.clone(),
-                        run_id: Some(run_id.clone()),
+                        run_id: Some(workflow_run.run_id.clone()),
                         plugin_name: Some(plugin.manifest.name.clone()),
                         runtime: Some(plugin.manifest.runtime.language.as_str().to_string()),
                         provider: Some(selected_provider.as_str().to_string()),
@@ -2145,12 +2473,13 @@ pub async fn run_post_download_plugins(
                             result.stdout.as_ref(),
                             result.stderr.as_ref(),
                         )),
-                        media_title: payload.title.clone(),
-                        filename: Some(payload.filename.clone()),
-                        media_url: Some(payload.url.clone()),
+                        media_title: step_payload.title.clone(),
+                        filename: Some(step_payload.filename.clone()),
+                        media_url: Some(step_payload.url.clone()),
                     },
                 )
                 .ok();
+
                 let details = combine_plugin_event_details(
                     result.message.as_ref(),
                     result.stdout.as_ref(),
@@ -2158,19 +2487,28 @@ pub async fn run_post_download_plugins(
                 );
                 add_log_internal(
                     if result.success { "success" } else { "error" },
-                    &format!("Post-download plugin finished: {}", plugin.manifest.name),
+                    &format!("Post-processing step finished: {}", plugin.manifest.name),
                     Some(&format!(
-                        "Run ID: {}\n{}",
-                        run_id,
+                        "Workflow Run ID: {}\nStep: {} / {}\n{}",
+                        workflow_run.run_id,
+                        step_index + 1,
+                        workflow_run.steps.len(),
                         details.as_deref().unwrap_or("")
                     )),
-                    Some(&payload.url),
+                    Some(&step_payload.url),
                 )
                 .ok();
+
+                let should_stop = !result.success
+                    && step.failure_policy == PluginWorkflowFailurePolicy::StopChain;
                 results.push(result);
+                if should_stop {
+                    stopped_early = true;
+                    break;
+                }
             }
             Err(error) => {
-                if let Some(entry) = registry.installations.get_mut(plugin_id) {
+                if let Some(entry) = registry.installations.get_mut(&plugin.manifest.plugin_id) {
                     entry.last_execution_status = Some("error".to_string());
                     entry.last_error = Some(error.clone());
                 }
@@ -2178,7 +2516,7 @@ pub async fn run_post_download_plugins(
                     "plugin-execution-status",
                     PluginExecutionStatusEvent {
                         plugin_id: plugin.manifest.plugin_id.clone(),
-                        run_id: Some(run_id.clone()),
+                        run_id: Some(workflow_run.run_id.clone()),
                         plugin_name: Some(plugin.manifest.name.clone()),
                         runtime: Some(plugin.manifest.runtime.language.as_str().to_string()),
                         provider: Some(selected_provider.as_str().to_string()),
@@ -2187,38 +2525,160 @@ pub async fn run_post_download_plugins(
                         status: "error".to_string(),
                         message: Some(error.clone()),
                         details: shorten_for_event(Some(error.clone())),
-                        media_title: payload.title.clone(),
-                        filename: Some(payload.filename.clone()),
-                        media_url: Some(payload.url.clone()),
+                        media_title: step_payload.title.clone(),
+                        filename: Some(step_payload.filename.clone()),
+                        media_url: Some(step_payload.url.clone()),
                     },
                 )
                 .ok();
                 add_log_internal(
                     "error",
-                    &format!("Post-download plugin failed: {}", plugin.manifest.name),
+                    &format!("Post-processing step failed: {}", plugin.manifest.name),
                     Some(&format!(
-                        "Run ID: {} · {}",
-                        run_id,
+                        "Workflow Run ID: {}\nStep: {} / {}\n{}",
+                        workflow_run.run_id,
+                        step_index + 1,
+                        workflow_run.steps.len(),
                         error
                     )),
-                    Some(&payload.url),
+                    Some(&step_payload.url),
                 )
                 .ok();
+
                 results.push(PluginExecutionResult {
                     plugin_id: plugin.manifest.plugin_id.clone(),
                     success: false,
                     message: Some(error),
                     artifacts: None,
                     metadata: None,
+                    mutations: None,
                     stdout: None,
                     stderr: None,
                 });
+                if step.failure_policy == PluginWorkflowFailurePolicy::StopChain {
+                    stopped_early = true;
+                    break;
+                }
             }
         }
     }
 
-    write_registry(app, &registry).ok();
+    write_registry(&app, &registry).ok();
+
+    let final_status = workflow_result_status(&results, stopped_early);
+    add_log_internal(
+        match final_status {
+            PluginWorkflowRunStatus::Completed => "success",
+            PluginWorkflowRunStatus::PartialFailed => "error",
+            PluginWorkflowRunStatus::Failed => "error",
+            PluginWorkflowRunStatus::Queued | PluginWorkflowRunStatus::Running => "info",
+        },
+        "Post-processing workflow finished",
+        Some(&format!(
+            "Workflow Run ID: {}\nStatus: {:?}\nSteps run: {}",
+            workflow_run.run_id,
+            final_status,
+            results.len()
+        )),
+        Some(&workflow_run.initial_payload.url),
+    )
+    .ok();
+
     results
+}
+
+pub fn enqueue_post_download_workflow(
+    app: &AppHandle,
+    workflow_steps: Vec<PluginWorkflowStepSnapshot>,
+    payload: PostDownloadPluginPayload,
+) -> Option<String> {
+    if workflow_steps.is_empty() {
+        return None;
+    }
+
+    let run_id = Uuid::new_v4().to_string();
+    let workflow_run = PluginWorkflowRun {
+        run_id: run_id.clone(),
+        trigger: payload.trigger.clone(),
+        status: PluginWorkflowRunStatus::Queued,
+        current_chain_state: build_chain_state(&payload),
+        initial_payload: payload,
+        steps: workflow_steps,
+        current_step_index: None,
+        failed_step_plugin_id: None,
+    };
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = execute_plugin_workflow_run(app_handle, workflow_run).await;
+    });
+    Some(run_id)
+}
+
+pub fn enqueue_plugin_trigger_workflow(
+    app: &AppHandle,
+    trigger: &str,
+    workflow_steps: Option<Vec<PluginWorkflowStepSnapshot>>,
+    mut payload: PostDownloadPluginPayload,
+) -> Option<String> {
+    payload.trigger = trigger.to_string();
+    let steps = resolve_download_workflow_snapshot(app, trigger, workflow_steps, &[]);
+    enqueue_post_download_workflow(app, steps, payload)
+}
+
+pub fn resolve_download_workflow_snapshot(
+    app: &AppHandle,
+    trigger: &str,
+    workflow_steps: Option<Vec<PluginWorkflowStepSnapshot>>,
+    legacy_plugin_ids: &[String],
+) -> Vec<PluginWorkflowStepSnapshot> {
+    if let Some(steps) = workflow_steps {
+        if !steps.is_empty() {
+            return steps;
+        }
+    }
+
+    let registry = match read_registry(app) {
+        Ok(registry) => registry,
+        Err(error) => {
+            add_log_internal(
+                "error",
+                "Failed to read plugin workflow registry",
+                Some(&error),
+                None,
+            )
+            .ok();
+            return Vec::new();
+        }
+    };
+    let plugins = match list_plugins_internal(app) {
+        Ok(plugins) => plugins,
+        Err(error) => {
+            add_log_internal(
+                "error",
+                "Failed to load plugins for workflow snapshot",
+                Some(&error),
+                None,
+            )
+            .ok();
+            return Vec::new();
+        }
+    };
+    let plugins_by_id: BTreeMap<String, PluginSummary> = plugins
+        .into_iter()
+        .map(|plugin| (plugin.manifest.plugin_id.clone(), plugin))
+        .collect();
+
+    if !legacy_plugin_ids.is_empty() {
+        return build_legacy_workflow_snapshots(&plugins_by_id, &registry, trigger, legacy_plugin_ids);
+    }
+
+    let workflow = PluginTriggerWorkflow {
+        trigger: trigger.to_string(),
+        steps: workflow_registry_for_trigger(&registry, trigger)
+            .map(|workflow| workflow.steps.clone())
+            .unwrap_or_default(),
+    };
+    resolve_workflow_step_snapshots(&plugins_by_id, &workflow)
 }
 
 fn build_scaffold_plugin_module() -> String {
@@ -2355,6 +2815,28 @@ The plugin entrypoint is `src/plugin.js`.
 
 You do not need a per-plugin runner file. Youwee launches the shared bootstrap from
 `youwee-sdk` and passes your plugin entry module through the runtime bridge.
+
+## Trigger naming
+
+Use raw runtime trigger strings in `plugin.json`:
+
+```json
+{{
+  "triggers": ["download.completed", "download.failed"]
+}}
+```
+
+Use SDK identifiers only inside `src/plugin.js`:
+
+```js
+hooks: {{
+  [triggers.downloadCompleted]: async (ctx) => {{
+    return ctx.ok("Done");
+  }},
+}}
+```
+
+Do not write values like `"triggers.downloadCompleted"` in `plugin.json`.
 
 ## Execution model
 
@@ -2535,6 +3017,10 @@ fn sample_download_payload() -> PostDownloadPluginPayload {
         history_id: Some("sample-history-id".to_string()),
         time_range: None,
         download_kind: "download".to_string(),
+        workflow_run_id: None,
+        workflow_step_index: None,
+        workflow_step_plugin_id: None,
+        chain_state: None,
     }
 }
 
@@ -2616,6 +3102,36 @@ mod tests {
         };
         let err = validate_manifest(&manifest, Path::new("/tmp/plugin.json")).unwrap_err();
         assert!(err.contains("supportedProviders"));
+    }
+
+    #[test]
+    fn validate_manifest_rejects_sdk_trigger_identifiers() {
+        let manifest = crate::types::PluginManifest {
+            plugin_id: "id".to_string(),
+            slug: "slug".to_string(),
+            name: "Name".to_string(),
+            version: "0.1.0".to_string(),
+            description: None,
+            author: None,
+            homepage: None,
+            repository: None,
+            license: None,
+            runtime: PluginRuntimeSpec {
+                language: PluginRuntimeLanguage::Javascript,
+                supported_providers: vec![PluginProvider::Node],
+                preferred_provider: Some(PluginProvider::Node),
+                entrypoint: "src/plugin.js".to_string(),
+            },
+            compatibility: None,
+            triggers: vec!["triggers.downloadQueued".to_string()],
+            permissions: PluginPermissionRequest::default(),
+            timeout_sec: 60,
+            readme: None,
+            checksum: None,
+            published_at: None,
+        };
+        let err = validate_manifest(&manifest, Path::new("/tmp/plugin.json")).unwrap_err();
+        assert!(err.contains("raw runtime names"));
     }
 
     #[test]

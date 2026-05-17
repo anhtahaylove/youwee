@@ -26,8 +26,10 @@ import {
   waitWithCancellation,
 } from '@/lib/download-retry';
 import {
-  loadEnabledPostDownloadPlugins,
-  refreshEnabledPostDownloadPlugins,
+  enqueuePluginWorkflowTrigger,
+  loadPluginWorkflowSnapshots,
+  loadPostDownloadWorkflowSteps,
+  refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
 import { parseUniversalUrls } from '@/lib/sources';
 import type {
@@ -39,6 +41,7 @@ import type {
   ExternalEnqueueResult,
   Format,
   ItemUniversalSettings,
+  PostDownloadPluginPayload,
   ProxySettings,
   Quality,
   VideoInfoResponse,
@@ -323,7 +326,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   }, [settings]);
 
   useEffect(() => {
-    refreshEnabledPostDownloadPlugins();
+    refreshPostDownloadWorkflowSteps();
   }, []);
 
   useEffect(() => {
@@ -486,6 +489,80 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const enqueueQueuedWorkflowForItems = useCallback((queuedItems: DownloadItem[]) => {
+    for (const item of queuedItems) {
+      const itemSettings = item.settings as ItemUniversalSettings | undefined;
+      const workflowSnapshots = itemSettings?.pluginWorkflowSnapshots;
+      const timeRange =
+        itemSettings?.timeRangeStart && itemSettings?.timeRangeEnd
+          ? `${itemSettings.timeRangeStart}-${itemSettings.timeRangeEnd}`
+          : null;
+      const payload: PostDownloadPluginPayload = {
+        jobId: item.id,
+        source: item.extractor || null,
+        trigger: 'download.queued',
+        filepath: '',
+        filename: item.title || item.url,
+        directory: itemSettings?.outputPath ?? settingsRef.current.outputPath,
+        filesize: item.filesize ?? null,
+        format: itemSettings?.format ?? settingsRef.current.format,
+        quality: itemSettings?.quality ?? settingsRef.current.quality,
+        url: item.url,
+        title: item.title || null,
+        thumbnail: item.thumbnail || null,
+        historyId: null,
+        timeRange,
+        downloadKind: 'universal',
+        workflowRunId: null,
+        workflowStepIndex: null,
+        workflowStepPluginId: null,
+        chainState: null,
+      };
+      void enqueuePluginWorkflowTrigger('download.queued', payload, workflowSnapshots).catch(
+        (error) => {
+          console.error('Failed to enqueue universal download.queued workflow:', error);
+        },
+      );
+    }
+  }, []);
+
+  const enqueueFailedWorkflowForItem = useCallback(
+    (item: DownloadItem, itemSettings: ItemUniversalSettings | undefined) => {
+      const workflowSnapshots = itemSettings?.pluginWorkflowSnapshots;
+      const timeRange =
+        itemSettings?.timeRangeStart && itemSettings?.timeRangeEnd
+          ? `${itemSettings.timeRangeStart}-${itemSettings.timeRangeEnd}`
+          : null;
+      const payload: PostDownloadPluginPayload = {
+        jobId: item.id,
+        source: item.extractor || null,
+        trigger: 'download.failed',
+        filepath: '',
+        filename: item.title || item.url,
+        directory: itemSettings?.outputPath ?? settings.outputPath,
+        filesize: item.filesize ?? null,
+        format: itemSettings?.format ?? settings.format,
+        quality: itemSettings?.quality ?? settings.quality,
+        url: item.url,
+        title: item.title || null,
+        thumbnail: item.thumbnail || null,
+        historyId: null,
+        timeRange,
+        downloadKind: 'universal',
+        workflowRunId: null,
+        workflowStepIndex: null,
+        workflowStepPluginId: null,
+        chainState: null,
+      };
+      void enqueuePluginWorkflowTrigger('download.failed', payload, workflowSnapshots).catch(
+        (error) => {
+          console.error('Failed to enqueue universal download.failed workflow:', error);
+        },
+      );
+    },
+    [settings.format, settings.outputPath, settings.quality],
+  );
+
   const addFromText = useCallback(
     async (text: string): Promise<number> => {
       const urls = parseUniversalUrls(text);
@@ -494,6 +571,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const currentItems = itemsRef.current;
       const currentSettings = settingsRef.current;
       const aria2Settings = loadAria2Settings();
+      const workflowSnapshots = loadPluginWorkflowSnapshots();
 
       // Snapshot current settings for these items
       const settingsSnapshot: ItemUniversalSettings = {
@@ -503,7 +581,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         audioBitrate: currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
-        postDownloadPlugins: loadEnabledPostDownloadPlugins(),
+        pluginWorkflowSnapshots: workflowSnapshots,
+        postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
         autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
@@ -527,11 +606,12 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         setItems((prev) => [...prev, ...newItems]);
         // Fetch metadata (thumbnail, title, duration) in background
         fetchMetadataForItems(newItems);
+        enqueueQueuedWorkflowForItems(newItems);
       }
 
       return newItems.length;
     },
-    [fetchMetadataForItems],
+    [enqueueQueuedWorkflowForItems, fetchMetadataForItems],
   );
 
   const focusItem = useCallback((itemId: string) => {
@@ -564,6 +644,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         options?.quality && options.quality !== 'audio' ? options.quality : 'best';
       const audioBitrate = options?.audioBitrate === '128' ? '128' : 'auto';
       const aria2Settings = loadAria2Settings();
+      const workflowSnapshots = loadPluginWorkflowSnapshots();
 
       const settingsSnapshot: ItemUniversalSettings = {
         quality: mediaType === 'audio' ? 'audio' : videoQuality,
@@ -572,7 +653,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
-        postDownloadPlugins: loadEnabledPostDownloadPlugins(),
+        pluginWorkflowSnapshots: workflowSnapshots,
+        postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
         autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
@@ -594,9 +676,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       setItems(nextItems);
       fetchMetadataForItems([newItem]);
       focusItem(newItem.id);
+      enqueueQueuedWorkflowForItems([newItem]);
       return { added: true, itemId: newItem.id };
     },
-    [fetchMetadataForItems, focusItem],
+    [enqueueQueuedWorkflowForItems, fetchMetadataForItems, focusItem],
   );
 
   const importFromFile = useCallback(async (): Promise<number> => {
@@ -825,8 +908,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             thumbnail: item.thumbnail || null,
             // Source/extractor from video info fetch (e.g. "BiliBili", "TikTok")
             source: item.extractor || null,
-            postDownloadPlugins:
-              itemSettings?.postDownloadPlugins ?? loadEnabledPostDownloadPlugins(),
+            pluginWorkflowSnapshots:
+              itemSettings?.pluginWorkflowSnapshots ?? loadPluginWorkflowSnapshots(),
+            postDownloadWorkflowSteps:
+              itemSettings?.postDownloadWorkflowSteps ?? loadPostDownloadWorkflowSteps(),
+            emitFailedWorkflow: false,
             downloadKind: 'universal',
           });
 
@@ -849,6 +935,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             isRetryableError(parsedError.message, parsedError.code, parsedError.retryable);
 
           if (!canRetry) {
+            enqueueFailedWorkflowForItem(item, itemSettings);
             setItems((items) =>
               items.map((i) =>
                 i.id === item.id
@@ -960,7 +1047,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       setIsDownloading(false);
       isDownloadingRef.current = false;
     }
-  }, [settings]);
+  }, [enqueueFailedWorkflowForItem, settings]);
 
   const stopDownload = useCallback(async () => {
     try {

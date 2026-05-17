@@ -210,9 +210,123 @@ pub struct PluginExecutionResult {
     #[serde(default)]
     pub metadata: Option<Value>,
     #[serde(default)]
+    pub mutations: Option<PluginChainMutation>,
+    #[serde(default)]
     pub stdout: Option<String>,
     #[serde(default)]
     pub stderr: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum PluginWorkflowFailurePolicy {
+    Continue,
+    StopChain,
+}
+
+impl Default for PluginWorkflowFailurePolicy {
+    fn default() -> Self {
+        Self::Continue
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWorkflowStepConfig {
+    pub plugin_id: String,
+    #[serde(default)]
+    pub failure_policy: PluginWorkflowFailurePolicy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWorkflowStepSnapshot {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub plugin_version: String,
+    #[serde(default)]
+    pub selected_provider: Option<PluginProvider>,
+    #[serde(default)]
+    pub approved_permissions: PluginPermissionApproval,
+    #[serde(default)]
+    pub failure_policy: PluginWorkflowFailurePolicy,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginTriggerWorkflow {
+    pub trigger: String,
+    #[serde(default)]
+    pub steps: Vec<PluginWorkflowStepConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum PluginWorkflowRunStatus {
+    Queued,
+    Running,
+    Completed,
+    PartialFailed,
+    Failed,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginChainMutation {
+    #[serde(default)]
+    pub active_filepath: Option<String>,
+    #[serde(default)]
+    pub active_filename: Option<String>,
+    #[serde(default)]
+    pub extra_files: Vec<String>,
+    #[serde(default)]
+    pub metadata_patch: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginChainState {
+    pub job_id: String,
+    pub source: Option<String>,
+    pub download_kind: String,
+    pub url: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub thumbnail: Option<String>,
+    #[serde(default)]
+    pub history_id: Option<String>,
+    #[serde(default)]
+    pub time_range: Option<String>,
+    pub active_filepath: String,
+    pub active_filename: String,
+    pub directory: String,
+    #[serde(default)]
+    pub filesize: Option<u64>,
+    #[serde(default)]
+    pub format: Option<String>,
+    #[serde(default)]
+    pub quality: Option<String>,
+    #[serde(default)]
+    pub extra_files: Vec<String>,
+    #[serde(default)]
+    pub metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWorkflowRun {
+    pub run_id: String,
+    pub trigger: String,
+    pub status: PluginWorkflowRunStatus,
+    pub initial_payload: PostDownloadPluginPayload,
+    pub current_chain_state: PluginChainState,
+    #[serde(default)]
+    pub steps: Vec<PluginWorkflowStepSnapshot>,
+    #[serde(default)]
+    pub current_step_index: Option<usize>,
+    #[serde(default)]
+    pub failed_step_plugin_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -301,4 +415,12 @@ pub struct PostDownloadPluginPayload {
     pub history_id: Option<String>,
     pub time_range: Option<String>,
     pub download_kind: String,
+    #[serde(default)]
+    pub workflow_run_id: Option<String>,
+    #[serde(default)]
+    pub workflow_step_index: Option<usize>,
+    #[serde(default)]
+    pub workflow_step_plugin_id: Option<String>,
+    #[serde(default)]
+    pub chain_state: Option<PluginChainState>,
 }

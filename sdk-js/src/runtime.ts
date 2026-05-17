@@ -11,6 +11,8 @@ import {
 import type {
   CommandResult,
   CompatibilityCheckResult,
+  PluginChainMutation,
+  PluginChainState,
   PluginContext,
   PluginDefinition,
   PluginFileSystemBridge,
@@ -280,6 +282,24 @@ function createYouweeBridge(logger: PluginLogger): YouweeBridge {
 
 export function createContext(payload: PluginPayload): PluginContext {
   const logger = createLogger();
+  const chain: PluginChainState = payload.chainState ?? {
+    jobId: payload.jobId,
+    source: payload.source ?? null,
+    downloadKind: payload.downloadKind,
+    url: payload.url,
+    title: payload.title ?? null,
+    thumbnail: payload.thumbnail ?? null,
+    historyId: payload.historyId ?? null,
+    timeRange: payload.timeRange ?? null,
+    activeFilepath: payload.filepath,
+    activeFilename: payload.filename,
+    directory: payload.directory,
+    filesize: payload.filesize ?? null,
+    format: payload.format ?? null,
+    quality: payload.quality ?? null,
+    extraFiles: [],
+    metadata: null,
+  };
 
   return {
     payload,
@@ -304,6 +324,7 @@ export function createContext(payload: PluginPayload): PluginContext {
       title: payload.title ?? null,
       thumbnail: payload.thumbnail ?? null,
     },
+    chain,
     env: {
       get(name) {
         return process.env[name];
@@ -321,20 +342,32 @@ export function createContext(payload: PluginPayload): PluginContext {
     },
     log: logger,
     youwee: createYouweeBridge(logger),
-    ok(message, metadata = null, artifacts = null): PluginResult {
+    ok(
+      message,
+      metadata = null,
+      artifacts = null,
+      mutations: PluginChainMutation | null = null,
+    ): PluginResult {
       return {
         success: true,
         message,
         metadata,
         artifacts,
+        mutations,
       };
     },
-    fail(message, metadata = null, artifacts = null): PluginResult {
+    fail(
+      message,
+      metadata = null,
+      artifacts = null,
+      mutations: PluginChainMutation | null = null,
+    ): PluginResult {
       return {
         success: false,
         message,
         metadata,
         artifacts,
+        mutations,
       };
     },
   };

@@ -15,8 +15,6 @@ export const TRIGGERS = Object.freeze({
   downloadBeforeStart: 'download.beforeStart',
   downloadCompleted: 'download.completed',
   downloadFailed: 'download.failed',
-  processingBeforeStart: 'processing.beforeStart',
-  processingCompleted: 'processing.completed',
 });
 
 export const triggers = TRIGGERS;
@@ -82,6 +80,8 @@ export type {
   JsonShapeObjectDescriptor,
   ManifestValidationResult,
   ParsedSemver,
+  PluginChainMutation,
+  PluginChainState,
   PluginContext,
   PluginDefinition,
   PluginFileSystemBridge,
@@ -101,10 +101,6 @@ export type {
   PluginRuntimeLanguage,
   PluginRuntimeSpec,
   PluginTrigger,
-  ProcessingBeforeStartContext,
-  ProcessingBeforeStartPayload,
-  ProcessingCompletedContext,
-  ProcessingCompletedPayload,
   ToolRunner,
   TriggerPayloadMap,
   YouweeBridge,

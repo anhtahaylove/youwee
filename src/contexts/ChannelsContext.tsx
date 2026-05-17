@@ -12,8 +12,10 @@ import {
 } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
 import {
-  loadEnabledPostDownloadPlugins,
-  refreshEnabledPostDownloadPlugins,
+  enqueuePluginWorkflowTrigger,
+  loadPluginWorkflowSnapshots,
+  loadPostDownloadWorkflowSteps,
+  refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
 import type {
   ChannelVideo,
@@ -21,6 +23,7 @@ import type {
   DownloadSettings,
   FollowedChannel,
   PlaylistVideoEntry,
+  PostDownloadPluginPayload,
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
 
@@ -263,7 +266,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   useEffect(() => {
-    refreshEnabledPostDownloadPlugins();
+    refreshPostDownloadWorkflowSteps();
   }, []);
 
   // Per-video download progress: videoId -> state
@@ -818,6 +821,11 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
       // Determine concurrency from followed channel settings
       const followedCh = followedChannelsRef.current.find((c) => c.url === browseUrl);
       const maxConcurrent = Math.max(1, followedCh?.download_threads ?? 1);
+      const workflowSnapshots = loadPluginWorkflowSnapshots();
+      const queuedDownloads = videosToDownload.map((video) => ({
+        video,
+        downloadId: `channel-${video.id}-${Date.now()}-${crypto.randomUUID()}`,
+      }));
 
       setIsDownloading(true);
 
@@ -830,8 +838,42 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         return next;
       });
 
-      const downloadOne = async (video: PlaylistVideoEntry) => {
-        const downloadId = `channel-${video.id}-${Date.now()}`;
+      for (const { video, downloadId } of queuedDownloads) {
+        const payload: PostDownloadPluginPayload = {
+          jobId: downloadId,
+          source: detectPlatform(browseUrl) || 'youtube',
+          trigger: 'download.queued',
+          filepath: '',
+          filename: video.title || video.url,
+          directory: currentOutputPath,
+          filesize: null,
+          format,
+          quality,
+          url: video.url,
+          title: video.title || null,
+          thumbnail: video.thumbnail || null,
+          historyId: null,
+          timeRange: null,
+          downloadKind: 'channel-manual',
+          workflowRunId: null,
+          workflowStepIndex: null,
+          workflowStepPluginId: null,
+          chainState: null,
+        };
+        void enqueuePluginWorkflowTrigger('download.queued', payload, workflowSnapshots).catch(
+          (error) => {
+            console.error('Failed to enqueue channel manual download.queued workflow:', error);
+          },
+        );
+      }
+
+      const downloadOne = async ({
+        video,
+        downloadId,
+      }: {
+        video: PlaylistVideoEntry;
+        downloadId: string;
+      }) => {
         downloadIdMapRef.current.set(downloadId, { videoId: video.id, channelUrl: browseUrl });
 
         setDownloadingIds((prev) => new Set([...prev, video.id]));
@@ -878,7 +920,8 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
             title: video.title || null,
             thumbnail: video.thumbnail || null,
             source: detectPlatform(browseUrl) || 'youtube',
-            postDownloadPlugins: loadEnabledPostDownloadPlugins(),
+            pluginWorkflowSnapshots: workflowSnapshots,
+            postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
             downloadKind: 'channel-manual',
           });
         } catch (error) {
@@ -894,15 +937,15 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
 
       try {
         // Concurrency pool: run up to maxConcurrent downloads at once
-        const queue = [...videosToDownload];
+        const queue = [...queuedDownloads];
         const running: Promise<void>[] = [];
 
         while (queue.length > 0 || running.length > 0) {
           // Fill up to maxConcurrent slots
           while (running.length < maxConcurrent && queue.length > 0) {
-            const video = queue.shift();
-            if (!video) break;
-            const promise = downloadOne(video).then(() => {
+            const queuedDownload = queue.shift();
+            if (!queuedDownload) break;
+            const promise = downloadOne(queuedDownload).then(() => {
               running.splice(running.indexOf(promise), 1);
             });
             running.push(promise);
@@ -1209,10 +1252,48 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         const proxyUrl = getProxyUrl();
 
         const maxConcurrent = Math.max(1, download_threads || 1);
+        const workflowSnapshots = loadPluginWorkflowSnapshots();
+        const queuedAutoDownloads = newVideos.map((video) => ({
+          video,
+          downloadId: `auto-${video.video_id}-${Date.now()}-${crypto.randomUUID()}`,
+        }));
 
-        const downloadOneAuto = async (video: ChannelVideo) => {
-          const downloadId = `auto-${video.video_id}-${Date.now()}`;
+        for (const { video, downloadId } of queuedAutoDownloads) {
+          const payload: PostDownloadPluginPayload = {
+            jobId: downloadId,
+            source: detectPlatform(video.url) || 'youtube',
+            trigger: 'download.queued',
+            filepath: '',
+            filename: video.title || video.url,
+            directory: autoOutputPath,
+            filesize: null,
+            format,
+            quality,
+            url: video.url,
+            title: video.title || null,
+            thumbnail: video.thumbnail || null,
+            historyId: null,
+            timeRange: null,
+            downloadKind: 'channel-auto',
+            workflowRunId: null,
+            workflowStepIndex: null,
+            workflowStepPluginId: null,
+            chainState: null,
+          };
+          void enqueuePluginWorkflowTrigger('download.queued', payload, workflowSnapshots).catch(
+            (error) => {
+              console.error('Failed to enqueue channel auto download.queued workflow:', error);
+            },
+          );
+        }
 
+        const downloadOneAuto = async ({
+          video,
+          downloadId,
+        }: {
+          video: ChannelVideo;
+          downloadId: string;
+        }) => {
           await invoke('update_channel_video_status', { id: video.id, status: 'downloading' });
 
           try {
@@ -1240,7 +1321,8 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
               proxyUrl,
               useAria2,
               aria2Args,
-              postDownloadPlugins: loadEnabledPostDownloadPlugins(),
+              pluginWorkflowSnapshots: workflowSnapshots,
+              postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
               downloadKind: 'channel-auto',
             });
 
@@ -1252,14 +1334,14 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         };
 
         // Concurrency pool for auto-download
-        const queue = [...newVideos];
+        const queue = [...queuedAutoDownloads];
         const running: Promise<void>[] = [];
 
         while (queue.length > 0 || running.length > 0) {
           while (running.length < maxConcurrent && queue.length > 0) {
-            const video = queue.shift();
-            if (!video) break;
-            const promise = downloadOneAuto(video).then(() => {
+            const queuedDownload = queue.shift();
+            if (!queuedDownload) break;
+            const promise = downloadOneAuto(queuedDownload).then(() => {
               running.splice(running.indexOf(promise), 1);
             });
             running.push(promise);

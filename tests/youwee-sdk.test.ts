@@ -227,6 +227,23 @@ describe('youwee-sdk manifest helpers', () => {
 
     expect(errors.join('\n')).toContain('compatibility.appVersion is invalid');
   });
+
+  test('rejects SDK trigger identifiers inside plugin.json triggers', () => {
+    const errors = getManifestValidationErrors({
+      pluginId: 'plugin-1',
+      slug: 'example-plugin',
+      name: 'Example plugin',
+      version: '0.1.0',
+      runtime: {
+        language: 'javascript',
+        supportedProviders: ['node'],
+        entrypoint: 'src/plugin.js',
+      },
+      triggers: ['triggers.downloadQueued'],
+    });
+
+    expect(errors.join('\n')).toContain('plugin.json must use raw runtime names');
+  });
 });
 
 describe('youwee-sdk package metadata', () => {
@@ -326,6 +343,7 @@ describe('youwee-sdk runtime-cli', () => {
       message: 'runtime ok',
       metadata: { filename: 'video.mp4' },
       artifacts: null,
+      mutations: null,
     });
   });
 });

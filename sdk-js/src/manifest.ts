@@ -12,6 +12,13 @@ const PROVIDERS_BY_LANGUAGE: Record<PluginRuntimeLanguage, PluginProvider[]> = {
   python: ['python'],
 };
 
+const ALLOWED_TRIGGERS = new Set([
+  'download.queued',
+  'download.beforeStart',
+  'download.completed',
+  'download.failed',
+]);
+
 export function slugifyPluginName(input: string): string {
   let slug = '';
   let previousDash = false;
@@ -87,6 +94,22 @@ export function getManifestValidationErrors(manifest: PluginManifest): string[] 
 
   if (typeof manifest.timeoutSec === 'number' && manifest.timeoutSec <= 0) {
     errors.push('timeoutSec must be greater than 0.');
+  }
+
+  if (!manifest.triggers?.length) {
+    errors.push('triggers must contain at least one runtime trigger string.');
+  } else {
+    for (const trigger of manifest.triggers) {
+      if (!ALLOWED_TRIGGERS.has(trigger)) {
+        if (trigger.startsWith('triggers.')) {
+          errors.push(
+            `triggers contains "${trigger}", but plugin.json must use raw runtime names like "download.completed", not SDK identifiers like "triggers.downloadCompleted".`,
+          );
+        } else {
+          errors.push(`triggers contains unsupported runtime trigger "${trigger}".`);
+        }
+      }
+    }
   }
 
   if (manifest.compatibility?.appVersion) {

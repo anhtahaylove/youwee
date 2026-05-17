@@ -685,21 +685,40 @@ Supported descriptors:
 
 ## Trigger Catalog
 
-The SDK exposes a forward-looking trigger catalog:
+The SDK exposes the download trigger catalog currently supported by Youwee plugin workflows:
 
 - `triggers.downloadQueued`
 - `triggers.downloadBeforeStart`
 - `triggers.downloadCompleted`
 - `triggers.downloadFailed`
-- `triggers.processingBeforeStart`
-- `triggers.processingCompleted`
 
 Important:
 
-- the SDK may expose more trigger names than the application dispatches today
-- plugin code may be structured against stable trigger names before every trigger is live in the app
+- the SDK trigger list should match the trigger names that the application can actually dispatch
+- new trigger families should only be added after the application lifecycle is wired for them
 
 Authors should still confirm that the installed application version dispatches the trigger they depend on.
+
+Important distinction:
+
+- in JavaScript hook code, use SDK identifiers such as `triggers.downloadCompleted`
+- in `plugin.json`, the `triggers` field must use raw runtime strings such as `"download.completed"`
+
+Example:
+
+```json
+{
+  "triggers": ["download.completed", "download.failed"]
+}
+```
+
+This is invalid in `plugin.json`:
+
+```json
+{
+  "triggers": ["triggers.downloadCompleted"]
+}
+```
 
 ---
 

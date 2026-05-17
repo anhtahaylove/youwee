@@ -2,9 +2,7 @@ export type PluginTrigger =
   | 'download.queued'
   | 'download.beforeStart'
   | 'download.completed'
-  | 'download.failed'
-  | 'processing.beforeStart'
-  | 'processing.completed';
+  | 'download.failed';
 
 export type PluginRuntimeLanguage = 'javascript' | 'python';
 export type PluginProvider = 'deno' | 'node' | 'bun' | 'python';
@@ -62,6 +60,36 @@ export interface BasePluginPayload {
   historyId?: string | null;
   timeRange?: string | null;
   downloadKind: string;
+  workflowRunId?: string | null;
+  workflowStepIndex?: number | null;
+  workflowStepPluginId?: string | null;
+  chainState?: PluginChainState | null;
+}
+
+export interface PluginChainMutation {
+  activeFilepath?: string | null;
+  activeFilename?: string | null;
+  extraFiles?: string[];
+  metadataPatch?: unknown;
+}
+
+export interface PluginChainState {
+  jobId: string;
+  source?: string | null;
+  downloadKind: string;
+  url: string;
+  title?: string | null;
+  thumbnail?: string | null;
+  historyId?: string | null;
+  timeRange?: string | null;
+  activeFilepath: string;
+  activeFilename: string;
+  directory: string;
+  filesize?: number | null;
+  format?: string | null;
+  quality?: string | null;
+  extraFiles: string[];
+  metadata?: unknown;
 }
 
 export interface DownloadQueuedPayload extends BasePluginPayload {
@@ -80,21 +108,11 @@ export interface DownloadFailedPayload extends BasePluginPayload {
   trigger: 'download.failed';
 }
 
-export interface ProcessingBeforeStartPayload extends BasePluginPayload {
-  trigger: 'processing.beforeStart';
-}
-
-export interface ProcessingCompletedPayload extends BasePluginPayload {
-  trigger: 'processing.completed';
-}
-
 export type PluginPayload =
   | DownloadQueuedPayload
   | DownloadBeforeStartPayload
   | DownloadCompletedPayload
   | DownloadFailedPayload
-  | ProcessingBeforeStartPayload
-  | ProcessingCompletedPayload
   | BasePluginPayload;
 
 export interface TriggerPayloadMap {
@@ -102,8 +120,6 @@ export interface TriggerPayloadMap {
   'download.beforeStart': DownloadBeforeStartPayload;
   'download.completed': DownloadCompletedPayload;
   'download.failed': DownloadFailedPayload;
-  'processing.beforeStart': ProcessingBeforeStartPayload;
-  'processing.completed': ProcessingCompletedPayload;
 }
 
 export interface PluginResult {
@@ -111,6 +127,7 @@ export interface PluginResult {
   message?: string | null;
   artifacts?: unknown;
   metadata?: unknown;
+  mutations?: PluginChainMutation | null;
 }
 
 export interface CommandResult {
@@ -276,6 +293,7 @@ export interface PluginContext<TPayload extends PluginPayload = PluginPayload> {
     title: string | null;
     thumbnail: string | null;
   };
+  chain: PluginChainState;
   env: {
     get(name: string): string | undefined;
     require(name: string): string;
@@ -283,16 +301,24 @@ export interface PluginContext<TPayload extends PluginPayload = PluginPayload> {
   };
   log: PluginLogger;
   youwee: YouweeBridge;
-  ok(message: string, metadata?: unknown, artifacts?: unknown): PluginResult;
-  fail(message: string, metadata?: unknown, artifacts?: unknown): PluginResult;
+  ok(
+    message: string,
+    metadata?: unknown,
+    artifacts?: unknown,
+    mutations?: PluginChainMutation | null,
+  ): PluginResult;
+  fail(
+    message: string,
+    metadata?: unknown,
+    artifacts?: unknown,
+    mutations?: PluginChainMutation | null,
+  ): PluginResult;
 }
 
 export type DownloadQueuedContext = PluginContext<DownloadQueuedPayload>;
 export type DownloadBeforeStartContext = PluginContext<DownloadBeforeStartPayload>;
 export type DownloadCompletedContext = PluginContext<DownloadCompletedPayload>;
 export type DownloadFailedContext = PluginContext<DownloadFailedPayload>;
-export type ProcessingBeforeStartContext = PluginContext<ProcessingBeforeStartPayload>;
-export type ProcessingCompletedContext = PluginContext<ProcessingCompletedPayload>;
 
 export type PluginHookHandler<
   TPayload extends PluginPayload = PluginPayload,

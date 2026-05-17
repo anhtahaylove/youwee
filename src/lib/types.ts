@@ -4,6 +4,11 @@ export type VideoCodec = 'h264' | 'vp9' | 'av1' | 'auto';
 export type AudioBitrate = 'auto' | '128';
 export type SubtitleMode = 'off' | 'auto' | 'manual';
 export type SubtitleFormat = 'srt' | 'vtt' | 'ass';
+export type PluginTrigger =
+  | 'download.queued'
+  | 'download.beforeStart'
+  | 'download.completed'
+  | 'download.failed';
 
 // SponsorBlock types
 export type SponsorBlockMode = 'remove' | 'mark' | 'custom';
@@ -62,7 +67,8 @@ export interface ItemDownloadSettings {
   subtitleFormat: SubtitleFormat;
   timeRangeStart?: string;
   timeRangeEnd?: string;
-  postDownloadPlugins?: string[];
+  pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
+  postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
   autoRetryEnabled: boolean;
   autoRetryMaxAttempts: number;
   autoRetryDelaySeconds: number;
@@ -78,7 +84,8 @@ export interface ItemUniversalSettings {
   aria2Args: string;
   timeRangeStart?: string;
   timeRangeEnd?: string;
-  postDownloadPlugins?: string[];
+  pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
+  postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
   autoRetryEnabled: boolean;
   autoRetryMaxAttempts: number;
   autoRetryDelaySeconds: number;
@@ -296,8 +303,78 @@ export interface PluginExecutionResult {
   message?: string | null;
   artifacts?: Record<string, unknown> | null;
   metadata?: Record<string, unknown> | null;
+  mutations?: PluginChainMutation | null;
   stdout?: string | null;
   stderr?: string | null;
+}
+
+export type PluginWorkflowFailurePolicy = 'continue' | 'stop-chain';
+
+export interface PluginWorkflowStepConfig {
+  pluginId: string;
+  failurePolicy: PluginWorkflowFailurePolicy;
+}
+
+export interface PluginWorkflowStepSnapshot {
+  pluginId: string;
+  pluginName: string;
+  pluginVersion: string;
+  selectedProvider?: PluginProvider | null;
+  approvedPermissions: PluginPermissionApproval;
+  failurePolicy: PluginWorkflowFailurePolicy;
+}
+
+export type PluginWorkflowSnapshotMap = Partial<
+  Record<PluginTrigger, PluginWorkflowStepSnapshot[]>
+>;
+
+export interface PluginTriggerWorkflow {
+  trigger: string;
+  steps: PluginWorkflowStepConfig[];
+}
+
+export type PluginWorkflowRunStatus =
+  | 'queued'
+  | 'running'
+  | 'completed'
+  | 'partial-failed'
+  | 'failed';
+
+export interface PluginChainMutation {
+  activeFilepath?: string | null;
+  activeFilename?: string | null;
+  extraFiles: string[];
+  metadataPatch?: Record<string, unknown> | null;
+}
+
+export interface PluginChainState {
+  jobId: string;
+  source?: string | null;
+  downloadKind: string;
+  url: string;
+  title?: string | null;
+  thumbnail?: string | null;
+  historyId?: string | null;
+  timeRange?: string | null;
+  activeFilepath: string;
+  activeFilename: string;
+  directory: string;
+  filesize?: number | null;
+  format?: string | null;
+  quality?: string | null;
+  extraFiles: string[];
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface PluginWorkflowRun {
+  runId: string;
+  trigger: string;
+  status: PluginWorkflowRunStatus;
+  initialPayload: PostDownloadPluginPayload;
+  currentChainState: PluginChainState;
+  steps: PluginWorkflowStepSnapshot[];
+  currentStepIndex?: number | null;
+  failedStepPluginId?: string | null;
 }
 
 export interface PluginExecutionStatusEvent {
@@ -325,6 +402,28 @@ export interface PluginExecutionOutputEvent {
   mediaTitle?: string | null;
   filename?: string | null;
   mediaUrl?: string | null;
+}
+
+export interface PostDownloadPluginPayload {
+  jobId: string;
+  source?: string | null;
+  trigger: string;
+  filepath: string;
+  filename: string;
+  directory: string;
+  filesize?: number | null;
+  format?: string | null;
+  quality?: string | null;
+  url: string;
+  title?: string | null;
+  thumbnail?: string | null;
+  historyId?: string | null;
+  timeRange?: string | null;
+  downloadKind: string;
+  workflowRunId?: string | null;
+  workflowStepIndex?: number | null;
+  workflowStepPluginId?: string | null;
+  chainState?: PluginChainState | null;
 }
 
 export interface VideoInfo {

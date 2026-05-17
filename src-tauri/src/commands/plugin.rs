@@ -2,16 +2,20 @@ use tauri::AppHandle;
 
 use crate::services::{
     approve_plugin_permissions_internal, create_plugin_scaffold_internal,
-    get_plugin_details_internal, get_runtime_provider_status_internal,
+    enqueue_plugin_trigger_workflow,
+    get_plugin_details_internal, get_plugin_trigger_workflow_internal,
+    get_runtime_provider_status_internal,
     inspect_plugin_folder_internal, inspect_plugin_url_internal, inspect_plugin_zip_internal,
     install_plugin_internal, list_plugins_internal, list_runtime_providers_internal,
     open_plugin_directory_internal, set_default_provider_for_language_internal,
     set_plugin_provider_internal, set_plugin_trust_internal, update_plugin_env_values_internal,
-    update_plugin_state_internal, CreatePluginScaffoldInput, InstallPluginSourceInput,
-    PluginEnvValuesInput, PluginPermissionApprovalInput,
+    update_plugin_state_internal, update_plugin_trigger_workflow_internal,
+    CreatePluginScaffoldInput, InstallPluginSourceInput, PluginEnvValuesInput,
+    PluginPermissionApprovalInput,
 };
 use crate::types::{
     PluginPackageInspection, PluginProvider, PluginRuntimeLanguage, PluginSummary,
+    PluginTriggerWorkflow, PluginWorkflowStepSnapshot, PostDownloadPluginPayload,
     RuntimeProviderStatus,
 };
 
@@ -69,6 +73,37 @@ pub fn create_plugin_scaffold(
 #[tauri::command]
 pub fn update_plugin_state(app: AppHandle, plugin_id: String, enabled: bool) -> Result<(), String> {
     update_plugin_state_internal(&app, &plugin_id, enabled)
+}
+
+#[tauri::command]
+pub fn get_plugin_trigger_workflow(
+    app: AppHandle,
+    trigger: String,
+) -> Result<PluginTriggerWorkflow, String> {
+    get_plugin_trigger_workflow_internal(&app, &trigger)
+}
+
+#[tauri::command]
+pub fn update_plugin_trigger_workflow(
+    app: AppHandle,
+    workflow: PluginTriggerWorkflow,
+) -> Result<PluginTriggerWorkflow, String> {
+    update_plugin_trigger_workflow_internal(&app, workflow)
+}
+
+#[tauri::command]
+pub fn enqueue_plugin_workflow_trigger(
+    app: AppHandle,
+    trigger: String,
+    payload: PostDownloadPluginPayload,
+    workflow_steps: Option<Vec<PluginWorkflowStepSnapshot>>,
+) -> Result<Option<String>, String> {
+    Ok(enqueue_plugin_trigger_workflow(
+        &app,
+        &trigger,
+        workflow_steps,
+        payload,
+    ))
 }
 
 #[tauri::command]

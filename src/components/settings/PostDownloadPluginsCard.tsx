@@ -7,11 +7,14 @@ import {
   Download,
   FolderOpen,
   Info,
+  MoveDown,
+  MoveUp,
   PackageOpen,
   Plus,
   RefreshCw,
   ShieldCheck,
   TerminalSquare,
+  Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +32,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { localizeUnknownError } from '@/lib/backend-error';
-import { saveEnabledPostDownloadPlugins } from '@/lib/post-download-plugins';
+import { buildWorkflowSnapshotMap, savePluginWorkflowSnapshots } from '@/lib/post-download-plugins';
 import type {
   LogEntry,
   PluginCompatibilitySpec,
@@ -39,6 +42,8 @@ import type {
   PluginProvider,
   PluginRuntimeLanguage,
   PluginSummary,
+  PluginTriggerWorkflow,
+  PluginWorkflowFailurePolicy,
   RuntimeProviderStatus,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -146,10 +151,20 @@ function formatRuntimeStatusBadge(
   return status;
 }
 
+const WORKFLOW_TRIGGERS = [
+  'download.queued',
+  'download.beforeStart',
+  'download.completed',
+  'download.failed',
+] as const;
+type WorkflowTrigger = (typeof WORKFLOW_TRIGGERS)[number];
+
 export function PostDownloadPluginsCard() {
   const { t } = useTranslation('settings');
   const [plugins, setPlugins] = useState<PluginSummary[]>([]);
   const [providers, setProviders] = useState<RuntimeProviderStatus[]>([]);
+  const [workflows, setWorkflows] = useState<Record<string, PluginTriggerWorkflow>>({});
+  const [workflowCandidates, setWorkflowCandidates] = useState<Record<string, string>>({});
   const [defaultProviders, setDefaultProviders] = useState<
     Partial<Record<PluginRuntimeLanguage, PluginProvider>>
   >({});
@@ -180,12 +195,20 @@ export function PostDownloadPluginsCard() {
     setLoading(true);
     setError(null);
     try {
-      const [pluginResult, providerResult] = await Promise.all([
+      const [pluginResult, providerResult, workflowResults] = await Promise.all([
         invoke<PluginSummary[]>('list_plugins'),
         invoke<RuntimeProviderStatus[]>('list_runtime_providers'),
+        Promise.all(
+          WORKFLOW_TRIGGERS.map((trigger) =>
+            invoke<PluginTriggerWorkflow>('get_plugin_trigger_workflow', { trigger }),
+          ),
+        ),
       ]);
       setPlugins(pluginResult);
       setProviders(providerResult);
+      setWorkflows(
+        Object.fromEntries(workflowResults.map((workflow) => [workflow.trigger, workflow])),
+      );
 
       const defaults: Partial<Record<PluginRuntimeLanguage, PluginProvider>> = {};
       const statuses: Record<string, { status: string; message?: string | null }> = {};
@@ -203,11 +226,7 @@ export function PostDownloadPluginsCard() {
       }
       setDefaultProviders(defaults);
       setRuntimeStatuses(statuses);
-      saveEnabledPostDownloadPlugins(
-        pluginResult
-          .filter((plugin) => plugin.installation.enabled)
-          .map((plugin) => plugin.manifest.pluginId),
-      );
+      savePluginWorkflowSnapshots(buildWorkflowSnapshotMap(pluginResult, workflowResults));
     } catch (err) {
       console.error('Failed to load plugins:', err);
       setError(t('download.pluginLoadError'));
@@ -219,6 +238,15 @@ export function PostDownloadPluginsCard() {
   useEffect(() => {
     loadPlugins();
   }, [loadPlugins]);
+
+  useEffect(() => {
+    savePluginWorkflowSnapshots(
+      buildWorkflowSnapshotMap(
+        plugins,
+        WORKFLOW_TRIGGERS.map((trigger) => workflows[trigger] ?? { trigger, steps: [] }),
+      ),
+    );
+  }, [workflows, plugins]);
 
   useEffect(() => {
     let isMounted = true;
@@ -259,10 +287,11 @@ export function PostDownloadPluginsCard() {
   const updatePluginList = (updater: (items: PluginSummary[]) => PluginSummary[]) => {
     setPlugins((current) => {
       const next = updater(current);
-      saveEnabledPostDownloadPlugins(
-        next
-          .filter((plugin) => plugin.installation.enabled)
-          .map((plugin) => plugin.manifest.pluginId),
+      savePluginWorkflowSnapshots(
+        buildWorkflowSnapshotMap(
+          next,
+          WORKFLOW_TRIGGERS.map((trigger) => workflows[trigger] ?? { trigger, steps: [] }),
+        ),
       );
       return next;
     });
@@ -533,6 +562,121 @@ export function PostDownloadPluginsCard() {
     }
   };
 
+  const persistWorkflow = async (nextWorkflow: PluginTriggerWorkflow) => {
+    try {
+      const saved = await invoke<PluginTriggerWorkflow>('update_plugin_trigger_workflow', {
+        workflow: nextWorkflow,
+      });
+      setWorkflows((current) => ({
+        ...current,
+        [saved.trigger]: saved,
+      }));
+    } catch (err) {
+      console.error('Failed to update plugin workflow:', err);
+      setError(localizeUnknownError(err));
+    }
+  };
+
+  const handleAddWorkflowPlugin = async (trigger: WorkflowTrigger) => {
+    const workflow = workflows[trigger] ?? { trigger, steps: [] };
+    const pluginId = workflowCandidates[trigger] ?? '';
+    if (!pluginId) return;
+    await persistWorkflow({
+      trigger,
+      steps: [
+        ...workflow.steps,
+        {
+          pluginId,
+          failurePolicy: 'continue',
+        },
+      ],
+    });
+    setWorkflowCandidates((current) => ({ ...current, [trigger]: '' }));
+  };
+
+  const handleRemoveWorkflowStep = async (trigger: WorkflowTrigger, pluginId: string) => {
+    const workflow = workflows[trigger] ?? { trigger, steps: [] };
+    await persistWorkflow({
+      trigger: workflow.trigger,
+      steps: workflow.steps.filter((step) => step.pluginId !== pluginId),
+    });
+  };
+
+  const handleMoveWorkflowStep = async (
+    trigger: WorkflowTrigger,
+    pluginId: string,
+    direction: -1 | 1,
+  ) => {
+    const workflow = workflows[trigger] ?? { trigger, steps: [] };
+    const index = workflow.steps.findIndex((step) => step.pluginId === pluginId);
+    if (index < 0) return;
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= workflow.steps.length) return;
+    const steps = [...workflow.steps];
+    const [current] = steps.splice(index, 1);
+    steps.splice(nextIndex, 0, current);
+    await persistWorkflow({
+      trigger: workflow.trigger,
+      steps,
+    });
+  };
+
+  const handleWorkflowFailurePolicy = async (
+    trigger: WorkflowTrigger,
+    pluginId: string,
+    failurePolicy: PluginWorkflowFailurePolicy,
+  ) => {
+    const workflow = workflows[trigger] ?? { trigger, steps: [] };
+    await persistWorkflow({
+      trigger: workflow.trigger,
+      steps: workflow.steps.map((step) =>
+        step.pluginId === pluginId ? { ...step, failurePolicy } : step,
+      ),
+    });
+  };
+
+  const workflowPluginsByTrigger = useMemo(
+    () =>
+      Object.fromEntries(
+        WORKFLOW_TRIGGERS.map((trigger) => {
+          const workflow = workflows[trigger] ?? { trigger, steps: [] };
+          return [
+            trigger,
+            workflow.steps
+              .map((step) => ({
+                step,
+                plugin:
+                  plugins.find((plugin) => plugin.manifest.pluginId === step.pluginId) ?? null,
+              }))
+              .filter((entry) => entry.plugin != null),
+          ];
+        }),
+      ) as Record<
+        WorkflowTrigger,
+        Array<{ step: PluginTriggerWorkflow['steps'][number]; plugin: PluginSummary | null }>
+      >,
+    [workflows, plugins],
+  );
+
+  const availableWorkflowPluginsByTrigger = useMemo(
+    () =>
+      Object.fromEntries(
+        WORKFLOW_TRIGGERS.map((trigger) => {
+          const workflow = workflows[trigger] ?? { trigger, steps: [] };
+          return [
+            trigger,
+            plugins.filter(
+              (plugin) =>
+                plugin.installation.enabled &&
+                plugin.manifest.triggers.includes(trigger) &&
+                !workflow.steps.some((step) => step.pluginId === plugin.manifest.pluginId),
+            ),
+          ];
+        }),
+      ) as Record<WorkflowTrigger, PluginSummary[]>,
+    [workflows, plugins],
+  );
+
   const selectedPlugin =
     selectedPluginId != null
       ? (plugins.find((plugin) => plugin.manifest.pluginId === selectedPluginId) ?? null)
@@ -720,8 +864,6 @@ export function PostDownloadPluginsCard() {
               const supportedProviders = plugin.manifest.runtime.supportedProviders;
               const runtimeStatus = runtimeStatuses[plugin.manifest.pluginId];
               const isExpanded = expandedPluginId === plugin.manifest.pluginId;
-              const providerSummary = `${PROVIDER_LABELS[selectedProvider]} / ${LANGUAGE_LABELS[plugin.manifest.runtime.language]}`;
-
               return (
                 <Collapsible
                   key={plugin.manifest.pluginId}
@@ -773,21 +915,9 @@ export function PostDownloadPluginsCard() {
                               )}
                             </div>
 
-                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                              <span>{providerSummary}</span>
-                              <span>
-                                {t('download.pluginTimeout', {
-                                  seconds: plugin.manifest.timeoutSec,
-                                })}
-                              </span>
-                              <span>
-                                {requestedPermissions.length > 0
-                                  ? t('download.pluginPermissionSummary', {
-                                      count: requestedPermissions.length,
-                                    })
-                                  : t('download.pluginNoExtraPermissions')}
-                              </span>
-                            </div>
+                            <p className="mt-1 line-clamp-2 text-[11px] text-muted-foreground">
+                              {plugin.manifest.description || t('download.pluginNoDescription')}
+                            </p>
                           </div>
 
                           <ChevronDown
@@ -844,38 +974,137 @@ export function PostDownloadPluginsCard() {
                         <div className="grid gap-3 lg:grid-cols-2">
                           <div className="rounded-xl bg-muted/30 p-3">
                             <div className="flex items-center gap-2 text-xs font-medium">
-                              <PackageOpen className="h-4 w-4 text-purple-500" />
+                              <Info className="h-4 w-4 text-purple-500" />
                               <span>{t('download.pluginPackageTitle')}</span>
                             </div>
                             <p className="mt-2 text-[11px] text-muted-foreground">
                               {t('download.pluginPackageDesc')}
                             </p>
-                            <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
-                              <p>
-                                {t('download.pluginIdentifierLabel')}:{' '}
-                                {formatPluginIdentifier(
-                                  plugin.manifest.pluginId,
-                                  plugin.manifest.slug,
-                                )}
-                              </p>
-                              <p>
-                                {t('download.pluginSourceLabel')}:{' '}
-                                {formatSourceKind(plugin.installation.source.kind, t)}
-                              </p>
-                              {plugin.manifest.author && (
+                            <div className="mt-3 grid gap-2 text-[11px] text-muted-foreground sm:grid-cols-2">
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginIdentifierLabel')}
+                                </p>
                                 <p>
-                                  {t('download.pluginAuthorLabel')}: {plugin.manifest.author}
+                                  {formatPluginIdentifier(
+                                    plugin.manifest.pluginId,
+                                    plugin.manifest.slug,
+                                  )}
                                 </p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginVersionLabel')}
+                                </p>
+                                <p>v{plugin.manifest.version}</p>
+                              </div>
+                              {plugin.manifest.author && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginAuthorLabel')}
+                                  </p>
+                                  <p>{plugin.manifest.author}</p>
+                                </div>
                               )}
-                              <p className="break-all">
-                                {t('download.pluginLocationLabel')}:{' '}
-                                {plugin.installation.source.value}
-                              </p>
-                              {plugin.installation.source.checksum && (
-                                <p className="break-all">
-                                  {t('download.pluginChecksumLabel')}:{' '}
-                                  {formatChecksum(plugin.installation.source.checksum)}
+                              {plugin.manifest.license && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginLicenseLabel')}
+                                  </p>
+                                  <p>{plugin.manifest.license}</p>
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginSourceLabel')}
                                 </p>
+                                <p>{formatSourceKind(plugin.installation.source.kind, t)}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginLanguageLabel')}
+                                </p>
+                                <p>{LANGUAGE_LABELS[plugin.manifest.runtime.language]}</p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginTimeoutLabel')}
+                                </p>
+                                <p>
+                                  {t('download.pluginTimeout', {
+                                    seconds: plugin.manifest.timeoutSec,
+                                  })}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginSupportedProvidersLabel')}
+                                </p>
+                                <p>
+                                  {plugin.manifest.runtime.supportedProviders
+                                    .map((provider) => PROVIDER_LABELS[provider])
+                                    .join(', ')}
+                                </p>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginTriggersLabel')}
+                                </p>
+                                <p>{plugin.manifest.triggers.join(', ')}</p>
+                              </div>
+                              {plugin.manifest.homepage && (
+                                <div className="sm:col-span-2">
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginHomepageLabel')}
+                                  </p>
+                                  <a
+                                    href={plugin.manifest.homepage}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="break-all text-primary hover:underline"
+                                  >
+                                    {plugin.manifest.homepage}
+                                  </a>
+                                </div>
+                              )}
+                              {plugin.manifest.repository && (
+                                <div className="sm:col-span-2">
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginRepositoryLabel')}
+                                  </p>
+                                  <a
+                                    href={plugin.manifest.repository}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="break-all text-primary hover:underline"
+                                  >
+                                    {plugin.manifest.repository}
+                                  </a>
+                                </div>
+                              )}
+                              {plugin.manifest.publishedAt && (
+                                <div className="sm:col-span-2">
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginPublishedAtLabel')}
+                                  </p>
+                                  <p>{plugin.manifest.publishedAt}</p>
+                                </div>
+                              )}
+                              <div className="sm:col-span-2">
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginLocationLabel')}
+                                </p>
+                                <p className="break-all">{plugin.installation.source.value}</p>
+                              </div>
+                              {plugin.installation.source.checksum && (
+                                <div className="sm:col-span-2">
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginChecksumLabel')}
+                                  </p>
+                                  <p className="break-all">
+                                    {formatChecksum(plugin.installation.source.checksum)}
+                                  </p>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -883,31 +1112,50 @@ export function PostDownloadPluginsCard() {
                           <div className="rounded-xl bg-muted/30 p-3">
                             <div className="flex items-center gap-2 text-xs font-medium">
                               <PackageOpen className="h-4 w-4 text-blue-500" />
-                              <span>{t('download.pluginProviderTitle')}</span>
+                              <span>{t('download.pluginCompatibilityTitle')}</span>
                             </div>
                             <p className="mt-2 text-[11px] text-muted-foreground">
-                              {t('download.pluginProviderDesc')}
+                              {t('download.pluginCompatibilityDesc')}
                             </p>
-                            <div className="mt-3">
-                              <Select
-                                value={selectedProvider}
-                                onValueChange={(value) =>
-                                  handleSetPluginProvider(plugin, value as PluginProvider)
-                                }
-                              >
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {supportedProviders.map((provider) => (
-                                    <SelectItem key={provider} value={provider} className="text-xs">
-                                      {PROVIDER_LABELS[provider]}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
+                            <div className="mt-3 space-y-3 text-[11px] text-muted-foreground">
+                              <div>
+                                <p className="font-medium text-foreground/80">
+                                  {t('download.pluginProviderTitle')}
+                                </p>
+                                <p className="mt-1">{t('download.pluginProviderDesc')}</p>
+                                <div className="mt-2">
+                                  <Select
+                                    value={selectedProvider}
+                                    onValueChange={(value) =>
+                                      handleSetPluginProvider(plugin, value as PluginProvider)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {supportedProviders.map((provider) => (
+                                        <SelectItem
+                                          key={provider}
+                                          value={provider}
+                                          className="text-xs"
+                                        >
+                                          {PROVIDER_LABELS[provider]}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                {compatibilityEntries.length > 0 ? (
+                                  compatibilityEntries.map((entry) => <p key={entry}>{entry}</p>)
+                                ) : (
+                                  <p>{t('download.pluginCompatibilityNone')}</p>
+                                )}
+                              </div>
+
                               {plugin.installation.lastResolvedProvider && (
                                 <p>
                                   {t('download.pluginLastResolvedProvider')}:{' '}
@@ -940,37 +1188,20 @@ export function PostDownloadPluginsCard() {
                                   {t('download.pluginRunningNow')}
                                 </p>
                               )}
+                              {plugin.warnings.length > 0 && (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {plugin.warnings.map((warning) => (
+                                    <span
+                                      key={`${plugin.manifest.pluginId}-${warning}`}
+                                      className="rounded bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600 dark:text-amber-400"
+                                    >
+                                      {warning}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
-                        </div>
-
-                        <div className="rounded-xl bg-muted/30 p-3">
-                          <div className="flex items-center gap-2 text-xs font-medium">
-                            <Braces className="h-4 w-4 text-purple-500" />
-                            <span>{t('download.pluginCompatibilityTitle')}</span>
-                          </div>
-                          <p className="mt-2 text-[11px] text-muted-foreground">
-                            {t('download.pluginCompatibilityDesc')}
-                          </p>
-                          <div className="mt-3 space-y-1 text-[11px] text-muted-foreground">
-                            {compatibilityEntries.length > 0 ? (
-                              compatibilityEntries.map((entry) => <p key={entry}>{entry}</p>)
-                            ) : (
-                              <p>{t('download.pluginCompatibilityNone')}</p>
-                            )}
-                          </div>
-                          {plugin.warnings.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {plugin.warnings.map((warning) => (
-                                <span
-                                  key={`${plugin.manifest.pluginId}-${warning}`}
-                                  className="rounded bg-amber-500/10 px-2 py-1 text-[11px] text-amber-600 dark:text-amber-400"
-                                >
-                                  {warning}
-                                </span>
-                              ))}
-                            </div>
-                          )}
                         </div>
 
                         <div className="rounded-xl bg-muted/30 p-3">
@@ -1163,6 +1394,180 @@ export function PostDownloadPluginsCard() {
           </div>
         )}
       </SettingsCard>
+
+      <div className="space-y-4">
+        {WORKFLOW_TRIGGERS.map((trigger) => {
+          const workflowPlugins = workflowPluginsByTrigger[trigger] ?? [];
+          const availableWorkflowPlugins = availableWorkflowPluginsByTrigger[trigger] ?? [];
+          const candidateValue = workflowCandidates[trigger] ?? '';
+
+          return (
+            <SettingsCard key={trigger} className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  {t(`download.pluginWorkflowTrigger.${trigger}.title`)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t(`download.pluginWorkflowTrigger.${trigger}.desc`)}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-dashed border-border/70 bg-background/40 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <p className="text-xs font-medium">{t('download.pluginWorkflowAddLabel')}</p>
+                    <Select
+                      value={candidateValue}
+                      onValueChange={(value) =>
+                        setWorkflowCandidates((current) => ({ ...current, [trigger]: value }))
+                      }
+                    >
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder={t('download.pluginWorkflowAddPlaceholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableWorkflowPlugins.map((plugin) => (
+                          <SelectItem
+                            key={`${trigger}-${plugin.manifest.pluginId}`}
+                            value={plugin.manifest.pluginId}
+                            className="text-xs"
+                          >
+                            {plugin.manifest.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="border-dashed"
+                    onClick={() => handleAddWorkflowPlugin(trigger)}
+                    disabled={!candidateValue}
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t('download.pluginWorkflowAddButton')}
+                  </Button>
+                </div>
+              </div>
+
+              {workflowPlugins.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border/70 bg-background/40 px-4 py-6 text-center">
+                  <p className="text-sm font-medium">{t('download.pluginWorkflowEmptyTitle')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t('download.pluginWorkflowEmptyDesc')}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {workflowPlugins.map(({ step, plugin }, index) => {
+                    if (!plugin) return null;
+                    return (
+                      <div
+                        key={`${trigger}-${plugin.manifest.pluginId}`}
+                        className="rounded-xl border border-border/60 bg-background/60 p-4"
+                      >
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded bg-blue-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                                {t('download.pluginWorkflowStepNumber', { index: index + 1 })}
+                              </span>
+                              <p className="truncate text-sm font-semibold">
+                                {plugin.manifest.name}
+                              </p>
+                              <span className="rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                v{plugin.manifest.version}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {plugin.manifest.description || t('download.pluginNoDescription')}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleMoveWorkflowStep(trigger, plugin.manifest.pluginId, -1)
+                              }
+                              disabled={index === 0}
+                            >
+                              <MoveUp className="h-4 w-4" />
+                              {t('download.pluginWorkflowMoveUp')}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleMoveWorkflowStep(trigger, plugin.manifest.pluginId, 1)
+                              }
+                              disabled={index === workflowPlugins.length - 1}
+                            >
+                              <MoveDown className="h-4 w-4" />
+                              {t('download.pluginWorkflowMoveDown')}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                handleRemoveWorkflowStep(trigger, plugin.manifest.pluginId)
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t('download.pluginWorkflowRemove')}
+                            </Button>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">
+                              {t('download.pluginWorkflowStepOrder')}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t('download.pluginWorkflowStepOrderHelp')}
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium">
+                              {t('download.pluginWorkflowFailureTitle')}
+                            </p>
+                            <Select
+                              value={step.failurePolicy}
+                              onValueChange={(value) =>
+                                handleWorkflowFailurePolicy(
+                                  trigger,
+                                  plugin.manifest.pluginId,
+                                  value as PluginWorkflowFailurePolicy,
+                                )
+                              }
+                            >
+                              <SelectTrigger className="h-9 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="continue" className="text-xs">
+                                  {t('download.pluginWorkflowFailureContinue')}
+                                </SelectItem>
+                                <SelectItem value="stop-chain" className="text-xs">
+                                  {t('download.pluginWorkflowFailureStopChain')}
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SettingsCard>
+          );
+        })}
+      </div>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-[560px]">
