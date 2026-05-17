@@ -515,6 +515,12 @@ export interface LogEntry {
   url?: string;
 }
 
+export interface PluginLogsPage {
+  items: LogEntry[];
+  total: number;
+  has_more: boolean;
+}
+
 export type LogFilter = 'all' | 'command' | 'success' | 'error' | 'stderr' | 'info';
 
 // History types

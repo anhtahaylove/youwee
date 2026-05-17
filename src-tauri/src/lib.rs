@@ -193,6 +193,7 @@ pub fn run() {
             // Log commands
             commands::get_logs,
             commands::get_plugin_logs,
+            commands::clear_plugin_logs,
             commands::add_log,
             commands::clear_logs,
             commands::export_logs,

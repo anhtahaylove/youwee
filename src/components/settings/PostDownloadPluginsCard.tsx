@@ -38,6 +38,7 @@ import type {
   LogEntry,
   PluginCompatibilitySpec,
   PluginExecutionStatusEvent,
+  PluginLogsPage,
   PluginPackageInspection,
   PluginPermissionApproval,
   PluginProvider,
@@ -261,7 +262,12 @@ export function PostDownloadPluginsCard() {
   >({});
   const [logsOpen, setLogsOpen] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [logsLoadingMore, setLogsLoadingMore] = useState(false);
+  const [logsClearing, setLogsClearing] = useState(false);
   const [pluginLogs, setPluginLogs] = useState<LogEntry[]>([]);
+  const [pluginLogsTotal, setPluginLogsTotal] = useState(0);
+  const [pluginLogsHasMore, setPluginLogsHasMore] = useState(false);
+  const [pluginLogsOffset, setPluginLogsOffset] = useState(0);
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [pluginLogsError, setPluginLogsError] = useState<string | null>(null);
   const [permissionDialogPlugin, setPermissionDialogPlugin] = useState<PluginSummary | null>(null);
@@ -947,29 +953,86 @@ export function PostDownloadPluginsCard() {
   );
 
   const loadPluginLogs = useCallback(
-    async (pluginId: string) => {
-      setLogsLoading(true);
+    async (pluginId: string, mode: 'replace' | 'append' = 'replace') => {
+      const limit = 60;
+      const offset = mode === 'append' ? pluginLogsOffset : 0;
+
+      if (mode === 'append') {
+        setLogsLoadingMore(true);
+      } else {
+        setLogsLoading(true);
+        setPluginLogs([]);
+        setPluginLogsTotal(0);
+        setPluginLogsHasMore(false);
+        setPluginLogsOffset(0);
+      }
+
       setPluginLogsError(null);
       try {
-        const result = await invoke<LogEntry[]>('get_plugin_logs', {
+        const result = await invoke<PluginLogsPage>('get_plugin_logs', {
           pluginId,
-          limit: 120,
+          limit,
+          offset,
         });
-        setPluginLogs(result);
+        setPluginLogs((current) =>
+          mode === 'append' ? [...current, ...result.items] : result.items,
+        );
+        setPluginLogsTotal(result.total);
+        setPluginLogsHasMore(result.has_more);
+        setPluginLogsOffset(offset + result.items.length);
       } catch (err) {
         console.error('Failed to load plugin logs:', err);
         setPluginLogsError(t('download.pluginLogsLoadError'));
       } finally {
-        setLogsLoading(false);
+        if (mode === 'append') {
+          setLogsLoadingMore(false);
+        } else {
+          setLogsLoading(false);
+        }
       }
     },
-    [t],
+    [pluginLogsOffset, t],
   );
 
   const handleOpenPluginLogs = async (pluginId: string) => {
     setSelectedPluginId(pluginId);
     setLogsOpen(true);
-    await loadPluginLogs(pluginId);
+    await loadPluginLogs(pluginId, 'replace');
+  };
+
+  const handleLoadMorePluginLogs = async () => {
+    if (!selectedPluginId || logsLoadingMore || !pluginLogsHasMore) {
+      return;
+    }
+
+    await loadPluginLogs(selectedPluginId, 'append');
+  };
+
+  const handleClearPluginLogs = async () => {
+    if (!selectedPluginId) {
+      return;
+    }
+
+    if (!window.confirm(t('download.pluginLogsClearConfirm'))) {
+      return;
+    }
+
+    setLogsClearing(true);
+    setPluginLogsError(null);
+    try {
+      await invoke('clear_plugin_logs', {
+        pluginId: selectedPluginId,
+      });
+      setPluginLogs([]);
+      setPluginLogsTotal(0);
+      setPluginLogsHasMore(false);
+      setPluginLogsOffset(0);
+    } catch (err) {
+      console.error('Failed to clear plugin logs:', err);
+      setPluginLogsError(t('download.pluginLogsClearError'));
+    } finally {
+      setLogsClearing(false);
+    }
   };
 
   return (
@@ -2312,14 +2375,25 @@ export function PostDownloadPluginsCard() {
           if (!open) {
             setSelectedPluginId(null);
             setPluginLogs([]);
+            setPluginLogsTotal(0);
+            setPluginLogsHasMore(false);
+            setPluginLogsOffset(0);
             setPluginLogsError(null);
           }
         }}
         plugin={selectedPlugin}
         logs={pluginLogs}
+        total={pluginLogsTotal}
         loading={logsLoading}
+        loadingMore={logsLoadingMore}
+        clearing={logsClearing}
+        hasMore={pluginLogsHasMore}
         error={pluginLogsError}
-        onRefresh={() => (selectedPluginId ? loadPluginLogs(selectedPluginId) : undefined)}
+        onRefresh={() =>
+          selectedPluginId ? loadPluginLogs(selectedPluginId, 'replace') : undefined
+        }
+        onLoadMore={handleLoadMorePluginLogs}
+        onClear={handleClearPluginLogs}
       />
     </>
   );
