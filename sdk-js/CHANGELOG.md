@@ -6,8 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-05-18
+
 ### Added
-- **Initial SDK package** - Added a TypeScript-authored JavaScript plugin SDK with shared runtime bootstrap, typed contexts, manifest helpers, AI bridge, filesystem bridge, HTTP bridge, compatibility helpers, and schema validation helpers.
+- **Stable 1.0 release** - Finalized the workspace-to-`.ywp` plugin workflow, live workspace debugging model, packaged plugin runtime, CLI build/pack commands, and publish-ready SDK docs for npm distribution.
 
 ## [0.1.0] - 2026-05-16
 

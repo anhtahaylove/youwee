@@ -1,4 +1,4 @@
-import { satisfiesVersionRange } from './compatibility';
+import { SDK_VERSION, satisfiesVersionRange } from './compatibility';
 import type {
   ManifestValidationResult,
   PluginManifest,
@@ -165,6 +165,7 @@ export function createPluginPackageDefinition(
   input: PluginPackageDefinitionInput,
 ): Record<string, unknown> {
   const main = input.main || 'src/plugin.js';
+  const sdkVersion = input.sdkVersion || `^${SDK_VERSION}`;
 
   return {
     name: input.name,
@@ -175,12 +176,12 @@ export function createPluginPackageDefinition(
     main,
     scripts: {
       'test:node':
-        'NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js node vendor/youwee-sdk/dist/runtime-cli.js',
+        'YOUWEE_PLUGIN_MAIN=src/plugin.js node node_modules/youwee-sdk/dist/runtime-cli.js',
       'test:bun':
-        'NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js bun vendor/youwee-sdk/dist/runtime-cli.js',
+        'YOUWEE_PLUGIN_MAIN=src/plugin.js bun node_modules/youwee-sdk/dist/runtime-cli.js',
     },
     dependencies: {
-      'youwee-sdk': 'file:vendor/youwee-sdk',
+      'youwee-sdk': sdkVersion,
     },
   };
 }

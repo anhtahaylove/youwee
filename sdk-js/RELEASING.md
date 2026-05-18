@@ -31,7 +31,7 @@ Do not edit `dist/` by hand. Rebuild it from the TypeScript source before releas
 1. Update `sdk-js/package.json` version.
 2. Update `sdk-js/CHANGELOG.md`.
 3. Rebuild the SDK:
-   - `bunx tsc -p tsconfig.sdk.json`
+   - `bunx tsc -p sdk-js/tsconfig.json`
 4. Run repository checks:
    - `bun run biome check --write .`
    - `bun run tsc -b`
@@ -58,7 +58,7 @@ Recommended rules:
 
 - bump `appVersion` constraints when the plugin depends on new Youwee runtime capabilities
 - bump `sdkVersion` constraints when the plugin depends on new SDK helpers or changed SDK behavior
-- prefer bounded ranges like `>=0.1.0 <0.2.0`
+- prefer bounded ranges like `>=1.0.0 <2.0.0`
 
 The backend should reject execution and installation when a declared range is incompatible with the current app or bundled SDK.
 

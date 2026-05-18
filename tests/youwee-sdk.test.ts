@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createAIBridge, parseJsonFromModelOutput } from '../sdk-js/src/ai';
 import {
   assertCompatibleAppVersion,
+  buildPluginPackage,
   checkAppVersionCompatibility,
   compareSemver,
   createJsonShapeValidator,
@@ -13,6 +14,7 @@ import {
   defineHooks,
   definePlugin,
   getManifestValidationErrors,
+  packPluginPackage,
   SDK_VERSION,
   satisfiesVersionRange,
   slugifyPluginName,
@@ -214,7 +216,7 @@ describe('youwee-sdk manifest helpers', () => {
       triggers: ['download.completed'],
       compatibility: {
         appVersion: '>=0.13.0 <0.14.0',
-        sdkVersion: '>=0.1.0 <0.2.0',
+        sdkVersion: '>=1.0.0 <2.0.0',
       },
       timeoutSec: 60,
     };
@@ -245,8 +247,9 @@ describe('youwee-sdk manifest helpers', () => {
     });
 
     expect(slugifyPluginName('GG Drive Upload')).toBe('gg-drive-upload');
-    expect(packageJson).toContain('"youwee-sdk": "file:vendor/youwee-sdk"');
+    expect(packageJson).toContain(`"youwee-sdk": "^${SDK_VERSION}"`);
     expect(packageJson).toContain('YOUWEE_PLUGIN_MAIN=src/plugin.js');
+    expect(packageJson).toContain('node_modules/youwee-sdk/dist/runtime-cli.js');
   });
 
   test('rejects invalid compatibility syntax in manifests', () => {
@@ -283,6 +286,72 @@ describe('youwee-sdk manifest helpers', () => {
     });
 
     expect(errors.join('\n')).toContain('plugin.json must use raw runtime names');
+  });
+
+  test('builds dist output and packs a .ywp runtime package', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-pack-'));
+    const sourceDir = join(tempDir, 'src');
+    const localesDir = join(tempDir, 'locales');
+    const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
+
+    try {
+      mkdirSync(sourceDir, { recursive: true });
+      mkdirSync(localesDir, { recursive: true });
+
+      const manifest = {
+        id: 'local.gg-drive',
+        slug: 'gg-drive',
+        name: 'GG Drive',
+        version: '0.1.0',
+        runtime: {
+          language: 'javascript',
+          supportedProviders: ['node', 'bun'],
+          preferredProvider: 'node',
+          entrypoint: 'src/plugin.js',
+        },
+        compatibility: {
+          appVersion: '>=0.13.0 <0.14.0',
+          sdkVersion: `>=${SDK_VERSION} <1.0.0`,
+        },
+        triggers: ['download.completed'],
+        timeoutSec: 60,
+        i18n: {
+          defaultLocale: 'en',
+          supportedLocales: ['en'],
+          directory: 'locales',
+        },
+      };
+
+      writeFileSync(join(tempDir, 'plugin.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+      writeFileSync(
+        join(sourceDir, 'plugin.js'),
+        `
+const { definePlugin, triggers } = require(${JSON.stringify(sdkEntry)});
+
+module.exports = definePlugin({
+  meta: { name: 'GG Drive', version: '0.1.0' },
+  hooks: {
+    [triggers.downloadCompleted]: async (ctx) => ctx.ok(ctx.i18n.t('done')),
+  },
+});
+`.trim(),
+      );
+      writeFileSync(join(localesDir, 'en.json'), `${JSON.stringify({ done: 'Done' }, null, 2)}\n`);
+
+      const buildResult = await buildPluginPackage({ cwd: tempDir });
+      const packResult = await packPluginPackage({ cwd: tempDir });
+      const archiveBytes = readFileSync(packResult.packagePath);
+
+      expect(existsSync(buildResult.distEntrypoint)).toBe(true);
+      expect(packResult.packagePath.endsWith('.ywp')).toBe(true);
+      expect(packResult.packageChecksum).toHaveLength(64);
+      expect(archiveBytes.includes(Buffer.from('manifest.json'))).toBe(true);
+      expect(archiveBytes.includes(Buffer.from('build.json'))).toBe(true);
+      expect(archiveBytes.includes(Buffer.from('checksums.json'))).toBe(true);
+      expect(archiveBytes.includes(Buffer.from('dist/plugin.cjs'))).toBe(true);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

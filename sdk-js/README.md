@@ -1,391 +1,302 @@
 # youwee-sdk
 
-`youwee-sdk` is the JavaScript and TypeScript plugin SDK for Youwee.
+`youwee-sdk` is the JavaScript and TypeScript authoring SDK for Youwee plugins.
 
-This document is intentionally written as technical documentation rather than a lightweight getting-started guide. It is meant to serve as:
+This package is for **building plugin workspaces**.
+Youwee itself installs and runs **packaged `.ywp` files**, not raw source folders.
 
-- a runtime contract reference for plugin authors
-- an implementation reference for AI agents generating plugin code
-- a specification for how JavaScript plugins communicate with Youwee
+If you remember only one model, remember this:
 
----
+1. create a plugin workspace
+2. write and test the plugin inside that workspace
+3. build and pack it into a `.ywp` file
+4. import the `.ywp` file into Youwee
 
-## Table of Contents
-
-1. [Scope](#scope)
-2. [Architectural Model](#architectural-model)
-3. [Package Layout](#package-layout)
-4. [Runtime Execution Model](#runtime-execution-model)
-5. [Plugin Module Contract](#plugin-module-contract)
-6. [SDK Surface](#sdk-surface)
-7. [Context Model](#context-model)
-8. [Plugin Internationalization](#plugin-internationalization)
-9. [Result Contract](#result-contract)
-10. [Logging Contract](#logging-contract)
-11. [Youwee Capabilities Bridge](#youwee-capabilities-bridge)
-12. [AI Bridge](#ai-bridge)
-13. [Trigger Catalog](#trigger-catalog)
-14. [Local Execution](#local-execution)
-15. [Packaging and Distribution](#packaging-and-distribution)
-16. [Release and Versioning Policy](#release-and-versioning-policy)
-17. [Design Notes](#design-notes)
-18. [Troubleshooting](#troubleshooting)
-19. [AI Agent Notes](#ai-agent-notes)
-20. [Appendix A: Minimal Plugin](#appendix-a-minimal-plugin)
-21. [Appendix B: Payload Mapping](#appendix-b-payload-mapping)
-22. [Appendix C: Capability Reference](#appendix-c-capability-reference)
+That is the only supported end-user distribution flow.
 
 ---
 
-## Scope
+## Table of contents
 
-`youwee-sdk` exists to formalize the JavaScript plugin contract for Youwee.
-
-The SDK is responsible for:
-
-- exposing a stable plugin module shape
-- converting raw process input into a typed execution context
-- providing result helpers and logging helpers
-- bridging selected Youwee capabilities into plugin runtime space
-
-The SDK is not responsible for:
-
-- plugin installation
-- manifest approval or permission UX
-- runtime selection policy
-- queue scheduling or download orchestration
-
-Those concerns remain part of the Youwee application runtime.
-
----
-
-## Architectural Model
-
-Youwee plugins are hook-based modules.
-
-At runtime:
-
-1. Youwee resolves a plugin installation and selects a runtime provider.
-2. Youwee launches a shared SDK bootstrap.
-3. The bootstrap loads the plugin entry module.
-4. The bootstrap reads the JSON payload from `stdin`.
-5. The bootstrap constructs `ctx`.
-6. The bootstrap resolves the hook for the incoming trigger.
-7. The hook executes.
-8. The final result is written as JSON to `stdout`.
-
-This design deliberately removes per-plugin runner boilerplate.
-
-A plugin author should only need to maintain:
-
-- the manifest
-- the package metadata
-- the plugin hook module
-
-They should not need to create a custom execution bootstrap per plugin.
+1. [Concepts](#concepts)
+2. [Lifecycle](#lifecycle)
+3. [Workspace layout](#workspace-layout)
+4. [Step-by-step workflow](#step-by-step-workflow)
+5. [Manifest reference](#manifest-reference)
+6. [Plugin module contract](#plugin-module-contract)
+7. [Execution context](#execution-context)
+8. [Results and mutations](#results-and-mutations)
+9. [Internationalization](#internationalization)
+10. [Build and pack commands](#build-and-pack-commands)
+11. [Packaged `.ywp` format](#packaged-ywp-format)
+12. [Import into Youwee](#import-into-youwee)
+13. [Debugging model](#debugging-model)
+14. [Runtime and compatibility](#runtime-and-compatibility)
+15. [AI agent notes](#ai-agent-notes)
+16. [Troubleshooting](#troubleshooting)
+17. [Appendix: minimal example](#appendix-minimal-example)
 
 ---
 
-## Package Layout
+## Concepts
 
-The SDK package is authored in TypeScript and emitted as CommonJS runtime artifacts.
+There are only two important objects in the Youwee plugin system:
+
+### 1. Plugin workspace
+
+A plugin workspace is the source folder used by the plugin author.
+
+It contains:
+
+- `plugin.json`
+- `package.json`
+- `src/`
+- `locales/`
+- optional docs, examples, and assets
+
+This is where you write code.
+
+### 2. Packaged plugin
+
+A packaged plugin is a `.ywp` file produced from a workspace.
+
+It contains:
+
+- a packaged runtime manifest
+- bundled runtime output
+- checksums and build metadata
+- locale files and packaged assets
+
+This is what Youwee installs and executes.
+
+### Important rule
+
+Youwee does **not** treat a raw workspace as an installed plugin.
+
+Workspaces are for development.
+`.ywp` is for installation and sharing.
+
+---
+
+## Lifecycle
+
+The expected lifecycle is:
+
+1. create a plugin workspace
+2. install workspace dependencies
+3. edit `plugin.json`
+4. write hook code in `src/plugin.js` or `src/plugin.ts`
+5. add locale files in `locales/`
+6. test locally
+7. build runtime output
+8. pack a `.ywp` file
+9. import the `.ywp` plugin file into Youwee
+10. enable the plugin and assign it to workflows
+
+This flow is valid whether the workspace is created by:
+
+- Youwee's `Create Workspace` action
+- a manual scaffold
+- an AI agent
+
+---
+
+## Workspace layout
+
+Recommended workspace structure:
 
 ```text
-sdk-js/
+my-plugin/
+  plugin.json
   package.json
   README.md
+  CHANGELOG.md
+  .gitignore
   src/
-    index.ts
-    runtime.ts
-    runtime-cli.ts
-    ai.ts
-    types.ts
+    plugin.js
+  locales/
+    en.json
+  examples/
+    payload.download.completed.json
+    result.success.json
+    result.failure.json
   dist/
-    index.js
-    index.d.ts
-    runtime.js
-    runtime.d.ts
-    runtime-cli.js
-    runtime-cli.d.ts
-    ai.js
-    ai.d.ts
-    types.d.ts
+  release/
 ```
 
-Semantics:
+Notes:
 
-- `src/`: source of truth
-- `dist/`: runtime artifacts consumed by plugin scaffolds and the Youwee application
-- `runtime-cli`: shared bootstrap entry used by Youwee and local test commands
-
----
-
-## Runtime Execution Model
-
-### Shared bootstrap
-
-The SDK provides a shared runtime bootstrap at:
-
-- `youwee-sdk/dist/runtime-cli.js`
-
-This bootstrap is launched by the application for Node and Bun-based JavaScript plugins.
-
-The bootstrap expects:
-
-- `stdin`: a JSON payload emitted by Youwee
-- `YOUWEE_PLUGIN_MAIN`: absolute or runtime-resolvable path to the plugin entry module
-
-This means plugin packages do not need a custom `run.js` file.
-
-### Why there is no per-plugin runner
-
-Per-plugin runner files are mechanically identical in almost every plugin:
-
-- import the SDK bootstrap
-- import the plugin module
-- call the bootstrap
-- map thrown errors to process exit
-
-That pattern adds noise without adding plugin-specific value.
-
-For that reason, the recommended architecture is:
-
-- one shared runtime bootstrap in the SDK
-- one plugin-specific hook module per plugin
+- `src/` is authoring source.
+- `dist/` is generated by the build step.
+- `release/` is generated by the pack step.
+- `release/*.ywp` is what you import into Youwee.
 
 ---
 
-## Plugin Module Contract
+## Step-by-step workflow
 
-A JavaScript plugin entry module should export a plugin definition via `definePlugin(...)`.
+## 1. Create a workspace
+
+You can create a workspace in either of these ways:
+
+- use `Create Workspace` inside Youwee and choose a destination folder
+- create the folder manually and add the required files
+
+The workspace should live in a location you control, such as:
+
+- a project folder
+- a git repository
+- a personal development directory
+
+It should **not** be treated as part of Youwee's installed plugin storage.
+
+## 2. Install dependencies
+
+From the workspace root:
+
+```bash
+bun install
+```
+
+At minimum, your workspace should depend on:
+
+```json
+{
+  "dependencies": {
+    "youwee-sdk": "^1.0.0"
+  }
+}
+```
+
+## 3. Write the manifest
+
+Create or edit `plugin.json`.
+
+This file declares:
+
+- plugin identity
+- runtime support
+- triggers
+- requested permissions
+- compatibility
+- i18n metadata
+
+See [Manifest reference](#manifest-reference).
+
+## 4. Write the plugin module
+
+Write the hook module in `src/plugin.js` or `src/plugin.ts`.
+
+The module should export a plugin definition created by `definePlugin(...)`.
+
+See [Plugin module contract](#plugin-module-contract).
+
+## 5. Add locale files
+
+If your plugin emits user-facing messages, add locale files under `locales/`.
 
 Example:
 
-```js
-const { definePlugin, triggers } = require("youwee-sdk");
-
-module.exports = definePlugin({
-  meta: {
-    name: "Example plugin",
-    version: "0.1.0",
-    description: "Example plugin description",
-  },
-  hooks: {
-    [triggers.downloadCompleted]: async (ctx) => {
-      return ctx.ok("Completed");
-    },
-  },
-});
+```text
+locales/
+  en.json
+  vi.json
+  zh-CN.json
 ```
 
-Contract requirements:
+See [Internationalization](#internationalization).
 
-- the module must export an object
-- the object must contain `meta`
-- the object must contain `hooks`
-- hook values must be callable functions
+## 6. Test locally
 
-The SDK validates this shape at runtime.
+Typical local test commands:
+
+```bash
+bun run test:node
+bun run test:bun
+```
+
+These commands execute the shared SDK bootstrap against your source plugin module.
+
+## 7. Build
+
+Build bundled runtime output:
+
+```bash
+bunx youwee-sdk build
+```
+
+This produces:
+
+```text
+dist/plugin.cjs
+```
+
+## 8. Pack
+
+Create a packaged plugin:
+
+```bash
+bunx youwee-sdk pack
+```
+
+This produces:
+
+```text
+release/<slug>-<version>.ywp
+```
+
+## 9. Import into Youwee
+
+Open Youwee:
+
+1. go to `Settings > Plugins`
+2. choose `Import Plugin`
+3. select the `.ywp` file
+4. review plugin file info, compatibility, triggers, and permissions
+5. install it
+6. approve permissions
+7. enable it
+8. assign it to one or more workflows
 
 ---
 
-## SDK Surface
+## Manifest reference
 
-### Main package
-
-```js
-const { definePlugin, defineHooks, triggers, TRIGGERS } = require("youwee-sdk");
-```
-
-Exports:
-
-- `definePlugin(config)`
-- `defineHooks(hooks)`
-- `triggers`
-- `TRIGGERS`
-- `SDK_VERSION`
-- `parseSemver(version)`
-- `compareSemver(a, b)`
-- `satisfiesVersionRange(version, range)`
-- `checkAppVersionCompatibility(currentVersion, range)`
-- `assertCompatibleAppVersion(currentVersion, range)`
-- `createJsonShapeValidator(shape)`
-- `matchesJsonShape(value, shape)`
-- `slugifyPluginName(input)`
-- `getAllowedProviders(language)`
-- `getManifestValidationErrors(manifest)`
-- `validatePluginManifest(manifest)`
-- `createPluginPackageDefinition(input)`
-- `createPluginPackageJson(input)`
-
-### Runtime package
-
-```js
-const { runPluginModule, createContext, createLogger, spawnCommand } = require("youwee-sdk/runtime");
-```
-
-Exports:
-
-- `runPluginModule(pluginModule)`
-- `createContext(payload)`
-- `createLogger()`
-- `spawnCommand(command, args, options?)`
-
-### AI package
-
-```js
-const { createAIBridge, readAIConfigFromEnv } = require("youwee-sdk/ai");
-```
-
-Exports:
-
-- `createAIBridge(logger?)`
-- `readAIConfigFromEnv()`
-
-In typical plugin authoring flows, only the main package is required directly.
-
-### Authoring helpers
-
-The main package also exposes manifest and package authoring helpers. These are intended for:
-
-- plugin template generators
-- local scaffolding tools
-- AI agents generating or refactoring plugin packages
+The source manifest is `plugin.json`.
 
 Example:
-
-```js
-const {
-  createPluginPackageJson,
-  slugifyPluginName,
-  validatePluginManifest,
-} = require("youwee-sdk");
-```
-
----
-
-## Context Model
-
-Each hook receives a `ctx` object constructed by the SDK.
-
-### `ctx.trigger`
-
-The resolved trigger string for the current execution.
-
-Example:
-
-```js
-ctx.trigger === "download.completed";
-```
-
-### `ctx.payload`
-
-The raw payload object after JSON parsing.
-
-This exists for completeness, but plugin authors should prefer the normalized sub-objects below.
-
-### `ctx.download`
-
-Normalized download/job metadata:
-
-- `jobId`
-- `kind`
-- `source`
-- `historyId`
-- `timeRange`
-
-### `ctx.file`
-
-Normalized file metadata:
-
-- `path`
-- `name`
-- `directory`
-- `size`
-- `format`
-- `quality`
-
-### `ctx.media`
-
-Normalized media metadata:
-
-- `url`
-- `title`
-- `thumbnail`
-
-### `ctx.env`
-
-Environment variable helpers:
-
-- `ctx.env.get(name)`
-- `ctx.env.require(name)`
-- `ctx.env.has(name)`
-
-Recommended use:
-
-```js
-const token = ctx.env.require("GOOGLE_DRIVE_ACCESS_TOKEN");
-```
-
-### `ctx.log`
-
-Structured plugin logger:
-
-- `debug(message, metadata?)`
-- `info(message, metadata?)`
-- `warn(message, metadata?)`
-- `error(message, metadata?)`
-
-### `ctx.youwee`
-
-Bridge to application-managed capabilities:
-
-- `ctx.youwee.plugin`
-- `ctx.youwee.runtime`
-- `ctx.youwee.tools`
-- `ctx.youwee.ai`
-
-### `ctx.i18n`
-
-Plugin-local internationalization bridge:
-
-- `ctx.i18n.locale`
-- `ctx.i18n.defaultLocale`
-- `ctx.i18n.supportedLocales`
-- `ctx.i18n.t(key, params?)`
-- `ctx.i18n.has(key, locale?)`
-- `ctx.i18n.raw(key, locale?)`
-
-### `ctx.ok(...)` and `ctx.fail(...)`
-
-Result helpers:
-
-```js
-return ctx.ok("Uploaded successfully");
-return ctx.fail("Missing token");
-```
-
----
-
-## Plugin Internationalization
-
-`youwee-sdk` supports file-based plugin localization.
-
-The intended authoring model is:
-
-1. declare i18n metadata in `plugin.json`
-2. place locale JSON files inside the plugin package
-3. call `ctx.i18n.t(...)` from hooks
-
-### Manifest contract
-
-Plugins may declare an `i18n` block in `plugin.json`:
 
 ```json
 {
   "id": "local.gg-drive",
   "slug": "gg-drive",
   "name": "GG Drive",
+  "version": "0.1.0",
+  "description": "Upload completed downloads to Google Drive.",
+  "author": "Your Name",
+  "homepage": "https://example.com",
+  "repository": "https://github.com/example/gg-drive",
+  "license": "MIT",
+  "runtime": {
+    "language": "javascript",
+    "supportedProviders": ["node", "bun"],
+    "preferredProvider": "node",
+    "entrypoint": "src/plugin.js"
+  },
+  "compatibility": {
+    "appVersion": ">=0.13.0 <0.14.0",
+    "sdkVersion": ">=1.0.0 <2.0.0"
+  },
+  "triggers": [
+    "download.completed"
+  ],
+  "permissions": {
+    "network": true,
+    "readPaths": [],
+    "writePaths": [],
+    "env": ["GOOGLE_DRIVE_ACCESS_TOKEN"]
+  },
+  "timeoutSec": 300,
   "i18n": {
     "defaultLocale": "en",
     "supportedLocales": ["en", "vi", "zh-CN"],
@@ -394,504 +305,48 @@ Plugins may declare an `i18n` block in `plugin.json`:
 }
 ```
 
-Field semantics:
+### Identity fields
 
-- `defaultLocale`: canonical fallback locale for the plugin
-- `supportedLocales`: locales intentionally shipped by the plugin
-- `directory`: relative directory inside the plugin package that contains locale files
+- `id`: immutable package-style identifier
+- `slug`: readable short name used in paths and filenames
+- `name`: display name
+- `version`: plugin version
 
-Validation rules enforced by the SDK/application contract:
+### Runtime
 
-- `defaultLocale` must be included in `supportedLocales`
-- `directory` must be a relative path
-- `directory` must not contain path traversal
-- locale files must be JSON dictionaries
+For JavaScript plugins:
 
-If the `i18n` block is omitted, the SDK uses these defaults:
+- `language` must be `"javascript"`
+- `supportedProviders` must be a subset of:
+  - `"deno"`
+  - `"node"`
+  - `"bun"`
+- `preferredProvider` is optional
+- `entrypoint` points to the source module inside the workspace
 
-- `defaultLocale = "en"`
-- `supportedLocales = []`
-- `directory = "locales"`
+### Triggers
 
-### Plugin package layout
+Currently supported trigger strings:
 
-Recommended structure:
-
-```text
-plugin/
-  plugin.json
-  src/
-    plugin.js
-  locales/
-    en.json
-    vi.json
-    zh-CN.json
-```
-
-Locale files are expected to contain flat JSON string dictionaries:
-
-```json
-{
-  "log.hookStarted": "Hook started",
-  "upload.started": "Uploading {{filename}}",
-  "upload.success": "Uploaded {{filename}} to Google Drive"
-}
-```
-
-### Runtime API
-
-The SDK exposes a localization bridge on `ctx.i18n`.
-
-#### `ctx.i18n.locale`
-
-The current Youwee UI locale when available, for example:
-
-- `vi`
-- `en`
-- `zh-CN`
-
-#### `ctx.i18n.defaultLocale`
-
-The plugin's configured default locale.
-
-#### `ctx.i18n.supportedLocales`
-
-The plugin's declared locale list from `plugin.json`.
-
-#### `ctx.i18n.t(key, params?)`
-
-Resolve a translated string for the current locale with optional `{{placeholder}}` interpolation.
-
-Example:
-
-```js
-ctx.log.info(ctx.i18n.t("upload.started", {
-  filename: ctx.file.name,
-}));
-
-return ctx.ok(ctx.i18n.t("upload.success", {
-  filename: ctx.file.name,
-}));
-```
-
-#### `ctx.i18n.has(key, locale?)`
-
-Check whether a translation key exists in a specific locale or the current locale.
-
-#### `ctx.i18n.raw(key, locale?)`
-
-Return the untranslated raw dictionary value if present.
-
-### Fallback resolution
-
-When resolving `ctx.i18n.t(key)`, the SDK uses this order:
-
-1. current Youwee locale
-2. base locale derived from the current locale if applicable
-3. Youwee fallback locale
-4. plugin `defaultLocale`
-5. the raw key itself
-
-Example:
-
-- current locale: `zh-CN`
-- base locale candidate: `zh`
-- fallback locale: `en`
-- plugin default locale: `en`
-
-The SDK will try `zh-CN`, then `zh`, then `en`.
-
-### Relationship to app locale
-
-The plugin does not reuse Youwee application translation tables.
-
-Instead:
-
-- Youwee passes its active locale into the plugin runtime
-- the plugin uses its own locale resources
-- `ctx.i18n` selects the best matching plugin translation
-
-This keeps plugin packages self-contained and shareable.
-
-### Design intent
-
-Plugin authors should prefer localized messages for:
-
-- `ctx.log.info(...)`
-- `ctx.log.warn(...)`
-- `ctx.log.error(...)`
-- `ctx.ok(...)`
-- `ctx.fail(...)`
-
-This is especially important for:
-
-- plugins shared with other users
-- plugins generating user-facing status messages
-- AI agents generating plugin code intended for multilingual environments
-
----
-
-## Result Contract
-
-The final result written to `stdout` must be JSON-serializable and should follow this shape:
-
-```json
-{
-  "success": true,
-  "message": "Human readable summary",
-  "artifacts": null,
-  "metadata": {}
-}
-```
-
-Field semantics:
-
-- `success`: required boolean
-- `message`: short human-readable status summary
-- `artifacts`: optional structured outputs intended for downstream use
-- `metadata`: optional diagnostic or contextual payload
-
-Examples:
-
-```js
-return ctx.ok("Uploaded to Google Drive", {
-  driveFileId: "abc123",
-});
-```
-
-```js
-return ctx.fail("Upload failed", {
-  reason: "HTTP 401",
-});
-```
-
-If a hook returns `undefined`, the SDK emits a success fallback result. Explicit returns are strongly preferred.
-
----
-
-## Logging Contract
-
-The SDK separates logging from final structured results.
-
-- runtime logs go to `stderr`
-- final execution result goes to `stdout`
-
-This separation is critical because Youwee parses the structured result channel.
-
-Correct:
-
-```js
-ctx.log.info("Starting request", { filename: ctx.file.name });
-return ctx.ok("Finished");
-```
-
-Incorrect:
-
-```js
-console.log("Starting request");
-console.log(JSON.stringify({ debug: true }));
-```
-
-Plugin authors should treat `stdout` as reserved for the final result.
-
----
-
-## Youwee Capabilities Bridge
-
-### `ctx.youwee.plugin`
-
-Execution-time plugin identity:
-
-- `id`
-- `slug`
-- `name`
-- `version`
-
-### `ctx.youwee.runtime`
-
-Resolved runtime information:
-
-- `language`
-- `provider`
-- `providerSource`
-- `timeoutMs`
-
-### `ctx.youwee.app`
-
-Application runtime metadata:
-
-- `version`
-- `locale`
-- `fallbackLocale`
-- `direction`
-
-### `ctx.youwee.sdk`
-
-SDK runtime metadata and compatibility helpers:
-
-- `version`
-- `checkAppVersion(range)`
-- `assertAppVersion(range)`
-
-Example:
-
-```js
-const compatibility = ctx.youwee.sdk.checkAppVersion(">=0.13.0 <0.14.0");
-
-if (!compatibility.compatible) {
-  return ctx.fail("Unsupported Youwee version", compatibility);
-}
-```
-
-Or fail immediately:
-
-```js
-ctx.youwee.sdk.assertAppVersion(">=0.13.0 <0.14.0");
-```
-
-### `ctx.youwee.tools`
-
-Runtime-managed tool bridge currently includes:
-
-- `ffmpeg`
-- `ytdlp`
-
-Each tool exposes:
-
-- `available`
-- `path`
-- `run(args, options?)`
-
-Example:
-
-```js
-if (!ctx.youwee.tools.ffmpeg.available) {
-  return ctx.fail("FFmpeg is not available");
-}
-
-const result = await ctx.youwee.tools.ffmpeg.run([
-  "-i",
-  ctx.file.path,
-  "-f",
-  "null",
-  "-",
-]);
-```
-
-This allows plugins to use the application-managed tool resolution logic instead of assuming a global system path.
-
-### `ctx.youwee.fs`
-
-Filesystem helpers exposed by the SDK:
-
-- `exists(path)`
-- `readText(path)`
-- `writeText(path, content)`
-- `ensureDir(path)`
-- `tempDir(prefix?)`
-
-These helpers are convenience APIs for common plugin-side filesystem work. They do not replace the app's permission model. Plugin authors are still expected to declare and receive the required path permissions in the plugin manifest.
-
-### `ctx.youwee.http`
-
-HTTP helpers exposed by the SDK:
-
-- `request(url, options?)`
-- `get(url, headers?)`
-- `getJson(url, headers?)`
-- `postJson(url, body, headers?)`
-
-Example:
-
-```js
-const response = await ctx.youwee.http.getJson("https://example.com/api");
-
-if (!response.ok) {
-  return ctx.fail("HTTP request failed", {
-    status: response.status,
-    body: response.body,
-  });
-}
-```
-
-The bridge returns normalized response objects with:
-
-- `ok`
-- `status`
-- `statusText`
-- `headers`
-- `body`
-
----
-
-## AI Bridge
-
-The SDK exposes application AI configuration through:
-
-- `ctx.youwee.ai.available()`
-- `ctx.youwee.ai.getConfig()`
-- `ctx.youwee.ai.generateText(options)`
-
-### Availability
-
-```js
-if (!ctx.youwee.ai.available()) {
-  return ctx.fail("AI is not enabled in Youwee");
-}
-```
-
-### Configuration snapshot
-
-`getConfig()` returns a non-secret capability snapshot such as:
-
-```js
-{
-  enabled: true,
-  provider: "openai",
-  model: "gpt-4.1-mini",
-  timeoutSeconds: 120,
-  summaryStyle: "concise",
-  summaryLanguage: "auto",
-  whisperEnabled: false,
-  hasApiKey: true,
-  hasWhisperApiKey: false
-}
-```
-
-### Text generation
-
-```js
-const summary = await ctx.youwee.ai.generateText({
-  prompt: `Summarize the media file ${ctx.file.name}`,
-  systemPrompt: "Return a short Vietnamese summary.",
-  temperature: 0.2,
-});
-```
-
-The bridge uses the provider configured by the Youwee user, not a provider chosen by the plugin.
-
-### Higher-level AI helpers
-
-The AI bridge also exposes:
-
-- `summarize(options)`
-- `extractJson(options)`
-
-Example:
-
-```js
-const summary = await ctx.youwee.ai.summarize({
-  text: "Long input text",
-  title: "Optional title",
-  maxSentences: 3,
-});
-```
-
-```js
-const data = await ctx.youwee.ai.extractJson({
-  prompt: "Convert this content into a JSON object",
-  schemaDescription: '{ "title": "string", "score": "number" }',
-});
-```
-
-`extractJson(...)` attempts to normalize model output into valid JSON and can recover from common responses such as fenced code blocks.
-It also supports an optional `validate(value)` function to reject structurally invalid results after parsing.
-
----
-
-## Compatibility Utilities
-
-The main package exposes lightweight semver-based compatibility helpers:
-
-- `parseSemver(version)`
-- `compareSemver(a, b)`
-- `satisfiesVersionRange(version, range)`
-- `checkAppVersionCompatibility(currentVersion, range)`
-- `assertCompatibleAppVersion(currentVersion, range)`
-
-Supported range syntax is intentionally simple and explicit. Examples:
-
-- `>=0.13.0`
-- `>=0.13.0 <0.14.0`
-- `=0.13.3`
-- `0.13.3`
-
-This is meant for plugin-side runtime guards, not as a full npm-style semver engine.
-
----
-
-## JSON Shape Validation
-
-The SDK also exposes lightweight JSON shape validation helpers for use with `extractJson(...)`.
-
-Exports:
-
-- `createJsonShapeValidator(shape)`
-- `matchesJsonShape(value, shape)`
-
-Example:
-
-```js
-const validator = createJsonShapeValidator({
-  type: "object",
-  required: ["title", "score"],
-  properties: {
-    title: "string",
-    score: "number",
-    tags: { type: "array", items: "string" },
-  },
-});
-
-const data = await ctx.youwee.ai.extractJson({
-  prompt: "Return a JSON object with title, score, and tags",
-  validate: validator,
-});
-```
-
-Supported descriptors:
-
-- `"string"`
-- `"number"`
-- `"boolean"`
-- `"object"`
-- `"array"`
-- `"null"`
-- `"unknown"`
-- `{ type: "array", items?: descriptor }`
-- `{ type: "object", properties?: { ... }, required?: [...] }`
-
----
-
-## Trigger Catalog
-
-The SDK exposes the download trigger catalog currently supported by Youwee plugin workflows:
-
-- `triggers.downloadQueued`
-- `triggers.downloadBeforeStart`
-- `triggers.downloadCompleted`
-- `triggers.downloadFailed`
+- `download.queued`
+- `download.beforeStart`
+- `download.completed`
+- `download.failed`
 
 Important:
 
-- the SDK trigger list should match the trigger names that the application can actually dispatch
-- new trigger families should only be added after the application lifecycle is wired for them
+- `plugin.json` must use **raw runtime strings**
+- do **not** write values like `"triggers.downloadCompleted"` in `plugin.json`
 
-Authors should still confirm that the installed application version dispatches the trigger they depend on.
-
-Important distinction:
-
-- in JavaScript hook code, use SDK identifiers such as `triggers.downloadCompleted`
-- in `plugin.json`, the `triggers` field must use raw runtime strings such as `"download.completed"`
-
-Example:
+Correct:
 
 ```json
 {
-  "triggers": ["download.completed", "download.failed"]
+  "triggers": ["download.completed"]
 }
 ```
 
-This is invalid in `plugin.json`:
+Incorrect:
 
 ```json
 {
@@ -899,292 +354,535 @@ This is invalid in `plugin.json`:
 }
 ```
 
----
+### Permissions
 
-## Local Execution
+`permissions` declares what the plugin may request from Youwee.
 
-Recommended Node test:
+Fields:
 
-```bash
-cat examples/payload.download.completed.json | NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js node vendor/youwee-sdk/dist/runtime-cli.js
-```
+- `network: boolean`
+- `readPaths: string[]`
+- `writePaths: string[]`
+- `env: string[]`
 
-Recommended Bun test:
+These values are:
 
-```bash
-cat examples/payload.download.completed.json | NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js bun vendor/youwee-sdk/dist/runtime-cli.js
-```
+- shown to the user during install/enable
+- enforced by the Youwee runtime before execution
 
-If the plugin requires environment variables:
+### Compatibility
 
-```bash
-GOOGLE_DRIVE_ACCESS_TOKEN=xxx \
-GOOGLE_DRIVE_FOLDER_ID=yyy \
-cat examples/payload.download.completed.json | NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js node vendor/youwee-sdk/dist/runtime-cli.js
-```
+Compatibility ranges allow Youwee to block incompatible packages early.
 
-Validation checklist:
+- `compatibility.appVersion`
+- `compatibility.sdkVersion`
 
-1. `stdout` contains exactly one final JSON result.
-2. `stderr` contains the expected runtime logs.
-3. required environment variables fail clearly when missing.
-4. tool bridge availability is checked before tool execution.
+These are checked:
+
+- when inspecting/importing a packaged plugin
+- again before execution
 
 ---
 
-## Packaging and Distribution
-
-A shareable plugin package should typically include:
-
-- `plugin.json`
-- `package.json`
-- `README.md`
-- `src/`
-- `vendor/youwee-sdk/`
-- any plugin-specific assets or example payloads
-
-Distribution model:
-
-1. keep `plugin.json` at the package root
-2. ensure manifest metadata is correct
-3. ensure runtime compatibility is declared correctly
-4. optionally declare `compatibility.appVersion` and `compatibility.sdkVersion`
-5. package the plugin root as a folder or ZIP
-6. import into Youwee from folder, ZIP, or URL
+## Plugin module contract
 
 Example:
-
-```json
-{
-  "compatibility": {
-    "appVersion": ">=0.13.0 <0.14.0",
-    "sdkVersion": ">=0.1.0 <0.2.0"
-  }
-}
-```
-
-`appVersion` and `sdkVersion` are intended to fail fast when a shared plugin is installed or executed against an incompatible environment.
-
-## Release and Versioning Policy
-
-`youwee-sdk` is versioned as a package, but it is currently maintained inside the main Youwee repository.
-
-The operational release policy lives in:
-
-- `sdk-js/CHANGELOG.md`
-- `sdk-js/RELEASING.md`
-
-High-level rules:
-
-- use semantic versioning
-- keep TypeScript source in `sdk-js/src/`
-- treat `sdk-js/dist/` as build output, not hand-edited source
-- keep plugin scaffold vendoring and backend compatibility enforcement aligned with the current SDK version
-
----
-
-## Design Notes
-
-### Why the SDK remains inside the main repository
-
-At the current stage, keeping the SDK inside the Youwee repository is the least risky option because:
-
-- the plugin contract is still evolving
-- runtime provider behavior is still evolving
-- scaffolding and runtime bridge logic must stay synchronized
-
-The package is still structured as an actual package so it can be published or moved to a separate repository later without changing plugin authoring semantics.
-
-### Why the SDK is authored in TypeScript
-
-The SDK is authored in TypeScript because:
-
-- the plugin contract benefits from strong type documentation
-- generated declarations help editor tooling and AI agent code generation
-- it supports eventual package publication more cleanly
-
-Runtime output remains CommonJS JavaScript for compatibility with supported providers.
-
-### Why per-plugin runners are removed
-
-Per-plugin runner files are repetitive and do not encode domain-specific logic.
-
-Eliminating them:
-
-- reduces scaffold noise
-- reduces plugin author confusion
-- centralizes bootstrap behavior in one audited location
-
----
-
-## Troubleshooting
-
-### The plugin does not execute
-
-Check:
-
-- the plugin is enabled
-- the trigger is actually dispatched by the app version in use
-- the selected provider is listed in `supportedProviders`
-- the runtime provider exists on the machine
-
-### The plugin times out
-
-Typical causes:
-
-- a network request never completes
-- a child process never exits
-- asynchronous work keeps the event loop alive unintentionally
-
-Recommended debugging steps:
-
-- add `ctx.log.info(...)` around long-running operations
-- verify external tool invocations terminate
-- confirm final control flow returns or throws
-
-### The plugin cannot use AI
-
-Check:
-
-- the user enabled AI in Youwee
-- a valid provider is configured
-- the corresponding API key is available
-- `ctx.youwee.ai.available()` returns `true`
-
-### FFmpeg or yt-dlp is unavailable
-
-Check:
-
-```js
-ctx.youwee.tools.ffmpeg.available;
-ctx.youwee.tools.ytdlp.available;
-```
-
-If unavailable, fail explicitly instead of assuming the tool exists.
-
----
-
-## AI Agent Notes
-
-If you are an AI agent generating or editing a plugin based on this SDK, follow these rules:
-
-1. Place business logic in the plugin entry module, not in the runtime bootstrap.
-2. Use `definePlugin(...)` for the exported module shape.
-3. Use `triggers.*` instead of hard-coded trigger strings when possible.
-4. Use `ctx.env.require(...)` for required secrets.
-5. Use `ctx.ok(...)` or `ctx.fail(...)` for final results.
-6. Use `ctx.log.info(...)` for major execution milestones.
-7. Do not write arbitrary text to `stdout`.
-8. Do not assume AI, FFmpeg, yt-dlp, or any specific runtime is always available.
-9. Treat `ctx.youwee.runtime.provider` as runtime metadata, not as a guarantee of feature parity.
-
-Recommended internal instruction for AI plugin generation:
-
-> Implement hook logic in `src/plugin.js` for the required trigger. Use `ctx.file`, `ctx.media`, `ctx.env`, `ctx.youwee.tools`, and `ctx.youwee.ai` as needed. Do not create a custom runner.
-
----
-
-## Appendix A: Minimal Plugin
 
 ```js
 const { definePlugin, triggers } = require("youwee-sdk");
 
 module.exports = definePlugin({
   meta: {
-    name: "Minimal plugin",
+    name: "GG Drive",
     version: "0.1.0",
-    description: "Minimal reference plugin",
+    description: "Upload completed downloads to Google Drive."
   },
   hooks: {
     [triggers.downloadCompleted]: async (ctx) => {
-      ctx.log.info("Hook entered", {
-        filename: ctx.file.name,
-      });
+      ctx.log.info(ctx.i18n.t("upload.started", { filename: ctx.file.name }));
 
-      return ctx.ok("Completed", {
-        filename: ctx.file.name,
-      });
+      return ctx.ok(
+        ctx.i18n.t("upload.success", { filename: ctx.file.name }),
+      );
     },
   },
 });
 ```
 
+Requirements:
+
+- export a plugin definition object
+- include `meta`
+- include `hooks`
+- hook keys should map to supported trigger names
+- hook values must be async or sync functions
+
+The SDK validates this shape at runtime.
+
 ---
 
-## Appendix B: Payload Mapping
+## Execution context
 
-Representative payload from Youwee:
+Each hook receives `ctx`.
+
+Top-level sections include:
+
+- `ctx.trigger`
+- `ctx.download`
+- `ctx.file`
+- `ctx.media`
+- `ctx.context`
+- `ctx.env`
+- `ctx.log`
+- `ctx.youwee`
+- `ctx.i18n`
+
+Common fields:
+
+```js
+ctx.download.jobId
+ctx.file.path
+ctx.file.name
+ctx.media.url
+ctx.media.title
+ctx.context.downloadKind
+```
+
+Workflow-aware fields:
+
+```js
+ctx.workflow.runId
+ctx.workflow.stepIndex
+ctx.workflow.stepPluginId
+ctx.workflow.state
+```
+
+The workflow state is how later steps can observe mutations from earlier steps.
+
+---
+
+## Results and mutations
+
+A hook may return:
+
+```js
+ctx.ok(message?, metadata?)
+ctx.fail(message?, metadata?)
+```
+
+The result contract supports:
+
+- `success`
+- `message`
+- `artifacts`
+- `metadata`
+- `mutations`
+
+Example:
+
+```js
+return {
+  success: true,
+  message: "Prepared merged file",
+  mutations: {
+    activeFilepath: "/tmp/final.mp4",
+    activeFilename: "final.mp4",
+  },
+};
+```
+
+Supported mutation fields:
+
+- `activeFilepath`
+- `activeFilename`
+- `extraFiles`
+- `metadataPatch`
+
+These mutations are merged into workflow chain state and passed to later plugins in the same run.
+
+---
+
+## Internationalization
+
+If your plugin emits user-facing text, use plugin-local translations.
+
+### Manifest
+
+Declare i18n in `plugin.json`:
 
 ```json
 {
-  "jobId": "sample-job",
-  "source": "youtube",
-  "trigger": "download.completed",
-  "filepath": "/tmp/sample.mp4",
-  "filename": "sample.mp4",
-  "directory": "/tmp",
-  "filesize": 12345678,
-  "format": "mp4",
-  "quality": "1080p",
-  "url": "https://example.com/video",
-  "title": "Sample video",
-  "thumbnail": "https://example.com/thumb.jpg",
-  "historyId": "sample-history-id",
-  "timeRange": null,
-  "downloadKind": "download"
+  "i18n": {
+    "defaultLocale": "en",
+    "supportedLocales": ["en", "vi"],
+    "directory": "locales"
+  }
 }
 ```
 
-Normalized mapping:
+### Locale files
 
-- `payload.jobId` -> `ctx.download.jobId`
-- `payload.filepath` -> `ctx.file.path`
-- `payload.filename` -> `ctx.file.name`
-- `payload.url` -> `ctx.media.url`
-- `payload.historyId` -> `ctx.download.historyId`
+Example:
 
-The SDK exposes the raw payload as `ctx.payload`, but plugins should usually prefer the normalized objects.
+```text
+locales/
+  en.json
+  vi.json
+```
 
----
+`locales/en.json`
 
-## Appendix C: Capability Reference
+```json
+{
+  "upload.started": "Starting upload for {{filename}}",
+  "upload.success": "Uploaded {{filename}}"
+}
+```
 
-### `ctx.youwee.plugin`
+### Runtime API
 
-- `id`
-- `slug`
-- `name`
-- `version`
+Use:
 
-### `ctx.youwee.runtime`
+```js
+ctx.i18n.t("upload.started", { filename: ctx.file.name })
+ctx.i18n.has("upload.success")
+ctx.i18n.raw("upload.success")
+```
 
-- `language`
-- `provider`
-- `providerSource`
-- `timeoutMs`
+The SDK automatically uses:
 
-### `ctx.youwee.tools.ffmpeg`
+- the current Youwee app locale
+- the app fallback locale
+- the plugin's default locale
 
-- `available`
-- `path`
-- `run(args, options?)`
+Fallback order:
 
-### `ctx.youwee.tools.ytdlp`
-
-- `available`
-- `path`
-- `run(args, options?)`
-
-### `ctx.youwee.ai`
-
-- `available()`
-- `getConfig()`
-- `generateText({ prompt, systemPrompt?, temperature? })`
+1. current app locale
+2. app fallback locale
+3. plugin `defaultLocale`
+4. raw key
 
 ---
 
-## Status
+## Build and pack commands
 
-The SDK is intentionally designed as a real package with a shared bootstrap and a TypeScript source model, even while it is still housed inside the Youwee repository.
+### Build
 
-That design keeps the plugin authoring experience stable while allowing the app runtime and the package to evolve together.
+```bash
+bunx youwee-sdk build
+```
+
+Build does the following:
+
+1. loads `plugin.json`
+2. validates the manifest
+3. validates trigger names
+4. validates i18n configuration
+5. bundles the source entrypoint to `dist/plugin.cjs`
+
+### Pack
+
+```bash
+bunx youwee-sdk pack
+```
+
+Pack does the following:
+
+1. runs the build step
+2. creates a runtime `manifest.json`
+3. creates `build.json`
+4. creates `checksums.json`
+5. writes `release/<slug>-<version>.ywp`
+
+---
+
+## Packaged `.ywp` format
+
+`.ywp` is the distribution format consumed by Youwee.
+
+It is a ZIP-based archive with a fixed layout.
+
+Expected contents:
+
+```text
+manifest.json
+build.json
+checksums.json
+dist/
+  plugin.cjs
+locales/
+  ...
+assets/
+  ...
+README.md
+CHANGELOG.md
+```
+
+Important rules:
+
+- packaged plugins ship runtime output, not source
+- packaged plugins do not need to ship `node_modules`
+- packaged plugins do not need to ship `vendor/youwee-sdk`
+- Youwee runs the packaged `dist/plugin.cjs` through its shared runtime bootstrap
+
+### `build.json`
+
+`build.json` records:
+
+- package format
+- format version
+- SDK version used to build the package
+- bundle metadata
+
+### `checksums.json`
+
+`checksums.json` records file-level SHA-256 checksums.
+
+Youwee validates these checksums during import.
+
+---
+
+## Import into Youwee
+
+Only `.ywp` is supported as the end-user import format.
+
+Youwee does not use raw folders or ZIP source packages as the productized install format.
+
+At import time, Youwee validates:
+
+- `.ywp` structure
+- `manifest.json`
+- `build.json`
+- `checksums.json`
+- compatibility ranges
+- runtime entrypoint existence
+- declared locale files
+
+If validation fails, import is blocked.
+
+---
+
+## Debugging model
+
+The recommended debugging model is:
+
+1. work inside a plugin workspace
+2. attach that workspace to Youwee when you want live source-level debugging
+3. edit source files directly inside the workspace
+4. let the next trigger run the updated source without rebuilding
+5. run local tests against the source module when needed
+6. pack a `.ywp`
+7. import the packaged plugin into Youwee to verify packaged install/runtime behavior
+
+This keeps development and installation separate while still giving you a fast debug loop inside Youwee.
+
+### Live workspace debugging in Youwee
+
+Youwee can attach a plugin workspace directly for development.
+
+Use this when you want:
+
+- real trigger execution inside Youwee
+- source-level iteration without rebuilding on every edit
+- the same app runtime bridge (`ctx`, tools, AI, i18n, env, workflow payloads)
+
+Recommended flow:
+
+1. create or open a plugin workspace
+2. run `bun install`
+3. in Youwee, go to `Settings > Plugins`
+4. choose `Attach Workspace`
+5. select the workspace folder
+6. enable the attached plugin
+7. add it to the workflow you want to test
+8. trigger the real app flow
+9. edit `src/plugin.js` or `plugin.json`
+10. trigger again
+
+No `.ywp` rebuild is required for this loop.
+
+Important:
+
+- `Attach Workspace` is a development-only workflow
+- it runs source files directly from the selected workspace
+- it does not use packaged plugin integrity checks
+- only attach workspaces you control and trust
+
+Use `.ywp` packaging when you want to:
+
+- verify packaged behavior
+- share the plugin with another user
+- test the exact artifact Youwee will install for end users
+
+Recommended local commands:
+
+```bash
+bun install
+bun run test:node
+bun run test:bun
+bunx youwee-sdk build
+bunx youwee-sdk pack
+```
+
+---
+
+## Runtime and compatibility
+
+### Supported JavaScript providers
+
+Plugin manifests must declare supported providers explicitly.
+
+Supported JavaScript providers:
+
+- `deno`
+- `node`
+- `bun`
+
+### Compatibility helpers
+
+The SDK exports:
+
+- `SDK_VERSION`
+- `parseSemver(version)`
+- `compareSemver(a, b)`
+- `satisfiesVersionRange(version, range)`
+- `checkAppVersionCompatibility(currentVersion, range)`
+- `assertCompatibleAppVersion(currentVersion, range)`
+
+Runtime access:
+
+```js
+ctx.youwee.sdk.version
+ctx.youwee.sdk.checkAppVersion(">=0.13.0 <0.14.0")
+ctx.youwee.sdk.assertAppVersion(">=0.13.0 <0.14.0")
+```
+
+Use these when your plugin depends on specific app features.
+
+---
+
+## AI agent notes
+
+If you are generating plugin code with an AI agent, follow these rules:
+
+1. treat the plugin as a workspace first, not an installed app plugin
+2. write or update `plugin.json`
+3. write the hook module in `src/plugin.js` or `src/plugin.ts`
+4. use raw trigger strings in `plugin.json`
+5. use `triggers.*` only inside source code
+6. place translations in `locales/*.json`
+7. assume the final deliverable is a `.ywp` package
+8. do not invent per-plugin runner files
+9. do not assume Youwee imports raw source folders
+
+When generating user instructions, always present the flow as:
+
+- create workspace
+- install dependencies
+- build
+- pack
+- import `.ywp`
+
+---
+
+## Troubleshooting
+
+### The manifest says my trigger is invalid
+
+Use raw runtime strings in `plugin.json`.
+
+Correct:
+
+```json
+"triggers": ["download.completed"]
+```
+
+Incorrect:
+
+```json
+"triggers": ["triggers.downloadCompleted"]
+```
+
+### The plugin works locally but Youwee refuses to import it
+
+Check:
+
+- compatibility ranges
+- required locale files
+- packaged entrypoint existence
+- `checksums.json`
+- package format version
+
+### The plugin imports but does not run
+
+Check:
+
+- the plugin is enabled
+- required permissions are approved
+- the selected provider is supported by the manifest
+- the workflow for the trigger includes the plugin
+
+### The plugin needs environment variables
+
+Declare them in:
+
+```json
+"permissions": {
+  "env": ["MY_ENV_KEY"]
+}
+```
+
+Then configure the values inside Youwee after installation.
+
+---
+
+## Appendix: minimal example
+
+`plugin.json`
+
+```json
+{
+  "id": "local.example",
+  "slug": "example",
+  "name": "Example",
+  "version": "0.1.0",
+  "runtime": {
+    "language": "javascript",
+    "supportedProviders": ["node"],
+    "preferredProvider": "node",
+    "entrypoint": "src/plugin.js"
+  },
+  "triggers": ["download.completed"],
+  "timeoutSec": 60
+}
+```
+
+`src/plugin.js`
+
+```js
+const { definePlugin, triggers } = require("youwee-sdk");
+
+module.exports = definePlugin({
+  meta: {
+    name: "Example",
+    version: "0.1.0",
+  },
+  hooks: {
+    [triggers.downloadCompleted]: async (ctx) => {
+      ctx.log.info("Plugin executed", {
+        filename: ctx.file.name,
+      });
+
+      return ctx.ok(`Processed ${ctx.file.name}`);
+    },
+  },
+});
+```
+
+Build and pack:
+
+```bash
+bun install
+bunx youwee-sdk build
+bunx youwee-sdk pack
+```

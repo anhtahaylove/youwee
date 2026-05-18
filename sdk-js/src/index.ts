@@ -58,6 +58,12 @@ export {
   slugifyPluginName,
   validatePluginManifest,
 } from './manifest';
+export {
+  buildPluginPackage,
+  packPluginPackage,
+  readPackagedBuildInfo,
+  validatePackagedManifest,
+} from './packager';
 
 export type {
   AIBridge,
@@ -65,6 +71,8 @@ export type {
   AIExtractJsonOptions,
   AISummarizeOptions,
   AITextOptions,
+  BuildPluginPackageInput,
+  BuildPluginPackageResult,
   CommandResult,
   CompatibilityCheckResult,
   DownloadBeforeStartContext,
@@ -79,6 +87,10 @@ export type {
   JsonShapeDescriptor,
   JsonShapeObjectDescriptor,
   ManifestValidationResult,
+  PackagedPluginBuildInfo,
+  PackagedPluginChecksums,
+  PackPluginPackageInput,
+  PackPluginPackageResult,
   ParsedSemver,
   PluginChainMutation,
   PluginChainState,

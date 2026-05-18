@@ -46,18 +46,20 @@ import type {
   PluginSummary,
   PluginTriggerWorkflow,
   PluginWorkflowFailurePolicy,
+  PluginWorkspaceSummary,
   RuntimeProviderStatus,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { SettingsCard } from './SettingsSection';
 
 type InstallPluginSourceInput = {
-  kind: 'app-scaffold' | 'local-folder' | 'local-zip';
+  kind: 'package-ywp';
   value: string;
 };
 
 type CreatePluginFormState = {
   name: string;
+  destinationRoot: string;
   id: string;
   slug: string;
   version: string;
@@ -175,17 +177,21 @@ function formatSourceKind(
   t: (key: string, opts?: Record<string, unknown>) => string,
 ) {
   switch (kind) {
-    case 'app-scaffold':
-      return t('download.pluginSourceAppScaffold');
-    case 'local-folder':
-      return t('download.pluginSourceLocalFolder');
-    case 'local-zip':
-      return t('download.pluginSourceLocalZip');
-    case 'remote-url':
-      return t('download.pluginSourceRemoteUrl');
+    case 'workspace':
+      return t('download.pluginSourceWorkspace');
+    case 'package-ywp':
+      return t('download.pluginSourcePackageYwp');
     default:
       return kind;
   }
+}
+
+function formatPackageFormat(
+  format: string | null | undefined,
+  version: number | null | undefined,
+) {
+  if (!format) return null;
+  return version ? `${format.toUpperCase()} v${version}` : format.toUpperCase();
 }
 
 function formatRuntimeStatusBadge(
@@ -208,6 +214,7 @@ type WorkflowTrigger = (typeof WORKFLOW_TRIGGERS)[number];
 
 const DEFAULT_CREATE_PLUGIN_FORM: CreatePluginFormState = {
   name: '',
+  destinationRoot: '',
   id: '',
   slug: '',
   version: '0.1.0',
@@ -270,6 +277,7 @@ export function PostDownloadPluginsCard() {
   const [pluginLogsOffset, setPluginLogsOffset] = useState(0);
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [pluginLogsError, setPluginLogsError] = useState<string | null>(null);
+  const [clearLogsConfirmOpen, setClearLogsConfirmOpen] = useState(false);
   const [permissionDialogPlugin, setPermissionDialogPlugin] = useState<PluginSummary | null>(null);
   const [permissionDialogState, setPermissionDialogState] = useState<PluginPermissionApproval>({
     network: false,
@@ -277,6 +285,9 @@ export function PostDownloadPluginsCard() {
     writePaths: false,
     env: false,
   });
+  const [createdWorkspace, setCreatedWorkspace] = useState<PluginWorkspaceSummary | null>(null);
+  const [attachWorkspacePath, setAttachWorkspacePath] = useState<string | null>(null);
+  const [uninstallTarget, setUninstallTarget] = useState<PluginSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPlugins = useCallback(async () => {
@@ -403,25 +414,53 @@ export function PostDownloadPluginsCard() {
     }
   };
 
-  const handleImportFolder = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
-      title: t('download.pluginImportFolder'),
-    });
-    if (typeof selected !== 'string') return;
-    await inspectSource({ kind: 'local-folder', value: selected }, 'inspect_plugin_folder', 'path');
-  };
-
-  const handleImportZip = async () => {
+  const handleImportPackage = async () => {
     const selected = await open({
       directory: false,
       multiple: false,
-      title: t('download.pluginImportZip'),
-      filters: [{ name: 'ZIP', extensions: ['zip'] }],
+      title: t('download.pluginImportPlugin'),
+      filters: [{ name: 'Youwee Plugin File', extensions: ['ywp'] }],
     });
     if (typeof selected !== 'string') return;
-    await inspectSource({ kind: 'local-zip', value: selected }, 'inspect_plugin_zip', 'path');
+    await inspectSource({ kind: 'package-ywp', value: selected }, 'inspect_plugin_package', 'path');
+  };
+
+  const handlePickWorkspaceRoot = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: t('download.pluginCreatePickLocation'),
+    });
+    if (typeof selected !== 'string') return;
+    updateCreatePluginForm('destinationRoot', selected);
+  };
+
+  const handleAttachWorkspace = async (workspacePath?: string) => {
+    const selected =
+      workspacePath ??
+      (await open({
+        directory: true,
+        multiple: false,
+        title: t('download.pluginAttachWorkspace'),
+      }));
+
+    if (typeof selected !== 'string' || !selected) return;
+    setAttachWorkspacePath(selected);
+  };
+
+  const handleConfirmAttachWorkspace = async () => {
+    if (!attachWorkspacePath) return;
+    setError(null);
+    try {
+      await invoke<PluginSummary>('attach_plugin_workspace', {
+        input: { value: attachWorkspacePath },
+      });
+      setAttachWorkspacePath(null);
+      await loadPlugins();
+    } catch (err) {
+      console.error('Failed to attach plugin workspace:', err);
+      setError(localizeUnknownError(err));
+    }
   };
 
   const handleInstallInspection = async () => {
@@ -429,8 +468,8 @@ export function PostDownloadPluginsCard() {
     setInstalling(true);
     setError(null);
     try {
-      await invoke<PluginSummary>('install_plugin', {
-        source: installSource,
+      await invoke<PluginSummary>('install_plugin_package', {
+        path: installSource.value,
         trusted: true,
       });
       setInspection(null);
@@ -551,9 +590,10 @@ export function PostDownloadPluginsCard() {
     setCreating(true);
     setError(null);
     try {
-      await invoke<PluginSummary>('create_plugin_scaffold', {
+      const result = await invoke<PluginWorkspaceSummary>('create_plugin_workspace', {
         input: {
           name: trimmedName,
+          destinationRoot: createPluginForm.destinationRoot.trim(),
           id: createPluginForm.id.trim() || null,
           slug: createPluginForm.slug.trim() || null,
           version: createPluginForm.version.trim() || null,
@@ -577,9 +617,9 @@ export function PostDownloadPluginsCard() {
           },
         },
       });
+      setCreatedWorkspace(result);
       setCreatePluginForm(DEFAULT_CREATE_PLUGIN_FORM);
       setCreateOpen(false);
-      await loadPlugins();
     } catch (err) {
       console.error('Failed to create plugin:', err);
       setError(localizeUnknownError(err));
@@ -635,6 +675,15 @@ export function PostDownloadPluginsCard() {
     } catch (err) {
       console.error('Failed to open plugin directory:', err);
       setError(t('download.pluginOpenDirError'));
+    }
+  };
+
+  const handleOpenWorkspacePath = async (path: string) => {
+    try {
+      await invoke('open_file_location', { filepath: path });
+    } catch (err) {
+      console.error('Failed to open workspace path:', err);
+      setError(t('download.pluginWorkspaceOpenError'));
     }
   };
 
@@ -1012,11 +1061,13 @@ export function PostDownloadPluginsCard() {
     if (!selectedPluginId) {
       return;
     }
+    setClearLogsConfirmOpen(true);
+  };
 
-    if (!window.confirm(t('download.pluginLogsClearConfirm'))) {
+  const handleConfirmClearPluginLogs = async () => {
+    if (!selectedPluginId) {
       return;
     }
-
     setLogsClearing(true);
     setPluginLogsError(null);
     try {
@@ -1027,11 +1078,52 @@ export function PostDownloadPluginsCard() {
       setPluginLogsTotal(0);
       setPluginLogsHasMore(false);
       setPluginLogsOffset(0);
+      setClearLogsConfirmOpen(false);
     } catch (err) {
       console.error('Failed to clear plugin logs:', err);
       setPluginLogsError(t('download.pluginLogsClearError'));
     } finally {
       setLogsClearing(false);
+    }
+  };
+
+  const handleUninstallPlugin = async (plugin: PluginSummary) => {
+    setUninstallTarget(plugin);
+  };
+
+  const handleConfirmUninstallPlugin = async () => {
+    if (!uninstallTarget) {
+      return;
+    }
+    try {
+      await invoke('uninstall_plugin', { pluginId: uninstallTarget.manifest.id });
+      setPlugins((current) =>
+        current.filter((item) => item.manifest.id !== uninstallTarget.manifest.id),
+      );
+      setRuntimeStatuses((current) => {
+        const next = { ...current };
+        delete next[uninstallTarget.manifest.id];
+        return next;
+      });
+      setWorkflows((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([trigger, workflow]) => [
+            trigger,
+            {
+              ...workflow,
+              steps: workflow.steps.filter((step) => step.pluginId !== uninstallTarget.manifest.id),
+            },
+          ]),
+        ),
+      );
+      if (selectedPluginId === uninstallTarget.manifest.id) {
+        setLogsOpen(false);
+        setSelectedPluginId(null);
+      }
+      setUninstallTarget(null);
+    } catch (err) {
+      console.error('Failed to uninstall plugin:', err);
+      setError(t('download.pluginUninstallError'));
     }
   };
 
@@ -1051,27 +1143,99 @@ export function PostDownloadPluginsCard() {
           variant="outline"
           size="sm"
           className="border-dashed"
-          onClick={handleImportFolder}
-          disabled={inspecting}
+          onClick={() => handleAttachWorkspace()}
         >
-          <FolderOpen className="h-4 w-4" />
-          {t('download.pluginImportFolder')}
+          <Braces className="h-4 w-4" />
+          {t('download.pluginAttachWorkspace')}
         </Button>
         <Button
           variant="outline"
           size="sm"
           className="border-dashed"
-          onClick={handleImportZip}
+          onClick={handleImportPackage}
           disabled={inspecting}
         >
           <PackageOpen className="h-4 w-4" />
-          {t('download.pluginImportZip')}
+          {t('download.pluginImportPlugin')}
         </Button>
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          {t('download.pluginCreate')}
+          {t('download.pluginCreateWorkspace')}
         </Button>
       </div>
+
+      <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 p-4">
+        <div className="space-y-2">
+          <p className="text-sm font-medium">{t('download.pluginWorkspaceFlowTitle')}</p>
+          <p className="text-xs text-muted-foreground">{t('download.pluginWorkspaceFlowDesc')}</p>
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+            <p className="text-xs font-medium">{t('download.pluginWorkspaceStep1Title')}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t('download.pluginWorkspaceStep1Desc')}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+            <p className="text-xs font-medium">{t('download.pluginWorkspaceStep2Title')}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t('download.pluginWorkspaceStep2Desc')}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border/60 bg-background/70 p-3">
+            <p className="text-xs font-medium">{t('download.pluginWorkspaceStep3Title')}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t('download.pluginWorkspaceStep3Desc')}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {createdWorkspace && (
+        <div className="rounded-xl border border-dashed border-emerald-500/40 bg-emerald-500/5 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">{t('download.pluginWorkspaceCreatedTitle')}</p>
+              <p className="text-xs text-muted-foreground">
+                {t('download.pluginWorkspaceCreatedDesc', { name: createdWorkspace.name })}
+              </p>
+              <div className="space-y-1 text-[11px] text-muted-foreground">
+                <p className="break-all">
+                  {t('download.pluginWorkspacePathLabel')}: {createdWorkspace.path}
+                </p>
+                <p className="break-all">
+                  {t('download.pluginManifestPathLabel')}: {createdWorkspace.manifestPath}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-background/70 p-3 text-[11px] text-muted-foreground">
+                <p>{t('download.pluginWorkspaceNextStep1')}</p>
+                <p>{t('download.pluginWorkspaceNextStep2')}</p>
+                <p>{t('download.pluginWorkspaceNextStep3')}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => handleOpenWorkspacePath(createdWorkspace.path)}
+              >
+                <FolderOpen className="h-4 w-4" />
+                {t('download.pluginWorkspaceOpen')}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleAttachWorkspace(createdWorkspace.path)}
+              >
+                <Braces className="h-4 w-4" />
+                {t('download.pluginAttachWorkspace')}
+              </Button>
+              <Button variant="outline" onClick={() => setCreatedWorkspace(null)}>
+                {t('download.pluginDismiss')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SettingsCard className="space-y-4">
         <div className="flex items-center justify-between gap-3">
@@ -1109,6 +1273,25 @@ export function PostDownloadPluginsCard() {
                   <p className="font-medium text-foreground/80">
                     {t('download.pluginCompatibilityTitle')}
                   </p>
+                  {inspection.packageFormat && (
+                    <p>
+                      {t('download.pluginPackageFormatLabel')}:{' '}
+                      {formatPackageFormat(
+                        inspection.packageFormat,
+                        inspection.packageFormatVersion,
+                      )}
+                    </p>
+                  )}
+                  {inspection.builderSdkVersion && (
+                    <p>
+                      {t('download.pluginBuilderSdkVersionLabel')}: v{inspection.builderSdkVersion}
+                    </p>
+                  )}
+                  {inspection.packageChecksum && (
+                    <p className="break-all">
+                      {t('download.pluginPackageChecksumLabel')}: {inspection.packageChecksum}
+                    </p>
+                  )}
                   {inspectionCompatibilityEntries.length > 0 ? (
                     inspectionCompatibilityEntries.map((entry) => <p key={entry}>{entry}</p>)
                   ) : (
@@ -1289,6 +1472,19 @@ export function PostDownloadPluginsCard() {
                             <FolderOpen className="h-4 w-4" />
                             {t('download.pluginOpenFolder')}
                           </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-dashed text-destructive hover:text-destructive"
+                            onClick={() => handleUninstallPlugin(plugin)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {t(
+                              plugin.installation.source.kind === 'workspace'
+                                ? 'download.pluginDetachWorkspace'
+                                : 'download.pluginUninstall',
+                            )}
+                          </Button>
                         </div>
 
                         <div className="grid gap-3 lg:grid-cols-2">
@@ -1337,6 +1533,27 @@ export function PostDownloadPluginsCard() {
                                 </p>
                                 <p>{formatSourceKind(plugin.installation.source.kind, t)}</p>
                               </div>
+                              {plugin.installation.source.packageFormat && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginPackageFormatLabel')}
+                                  </p>
+                                  <p>
+                                    {formatPackageFormat(
+                                      plugin.installation.source.packageFormat,
+                                      plugin.installation.source.packageFormatVersion,
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                              {plugin.installation.source.builderSdkVersion && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginBuilderSdkVersionLabel')}
+                                  </p>
+                                  <p>v{plugin.installation.source.builderSdkVersion}</p>
+                                </div>
+                              )}
                               <div>
                                 <p className="font-medium text-foreground/80">
                                   {t('download.pluginLanguageLabel')}
@@ -1447,10 +1664,14 @@ export function PostDownloadPluginsCard() {
                               {plugin.installation.source.checksum && (
                                 <div className="sm:col-span-2">
                                   <p className="font-medium text-foreground/80">
-                                    {t('download.pluginChecksumLabel')}
+                                    {plugin.installation.source.packageFormat
+                                      ? t('download.pluginPackageChecksumLabel')
+                                      : t('download.pluginChecksumLabel')}
                                   </p>
                                   <p className="break-all">
-                                    {formatChecksum(plugin.installation.source.checksum)}
+                                    {plugin.installation.source.packageFormat
+                                      ? plugin.installation.source.checksum
+                                      : formatChecksum(plugin.installation.source.checksum)}
                                   </p>
                                 </div>
                               )}
@@ -1941,6 +2162,24 @@ export function PostDownloadPluginsCard() {
                 </div>
 
                 <div className="space-y-2">
+                  <p className="text-sm font-medium">{t('download.pluginWorkspacePathLabel')}</p>
+                  <div className="flex gap-2">
+                    <Input
+                      value={createPluginForm.destinationRoot}
+                      onChange={(event) =>
+                        updateCreatePluginForm('destinationRoot', event.target.value)
+                      }
+                      placeholder={t('download.pluginCreateLocationPlaceholder')}
+                    />
+                    <Button variant="outline" type="button" onClick={handlePickWorkspaceRoot}>
+                      {t('download.pluginCreateBrowse')}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
                   <p className="text-sm font-medium">{t('download.pluginCreateIdLabel')}</p>
                   <Input
                     value={createPluginForm.id}
@@ -2189,12 +2428,106 @@ export function PostDownloadPluginsCard() {
               </Button>
               <Button
                 onClick={handleCreatePlugin}
-                disabled={creating || !createPluginForm.name.trim()}
+                disabled={
+                  creating ||
+                  !createPluginForm.name.trim() ||
+                  !createPluginForm.destinationRoot.trim()
+                }
               >
                 <Plus className="h-4 w-4" />
-                {creating ? t('download.pluginCreating') : t('download.pluginCreate')}
+                {creating ? t('download.pluginCreating') : t('download.pluginCreateWorkspace')}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={attachWorkspacePath != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAttachWorkspacePath(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>{t('download.pluginAttachWorkspace')}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {t('download.pluginAttachWorkspaceConfirm')}
+            </p>
+            {attachWorkspacePath && (
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground break-all">
+                {attachWorkspacePath}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAttachWorkspacePath(null)}>
+              {t('download.pluginDismiss')}
+            </Button>
+            <Button onClick={handleConfirmAttachWorkspace}>
+              <Braces className="h-4 w-4" />
+              {t('download.pluginAttachWorkspace')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={uninstallTarget != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setUninstallTarget(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>
+              {t(
+                uninstallTarget?.installation.source.kind === 'workspace'
+                  ? 'download.pluginDetachWorkspace'
+                  : 'download.pluginUninstall',
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {uninstallTarget && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {t(
+                  uninstallTarget.installation.source.kind === 'workspace'
+                    ? 'download.pluginDetachWorkspaceConfirm'
+                    : 'download.pluginUninstallConfirm',
+                  { name: uninstallTarget.manifest.name },
+                )}
+              </p>
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-muted-foreground">
+                {uninstallTarget.manifest.name}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setUninstallTarget(null)}>
+              {t('download.pluginDismiss')}
+            </Button>
+            <Button
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmUninstallPlugin}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t(
+                uninstallTarget?.installation.source.kind === 'workspace'
+                  ? 'download.pluginDetachWorkspace'
+                  : 'download.pluginUninstall',
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -2395,6 +2728,37 @@ export function PostDownloadPluginsCard() {
         onLoadMore={handleLoadMorePluginLogs}
         onClear={handleClearPluginLogs}
       />
+
+      <Dialog
+        open={clearLogsConfirmOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setClearLogsConfirmOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>{t('download.pluginLogsClear')}</DialogTitle>
+          </DialogHeader>
+
+          <p className="text-sm text-muted-foreground">{t('download.pluginLogsClearConfirm')}</p>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setClearLogsConfirmOpen(false)}>
+              {t('download.pluginDismiss')}
+            </Button>
+            <Button
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmClearPluginLogs}
+              disabled={logsClearing}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t('download.pluginLogsClear')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

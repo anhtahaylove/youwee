@@ -1,24 +1,26 @@
 use tauri::AppHandle;
 
 use crate::services::{
-    approve_plugin_permissions_internal, create_plugin_scaffold_internal,
+    approve_plugin_permissions_internal, attach_plugin_workspace_internal,
+    create_plugin_workspace_internal,
     enqueue_plugin_trigger_workflow,
     get_plugin_details_internal, get_plugin_trigger_workflow_internal,
     get_runtime_provider_status_internal,
-    inspect_plugin_folder_internal, inspect_plugin_url_internal, inspect_plugin_zip_internal,
-    install_plugin_internal, list_plugins_internal, list_runtime_providers_internal,
+    inspect_plugin_package_internal, install_plugin_package_internal, list_plugins_internal,
+    list_runtime_providers_internal,
     open_plugin_directory_internal, set_default_provider_for_language_internal,
-    set_plugin_provider_internal, set_plugin_timeout_internal, set_plugin_trust_internal,
+    set_plugin_provider_internal, set_plugin_timeout_internal,
     set_plugin_runtime_locale_internal,
+    uninstall_plugin_internal,
     update_plugin_env_values_internal, update_plugin_state_internal,
     update_plugin_trigger_workflow_internal,
-    CreatePluginScaffoldInput, InstallPluginSourceInput, PluginEnvValuesInput,
+    AttachPluginWorkspaceInput, CreatePluginWorkspaceInput, PluginEnvValuesInput,
     PluginPermissionApprovalInput, PluginRuntimeLocaleInput,
 };
 use crate::types::{
     PluginPackageInspection, PluginProvider, PluginRuntimeLanguage, PluginSummary,
     PluginTriggerWorkflow, PluginWorkflowStepSnapshot, PostDownloadPluginPayload,
-    RuntimeProviderStatus,
+    RuntimeProviderStatus, PluginWorkspaceSummary,
 };
 
 #[tauri::command]
@@ -32,44 +34,41 @@ pub fn get_plugin_details(app: AppHandle, plugin_id: String) -> Result<PluginSum
 }
 
 #[tauri::command]
-pub async fn inspect_plugin_folder(
+pub async fn inspect_plugin_package(
     app: AppHandle,
     path: String,
 ) -> Result<PluginPackageInspection, String> {
-    inspect_plugin_folder_internal(&app, path).await
+    inspect_plugin_package_internal(&app, path).await
 }
 
 #[tauri::command]
-pub async fn inspect_plugin_zip(
+pub async fn install_plugin_package(
     app: AppHandle,
     path: String,
-) -> Result<PluginPackageInspection, String> {
-    inspect_plugin_zip_internal(&app, path).await
-}
-
-#[tauri::command]
-pub async fn inspect_plugin_url(
-    app: AppHandle,
-    url: String,
-) -> Result<PluginPackageInspection, String> {
-    inspect_plugin_url_internal(&app, url).await
-}
-
-#[tauri::command]
-pub async fn install_plugin(
-    app: AppHandle,
-    source: InstallPluginSourceInput,
     trusted: bool,
 ) -> Result<PluginSummary, String> {
-    install_plugin_internal(&app, source, trusted).await
+    install_plugin_package_internal(&app, path, trusted).await
 }
 
 #[tauri::command]
-pub fn create_plugin_scaffold(
+pub fn uninstall_plugin(app: AppHandle, plugin_id: String) -> Result<(), String> {
+    uninstall_plugin_internal(&app, &plugin_id)
+}
+
+#[tauri::command]
+pub fn attach_plugin_workspace(
     app: AppHandle,
-    input: CreatePluginScaffoldInput,
+    input: AttachPluginWorkspaceInput,
 ) -> Result<PluginSummary, String> {
-    create_plugin_scaffold_internal(&app, input)
+    attach_plugin_workspace_internal(&app, input)
+}
+
+#[tauri::command]
+pub fn create_plugin_workspace(
+    app: AppHandle,
+    input: CreatePluginWorkspaceInput,
+) -> Result<PluginWorkspaceSummary, String> {
+    create_plugin_workspace_internal(&app, input)
 }
 
 #[tauri::command]
@@ -124,11 +123,6 @@ pub fn update_plugin_env_values(
     input: PluginEnvValuesInput,
 ) -> Result<(), String> {
     update_plugin_env_values_internal(&app, &plugin_id, input)
-}
-
-#[tauri::command]
-pub fn set_plugin_trust(app: AppHandle, plugin_id: String, trusted: bool) -> Result<(), String> {
-    set_plugin_trust_internal(&app, &plugin_id, trusted)
 }
 
 #[tauri::command]

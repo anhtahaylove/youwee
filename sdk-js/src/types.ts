@@ -405,4 +405,55 @@ export interface PluginPackageDefinitionInput {
   version: string;
   description?: string;
   main?: string;
+  sdkVersion?: string;
+}
+
+export interface BuildPluginPackageInput {
+  cwd?: string;
+}
+
+export interface BuildPluginPackageResult {
+  rootDir: string;
+  sourceManifestPath: string;
+  sourceManifest: PluginManifest;
+  runtimeManifest: PluginManifest;
+  distEntrypoint: string;
+  copiedFiles: string[];
+}
+
+export interface PackagedPluginBuilderInfo {
+  tool: string;
+  version: string;
+}
+
+export interface PackagedPluginBundleInfo {
+  entrypoint: string;
+  bundled: boolean;
+  includesDependencies: boolean;
+  moduleFormat: string;
+}
+
+export interface PackagedPluginBuildInfo {
+  packageFormat: 'ywp';
+  packageFormatVersion: 1;
+  packagedAt: string;
+  builder: PackagedPluginBuilderInfo;
+  bundle: PackagedPluginBundleInfo;
+}
+
+export interface PackagedPluginChecksums {
+  algorithm: 'sha256';
+  files: Record<string, string>;
+}
+
+export interface PackPluginPackageInput {
+  cwd?: string;
+  outDir?: string;
+}
+
+export interface PackPluginPackageResult {
+  packagePath: string;
+  packageChecksum: string;
+  manifest: PluginManifest;
+  buildInfo: PackagedPluginBuildInfo;
 }

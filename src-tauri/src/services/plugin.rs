@@ -1,11 +1,9 @@
 use std::collections::{BTreeMap, VecDeque};
-use std::ffi::OsStr;
 use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::OnceLock;
 
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
@@ -14,11 +12,12 @@ use tokio::process::Command;
 use uuid::Uuid;
 use zip::ZipArchive;
 
-use crate::database::add_log_internal;
+use crate::database::{add_log_internal, clear_plugin_logs_from_db};
 use crate::types::{
-    PluginChainMutation, PluginChainState, PluginCompatibilitySpec, PluginExecutionOutputEvent,
-    PluginExecutionResult, PluginExecutionStatusEvent, PluginI18nSpec, PluginInstallation,
-    PluginManifest, PluginPackageInspection, PluginPackageSource, PluginPackageSourceKind,
+    PackagedPluginBuildInfo, PackagedPluginChecksums, PluginChainMutation, PluginChainState,
+    PluginCompatibilitySpec, PluginExecutionOutputEvent, PluginExecutionResult,
+    PluginExecutionStatusEvent, PluginI18nSpec, PluginInstallation, PluginManifest,
+    PluginPackageInspection, PluginPackageSource, PluginPackageSourceKind,
     PluginPermissionApproval, PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage,
     PluginRuntimeSpec, PluginSummary, PluginTriggerWorkflow, PluginWorkflowFailurePolicy,
     PluginWorkflowRun, PluginWorkflowRunStatus, PluginWorkflowStepConfig,
@@ -77,14 +76,19 @@ pub struct PluginPermissionApprovalInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct InstallPluginSourceInput {
-    pub kind: PluginPackageSourceKind,
+pub struct InstallPluginPackageInput {
     pub value: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CreatePluginScaffoldInput {
+pub struct AttachPluginWorkspaceInput {
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePluginWorkspaceInput {
     pub name: String,
     #[serde(default)]
     pub id: Option<String>,
@@ -102,6 +106,7 @@ pub struct CreatePluginScaffoldInput {
     pub repository: Option<String>,
     #[serde(default)]
     pub license: Option<String>,
+    pub destination_root: String,
     #[serde(default)]
     pub triggers: Vec<String>,
     #[serde(default)]
@@ -194,6 +199,10 @@ struct PreparedPackage {
     package_root: PathBuf,
     source: PluginPackageSource,
     warnings: Vec<String>,
+    package_format: Option<String>,
+    package_format_version: Option<u32>,
+    builder_sdk_version: Option<String>,
+    package_checksum: Option<String>,
 }
 
 fn truncate_text(text: &str, max_len: usize) -> String {
@@ -607,7 +616,7 @@ fn current_sdk_version() -> String {
     serde_json::from_str::<serde_json::Value>(SDK_JS_PACKAGE_JSON)
         .ok()
         .and_then(|value| value.get("version").and_then(|value| value.as_str()).map(str::to_string))
-        .unwrap_or_else(|| "0.1.0".to_string())
+        .unwrap_or_else(|| "1.0.0".to_string())
 }
 
 fn build_scaffold_compatibility_range(version: &str) -> String {
@@ -622,9 +631,8 @@ fn validate_execution_compatibility(manifest: &PluginManifest) -> Result<(), Str
     validate_install_compatibility(manifest)
 }
 
-fn load_manifest_from_dir(plugin_root: &Path) -> Result<PluginManifest, String> {
-    let manifest_path = plugin_root.join("plugin.json");
-    let raw = std::fs::read_to_string(&manifest_path)
+fn load_manifest_from_file(manifest_path: &Path) -> Result<PluginManifest, String> {
+    let raw = std::fs::read_to_string(manifest_path)
         .map_err(|e| format!("Failed to read {}: {}", manifest_path.display(), e))?;
 
     let manifest: PluginManifest = serde_json::from_str(&raw)
@@ -632,6 +640,19 @@ fn load_manifest_from_dir(plugin_root: &Path) -> Result<PluginManifest, String> 
 
     validate_manifest(&manifest, &manifest_path)?;
     Ok(manifest)
+}
+
+fn load_source_manifest_from_dir(plugin_root: &Path) -> Result<PluginManifest, String> {
+    load_manifest_from_file(&plugin_root.join("plugin.json"))
+}
+
+fn load_installed_manifest_from_dir(plugin_root: &Path) -> Result<PluginManifest, String> {
+    let packaged_manifest = plugin_root.join("manifest.json");
+    if packaged_manifest.exists() {
+        return load_manifest_from_file(&packaged_manifest);
+    }
+
+    load_source_manifest_from_dir(plugin_root)
 }
 
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
@@ -713,37 +734,6 @@ fn compute_dir_checksum(root: &Path) -> Result<String, String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
-fn ensure_unique_manifest_file(root: &Path) -> Result<PathBuf, String> {
-    let mut queue = VecDeque::from([root.to_path_buf()]);
-    let mut matches = Vec::new();
-
-    while let Some(path) = queue.pop_front() {
-        for entry in std::fs::read_dir(&path)
-            .map_err(|e| format!("Failed to read directory {}: {}", path.display(), e))?
-        {
-            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
-            let entry_path = entry.path();
-            if entry_path.is_dir() {
-                queue.push_back(entry_path);
-            } else if entry_path.file_name() == Some(OsStr::new("plugin.json")) {
-                matches.push(entry_path);
-            }
-        }
-    }
-
-    match matches.len() {
-        0 => Err(format!(
-            "No plugin.json found inside package root {}",
-            root.display()
-        )),
-        1 => Ok(matches.remove(0)),
-        _ => Err(format!(
-            "Multiple plugin.json files found inside package root {}",
-            root.display()
-        )),
-    }
-}
-
 fn extract_zip_to_temp(bytes: &[u8], label: &str) -> Result<PathBuf, String> {
     let temp_root = std::env::temp_dir().join(format!("youwee-plugin-{}-{}", label, Uuid::new_v4()));
     std::fs::create_dir_all(&temp_root).map_err(|e| {
@@ -791,72 +781,214 @@ fn extract_zip_to_temp(bytes: &[u8], label: &str) -> Result<PathBuf, String> {
     Ok(temp_root)
 }
 
-fn prepared_from_folder(path: &Path, kind: PluginPackageSourceKind) -> Result<PreparedPackage, String> {
-    if !path.exists() || !path.is_dir() {
-        return Err(format!("Plugin folder not found: {}", path.display()));
+fn validate_ywp_extension(path: &Path) -> Result<(), String> {
+    let is_ywp = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("ywp"))
+        .unwrap_or(false);
+
+    if is_ywp {
+        Ok(())
+    } else {
+        Err(format!(
+            "Plugin package must use the .ywp extension: {}",
+            path.display()
+        ))
     }
-
-    let manifest_file = ensure_unique_manifest_file(path)?;
-    let package_root = manifest_file
-        .parent()
-        .ok_or_else(|| "Failed to resolve plugin package root".to_string())?
-        .to_path_buf();
-    let manifest = load_manifest_from_dir(&package_root)?;
-    let checksum = compute_dir_checksum(&package_root).ok();
-
-    Ok(PreparedPackage {
-        manifest,
-        package_root,
-        source: PluginPackageSource {
-            kind,
-            value: path.to_string_lossy().to_string(),
-            checksum,
-        },
-        warnings: Vec::new(),
-    })
 }
 
-async fn prepared_from_url(url: &str) -> Result<PreparedPackage, String> {
-    let response = Client::new()
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to download plugin package: {}", e))?;
-    if !response.status().is_success() {
+fn resolve_packaged_root(extracted_root: &Path) -> Result<PathBuf, String> {
+    let has_layout = |root: &Path| {
+        root.join("manifest.json").is_file()
+            && root.join("build.json").is_file()
+            && root.join("checksums.json").is_file()
+    };
+
+    if has_layout(extracted_root) {
+        return Ok(extracted_root.to_path_buf());
+    }
+
+    let entries = std::fs::read_dir(extracted_root)
+        .map_err(|e| format!("Failed to read extracted package root {}: {}", extracted_root.display(), e))?
+        .filter_map(|entry| entry.ok())
+        .collect::<Vec<_>>();
+
+    if entries.len() == 1 {
+        let nested = entries[0].path();
+        if nested.is_dir() && has_layout(&nested) {
+            return Ok(nested);
+        }
+    }
+
+    Err("Invalid .ywp package layout. Expected manifest.json, build.json, and checksums.json at the package root.".to_string())
+}
+
+fn load_packaged_build_info(root: &Path) -> Result<PackagedPluginBuildInfo, String> {
+    let path = root.join("build.json");
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+    serde_json::from_str(&raw).map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
+}
+
+fn load_packaged_checksums(root: &Path) -> Result<PackagedPluginChecksums, String> {
+    let path = root.join("checksums.json");
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+    serde_json::from_str(&raw).map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
+}
+
+fn validate_packaged_checksums(
+    root: &Path,
+    checksums: &PackagedPluginChecksums,
+) -> Result<(), String> {
+    if checksums.algorithm.to_lowercase() != "sha256" {
         return Err(format!(
-            "Plugin package download failed with status {}",
-            response.status()
+            "Unsupported checksums algorithm in .ywp package: {}",
+            checksums.algorithm
         ));
     }
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read plugin package response: {}", e))?;
-    prepared_from_zip_bytes(&bytes, PluginPackageSourceKind::RemoteUrl, url.to_string())
+
+    let mut actual_files = Vec::new();
+    let mut queue = VecDeque::from([root.to_path_buf()]);
+    while let Some(path) = queue.pop_front() {
+        for entry in std::fs::read_dir(&path)
+            .map_err(|e| format!("Failed to read directory {}: {}", path.display(), e))?
+        {
+            let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                queue.push_back(entry_path);
+            } else if entry_path.is_file() {
+                let relative = normalize_path_for_checksum(root, &entry_path);
+                if relative != "checksums.json" {
+                    actual_files.push(relative);
+                }
+            }
+        }
+    }
+    actual_files.sort();
+
+    let mut expected_files = checksums.files.keys().cloned().collect::<Vec<_>>();
+    expected_files.sort();
+
+    if actual_files != expected_files {
+        return Err("The .ywp package contents do not match checksums.json.".to_string());
+    }
+
+    for relative in expected_files {
+        let path = root.join(&relative);
+        let bytes = std::fs::read(&path)
+            .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+        let actual = compute_sha256_bytes(&bytes);
+        let expected = checksums
+            .files
+            .get(&relative)
+            .ok_or_else(|| format!("Missing checksum entry for {}", relative))?;
+        if &actual != expected {
+            return Err(format!(
+                "Checksum mismatch in .ywp package for {}",
+                relative
+            ));
+        }
+    }
+
+    Ok(())
 }
 
-fn prepared_from_zip_file(path: &Path) -> Result<PreparedPackage, String> {
+fn normalize_path_for_checksum(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn validate_packaged_manifest_layout(
+    root: &Path,
+    manifest: &PluginManifest,
+    build_info: &PackagedPluginBuildInfo,
+) -> Result<(), String> {
+    if build_info.package_format != "ywp" {
+        return Err(format!(
+            "Unsupported plugin package format: {}",
+            build_info.package_format
+        ));
+    }
+    if build_info.package_format_version != 1 {
+        return Err(format!(
+            "Unsupported plugin package format version: {}",
+            build_info.package_format_version
+        ));
+    }
+    if build_info.builder.tool != "youwee-sdk" {
+        return Err(format!(
+            "Unsupported plugin package builder: {}",
+            build_info.builder.tool
+        ));
+    }
+    if manifest.runtime.entrypoint != build_info.bundle.entrypoint {
+        return Err("Packaged manifest entrypoint does not match build.json bundle entrypoint.".to_string());
+    }
+    let entrypoint = root.join(&manifest.runtime.entrypoint);
+    if !entrypoint.is_file() {
+        return Err(format!(
+            "Packaged plugin entrypoint is missing: {}",
+            manifest.runtime.entrypoint
+        ));
+    }
+
+    if let Some(i18n) = manifest.i18n.as_ref() {
+        let directory = i18n
+            .directory
+            .clone()
+            .unwrap_or_else(|| "locales".to_string());
+        for locale in &i18n.supported_locales {
+            let locale_path = root.join(&directory).join(format!("{}.json", locale));
+            if !locale_path.is_file() {
+                return Err(format!(
+                    "Packaged plugin locale file is missing: {}",
+                    normalize_path_for_checksum(root, &locale_path)
+                ));
+            }
+        }
+        if let Some(default_locale) = i18n.default_locale.as_ref() {
+            let default_locale_path = root.join(&directory).join(format!("{}.json", default_locale));
+            if !default_locale_path.is_file() {
+                return Err(format!(
+                    "Packaged plugin default locale file is missing: {}",
+                    normalize_path_for_checksum(root, &default_locale_path)
+                ));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn prepared_from_ywp_file(path: &Path) -> Result<PreparedPackage, String> {
+    validate_ywp_extension(path)?;
     let bytes = std::fs::read(path)
-        .map_err(|e| format!("Failed to read plugin zip {}: {}", path.display(), e))?;
-    prepared_from_zip_bytes(
+        .map_err(|e| format!("Failed to read plugin package {}: {}", path.display(), e))?;
+    prepared_from_ywp_bytes(
         &bytes,
-        PluginPackageSourceKind::LocalZip,
+        PluginPackageSourceKind::PackageYwp,
         path.to_string_lossy().to_string(),
     )
 }
 
-fn prepared_from_zip_bytes(
+fn prepared_from_ywp_bytes(
     bytes: &[u8],
     kind: PluginPackageSourceKind,
     value: String,
 ) -> Result<PreparedPackage, String> {
     let temp_root = extract_zip_to_temp(bytes, "import")?;
-    let manifest_file = ensure_unique_manifest_file(&temp_root)?;
-    let package_root = manifest_file
-        .parent()
-        .ok_or_else(|| "Failed to resolve extracted plugin package root".to_string())?
-        .to_path_buf();
-    let manifest = load_manifest_from_dir(&package_root)?;
+    let package_root = resolve_packaged_root(&temp_root)?;
+    let manifest = load_manifest_from_file(&package_root.join("manifest.json"))?;
+    let build_info = load_packaged_build_info(&package_root)?;
+    let checksums = load_packaged_checksums(&package_root)?;
+    validate_packaged_manifest_layout(&package_root, &manifest, &build_info)?;
+    validate_packaged_checksums(&package_root, &checksums)?;
+    let package_checksum = compute_sha256_bytes(bytes);
 
     Ok(PreparedPackage {
         manifest,
@@ -864,21 +996,23 @@ fn prepared_from_zip_bytes(
         source: PluginPackageSource {
             kind,
             value,
-            checksum: Some(compute_sha256_bytes(bytes)),
+            checksum: Some(package_checksum.clone()),
+            package_format: Some(build_info.package_format.clone()),
+            package_format_version: Some(build_info.package_format_version),
+            builder_sdk_version: Some(build_info.builder.version.clone()),
         },
         warnings: vec!["Unsigned plugin package".to_string()],
+        package_format: Some(build_info.package_format),
+        package_format_version: Some(build_info.package_format_version),
+        builder_sdk_version: Some(build_info.builder.version),
+        package_checksum: Some(package_checksum),
     })
 }
 
-async fn prepare_package(source: &InstallPluginSourceInput) -> Result<PreparedPackage, String> {
-    match source.kind {
-        PluginPackageSourceKind::LocalFolder => prepared_from_folder(Path::new(&source.value), source.kind.clone()),
-        PluginPackageSourceKind::LocalZip => prepared_from_zip_file(Path::new(&source.value)),
-        PluginPackageSourceKind::RemoteUrl => prepared_from_url(&source.value).await,
-        PluginPackageSourceKind::AppScaffold => {
-            prepared_from_folder(Path::new(&source.value), PluginPackageSourceKind::AppScaffold)
-        }
-    }
+async fn prepare_plugin_package(
+    source: &InstallPluginPackageInput,
+) -> Result<PreparedPackage, String> {
+    prepared_from_ywp_file(Path::new(&source.value))
 }
 
 fn manifest_summary(
@@ -1142,7 +1276,7 @@ fn validate_install_compatibility(manifest: &PluginManifest) -> Result<(), Strin
 pub fn list_plugins_internal(app: &AppHandle) -> Result<Vec<PluginSummary>, String> {
     let root = ensure_plugins_root(app)?;
     let registry = read_registry(app)?;
-    let mut plugins = Vec::new();
+    let mut plugins_by_id = BTreeMap::<String, PluginSummary>::new();
 
     for entry in std::fs::read_dir(&root)
         .map_err(|e| format!("Failed to read plugins directory {}: {}", root.display(), e))?
@@ -1152,8 +1286,16 @@ pub fn list_plugins_internal(app: &AppHandle) -> Result<Vec<PluginSummary>, Stri
         if !path.is_dir() {
             continue;
         }
+        if path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(|value| value.starts_with('.'))
+            .unwrap_or(false)
+        {
+            continue;
+        }
 
-        let manifest = match load_manifest_from_dir(&path) {
+        let manifest = match load_installed_manifest_from_dir(&path) {
             Ok(manifest) => manifest,
             Err(error) => {
                 add_log_internal("error", "Invalid plugin manifest", Some(&error), None).ok();
@@ -1161,20 +1303,84 @@ pub fn list_plugins_internal(app: &AppHandle) -> Result<Vec<PluginSummary>, Stri
             }
         };
         let checksum = compute_dir_checksum(&path).ok();
+        let build_info = if path.join("build.json").is_file() {
+            load_packaged_build_info(&path).ok()
+        } else {
+            None
+        };
+        let source_kind = if path.join("manifest.json").is_file() {
+            PluginPackageSourceKind::PackageYwp
+        } else {
+            PluginPackageSourceKind::Workspace
+        };
         let installation = build_installation_from_registry(
             &registry,
             &manifest,
             PluginPackageSource {
-                kind: PluginPackageSourceKind::LocalFolder,
+                kind: source_kind,
                 value: path.to_string_lossy().to_string(),
                 checksum,
+                package_format: build_info
+                    .as_ref()
+                    .map(|value| value.package_format.clone()),
+                package_format_version: build_info
+                    .as_ref()
+                    .map(|value| value.package_format_version),
+                builder_sdk_version: build_info
+                    .as_ref()
+                    .map(|value| value.builder.version.clone()),
             },
             path.to_string_lossy().to_string(),
         );
         let warnings = collect_compatibility_issues(&manifest).unwrap_or_else(|error| vec![error]);
-        plugins.push(manifest_summary(manifest, installation, warnings));
+        plugins_by_id.insert(
+            manifest.plugin_id.clone(),
+            manifest_summary(manifest, installation, warnings),
+        );
     }
 
+    for entry in registry.installations.values() {
+        let Some(source) = entry.source.as_ref() else {
+            continue;
+        };
+        if source.kind != PluginPackageSourceKind::Workspace {
+            continue;
+        }
+
+        let workspace_path = PathBuf::from(&source.value);
+        if !workspace_path.is_dir() {
+            continue;
+        }
+
+        let manifest = match load_source_manifest_from_dir(&workspace_path) {
+            Ok(manifest) => manifest,
+            Err(error) => {
+                add_log_internal("error", "Invalid plugin workspace manifest", Some(&error), None).ok();
+                continue;
+            }
+        };
+        let checksum = compute_dir_checksum(&workspace_path).ok();
+        let installation = build_installation_from_registry(
+            &registry,
+            &manifest,
+            PluginPackageSource {
+                kind: PluginPackageSourceKind::Workspace,
+                value: workspace_path.to_string_lossy().to_string(),
+                checksum,
+                package_format: None,
+                package_format_version: None,
+                builder_sdk_version: None,
+            },
+            workspace_path.to_string_lossy().to_string(),
+        );
+        let warnings = collect_compatibility_issues(&manifest).unwrap_or_else(|error| vec![error]);
+        plugins_by_id.insert(
+            manifest.plugin_id.clone(),
+            manifest_summary(manifest, installation, warnings),
+        );
+    }
+
+    let mut plugins = plugins_by_id.into_values().collect::<Vec<_>>();
     plugins.sort_by(|left, right| {
         left.manifest
             .name
@@ -1193,54 +1399,30 @@ pub fn get_plugin_details_internal(app: &AppHandle, plugin_id: &str) -> Result<P
         .ok_or_else(|| format!("Plugin not found: {}", plugin_id))
 }
 
-pub async fn inspect_plugin_folder_internal(
+pub async fn inspect_plugin_package_internal(
     _app: &AppHandle,
     path: String,
 ) -> Result<PluginPackageInspection, String> {
-    let package = prepared_from_folder(Path::new(&path), PluginPackageSourceKind::LocalFolder)?;
+    let package = prepared_from_ywp_file(Path::new(&path))?;
     let mut warnings = package.warnings;
     warnings.extend(collect_compatibility_issues(&package.manifest)?);
     Ok(PluginPackageInspection {
         manifest: package.manifest,
         source: package.source,
         warnings,
-    })
-}
-
-pub async fn inspect_plugin_zip_internal(
-    _app: &AppHandle,
-    path: String,
-) -> Result<PluginPackageInspection, String> {
-    let package = prepared_from_zip_file(Path::new(&path))?;
-    let mut warnings = package.warnings;
-    warnings.extend(collect_compatibility_issues(&package.manifest)?);
-    Ok(PluginPackageInspection {
-        manifest: package.manifest,
-        source: package.source,
-        warnings,
-    })
-}
-
-pub async fn inspect_plugin_url_internal(
-    _app: &AppHandle,
-    url: String,
-) -> Result<PluginPackageInspection, String> {
-    let package = prepared_from_url(&url).await?;
-    let mut warnings = package.warnings;
-    warnings.extend(collect_compatibility_issues(&package.manifest)?);
-    Ok(PluginPackageInspection {
-        manifest: package.manifest,
-        source: package.source,
-        warnings,
+        package_format: package.package_format,
+        package_format_version: package.package_format_version,
+        builder_sdk_version: package.builder_sdk_version,
+        package_checksum: package.package_checksum,
     })
 }
 
 pub async fn install_plugin_internal(
     app: &AppHandle,
-    source: InstallPluginSourceInput,
+    source: InstallPluginPackageInput,
     trusted: bool,
 ) -> Result<PluginSummary, String> {
-    let package = prepare_package(&source).await?;
+    let package = prepare_plugin_package(&source).await?;
     if let Err(error) = validate_install_compatibility(&package.manifest) {
         add_log_internal(
             "error",
@@ -1314,11 +1496,162 @@ pub async fn install_plugin_internal(
     Ok(manifest_summary(package.manifest, installation, Vec::new()))
 }
 
-pub fn create_plugin_scaffold_internal(
+pub async fn install_plugin_package_internal(
     app: &AppHandle,
-    input: CreatePluginScaffoldInput,
+    path: String,
+    trusted: bool,
 ) -> Result<PluginSummary, String> {
-    let CreatePluginScaffoldInput {
+    install_plugin_internal(
+        app,
+        InstallPluginPackageInput { value: path },
+        trusted,
+    )
+    .await
+}
+
+pub fn attach_plugin_workspace_internal(
+    app: &AppHandle,
+    input: AttachPluginWorkspaceInput,
+) -> Result<PluginSummary, String> {
+    let workspace_path = PathBuf::from(input.value.trim());
+    if !workspace_path.exists() || !workspace_path.is_dir() {
+        return Err(format!(
+            "Plugin workspace folder not found: {}",
+            workspace_path.display()
+        ));
+    }
+
+    let manifest = load_source_manifest_from_dir(&workspace_path)?;
+    validate_install_compatibility(&manifest)?;
+
+    let packaged_install_path = installation_path(&ensure_plugins_root(app)?, &manifest);
+    if packaged_install_path.exists() {
+        return Err(format!(
+            "A packaged plugin with id {} is already installed. Uninstall it before attaching a workspace.",
+            manifest.plugin_id
+        ));
+    }
+
+    let checksum = compute_dir_checksum(&workspace_path).ok();
+    let mut registry = read_registry(app)?;
+    let existing = registry.installations.get(&manifest.plugin_id).cloned();
+    registry.installations.insert(
+        manifest.plugin_id.clone(),
+        PluginRegistryEntry {
+            enabled: existing.as_ref().map(|value| value.enabled).unwrap_or(false),
+            trusted: true,
+            approved_permissions: existing
+                .as_ref()
+                .map(|value| value.approved_permissions.clone())
+                .unwrap_or_default(),
+            env_values: existing
+                .as_ref()
+                .map(|value| value.env_values.clone())
+                .unwrap_or_default(),
+            selected_provider: existing
+                .as_ref()
+                .and_then(|value| value.selected_provider.clone())
+                .or_else(|| manifest.runtime.preferred_provider.clone()),
+            timeout_sec_override: existing.as_ref().and_then(|value| value.timeout_sec_override),
+            source: Some(PluginPackageSource {
+                kind: PluginPackageSourceKind::Workspace,
+                value: workspace_path.to_string_lossy().to_string(),
+                checksum: checksum.clone(),
+                package_format: None,
+                package_format_version: None,
+                builder_sdk_version: None,
+            }),
+            last_resolved_provider: existing
+                .as_ref()
+                .and_then(|value| value.last_resolved_provider.clone()),
+            last_resolved_source: existing
+                .as_ref()
+                .and_then(|value| value.last_resolved_source.clone()),
+            last_execution_status: Some("attached".to_string()),
+            last_error: None,
+        },
+    );
+    write_registry(app, &registry)?;
+
+    add_log_internal(
+        "info",
+        &format!("Attached plugin workspace: {}", manifest.name),
+        Some(&format!(
+            "workspace: {}\npluginId: {}",
+            workspace_path.display(),
+            manifest.plugin_id
+        )),
+        None,
+    )
+    .ok();
+
+    let installation = build_installation_from_registry(
+        &registry,
+        &manifest,
+        PluginPackageSource {
+            kind: PluginPackageSourceKind::Workspace,
+            value: workspace_path.to_string_lossy().to_string(),
+            checksum,
+            package_format: None,
+            package_format_version: None,
+            builder_sdk_version: None,
+        },
+        workspace_path.to_string_lossy().to_string(),
+    );
+
+    Ok(manifest_summary(
+        manifest.clone(),
+        installation,
+        collect_compatibility_issues(&manifest).unwrap_or_default(),
+    ))
+}
+
+pub fn uninstall_plugin_internal(app: &AppHandle, plugin_id: &str) -> Result<(), String> {
+    let plugin = get_plugin_details_internal(app, plugin_id)?;
+    let installation_path = PathBuf::from(&plugin.installation.installed_path);
+
+    if plugin.installation.source.kind == PluginPackageSourceKind::PackageYwp && installation_path.exists() {
+        std::fs::remove_dir_all(&installation_path).map_err(|e| {
+            format!(
+                "Failed to remove plugin files at {}: {}",
+                installation_path.display(),
+                e
+            )
+        })?;
+    }
+
+    let mut registry = read_registry(app)?;
+    registry.installations.remove(plugin_id);
+    for workflow in registry.trigger_workflows.values_mut() {
+        workflow.steps.retain(|step| step.plugin_id != plugin_id);
+    }
+    write_registry(app, &registry)?;
+
+    clear_plugin_logs_from_db(plugin_id.to_string()).ok();
+    add_log_internal(
+        "info",
+        &format!(
+            "{} plugin: {}",
+            if plugin.installation.source.kind == PluginPackageSourceKind::Workspace {
+                "Detached"
+            } else {
+                "Uninstalled"
+            },
+            plugin.manifest.name
+        ),
+        Some(&format!("Plugin ID: {}", plugin_id)),
+        None,
+    )
+    .ok();
+
+    Ok(())
+}
+
+pub fn create_plugin_workspace_internal(
+    _app: &AppHandle,
+    input: CreatePluginWorkspaceInput,
+) -> Result<crate::types::PluginWorkspaceSummary, String> {
+    let CreatePluginWorkspaceInput {
         name,
         id,
         slug,
@@ -1328,6 +1661,7 @@ pub fn create_plugin_scaffold_internal(
         homepage,
         repository,
         license,
+        destination_root,
         triggers,
         supported_providers,
         preferred_provider,
@@ -1429,11 +1763,21 @@ pub fn create_plugin_scaffold_internal(
     };
     validate_manifest(&manifest, Path::new("plugin.json"))?;
 
-    let root = ensure_plugins_root(app)?;
-    let destination = installation_path(&root, &manifest);
+    let destination_root = PathBuf::from(destination_root.trim());
+    if destination_root.as_os_str().is_empty() {
+        return Err("Workspace location cannot be empty".to_string());
+    }
+    if !destination_root.exists() || !destination_root.is_dir() {
+        return Err(format!(
+            "Workspace location must be an existing folder: {}",
+            destination_root.display()
+        ));
+    }
+
+    let destination = destination_root.join(&manifest.slug);
     if destination.exists() {
         return Err(format!(
-            "Plugin scaffold destination already exists: {}",
+            "Plugin workspace destination already exists: {}",
             destination.display()
         ));
     }
@@ -1448,13 +1792,6 @@ pub fn create_plugin_scaffold_internal(
         format!(
             "Failed to create plugin examples directory {}: {}",
             destination.join("examples").display(),
-            e
-        )
-    })?;
-    std::fs::create_dir_all(destination.join("vendor").join("youwee-sdk")).map_err(|e| {
-        format!(
-            "Failed to create vendored SDK directory {}: {}",
-            destination.join("vendor").join("youwee-sdk").display(),
             e
         )
     })?;
@@ -1508,7 +1845,6 @@ pub fn create_plugin_scaffold_internal(
             e
         )
     })?;
-    write_scaffold_sdk_package(&destination)?;
     std::fs::write(destination.join("README.md"), build_scaffold_readme(&manifest)).map_err(|e| {
         format!(
             "Failed to write plugin README {}: {}",
@@ -1523,7 +1859,7 @@ pub fn create_plugin_scaffold_internal(
             e
         )
     })?;
-    std::fs::write(destination.join(".gitignore"), "dist/\nnode_modules/\n").map_err(|e| {
+    std::fs::write(destination.join(".gitignore"), "dist/\nrelease/\nnode_modules/\n").map_err(|e| {
         format!(
             "Failed to write plugin gitignore {}: {}",
             destination.join(".gitignore").display(),
@@ -1576,41 +1912,26 @@ pub fn create_plugin_scaffold_internal(
         )
     })?;
 
-    let mut registry = read_registry(app)?;
-    registry.installations.insert(
-        manifest.plugin_id.clone(),
-        PluginRegistryEntry {
-            enabled: false,
-            trusted: true,
-            approved_permissions: PluginPermissionApproval::default(),
-            env_values: BTreeMap::new(),
-            selected_provider: manifest.runtime.preferred_provider.clone(),
-            timeout_sec_override: None,
-            source: Some(PluginPackageSource {
-                kind: PluginPackageSourceKind::AppScaffold,
-                value: destination.to_string_lossy().to_string(),
-                checksum: compute_dir_checksum(&destination).ok(),
-            }),
-            last_resolved_provider: None,
-            last_resolved_source: None,
-            last_execution_status: Some("created".to_string()),
-            last_error: None,
-        },
-    );
-    write_registry(app, &registry)?;
-
-    let installation = build_installation_from_registry(
-        &registry,
-        &manifest,
-        PluginPackageSource {
-            kind: PluginPackageSourceKind::AppScaffold,
-            value: destination.to_string_lossy().to_string(),
-            checksum: compute_dir_checksum(&destination).ok(),
-        },
-        destination.to_string_lossy().to_string(),
-    );
-
-    Ok(manifest_summary(manifest, installation, Vec::new()))
+    add_log_internal(
+        "info",
+        &format!("Created plugin workspace: {}", manifest.name),
+        Some(&format!(
+            "workspace: {}\npluginId: {}",
+            destination.display(),
+            manifest.plugin_id
+        )),
+        None,
+    )
+    .ok();
+    Ok(crate::types::PluginWorkspaceSummary {
+        plugin_id: manifest.plugin_id,
+        slug: manifest.slug,
+        name: manifest.name,
+        path: destination.to_string_lossy().to_string(),
+        manifest_path: destination.join("plugin.json").to_string_lossy().to_string(),
+        package_json_path: destination.join("package.json").to_string_lossy().to_string(),
+        readme_path: destination.join("README.md").to_string_lossy().to_string(),
+    })
 }
 
 pub fn update_plugin_state_internal(
@@ -1712,23 +2033,6 @@ pub fn update_plugin_env_values_internal(
         }
     }
 
-    write_registry(app, &registry)
-}
-
-pub fn set_plugin_trust_internal(
-    app: &AppHandle,
-    plugin_id: &str,
-    trusted: bool,
-) -> Result<(), String> {
-    let mut registry = read_registry(app)?;
-    let entry = registry
-        .installations
-        .get_mut(plugin_id)
-        .ok_or_else(|| format!("Plugin not found: {}", plugin_id))?;
-    entry.trusted = trusted;
-    if !trusted {
-        entry.enabled = false;
-    }
     write_registry(app, &registry)
 }
 
@@ -2310,6 +2614,12 @@ async fn execute_plugin(
         .map_err(|e| format!("Failed to serialize plugin payload: {}", e))?;
     let payload_file = std::fs::canonicalize(PathBuf::from(&payload.filepath))
         .unwrap_or_else(|_| PathBuf::from(&payload.filepath));
+    let app_sdk_runtime_bundle = if matches!(selected_provider, PluginProvider::Node | PluginProvider::Bun)
+    {
+        Some(ensure_app_sdk_runtime_bundle(app)?)
+    } else {
+        None
+    };
 
     let mut command_args = Vec::<String>::new();
     match selected_provider {
@@ -2347,9 +2657,9 @@ async fn execute_plugin(
             command_args.push(entrypoint.to_string_lossy().to_string());
         }
         PluginProvider::Node | PluginProvider::Bun => {
-            let runtime_cli = plugin_dir
-                .join("vendor")
-                .join("youwee-sdk")
+            let runtime_cli = app_sdk_runtime_bundle
+                .as_ref()
+                .ok_or_else(|| "Missing app SDK runtime bundle".to_string())?
                 .join("dist")
                 .join("runtime-cli.js");
             command_args.push(runtime_cli.to_string_lossy().to_string());
@@ -2463,11 +2773,27 @@ async fn execute_plugin(
     if let Some(value) = ai_config.whisper_model.as_ref() {
         cmd.env("YOUWEE_AI_WHISPER_MODEL", value);
     }
-    let vendor_root = plugin_dir.join("vendor");
-    if vendor_root.is_dir()
-        && matches!(selected_provider, PluginProvider::Node | PluginProvider::Bun)
-    {
-        cmd.env("NODE_PATH", vendor_root.to_string_lossy().to_string());
+    if matches!(selected_provider, PluginProvider::Node | PluginProvider::Bun) {
+        let mut node_path_roots = Vec::<PathBuf>::new();
+        let plugin_node_modules = plugin_dir.join("node_modules");
+        if plugin_node_modules.is_dir() {
+            node_path_roots.push(plugin_node_modules);
+        }
+        let vendor_root = plugin_dir.join("vendor");
+        if vendor_root.is_dir() {
+            node_path_roots.push(vendor_root);
+        }
+        let app_sdk_node_modules = app_sdk_runtime_bundle
+            .as_ref()
+            .ok_or_else(|| "Missing app SDK runtime bundle".to_string())?
+            .parent()
+            .map(Path::to_path_buf)
+            .ok_or_else(|| "Failed to resolve app SDK node_modules path".to_string())?;
+        node_path_roots.push(app_sdk_node_modules);
+
+        let node_path_value = std::env::join_paths(node_path_roots)
+            .map_err(|e| format!("Failed to build NODE_PATH for plugin runtime: {}", e))?;
+        cmd.env("NODE_PATH", node_path_value);
     }
     for (key, value) in env_values {
         cmd.env(key, value);
@@ -3078,6 +3404,7 @@ fn build_scaffold_locale_file() -> String {
 }
 
 fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
+    let sdk_version = current_sdk_version();
     format!(
         r#"{{
   "name": "{slug}",
@@ -3087,16 +3414,19 @@ fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
   "type": "commonjs",
   "main": "src/plugin.js",
   "scripts": {{
-    "test:node": "NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js node vendor/youwee-sdk/dist/runtime-cli.js",
-    "test:bun": "NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js bun vendor/youwee-sdk/dist/runtime-cli.js"
+    "build": "bunx youwee-sdk build",
+    "pack": "bunx youwee-sdk pack",
+    "test:node": "YOUWEE_PLUGIN_MAIN=src/plugin.js node node_modules/youwee-sdk/dist/runtime-cli.js",
+    "test:bun": "YOUWEE_PLUGIN_MAIN=src/plugin.js bun node_modules/youwee-sdk/dist/runtime-cli.js"
   }},
   "dependencies": {{
-    "youwee-sdk": "file:vendor/youwee-sdk"
+    "youwee-sdk": "^{sdk_version}"
   }}
 }}
 "#,
         slug = manifest.slug,
         version = manifest.version,
+        sdk_version = sdk_version,
         description = manifest
             .description
             .as_deref()
@@ -3105,12 +3435,11 @@ fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
     )
 }
 
-fn write_scaffold_sdk_package(destination: &Path) -> Result<(), String> {
-    let vendor_root = destination.join("vendor").join("youwee-sdk");
-    std::fs::create_dir_all(vendor_root.join("dist")).map_err(|e| {
+fn write_sdk_package_files(package_root: &Path) -> Result<(), String> {
+    std::fs::create_dir_all(package_root.join("dist")).map_err(|e| {
         format!(
             "Failed to create scaffold SDK dist directory {}: {}",
-            vendor_root.join("dist").display(),
+            package_root.join("dist").display(),
             e
         )
     })?;
@@ -3136,12 +3465,27 @@ fn write_scaffold_sdk_package(destination: &Path) -> Result<(), String> {
     ];
 
     for (relative_path, content) in files {
-        let path = vendor_root.join(relative_path);
+        let path = package_root.join(relative_path);
         std::fs::write(&path, content)
             .map_err(|e| format!("Failed to write scaffold SDK file {}: {}", path.display(), e))?;
     }
 
     Ok(())
+}
+
+fn ensure_app_sdk_runtime_bundle(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to resolve app data dir for SDK bundle: {}", e))?;
+    let node_modules_root = app_data_dir
+        .join(PLUGINS_DIR_NAME)
+        .join(".sdk")
+        .join("node_modules");
+    let sdk_package_root = node_modules_root.join("youwee-sdk");
+
+    write_sdk_package_files(&sdk_package_root)?;
+    Ok(sdk_package_root)
 }
 
 fn build_scaffold_readme(manifest: &PluginManifest) -> String {
@@ -3166,7 +3510,8 @@ Package layout:
 - `package.json`: package metadata and local test scripts
 - `src/plugin.js`: plugin module and hook implementations
 - `locales/en.json`: default translation file for plugin messages
-- `vendor/youwee-sdk/`: vendored SDK runtime and type declarations
+- `dist/`: bundled runtime output generated by the build command
+- `release/`: packaged `.ywp` output generated by the pack command
 - `examples/`: sample payload and result files
 
 ## Entry module
@@ -3288,25 +3633,45 @@ If your implementation depends on runtime-specific APIs, update
 
 ## Local execution
 
+Install dependencies first:
+
+```bash
+bun install
+```
+
+Build a bundled runtime artifact:
+
+```bash
+bunx youwee-sdk build
+```
+
+Create a distributable package:
+
+```bash
+bunx youwee-sdk pack
+```
+
 Node:
 
 ```bash
-cat examples/payload.download.completed.json | NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js node vendor/youwee-sdk/dist/runtime-cli.js
+cat examples/payload.download.completed.json | YOUWEE_PLUGIN_MAIN=src/plugin.js node node_modules/youwee-sdk/dist/runtime-cli.js
 ```
 
 Bun:
 
 ```bash
-cat examples/payload.download.completed.json | NODE_PATH=vendor YOUWEE_PLUGIN_MAIN=src/plugin.js bun vendor/youwee-sdk/dist/runtime-cli.js
+cat examples/payload.download.completed.json | YOUWEE_PLUGIN_MAIN=src/plugin.js bun node_modules/youwee-sdk/dist/runtime-cli.js
 ```
 
 ## Packaging
 
 To share this plugin:
-1. Keep `plugin.json` at the package root
-2. Include `src/`, `vendor/youwee-sdk/`, `package.json`, `README.md`, and `CHANGELOG.md`
-3. Zip the plugin root directory
-4. Import it into Youwee from a folder, ZIP, or URL
+1. Run `bunx youwee-sdk pack`
+2. Find the generated `.ywp` file in `release/`
+3. Import the `.ywp` package into Youwee
+
+Youwee imports packaged `.ywp` files only.
+The source workspace is for development and packaging, not direct end-user installation.
 
 ## Next step
 
@@ -3393,8 +3758,8 @@ mod tests {
 
     use super::{
         build_scaffold_package_json, build_scaffold_readme, collect_compatibility_issues,
-        parse_plugin_result, satisfies_version_range, sanitize_slug, validate_manifest,
-        write_scaffold_sdk_package,
+        current_sdk_version, parse_plugin_result, satisfies_version_range, sanitize_slug,
+        validate_manifest, write_sdk_package_files,
     };
     use crate::types::{PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage, PluginRuntimeSpec};
 
@@ -3434,7 +3799,7 @@ mod tests {
         assert!(readme.contains("src/plugin.js"));
         assert!(readme.contains("ctx.ok"));
         assert!(readme.contains("Execution flow"));
-        assert!(readme.contains("vendor/youwee-sdk"));
+        assert!(readme.contains("node_modules/youwee-sdk"));
     }
 
     #[test]
@@ -3532,7 +3897,7 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_package_json_uses_vendored_sdk_dependency() {
+    fn scaffold_package_json_uses_npm_sdk_dependency() {
         let manifest = crate::types::PluginManifest {
             plugin_id: "id".to_string(),
             slug: "gg-drive".to_string(),
@@ -3559,9 +3924,9 @@ mod tests {
             published_at: None,
         };
         let package_json = build_scaffold_package_json(&manifest);
-        assert!(package_json.contains("\"youwee-sdk\": \"file:vendor/youwee-sdk\""));
+        assert!(package_json.contains(&format!("\"youwee-sdk\": \"^{}\"", current_sdk_version())));
         assert!(package_json.contains("YOUWEE_PLUGIN_MAIN=src/plugin.js"));
-        assert!(package_json.contains("vendor/youwee-sdk/dist/runtime-cli.js"));
+        assert!(package_json.contains("node_modules/youwee-sdk/dist/runtime-cli.js"));
     }
 
     #[test]
@@ -3617,21 +3982,21 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_sdk_bundle_includes_all_runtime_modules() {
+    fn app_sdk_bundle_includes_all_runtime_modules() {
         let temp_dir = std::env::temp_dir().join(format!("youwee-sdk-bundle-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&temp_dir).unwrap();
 
-        write_scaffold_sdk_package(&temp_dir).unwrap();
+        write_sdk_package_files(&temp_dir).unwrap();
 
         for relative_path in [
-            "vendor/youwee-sdk/dist/index.js",
-            "vendor/youwee-sdk/dist/runtime.js",
-            "vendor/youwee-sdk/dist/runtime-cli.js",
-            "vendor/youwee-sdk/dist/ai.js",
-            "vendor/youwee-sdk/dist/compatibility.js",
-            "vendor/youwee-sdk/dist/schema.js",
-            "vendor/youwee-sdk/dist/manifest.js",
-            "vendor/youwee-sdk/dist/types.js",
+            "dist/index.js",
+            "dist/runtime.js",
+            "dist/runtime-cli.js",
+            "dist/ai.js",
+            "dist/compatibility.js",
+            "dist/schema.js",
+            "dist/manifest.js",
+            "dist/types.js",
         ] {
             assert!(temp_dir.join(relative_path).exists(), "missing {relative_path}");
         }

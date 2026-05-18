@@ -143,10 +143,8 @@ const fn default_timeout_sec() -> u64 {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum PluginPackageSourceKind {
-    AppScaffold,
-    LocalFolder,
-    LocalZip,
-    RemoteUrl,
+    Workspace,
+    PackageYwp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,6 +154,12 @@ pub struct PluginPackageSource {
     pub value: String,
     #[serde(default)]
     pub checksum: Option<String>,
+    #[serde(default)]
+    pub package_format: Option<String>,
+    #[serde(default)]
+    pub package_format_version: Option<u32>,
+    #[serde(default)]
+    pub builder_sdk_version: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,6 +203,60 @@ pub struct PluginPackageInspection {
     pub source: PluginPackageSource,
     #[serde(default)]
     pub warnings: Vec<String>,
+    #[serde(default)]
+    pub package_format: Option<String>,
+    #[serde(default)]
+    pub package_format_version: Option<u32>,
+    #[serde(default)]
+    pub builder_sdk_version: Option<String>,
+    #[serde(default)]
+    pub package_checksum: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginWorkspaceSummary {
+    pub plugin_id: String,
+    pub slug: String,
+    pub name: String,
+    pub path: String,
+    pub manifest_path: String,
+    pub package_json_path: String,
+    pub readme_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagedPluginBuilderInfo {
+    pub tool: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagedPluginBundleInfo {
+    pub entrypoint: String,
+    pub bundled: bool,
+    pub includes_dependencies: bool,
+    pub module_format: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagedPluginBuildInfo {
+    pub package_format: String,
+    pub package_format_version: u32,
+    pub packaged_at: String,
+    pub builder: PackagedPluginBuilderInfo,
+    pub bundle: PackagedPluginBundleInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagedPluginChecksums {
+    pub algorithm: String,
+    #[serde(default)]
+    pub files: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

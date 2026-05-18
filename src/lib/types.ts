@@ -208,7 +208,7 @@ export interface DownloadProgress {
 
 export type PluginRuntimeLanguage = 'javascript' | 'python';
 export type PluginProvider = 'deno' | 'node' | 'bun' | 'python';
-export type PluginPackageSourceKind = 'app-scaffold' | 'local-folder' | 'local-zip' | 'remote-url';
+export type PluginPackageSourceKind = 'workspace' | 'package-ywp';
 
 export interface PluginPermissionSet {
   network: boolean;
@@ -267,6 +267,9 @@ export interface PluginPackageSource {
   kind: PluginPackageSourceKind;
   value: string;
   checksum?: string | null;
+  packageFormat?: string | null;
+  packageFormatVersion?: number | null;
+  builderSdkVersion?: string | null;
 }
 
 export interface PluginInstallation {
@@ -295,6 +298,41 @@ export interface PluginPackageInspection {
   manifest: PluginManifest;
   source: PluginPackageSource;
   warnings: string[];
+  packageFormat?: string | null;
+  packageFormatVersion?: number | null;
+  builderSdkVersion?: string | null;
+  packageChecksum?: string | null;
+}
+
+export interface PluginWorkspaceSummary {
+  pluginId: string;
+  slug: string;
+  name: string;
+  path: string;
+  manifestPath: string;
+  packageJsonPath: string;
+  readmePath: string;
+}
+
+export interface PackagedPluginBuildInfo {
+  packageFormat: string;
+  packageFormatVersion: number;
+  packagedAt: string;
+  builder: {
+    tool: string;
+    version: string;
+  };
+  bundle: {
+    entrypoint: string;
+    bundled: boolean;
+    includesDependencies: boolean;
+    moduleFormat: string;
+  };
+}
+
+export interface PackagedPluginChecksums {
+  algorithm: string;
+  files: Record<string, string>;
 }
 
 export interface RuntimeProviderStatus {
