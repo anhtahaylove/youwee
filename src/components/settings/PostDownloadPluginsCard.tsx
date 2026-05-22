@@ -172,6 +172,11 @@ function formatChecksum(checksum: string) {
   return `${checksum.slice(0, 8)}...${checksum.slice(-8)}`;
 }
 
+function formatSignerFingerprint(fingerprint: string) {
+  if (fingerprint.length <= 24) return fingerprint;
+  return `${fingerprint.slice(0, 12)}...${fingerprint.slice(-12)}`;
+}
+
 function formatSourceKind(
   kind: PluginSummary['installation']['source']['kind'] | PluginPackageInspection['source']['kind'],
   t: (key: string, opts?: Record<string, unknown>) => string,
@@ -192,6 +197,24 @@ function formatPackageFormat(
 ) {
   if (!format) return null;
   return version ? `${format.toUpperCase()} v${version}` : format.toUpperCase();
+}
+
+function formatSignatureStatus(
+  status: string | null | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+) {
+  switch (status) {
+    case 'signed':
+      return t('download.pluginSignatureSigned');
+    case 'invalid-signature':
+      return t('download.pluginSignatureInvalid');
+    case 'missing-signature':
+      return t('download.pluginSignatureMissing');
+    case 'signer-changed':
+      return t('download.pluginSignatureSignerChanged');
+    default:
+      return t('download.pluginSignatureUnknown');
+  }
 }
 
 function formatRuntimeStatusBadge(
@@ -1000,6 +1023,7 @@ export function PostDownloadPluginsCard() {
     () => (inspection ? summarizeCompatibility(inspection.manifest.compatibility, t) : []),
     [inspection, t],
   );
+  const inspectionSigned = inspection?.signatureStatus === 'signed';
 
   const loadPluginLogs = useCallback(
     async (pluginId: string, mode: 'replace' | 'append' = 'replace') => {
@@ -1254,7 +1278,7 @@ export function PostDownloadPluginsCard() {
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-semibold">{inspection.manifest.name}</p>
-                  <span className="rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  <span className="rounded bg-muted px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground">
                     v{inspection.manifest.version}
                   </span>
                   <span className="rounded bg-blue-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-blue-600 dark:text-blue-400">
@@ -1273,6 +1297,21 @@ export function PostDownloadPluginsCard() {
                   <p className="font-medium text-foreground/80">
                     {t('download.pluginCompatibilityTitle')}
                   </p>
+                  <p>
+                    {t('download.pluginSignatureTitle')}:{' '}
+                    {formatSignatureStatus(inspection.signatureStatus, t)}
+                  </p>
+                  {inspection.signerFingerprint && (
+                    <p>
+                      {t('download.pluginSignerFingerprintLabel')}:{' '}
+                      {formatSignerFingerprint(inspection.signerFingerprint)}
+                    </p>
+                  )}
+                  {inspection.signedAt && (
+                    <p>
+                      {t('download.pluginSignedAtLabel')}: {inspection.signedAt}
+                    </p>
+                  )}
                   {inspection.packageFormat && (
                     <p>
                       {t('download.pluginPackageFormatLabel')}:{' '}
@@ -1343,7 +1382,7 @@ export function PostDownloadPluginsCard() {
                 </Button>
                 <Button
                   onClick={handleInstallInspection}
-                  disabled={installing || !installAcknowledged}
+                  disabled={installing || !installAcknowledged || !inspectionSigned}
                 >
                   <Download className="h-4 w-4" />
                   {installing ? t('download.pluginInstalling') : t('download.pluginInstall')}
@@ -1391,7 +1430,7 @@ export function PostDownloadPluginsCard() {
                               <p className="truncate text-sm font-semibold">
                                 {plugin.manifest.name}
                               </p>
-                              <span className="rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <span className="rounded bg-muted px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground">
                                 v{plugin.manifest.version}
                               </span>
                               {runtimeStatus?.status && (
@@ -1552,6 +1591,42 @@ export function PostDownloadPluginsCard() {
                                     {t('download.pluginBuilderSdkVersionLabel')}
                                   </p>
                                   <p>v{plugin.installation.source.builderSdkVersion}</p>
+                                </div>
+                              )}
+                              {plugin.installation.signatureStatus && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginSignatureTitle')}
+                                  </p>
+                                  <p>
+                                    {formatSignatureStatus(plugin.installation.signatureStatus, t)}
+                                  </p>
+                                </div>
+                              )}
+                              {plugin.installation.signerFingerprint && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginSignerFingerprintLabel')}
+                                  </p>
+                                  <p>
+                                    {formatSignerFingerprint(plugin.installation.signerFingerprint)}
+                                  </p>
+                                </div>
+                              )}
+                              {plugin.installation.signatureAlgorithm && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginSignatureAlgorithmLabel')}
+                                  </p>
+                                  <p>{plugin.installation.signatureAlgorithm}</p>
+                                </div>
+                              )}
+                              {plugin.installation.signedAt && (
+                                <div>
+                                  <p className="font-medium text-foreground/80">
+                                    {t('download.pluginSignedAtLabel')}
+                                  </p>
+                                  <p>{plugin.installation.signedAt}</p>
                                 </div>
                               )}
                               <div>
@@ -2042,7 +2117,7 @@ export function PostDownloadPluginsCard() {
                               <p className="truncate text-sm font-semibold">
                                 {plugin.manifest.name}
                               </p>
-                              <span className="rounded bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                              <span className="rounded bg-muted px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground">
                                 v{plugin.manifest.version}
                               </span>
                             </div>

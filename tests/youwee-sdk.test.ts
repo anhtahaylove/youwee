@@ -13,17 +13,62 @@ import {
   createPluginPackageJson,
   defineHooks,
   definePlugin,
+  generatePluginKeyPair,
   getManifestValidationErrors,
   packPluginPackage,
   SDK_VERSION,
   satisfiesVersionRange,
   slugifyPluginName,
   validatePluginManifest,
+  verifyPluginPackage,
 } from '../sdk-js/src/index';
 import { createContext } from '../sdk-js/src/runtime';
 import type { DownloadCompletedPayload, PluginManifest } from '../sdk-js/src/types';
 
 const originalEnv = { ...process.env };
+
+function replaceStoredZipEntryBytes(
+  archiveBytes: Buffer,
+  entryName: string,
+  replacer: (bytes: Buffer) => Buffer,
+): Buffer {
+  const nameBytes = Buffer.from(entryName);
+  let searchOffset = 0;
+
+  while (searchOffset < archiveBytes.length) {
+    const localHeaderOffset = archiveBytes.indexOf(
+      Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+      searchOffset,
+    );
+    if (localHeaderOffset < 0) {
+      break;
+    }
+
+    const nameLength = archiveBytes.readUInt16LE(localHeaderOffset + 26);
+    const extraLength = archiveBytes.readUInt16LE(localHeaderOffset + 28);
+    const currentNameStart = localHeaderOffset + 30;
+    const currentNameEnd = currentNameStart + nameLength;
+    const currentName = archiveBytes.subarray(currentNameStart, currentNameEnd);
+    const dataStart = currentNameEnd + extraLength;
+    const compressedSize = archiveBytes.readUInt32LE(localHeaderOffset + 18);
+    const dataEnd = dataStart + compressedSize;
+
+    if (currentName.equals(nameBytes)) {
+      const replacement = replacer(Buffer.from(archiveBytes.subarray(dataStart, dataEnd)));
+      if (replacement.length !== compressedSize) {
+        throw new Error(`Replacement for ${entryName} must preserve size inside stored ZIP.`);
+      }
+
+      const nextBytes = Buffer.from(archiveBytes);
+      replacement.copy(nextBytes, dataStart);
+      return nextBytes;
+    }
+
+    searchOffset = dataEnd;
+  }
+
+  throw new Error(`Entry not found in archive: ${entryName}`);
+}
 
 const samplePayload: DownloadCompletedPayload = {
   jobId: 'job-1',
@@ -292,11 +337,13 @@ describe('youwee-sdk manifest helpers', () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-pack-'));
     const sourceDir = join(tempDir, 'src');
     const localesDir = join(tempDir, 'locales');
+    const keyPath = join(tempDir, 'plugin-key.json');
     const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
 
     try {
       mkdirSync(sourceDir, { recursive: true });
       mkdirSync(localesDir, { recursive: true });
+      const generatedKey = generatePluginKeyPair(keyPath);
 
       const manifest = {
         id: 'local.gg-drive',
@@ -339,16 +386,156 @@ module.exports = definePlugin({
       writeFileSync(join(localesDir, 'en.json'), `${JSON.stringify({ done: 'Done' }, null, 2)}\n`);
 
       const buildResult = await buildPluginPackage({ cwd: tempDir });
-      const packResult = await packPluginPackage({ cwd: tempDir });
+      const packResult = await packPluginPackage({ cwd: tempDir, privateKeyPath: keyPath });
       const archiveBytes = readFileSync(packResult.packagePath);
+      const verifyResult = verifyPluginPackage(packResult.packagePath);
 
       expect(existsSync(buildResult.distEntrypoint)).toBe(true);
       expect(packResult.packagePath.endsWith('.ywp')).toBe(true);
       expect(packResult.packageChecksum).toHaveLength(64);
+      expect(packResult.signature.fingerprint).toBe(generatedKey.fingerprint);
       expect(archiveBytes.includes(Buffer.from('manifest.json'))).toBe(true);
       expect(archiveBytes.includes(Buffer.from('build.json'))).toBe(true);
       expect(archiveBytes.includes(Buffer.from('checksums.json'))).toBe(true);
+      expect(archiveBytes.includes(Buffer.from('signature.json'))).toBe(true);
       expect(archiveBytes.includes(Buffer.from('dist/plugin.cjs'))).toBe(true);
+      expect(verifyResult.valid).toBe(true);
+      expect(verifyResult.signerFingerprint).toBe(generatedKey.fingerprint);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects packages when checksums.json is changed after signing', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-tamper-'));
+    const sourceDir = join(tempDir, 'src');
+    const localesDir = join(tempDir, 'locales');
+    const keyPath = join(tempDir, 'plugin-key.json');
+    const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
+
+    try {
+      mkdirSync(sourceDir, { recursive: true });
+      mkdirSync(localesDir, { recursive: true });
+      generatePluginKeyPair(keyPath);
+
+      writeFileSync(
+        join(tempDir, 'plugin.json'),
+        `${JSON.stringify(
+          {
+            id: 'local.example',
+            slug: 'example',
+            name: 'Example',
+            version: '0.1.0',
+            runtime: {
+              language: 'javascript',
+              supportedProviders: ['node'],
+              preferredProvider: 'node',
+              entrypoint: 'src/plugin.js',
+            },
+            triggers: ['download.completed'],
+            timeoutSec: 60,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      writeFileSync(
+        join(sourceDir, 'plugin.js'),
+        `
+const { definePlugin, triggers } = require(${JSON.stringify(sdkEntry)});
+module.exports = definePlugin({
+  meta: { name: 'Example', version: '0.1.0' },
+  hooks: { [triggers.downloadCompleted]: async (ctx) => ctx.ok('ok') },
+});
+`.trim(),
+      );
+      writeFileSync(join(localesDir, 'en.json'), `${JSON.stringify({ done: 'Done' }, null, 2)}\n`);
+
+      const packResult = await packPluginPackage({ cwd: tempDir, privateKeyPath: keyPath });
+      const modifiedBytes = replaceStoredZipEntryBytes(
+        Buffer.from(readFileSync(packResult.packagePath)),
+        'checksums.json',
+        (bytes) => {
+          const nextBytes = Buffer.from(bytes);
+          const checksumMarker = Buffer.from('"dist/plugin.cjs": "');
+          const checksumIndex = nextBytes.indexOf(checksumMarker);
+          expect(checksumIndex).toBeGreaterThan(-1);
+          const hexIndex = checksumIndex + checksumMarker.length;
+          nextBytes[hexIndex] = nextBytes[hexIndex] === 0x61 ? 0x62 : 0x61;
+          return nextBytes;
+        },
+      );
+      writeFileSync(packResult.packagePath, modifiedBytes);
+
+      const verifyResult = verifyPluginPackage(packResult.packagePath);
+      expect(verifyResult.valid).toBe(false);
+      expect(verifyResult.error).toMatch(/checksums\.json|Checksum mismatch/);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects packages when dist/plugin.cjs is changed after signing', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-tamper-dist-'));
+    const sourceDir = join(tempDir, 'src');
+    const localesDir = join(tempDir, 'locales');
+    const keyPath = join(tempDir, 'plugin-key.json');
+    const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
+
+    try {
+      mkdirSync(sourceDir, { recursive: true });
+      mkdirSync(localesDir, { recursive: true });
+      generatePluginKeyPair(keyPath);
+
+      writeFileSync(
+        join(tempDir, 'plugin.json'),
+        `${JSON.stringify(
+          {
+            id: 'local.example',
+            slug: 'example',
+            name: 'Example',
+            version: '0.1.0',
+            runtime: {
+              language: 'javascript',
+              supportedProviders: ['node'],
+              preferredProvider: 'node',
+              entrypoint: 'src/plugin.js',
+            },
+            triggers: ['download.completed'],
+            timeoutSec: 60,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      writeFileSync(
+        join(sourceDir, 'plugin.js'),
+        `
+const { definePlugin, triggers } = require(${JSON.stringify(sdkEntry)});
+module.exports = definePlugin({
+  meta: { name: 'Example', version: '0.1.0' },
+  hooks: { [triggers.downloadCompleted]: async (ctx) => ctx.ok('ok') },
+});
+`.trim(),
+      );
+      writeFileSync(join(localesDir, 'en.json'), `${JSON.stringify({ done: 'Done' }, null, 2)}\n`);
+
+      const packResult = await packPluginPackage({ cwd: tempDir, privateKeyPath: keyPath });
+      const modifiedBytes = replaceStoredZipEntryBytes(
+        Buffer.from(readFileSync(packResult.packagePath)),
+        'dist/plugin.cjs',
+        (bytes) => {
+          const nextBytes = Buffer.from(bytes);
+          expect(nextBytes.length).toBeGreaterThan(0);
+          nextBytes[0] = nextBytes[0] ^ 0x01;
+          return nextBytes;
+        },
+      );
+      writeFileSync(packResult.packagePath, modifiedBytes);
+
+      const verifyResult = verifyPluginPackage(packResult.packagePath);
+      expect(verifyResult.valid).toBe(false);
+      expect(verifyResult.error).toContain('Checksum mismatch');
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
@@ -454,6 +641,87 @@ describe('youwee-sdk runtime-cli', () => {
       artifacts: null,
       mutations: null,
     });
+  });
+});
+
+describe('youwee-sdk cli', () => {
+  test('packs a plugin when --private-key is passed without an explicit plugin-root', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-cli-pack-'));
+    const sourceDir = join(tempDir, 'src');
+    const keyPath = join(tempDir, 'plugin-key.json');
+    const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
+    const cliEntry = resolve(process.cwd(), 'sdk-js/src/cli.ts');
+
+    try {
+      mkdirSync(sourceDir, { recursive: true });
+      generatePluginKeyPair(keyPath);
+
+      writeFileSync(
+        join(tempDir, 'plugin.json'),
+        `${JSON.stringify(
+          {
+            id: 'local.cli-pack',
+            slug: 'cli-pack',
+            name: 'CLI Pack',
+            version: '0.1.0',
+            runtime: {
+              language: 'javascript',
+              supportedProviders: ['node'],
+              preferredProvider: 'node',
+              entrypoint: 'src/plugin.js',
+            },
+            triggers: ['download.completed'],
+            timeoutSec: 60,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+      writeFileSync(
+        join(sourceDir, 'plugin.js'),
+        `
+const { definePlugin, triggers } = require(${JSON.stringify(sdkEntry)});
+module.exports = definePlugin({
+  meta: { name: 'CLI Pack', version: '0.1.0' },
+  hooks: { [triggers.downloadCompleted]: async (ctx) => ctx.ok('ok') },
+});
+`.trim(),
+      );
+
+      const { exitCode, stdout, stderr } = await new Promise<{
+        exitCode: number | null;
+        stdout: string;
+        stderr: string;
+      }>((resolvePromise, reject) => {
+        const proc = spawn('bun', [cliEntry, 'pack', '--private-key', keyPath], {
+          cwd: tempDir,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        let stdout = '';
+        let stderr = '';
+
+        proc.stdout.on('data', (chunk) => {
+          stdout += chunk.toString();
+        });
+
+        proc.stderr.on('data', (chunk) => {
+          stderr += chunk.toString();
+        });
+
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+          resolvePromise({ exitCode: code, stdout, stderr });
+        });
+      });
+
+      expect(exitCode).toBe(0);
+      expect(stderr.trim()).toBe('');
+      expect(stdout).toContain('cli-pack-0.1.0.ywp');
+      expect(existsSync(join(tempDir, 'release', 'cli-pack-0.1.0.ywp'))).toBe(true);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

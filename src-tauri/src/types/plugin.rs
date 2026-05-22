@@ -160,6 +160,16 @@ pub struct PluginPackageSource {
     pub package_format_version: Option<u32>,
     #[serde(default)]
     pub builder_sdk_version: Option<String>,
+    #[serde(default)]
+    pub signature_status: Option<String>,
+    #[serde(default)]
+    pub signer_key_id: Option<String>,
+    #[serde(default)]
+    pub signer_fingerprint: Option<String>,
+    #[serde(default)]
+    pub signature_algorithm: Option<String>,
+    #[serde(default)]
+    pub signed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -185,6 +195,16 @@ pub struct PluginInstallation {
     pub last_error: Option<String>,
     #[serde(default)]
     pub env_value_status: BTreeMap<String, bool>,
+    #[serde(default)]
+    pub signature_status: Option<String>,
+    #[serde(default)]
+    pub signer_key_id: Option<String>,
+    #[serde(default)]
+    pub signer_fingerprint: Option<String>,
+    #[serde(default)]
+    pub signature_algorithm: Option<String>,
+    #[serde(default)]
+    pub signed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +231,16 @@ pub struct PluginPackageInspection {
     pub builder_sdk_version: Option<String>,
     #[serde(default)]
     pub package_checksum: Option<String>,
+    #[serde(default)]
+    pub signature_status: Option<String>,
+    #[serde(default)]
+    pub signer_key_id: Option<String>,
+    #[serde(default)]
+    pub signer_fingerprint: Option<String>,
+    #[serde(default)]
+    pub signature_algorithm: Option<String>,
+    #[serde(default)]
+    pub signed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -257,6 +287,30 @@ pub struct PackagedPluginChecksums {
     pub algorithm: String,
     #[serde(default)]
     pub files: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginSignaturePayload {
+    pub checksums_path: String,
+    pub checksums_sha256: String,
+    pub plugin_id: String,
+    pub plugin_version: String,
+    pub package_format: String,
+    pub package_format_version: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackagedPluginSignature {
+    pub version: u32,
+    pub algorithm: String,
+    pub key_id: String,
+    pub fingerprint: String,
+    pub public_key: String,
+    pub signed_at: String,
+    pub payload: PluginSignaturePayload,
+    pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

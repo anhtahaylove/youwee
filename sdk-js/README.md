@@ -9,7 +9,7 @@ If you remember only one model, remember this:
 
 1. create a plugin workspace
 2. write and test the plugin inside that workspace
-3. build and pack it into a `.ywp` file
+3. build and sign it into a `.ywp` file
 4. import the `.ywp` file into Youwee
 
 That is the only supported end-user distribution flow.
@@ -89,9 +89,10 @@ The expected lifecycle is:
 5. add locale files in `locales/`
 6. test locally
 7. build runtime output
-8. pack a `.ywp` file
-9. import the `.ywp` plugin file into Youwee
-10. enable the plugin and assign it to workflows
+8. generate a signing key
+9. pack a signed `.ywp` file
+10. import the `.ywp` plugin file into Youwee
+11. enable the plugin and assign it to workflows
 
 This flow is valid whether the workspace is created by:
 
@@ -231,12 +232,20 @@ This produces:
 dist/plugin.cjs
 ```
 
-## 8. Pack
+## 8. Generate a signing key
 
-Create a packaged plugin:
+Create a signing key:
 
 ```bash
-bunx youwee-sdk pack
+bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
+```
+
+## 9. Pack
+
+Create a signed packaged plugin:
+
+```bash
+bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
 ```
 
 This produces:
@@ -245,7 +254,7 @@ This produces:
 release/<slug>-<version>.ywp
 ```
 
-## 9. Import into Youwee
+## 10. Import into Youwee
 
 Open Youwee:
 
@@ -583,7 +592,7 @@ Build does the following:
 ### Pack
 
 ```bash
-bunx youwee-sdk pack
+bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
 ```
 
 Pack does the following:
@@ -592,7 +601,8 @@ Pack does the following:
 2. creates a runtime `manifest.json`
 3. creates `build.json`
 4. creates `checksums.json`
-5. writes `release/<slug>-<version>.ywp`
+5. creates `signature.json`
+6. writes `release/<slug>-<version>.ywp`
 
 ---
 
@@ -608,6 +618,7 @@ Expected contents:
 manifest.json
 build.json
 checksums.json
+signature.json
 dist/
   plugin.cjs
 locales/
@@ -640,11 +651,24 @@ Important rules:
 
 Youwee validates these checksums during import.
 
+### `signature.json`
+
+`signature.json` records:
+
+- the signing algorithm
+- the signer key id
+- the signer fingerprint
+- the embedded public key
+- the signed timestamp
+- the signed payload for `checksums.json`
+
+Youwee requires a valid `ed25519` signature before installation.
+
 ---
 
 ## Import into Youwee
 
-Only `.ywp` is supported as the end-user import format.
+Only signed `.ywp` files are supported as the end-user import format.
 
 Youwee does not use raw folders or ZIP source packages as the productized install format.
 
@@ -654,6 +678,7 @@ At import time, Youwee validates:
 - `manifest.json`
 - `build.json`
 - `checksums.json`
+- `signature.json`
 - compatibility ranges
 - runtime entrypoint existence
 - declared locale files
@@ -671,8 +696,9 @@ The recommended debugging model is:
 3. edit source files directly inside the workspace
 4. let the next trigger run the updated source without rebuilding
 5. run local tests against the source module when needed
-6. pack a `.ywp`
-7. import the packaged plugin into Youwee to verify packaged install/runtime behavior
+6. generate a signing key if needed
+7. pack a signed `.ywp`
+8. import the packaged plugin into Youwee to verify packaged install/runtime behavior
 
 This keeps development and installation separate while still giving you a fast debug loop inside Youwee.
 
@@ -721,7 +747,8 @@ bun install
 bun run test:node
 bun run test:bun
 bunx youwee-sdk build
-bunx youwee-sdk pack
+bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
+bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
 ```
 
 ---
@@ -771,7 +798,7 @@ If you are generating plugin code with an AI agent, follow these rules:
 4. use raw trigger strings in `plugin.json`
 5. use `triggers.*` only inside source code
 6. place translations in `locales/*.json`
-7. assume the final deliverable is a `.ywp` package
+7. assume the final deliverable is a signed `.ywp` package
 8. do not invent per-plugin runner files
 9. do not assume Youwee imports raw source folders
 
@@ -780,7 +807,8 @@ When generating user instructions, always present the flow as:
 - create workspace
 - install dependencies
 - build
-- pack
+- keygen
+- pack with `--private-key`
 - import `.ywp`
 
 ---
@@ -811,6 +839,7 @@ Check:
 - required locale files
 - packaged entrypoint existence
 - `checksums.json`
+- `signature.json`
 - package format version
 
 ### The plugin imports but does not run
@@ -883,6 +912,7 @@ Build and pack:
 
 ```bash
 bun install
+bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
 bunx youwee-sdk build
-bunx youwee-sdk pack
+bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
 ```

@@ -60,9 +60,11 @@ export {
 } from './manifest';
 export {
   buildPluginPackage,
+  generatePluginKeyPair,
   packPluginPackage,
   readPackagedBuildInfo,
   validatePackagedManifest,
+  verifyPluginPackage,
 } from './packager';
 
 export type {
@@ -83,12 +85,14 @@ export type {
   DownloadFailedPayload,
   DownloadQueuedContext,
   DownloadQueuedPayload,
+  GeneratePluginKeyPairResult,
   JsonShapeArrayDescriptor,
   JsonShapeDescriptor,
   JsonShapeObjectDescriptor,
   ManifestValidationResult,
   PackagedPluginBuildInfo,
   PackagedPluginChecksums,
+  PackagedPluginSignature,
   PackPluginPackageInput,
   PackPluginPackageResult,
   ParsedSemver,
@@ -114,8 +118,10 @@ export type {
   PluginResult,
   PluginRuntimeLanguage,
   PluginRuntimeSpec,
+  PluginSignaturePayload,
   PluginTrigger,
   ToolRunner,
   TriggerPayloadMap,
+  VerifyPluginPackageResult,
   YouweeBridge,
 } from './types';

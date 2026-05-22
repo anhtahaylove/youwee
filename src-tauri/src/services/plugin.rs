@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::OnceLock;
 
+use base64::Engine;
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager};
@@ -14,14 +16,15 @@ use zip::ZipArchive;
 
 use crate::database::{add_log_internal, clear_plugin_logs_from_db};
 use crate::types::{
-    PackagedPluginBuildInfo, PackagedPluginChecksums, PluginChainMutation, PluginChainState,
-    PluginCompatibilitySpec, PluginExecutionOutputEvent, PluginExecutionResult,
-    PluginExecutionStatusEvent, PluginI18nSpec, PluginInstallation, PluginManifest,
-    PluginPackageInspection, PluginPackageSource, PluginPackageSourceKind,
+    PackagedPluginBuildInfo, PackagedPluginChecksums, PackagedPluginSignature,
+    PluginChainMutation, PluginChainState, PluginCompatibilitySpec, PluginExecutionOutputEvent,
+    PluginExecutionResult, PluginExecutionStatusEvent, PluginI18nSpec, PluginInstallation,
+    PluginManifest, PluginPackageInspection, PluginPackageSource, PluginPackageSourceKind,
     PluginPermissionApproval, PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage,
-    PluginRuntimeSpec, PluginSummary, PluginTriggerWorkflow, PluginWorkflowFailurePolicy,
-    PluginWorkflowRun, PluginWorkflowRunStatus, PluginWorkflowStepConfig,
-    PluginWorkflowStepSnapshot, PostDownloadPluginPayload, RuntimeProviderStatus,
+    PluginRuntimeSpec, PluginSignaturePayload, PluginSummary, PluginTriggerWorkflow,
+    PluginWorkflowFailurePolicy, PluginWorkflowRun, PluginWorkflowRunStatus,
+    PluginWorkflowStepConfig, PluginWorkflowStepSnapshot, PostDownloadPluginPayload,
+    RuntimeProviderStatus,
 };
 use crate::utils::CommandExt;
 
@@ -157,6 +160,16 @@ struct PluginRegistryEntry {
     last_execution_status: Option<String>,
     #[serde(default)]
     last_error: Option<String>,
+    #[serde(default)]
+    signature_status: Option<String>,
+    #[serde(default)]
+    signer_key_id: Option<String>,
+    #[serde(default)]
+    signer_fingerprint: Option<String>,
+    #[serde(default)]
+    signature_algorithm: Option<String>,
+    #[serde(default)]
+    signed_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -203,6 +216,11 @@ struct PreparedPackage {
     package_format_version: Option<u32>,
     builder_sdk_version: Option<String>,
     package_checksum: Option<String>,
+    signature_status: Option<String>,
+    signer_key_id: Option<String>,
+    signer_fingerprint: Option<String>,
+    signature_algorithm: Option<String>,
+    signed_at: Option<String>,
 }
 
 fn truncate_text(text: &str, max_len: usize) -> String {
@@ -695,6 +713,14 @@ fn compute_sha256_bytes(bytes: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
+fn derive_signer_fingerprint(public_key: &[u8]) -> String {
+    compute_sha256_bytes(public_key)
+}
+
+fn derive_signer_key_id(public_key: &[u8]) -> String {
+    format!("ed25519:sha256:{}", derive_signer_fingerprint(public_key))
+}
+
 fn compute_dir_checksum(root: &Path) -> Result<String, String> {
     use sha2::{Digest, Sha256};
 
@@ -838,6 +864,13 @@ fn load_packaged_checksums(root: &Path) -> Result<PackagedPluginChecksums, Strin
     serde_json::from_str(&raw).map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
 }
 
+fn load_packaged_signature(root: &Path) -> Result<PackagedPluginSignature, String> {
+    let path = root.join("signature.json");
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
+    serde_json::from_str(&raw).map_err(|e| format!("Failed to parse {}: {}", path.display(), e))
+}
+
 fn validate_packaged_checksums(
     root: &Path,
     checksums: &PackagedPluginChecksums,
@@ -861,7 +894,7 @@ fn validate_packaged_checksums(
                 queue.push_back(entry_path);
             } else if entry_path.is_file() {
                 let relative = normalize_path_for_checksum(root, &entry_path);
-                if relative != "checksums.json" {
+                if relative != "checksums.json" && relative != "signature.json" {
                     actual_files.push(relative);
                 }
             }
@@ -894,6 +927,92 @@ fn validate_packaged_checksums(
     }
 
     Ok(())
+}
+
+fn validate_packaged_signature_payload(
+    payload: &PluginSignaturePayload,
+    manifest: &PluginManifest,
+    build_info: &PackagedPluginBuildInfo,
+    checksums_bytes: &[u8],
+) -> Result<(), String> {
+    if payload.checksums_path != "checksums.json" {
+        return Err("Plugin signature payload must point to checksums.json.".to_string());
+    }
+    if payload.checksums_sha256 != compute_sha256_bytes(checksums_bytes) {
+        return Err("Plugin signature payload does not match checksums.json.".to_string());
+    }
+    if payload.plugin_id != manifest.plugin_id {
+        return Err("Plugin signature payload does not match manifest id.".to_string());
+    }
+    if payload.plugin_version != manifest.version {
+        return Err("Plugin signature payload does not match manifest version.".to_string());
+    }
+    if payload.package_format != build_info.package_format {
+        return Err("Plugin signature payload does not match package format.".to_string());
+    }
+    if payload.package_format_version != build_info.package_format_version {
+        return Err("Plugin signature payload does not match package format version.".to_string());
+    }
+    Ok(())
+}
+
+fn validate_packaged_signature(
+    root: &Path,
+    manifest: &PluginManifest,
+    build_info: &PackagedPluginBuildInfo,
+    signature: &PackagedPluginSignature,
+) -> Result<(), String> {
+    if signature.version != 1 {
+        return Err(format!(
+            "Unsupported plugin signature version: {}",
+            signature.version
+        ));
+    }
+    if !signature.algorithm.eq_ignore_ascii_case("ed25519") {
+        return Err(format!(
+            "Unsupported plugin signature algorithm: {}",
+            signature.algorithm
+        ));
+    }
+
+    let checksums_path = root.join("checksums.json");
+    let checksums_bytes = std::fs::read(&checksums_path)
+        .map_err(|e| format!("Failed to read {}: {}", checksums_path.display(), e))?;
+    validate_packaged_signature_payload(&signature.payload, manifest, build_info, &checksums_bytes)?;
+
+    let public_key_bytes = base64::engine::general_purpose::STANDARD
+        .decode(signature.public_key.trim())
+        .map_err(|e| format!("Invalid plugin signature public key: {}", e))?;
+    let verifying_key_bytes: [u8; 32] = public_key_bytes
+        .as_slice()
+        .try_into()
+        .map_err(|_| "Invalid plugin signature public key length.".to_string())?;
+    let verifying_key = VerifyingKey::from_bytes(&verifying_key_bytes)
+        .map_err(|e| format!("Invalid plugin signature public key: {}", e))?;
+
+    let expected_key_id = derive_signer_key_id(&public_key_bytes);
+    if signature.key_id != expected_key_id {
+        return Err("Plugin signature key id does not match the embedded public key.".to_string());
+    }
+    let expected_fingerprint = derive_signer_fingerprint(&public_key_bytes);
+    if signature.fingerprint != expected_fingerprint {
+        return Err(
+            "Plugin signature fingerprint does not match the embedded public key.".to_string(),
+        );
+    }
+
+    let payload_bytes = serde_json::to_vec(&signature.payload)
+        .map_err(|e| format!("Failed to serialize plugin signature payload: {}", e))?;
+    let signature_bytes = base64::engine::general_purpose::STANDARD
+        .decode(signature.signature.trim())
+        .map_err(|e| format!("Invalid plugin signature bytes: {}", e))?;
+    let signature_bytes: [u8; 64] = signature_bytes
+        .try_into()
+        .map_err(|_| "Invalid plugin signature length.".to_string())?;
+    let ed25519_signature = Signature::from_bytes(&signature_bytes);
+    verifying_key
+        .verify(&payload_bytes, &ed25519_signature)
+        .map_err(|_| "Plugin signature verification failed.".to_string())
 }
 
 fn normalize_path_for_checksum(root: &Path, path: &Path) -> String {
@@ -976,6 +1095,102 @@ fn prepared_from_ywp_file(path: &Path) -> Result<PreparedPackage, String> {
     )
 }
 
+fn inspect_ywp_file(path: &Path) -> Result<PreparedPackage, String> {
+    validate_ywp_extension(path)?;
+    let bytes = std::fs::read(path)
+        .map_err(|e| format!("Failed to read plugin package {}: {}", path.display(), e))?;
+    inspect_ywp_bytes(
+        &bytes,
+        PluginPackageSourceKind::PackageYwp,
+        path.to_string_lossy().to_string(),
+    )
+}
+
+fn inspect_ywp_bytes(
+    bytes: &[u8],
+    kind: PluginPackageSourceKind,
+    value: String,
+) -> Result<PreparedPackage, String> {
+    let temp_root = extract_zip_to_temp(bytes, "inspect")?;
+    let package_root = resolve_packaged_root(&temp_root)?;
+    let manifest = load_manifest_from_file(&package_root.join("manifest.json"))?;
+    let build_info = load_packaged_build_info(&package_root)?;
+    let checksums = load_packaged_checksums(&package_root)?;
+    validate_packaged_manifest_layout(&package_root, &manifest, &build_info)?;
+    validate_packaged_checksums(&package_root, &checksums)?;
+    let package_checksum = compute_sha256_bytes(bytes);
+
+    let mut warnings = Vec::new();
+    let signature_path = package_root.join("signature.json");
+    let (signature_status, signer_key_id, signer_fingerprint, signature_algorithm, signed_at) =
+        match load_packaged_signature(&package_root) {
+            Ok(signature) => match validate_packaged_signature(&package_root, &manifest, &build_info, &signature) {
+                Ok(()) => (
+                    Some("signed".to_string()),
+                    Some(signature.key_id),
+                    Some(signature.fingerprint),
+                    Some(signature.algorithm),
+                    Some(signature.signed_at),
+                ),
+                Err(error) => {
+                    warnings.push(error);
+                    (
+                        Some("invalid-signature".to_string()),
+                        Some(signature.key_id),
+                        Some(signature.fingerprint),
+                        Some(signature.algorithm),
+                        Some(signature.signed_at),
+                    )
+                }
+            },
+            Err(error) => {
+                warnings.push(error);
+                (
+                    Some(
+                        if signature_path.is_file() {
+                            "invalid-signature"
+                        } else {
+                            "missing-signature"
+                        }
+                        .to_string(),
+                    ),
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+            }
+        };
+
+    Ok(PreparedPackage {
+        manifest,
+        package_root,
+        source: PluginPackageSource {
+            kind,
+            value,
+            checksum: Some(package_checksum.clone()),
+            package_format: Some(build_info.package_format.clone()),
+            package_format_version: Some(build_info.package_format_version),
+            builder_sdk_version: Some(build_info.builder.version.clone()),
+            signature_status: signature_status.clone(),
+            signer_key_id: signer_key_id.clone(),
+            signer_fingerprint: signer_fingerprint.clone(),
+            signature_algorithm: signature_algorithm.clone(),
+            signed_at: signed_at.clone(),
+        },
+        warnings,
+        package_format: Some(build_info.package_format),
+        package_format_version: Some(build_info.package_format_version),
+        builder_sdk_version: Some(build_info.builder.version),
+        package_checksum: Some(package_checksum),
+        signature_status,
+        signer_key_id,
+        signer_fingerprint,
+        signature_algorithm,
+        signed_at,
+    })
+}
+
 fn prepared_from_ywp_bytes(
     bytes: &[u8],
     kind: PluginPackageSourceKind,
@@ -986,8 +1201,10 @@ fn prepared_from_ywp_bytes(
     let manifest = load_manifest_from_file(&package_root.join("manifest.json"))?;
     let build_info = load_packaged_build_info(&package_root)?;
     let checksums = load_packaged_checksums(&package_root)?;
+    let signature = load_packaged_signature(&package_root)?;
     validate_packaged_manifest_layout(&package_root, &manifest, &build_info)?;
     validate_packaged_checksums(&package_root, &checksums)?;
+    validate_packaged_signature(&package_root, &manifest, &build_info, &signature)?;
     let package_checksum = compute_sha256_bytes(bytes);
 
     Ok(PreparedPackage {
@@ -1000,12 +1217,22 @@ fn prepared_from_ywp_bytes(
             package_format: Some(build_info.package_format.clone()),
             package_format_version: Some(build_info.package_format_version),
             builder_sdk_version: Some(build_info.builder.version.clone()),
+            signature_status: Some("signed".to_string()),
+            signer_key_id: Some(signature.key_id.clone()),
+            signer_fingerprint: Some(signature.fingerprint.clone()),
+            signature_algorithm: Some(signature.algorithm.clone()),
+            signed_at: Some(signature.signed_at.clone()),
         },
-        warnings: vec!["Unsigned plugin package".to_string()],
+        warnings: Vec::new(),
         package_format: Some(build_info.package_format),
         package_format_version: Some(build_info.package_format_version),
         builder_sdk_version: Some(build_info.builder.version),
         package_checksum: Some(package_checksum),
+        signature_status: Some("signed".to_string()),
+        signer_key_id: Some(signature.key_id),
+        signer_fingerprint: Some(signature.fingerprint),
+        signature_algorithm: Some(signature.algorithm),
+        signed_at: Some(signature.signed_at),
     })
 }
 
@@ -1073,6 +1300,11 @@ fn build_installation_from_registry(
         last_execution_status: entry.and_then(|value| value.last_execution_status.clone()),
         last_error: entry.and_then(|value| value.last_error.clone()),
         env_value_status,
+        signature_status: entry.and_then(|value| value.signature_status.clone()),
+        signer_key_id: entry.and_then(|value| value.signer_key_id.clone()),
+        signer_fingerprint: entry.and_then(|value| value.signer_fingerprint.clone()),
+        signature_algorithm: entry.and_then(|value| value.signature_algorithm.clone()),
+        signed_at: entry.and_then(|value| value.signed_at.clone()),
     }
 }
 
@@ -1329,6 +1561,11 @@ pub fn list_plugins_internal(app: &AppHandle) -> Result<Vec<PluginSummary>, Stri
                 builder_sdk_version: build_info
                     .as_ref()
                     .map(|value| value.builder.version.clone()),
+                signature_status: None,
+                signer_key_id: None,
+                signer_fingerprint: None,
+                signature_algorithm: None,
+                signed_at: None,
             },
             path.to_string_lossy().to_string(),
         );
@@ -1370,6 +1607,11 @@ pub fn list_plugins_internal(app: &AppHandle) -> Result<Vec<PluginSummary>, Stri
                 package_format: None,
                 package_format_version: None,
                 builder_sdk_version: None,
+                signature_status: None,
+                signer_key_id: None,
+                signer_fingerprint: None,
+                signature_algorithm: None,
+                signed_at: None,
             },
             workspace_path.to_string_lossy().to_string(),
         );
@@ -1400,10 +1642,28 @@ pub fn get_plugin_details_internal(app: &AppHandle, plugin_id: &str) -> Result<P
 }
 
 pub async fn inspect_plugin_package_internal(
-    _app: &AppHandle,
+    app: &AppHandle,
     path: String,
 ) -> Result<PluginPackageInspection, String> {
-    let package = prepared_from_ywp_file(Path::new(&path))?;
+    let mut package = inspect_ywp_file(Path::new(&path))?;
+    if package.signature_status.as_deref() == Some("signed") {
+        let registry = read_registry(app)?;
+        if let Some(existing) = registry.installations.get(&package.manifest.plugin_id) {
+            if let (Some(existing_fingerprint), Some(next_fingerprint)) = (
+                existing.signer_fingerprint.as_deref(),
+                package.signer_fingerprint.as_deref(),
+            ) {
+                if existing_fingerprint != next_fingerprint {
+                    package.signature_status = Some("signer-changed".to_string());
+                    package.source.signature_status = Some("signer-changed".to_string());
+                    package.warnings.push(format!(
+                        "Signer changed for {}. Uninstall the existing plugin before installing a package signed by a different key.",
+                        package.manifest.plugin_id
+                    ));
+                }
+            }
+        }
+    }
     let mut warnings = package.warnings;
     warnings.extend(collect_compatibility_issues(&package.manifest)?);
     Ok(PluginPackageInspection {
@@ -1414,6 +1674,11 @@ pub async fn inspect_plugin_package_internal(
         package_format_version: package.package_format_version,
         builder_sdk_version: package.builder_sdk_version,
         package_checksum: package.package_checksum,
+        signature_status: package.signature_status,
+        signer_key_id: package.signer_key_id,
+        signer_fingerprint: package.signer_fingerprint,
+        signature_algorithm: package.signature_algorithm,
+        signed_at: package.signed_at,
     })
 }
 
@@ -1432,6 +1697,21 @@ pub async fn install_plugin_internal(
         )
         .ok();
         return Err(error);
+    }
+    let mut registry = read_registry(app)?;
+    if let Some(existing) = registry.installations.get(&package.manifest.plugin_id) {
+        let existing_fingerprint = existing.signer_fingerprint.as_deref();
+        let next_fingerprint = package.signer_fingerprint.as_deref();
+        if let (Some(existing_fingerprint), Some(next_fingerprint)) =
+            (existing_fingerprint, next_fingerprint)
+        {
+            if existing_fingerprint != next_fingerprint {
+                return Err(format!(
+                    "Plugin signer changed for {}. Uninstall the existing plugin before installing a package signed by a different key.",
+                    package.manifest.plugin_id
+                ));
+            }
+        }
     }
     let root = ensure_plugins_root(app)?;
     let destination = installation_path(&root, &package.manifest);
@@ -1458,7 +1738,6 @@ pub async fn install_plugin_internal(
     }
     copy_dir_recursive(&package.package_root, &destination)?;
 
-    let mut registry = read_registry(app)?;
     let selected_provider = package.manifest.runtime.preferred_provider.clone();
     registry.installations.insert(
         package.manifest.plugin_id.clone(),
@@ -1474,6 +1753,11 @@ pub async fn install_plugin_internal(
             last_resolved_source: None,
             last_execution_status: Some("installed".to_string()),
             last_error: None,
+            signature_status: package.signature_status.clone(),
+            signer_key_id: package.signer_key_id.clone(),
+            signer_fingerprint: package.signer_fingerprint.clone(),
+            signature_algorithm: package.signature_algorithm.clone(),
+            signed_at: package.signed_at.clone(),
         },
     );
     write_registry(app, &registry)?;
@@ -1560,6 +1844,11 @@ pub fn attach_plugin_workspace_internal(
                 package_format: None,
                 package_format_version: None,
                 builder_sdk_version: None,
+                signature_status: None,
+                signer_key_id: None,
+                signer_fingerprint: None,
+                signature_algorithm: None,
+                signed_at: None,
             }),
             last_resolved_provider: existing
                 .as_ref()
@@ -1569,6 +1858,11 @@ pub fn attach_plugin_workspace_internal(
                 .and_then(|value| value.last_resolved_source.clone()),
             last_execution_status: Some("attached".to_string()),
             last_error: None,
+            signature_status: None,
+            signer_key_id: None,
+            signer_fingerprint: None,
+            signature_algorithm: None,
+            signed_at: None,
         },
     );
     write_registry(app, &registry)?;
@@ -1595,6 +1889,11 @@ pub fn attach_plugin_workspace_internal(
             package_format: None,
             package_format_version: None,
             builder_sdk_version: None,
+            signature_status: None,
+            signer_key_id: None,
+            signer_fingerprint: None,
+            signature_algorithm: None,
+            signed_at: None,
         },
         workspace_path.to_string_lossy().to_string(),
     );
@@ -1859,7 +2158,11 @@ pub fn create_plugin_workspace_internal(
             e
         )
     })?;
-    std::fs::write(destination.join(".gitignore"), "dist/\nrelease/\nnode_modules/\n").map_err(|e| {
+    std::fs::write(
+        destination.join(".gitignore"),
+        "dist/\nrelease/\nnode_modules/\n*.youwee-plugin-key.json\n",
+    )
+    .map_err(|e| {
         format!(
             "Failed to write plugin gitignore {}: {}",
             destination.join(".gitignore").display(),
@@ -3415,7 +3718,8 @@ fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
   "main": "src/plugin.js",
   "scripts": {{
     "build": "bunx youwee-sdk build",
-    "pack": "bunx youwee-sdk pack",
+    "pack": "bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json",
+    "keygen": "bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json",
     "test:node": "YOUWEE_PLUGIN_MAIN=src/plugin.js node node_modules/youwee-sdk/dist/runtime-cli.js",
     "test:bun": "YOUWEE_PLUGIN_MAIN=src/plugin.js bun node_modules/youwee-sdk/dist/runtime-cli.js"
   }},
@@ -3648,7 +3952,8 @@ bunx youwee-sdk build
 Create a distributable package:
 
 ```bash
-bunx youwee-sdk pack
+bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
+bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
 ```
 
 Node:
@@ -3666,11 +3971,12 @@ cat examples/payload.download.completed.json | YOUWEE_PLUGIN_MAIN=src/plugin.js 
 ## Packaging
 
 To share this plugin:
-1. Run `bunx youwee-sdk pack`
-2. Find the generated `.ywp` file in `release/`
-3. Import the `.ywp` package into Youwee
+1. Run `bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json` if you do not already have a signing key
+2. Run `bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json`
+3. Find the generated `.ywp` file in `release/`
+4. Import the `.ywp` package into Youwee
 
-Youwee imports packaged `.ywp` files only.
+Youwee imports signed `.ywp` files only.
 The source workspace is for development and packaging, not direct end-user installation.
 
 ## Next step
@@ -3925,6 +4231,13 @@ mod tests {
         };
         let package_json = build_scaffold_package_json(&manifest);
         assert!(package_json.contains(&format!("\"youwee-sdk\": \"^{}\"", current_sdk_version())));
+        assert!(
+            package_json
+                .contains("\"pack\": \"bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json\"")
+        );
+        assert!(
+            package_json.contains("\"keygen\": \"bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json\"")
+        );
         assert!(package_json.contains("YOUWEE_PLUGIN_MAIN=src/plugin.js"));
         assert!(package_json.contains("node_modules/youwee-sdk/dist/runtime-cli.js"));
     }

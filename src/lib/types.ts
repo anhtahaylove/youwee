@@ -270,6 +270,11 @@ export interface PluginPackageSource {
   packageFormat?: string | null;
   packageFormatVersion?: number | null;
   builderSdkVersion?: string | null;
+  signatureStatus?: string | null;
+  signerKeyId?: string | null;
+  signerFingerprint?: string | null;
+  signatureAlgorithm?: string | null;
+  signedAt?: string | null;
 }
 
 export interface PluginInstallation {
@@ -286,6 +291,11 @@ export interface PluginInstallation {
   lastExecutionStatus?: string | null;
   lastError?: string | null;
   envValueStatus: Record<string, boolean>;
+  signatureStatus?: string | null;
+  signerKeyId?: string | null;
+  signerFingerprint?: string | null;
+  signatureAlgorithm?: string | null;
+  signedAt?: string | null;
 }
 
 export interface PluginSummary {
@@ -302,6 +312,11 @@ export interface PluginPackageInspection {
   packageFormatVersion?: number | null;
   builderSdkVersion?: string | null;
   packageChecksum?: string | null;
+  signatureStatus?: string | null;
+  signerKeyId?: string | null;
+  signerFingerprint?: string | null;
+  signatureAlgorithm?: string | null;
+  signedAt?: string | null;
 }
 
 export interface PluginWorkspaceSummary {
@@ -333,6 +348,26 @@ export interface PackagedPluginBuildInfo {
 export interface PackagedPluginChecksums {
   algorithm: string;
   files: Record<string, string>;
+}
+
+export interface PluginSignaturePayload {
+  checksumsPath: string;
+  checksumsSha256: string;
+  pluginId: string;
+  pluginVersion: string;
+  packageFormat: string;
+  packageFormatVersion: number;
+}
+
+export interface PackagedPluginSignature {
+  version: number;
+  algorithm: string;
+  keyId: string;
+  fingerprint: string;
+  publicKey: string;
+  signedAt: string;
+  payload: PluginSignaturePayload;
+  signature: string;
 }
 
 export interface RuntimeProviderStatus {

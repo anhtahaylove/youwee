@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import {
+  createHash,
+  createPrivateKey,
+  createPublicKey,
+  sign as cryptoSign,
+  verify as cryptoVerify,
+  generateKeyPairSync,
+} from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
@@ -15,21 +22,34 @@ import { validatePluginManifest } from './manifest';
 import type {
   BuildPluginPackageInput,
   BuildPluginPackageResult,
+  GeneratePluginKeyPairResult,
   PackagedPluginBuildInfo,
   PackagedPluginChecksums,
+  PackagedPluginSignature,
   PackPluginPackageInput,
   PackPluginPackageResult,
   PluginManifest,
+  PluginSignaturePayload,
+  VerifyPluginPackageResult,
 } from './types';
 
 const PACKAGE_FORMAT = 'ywp' as const;
 const PACKAGE_FORMAT_VERSION = 1 as const;
 const PACKAGED_ENTRYPOINT = 'dist/plugin.cjs';
+const SIGNATURE_VERSION = 1 as const;
+const SIGNATURE_ALGORITHM = 'ed25519' as const;
+const CHECKSUMS_PATH = 'checksums.json' as const;
 
 type ZipEntry = {
   path: string;
   bytes: Uint8Array;
 };
+
+type StoredZipEntry = ZipEntry & {
+  crc32: number;
+};
+
+type SigningKeyRecord = GeneratePluginKeyPairResult;
 
 function getBunExecutable(): string {
   const execPath = process.execPath;
@@ -62,9 +82,7 @@ function collectFiles(rootDir: string, relativeDir: string): string[] {
 
   while (stack.length > 0) {
     const current = stack.pop();
-    if (!current) {
-      continue;
-    }
+    if (!current) continue;
     for (const entry of readdirSync(current, { withFileTypes: true })) {
       const absolutePath = join(current, entry.name);
       if (entry.isDirectory()) {
@@ -244,6 +262,10 @@ function toBytes(value: string | Uint8Array): Uint8Array {
   return typeof value === 'string' ? new TextEncoder().encode(value) : value;
 }
 
+function toText(bytes: Uint8Array): string {
+  return new TextDecoder().decode(bytes);
+}
+
 function readEntryBytes(rootDir: string, relativePath: string): Uint8Array {
   return new Uint8Array(readFileSync(join(rootDir, relativePath)));
 }
@@ -314,6 +336,14 @@ function writeU32(view: DataView, offset: number, value: number) {
   view.setUint32(offset, value >>> 0, true);
 }
 
+function readU16(view: DataView, offset: number) {
+  return view.getUint16(offset, true);
+}
+
+function readU32(view: DataView, offset: number) {
+  return view.getUint32(offset, true);
+}
+
 function createStoredZip(entries: ZipEntry[]): Uint8Array {
   const localParts: Uint8Array[] = [];
   const centralParts: Uint8Array[] = [];
@@ -382,9 +412,371 @@ function createStoredZip(entries: ZipEntry[]): Uint8Array {
   return concatArrays([localData, centralDirectory, endRecord]);
 }
 
+function findEndOfCentralDirectory(bytes: Uint8Array): number {
+  for (let index = bytes.length - 22; index >= 0; index -= 1) {
+    if (
+      bytes[index] === 0x50 &&
+      bytes[index + 1] === 0x4b &&
+      bytes[index + 2] === 0x05 &&
+      bytes[index + 3] === 0x06
+    ) {
+      return index;
+    }
+  }
+  throw new Error('Invalid .ywp file: missing end-of-central-directory record.');
+}
+
+function readStoredZip(packageBytes: Uint8Array): StoredZipEntry[] {
+  const eocdOffset = findEndOfCentralDirectory(packageBytes);
+  const eocdView = new DataView(
+    packageBytes.buffer,
+    packageBytes.byteOffset + eocdOffset,
+    packageBytes.length - eocdOffset,
+  );
+  const entryCount = readU16(eocdView, 10);
+  const centralDirectorySize = readU32(eocdView, 12);
+  const centralDirectoryOffset = readU32(eocdView, 16);
+  const centralDirectoryEnd = centralDirectoryOffset + centralDirectorySize;
+  if (centralDirectoryEnd > packageBytes.length) {
+    throw new Error('Invalid .ywp file: central directory exceeds archive bounds.');
+  }
+
+  const entries: StoredZipEntry[] = [];
+  let offset = centralDirectoryOffset;
+
+  for (let index = 0; index < entryCount; index += 1) {
+    const centralView = new DataView(
+      packageBytes.buffer,
+      packageBytes.byteOffset + offset,
+      packageBytes.length - offset,
+    );
+    if (readU32(centralView, 0) !== 0x02014b50) {
+      throw new Error('Invalid .ywp file: central directory entry is malformed.');
+    }
+    const compressionMethod = readU16(centralView, 10);
+    if (compressionMethod !== 0) {
+      throw new Error('Unsupported .ywp compression method. Only stored entries are supported.');
+    }
+    const crc = readU32(centralView, 16);
+    const compressedSize = readU32(centralView, 20);
+    const nameLength = readU16(centralView, 28);
+    const extraLength = readU16(centralView, 30);
+    const commentLength = readU16(centralView, 32);
+    const localHeaderOffset = readU32(centralView, 42);
+
+    const nameStart = offset + 46;
+    const nameEnd = nameStart + nameLength;
+    const nameBytes = packageBytes.slice(nameStart, nameEnd);
+    const path = normalizeArchivePath(toText(nameBytes));
+
+    const localView = new DataView(
+      packageBytes.buffer,
+      packageBytes.byteOffset + localHeaderOffset,
+      packageBytes.length - localHeaderOffset,
+    );
+    if (readU32(localView, 0) !== 0x04034b50) {
+      throw new Error(`Invalid .ywp file: local header missing for ${path}.`);
+    }
+    const localNameLength = readU16(localView, 26);
+    const localExtraLength = readU16(localView, 28);
+    const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (dataEnd > packageBytes.length) {
+      throw new Error(`Invalid .ywp file: entry ${path} exceeds archive bounds.`);
+    }
+
+    entries.push({
+      path,
+      bytes: packageBytes.slice(dataStart, dataEnd),
+      crc32: crc,
+    });
+
+    offset = nameEnd + extraLength + commentLength;
+  }
+
+  return entries;
+}
+
+function getEntryMap(entries: ZipEntry[]): Map<string, ZipEntry> {
+  return new Map(entries.map((entry) => [normalizeArchivePath(entry.path), entry]));
+}
+
+function requireEntry(map: Map<string, ZipEntry>, path: string): ZipEntry {
+  const entry = map.get(path);
+  if (!entry) {
+    throw new Error(`Invalid .ywp file: missing ${path}.`);
+  }
+  return entry;
+}
+
+function toBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64');
+}
+
+function fromBase64(value: string): Uint8Array {
+  return new Uint8Array(Buffer.from(value, 'base64'));
+}
+
+function fromBase64Url(value: string): Uint8Array {
+  return new Uint8Array(Buffer.from(value, 'base64url'));
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64url');
+}
+
+function deriveFingerprint(publicKey: Uint8Array): string {
+  return sha256(publicKey);
+}
+
+function deriveKeyId(publicKey: Uint8Array): string {
+  return `ed25519:sha256:${deriveFingerprint(publicKey)}`;
+}
+
+function createSignaturePayload(
+  manifest: PluginManifest,
+  checksumsBytes: Uint8Array,
+): PluginSignaturePayload {
+  return {
+    checksumsPath: CHECKSUMS_PATH,
+    checksumsSha256: sha256(checksumsBytes),
+    pluginId: manifest.id,
+    pluginVersion: manifest.version,
+    packageFormat: PACKAGE_FORMAT,
+    packageFormatVersion: PACKAGE_FORMAT_VERSION,
+  };
+}
+
+function canonicalizeSignaturePayload(payload: PluginSignaturePayload): Uint8Array {
+  return toBytes(JSON.stringify(payload));
+}
+
+function validateSigningKeyRecord(value: unknown): SigningKeyRecord {
+  if (!value || typeof value !== 'object') {
+    throw new Error('Signing key file must contain a JSON object.');
+  }
+  const key = value as Partial<SigningKeyRecord>;
+  if (key.version !== SIGNATURE_VERSION) {
+    throw new Error(`Unsupported signing key version: ${String(key.version)}`);
+  }
+  if (key.algorithm !== SIGNATURE_ALGORITHM) {
+    throw new Error(`Unsupported signing key algorithm: ${String(key.algorithm)}`);
+  }
+  if (!key.publicKey || !key.privateKey || !key.keyId || !key.fingerprint) {
+    throw new Error('Signing key file is missing required fields.');
+  }
+  return key as SigningKeyRecord;
+}
+
+function createPrivateKeyFromRecord(record: SigningKeyRecord) {
+  return createPrivateKey({
+    key: {
+      kty: 'OKP',
+      crv: 'Ed25519',
+      x: toBase64Url(fromBase64(record.publicKey)),
+      d: toBase64Url(fromBase64(record.privateKey)),
+    },
+    format: 'jwk',
+  });
+}
+
+function createPublicKeyFromBase64(publicKey: string) {
+  return createPublicKey({
+    key: {
+      kty: 'OKP',
+      crv: 'Ed25519',
+      x: toBase64Url(fromBase64(publicKey)),
+    },
+    format: 'jwk',
+  });
+}
+
+export function generatePluginKeyPair(outputPath?: string): GeneratePluginKeyPairResult {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+  const privateJwk = privateKey.export({ format: 'jwk' }) as { d: string; x: string };
+  const publicJwk = publicKey.export({ format: 'jwk' }) as { x: string };
+  const publicKeyBytes = fromBase64Url(publicJwk.x);
+  const privateKeyBytes = fromBase64Url(privateJwk.d);
+
+  const result: GeneratePluginKeyPairResult = {
+    version: SIGNATURE_VERSION,
+    algorithm: SIGNATURE_ALGORITHM,
+    keyId: deriveKeyId(publicKeyBytes),
+    fingerprint: deriveFingerprint(publicKeyBytes),
+    publicKey: toBase64(publicKeyBytes),
+    privateKey: toBase64(privateKeyBytes),
+  };
+
+  if (outputPath) {
+    writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`);
+  }
+
+  return result;
+}
+
+function createPackageSignature(
+  manifest: PluginManifest,
+  checksumsBytes: Uint8Array,
+  privateKeyPath: string,
+): PackagedPluginSignature {
+  const record = validateSigningKeyRecord(readJsonFile<SigningKeyRecord>(privateKeyPath));
+  const publicKeyBytes = fromBase64(record.publicKey);
+  const expectedKeyId = deriveKeyId(publicKeyBytes);
+  const expectedFingerprint = deriveFingerprint(publicKeyBytes);
+  if (record.keyId !== expectedKeyId || record.fingerprint !== expectedFingerprint) {
+    throw new Error('Signing key file is inconsistent with the embedded public key.');
+  }
+
+  const payload = createSignaturePayload(manifest, checksumsBytes);
+  const privateKey = createPrivateKeyFromRecord(record);
+  const signatureBytes = cryptoSign(null, canonicalizeSignaturePayload(payload), privateKey);
+
+  return {
+    version: SIGNATURE_VERSION,
+    algorithm: SIGNATURE_ALGORITHM,
+    keyId: record.keyId,
+    fingerprint: record.fingerprint,
+    publicKey: record.publicKey,
+    signedAt: new Date().toISOString(),
+    payload,
+    signature: signatureBytes.toString('base64'),
+  };
+}
+
+function validateSignaturePayload(
+  signature: PackagedPluginSignature,
+  manifest: PluginManifest,
+  buildInfo: PackagedPluginBuildInfo,
+  checksumsBytes: Uint8Array,
+) {
+  if (signature.version !== SIGNATURE_VERSION) {
+    throw new Error(`Unsupported plugin signature version: ${String(signature.version)}`);
+  }
+  if (signature.algorithm !== SIGNATURE_ALGORITHM) {
+    throw new Error(`Unsupported plugin signature algorithm: ${String(signature.algorithm)}`);
+  }
+
+  const publicKeyBytes = fromBase64(signature.publicKey);
+  const expectedKeyId = deriveKeyId(publicKeyBytes);
+  const expectedFingerprint = deriveFingerprint(publicKeyBytes);
+  if (signature.keyId !== expectedKeyId) {
+    throw new Error('Plugin signature keyId does not match the embedded public key.');
+  }
+  if (signature.fingerprint !== expectedFingerprint) {
+    throw new Error('Plugin signature fingerprint does not match the embedded public key.');
+  }
+
+  const payload = signature.payload;
+  if (payload.checksumsPath !== CHECKSUMS_PATH) {
+    throw new Error('Plugin signature payload points to an unsupported checksum file.');
+  }
+  if (payload.checksumsSha256 !== sha256(checksumsBytes)) {
+    throw new Error('Plugin signature payload does not match checksums.json.');
+  }
+  if (payload.pluginId !== manifest.id) {
+    throw new Error('Plugin signature payload does not match manifest id.');
+  }
+  if (payload.pluginVersion !== manifest.version) {
+    throw new Error('Plugin signature payload does not match manifest version.');
+  }
+  if (payload.packageFormat !== buildInfo.packageFormat) {
+    throw new Error('Plugin signature payload does not match package format.');
+  }
+  if (payload.packageFormatVersion !== buildInfo.packageFormatVersion) {
+    throw new Error('Plugin signature payload does not match package format version.');
+  }
+
+  const signatureBytes = fromBase64(signature.signature);
+  const publicKey = createPublicKeyFromBase64(signature.publicKey);
+  const valid = cryptoVerify(
+    null,
+    canonicalizeSignaturePayload(payload),
+    publicKey,
+    signatureBytes,
+  );
+  if (!valid) {
+    throw new Error('Plugin signature verification failed.');
+  }
+}
+
+function validateChecksums(entries: ZipEntry[], checksums: PackagedPluginChecksums) {
+  if (checksums.algorithm.toLowerCase() !== 'sha256') {
+    throw new Error(`Unsupported checksums algorithm in .ywp file: ${checksums.algorithm}`);
+  }
+
+  const actualFiles = entries
+    .map((entry) => normalizeArchivePath(entry.path))
+    .filter((path) => path !== CHECKSUMS_PATH && path !== 'signature.json')
+    .sort();
+  const expectedFiles = Object.keys(checksums.files).sort();
+  if (
+    actualFiles.length !== expectedFiles.length ||
+    actualFiles.some((path, index) => path !== expectedFiles[index])
+  ) {
+    throw new Error('The .ywp file contents do not match checksums.json.');
+  }
+
+  for (const path of expectedFiles) {
+    const entry = entries.find((item) => normalizeArchivePath(item.path) === path);
+    if (!entry) {
+      throw new Error(`Missing package entry listed in checksums.json: ${path}`);
+    }
+    const actual = sha256(entry.bytes);
+    if (actual !== checksums.files[path]) {
+      throw new Error(`Checksum mismatch in .ywp file for ${path}`);
+    }
+  }
+}
+
+export function verifyPluginPackage(packagePath: string): VerifyPluginPackageResult {
+  try {
+    const archiveBytes = new Uint8Array(readFileSync(packagePath));
+    const entries = readStoredZip(archiveBytes);
+    const entryMap = getEntryMap(entries);
+
+    const manifest = JSON.parse(
+      toText(requireEntry(entryMap, 'manifest.json').bytes),
+    ) as PluginManifest;
+    const buildInfo = JSON.parse(
+      toText(requireEntry(entryMap, 'build.json').bytes),
+    ) as PackagedPluginBuildInfo;
+    const checksumsEntry = requireEntry(entryMap, CHECKSUMS_PATH);
+    const checksums = JSON.parse(toText(checksumsEntry.bytes)) as PackagedPluginChecksums;
+    const signature = JSON.parse(
+      toText(requireEntry(entryMap, 'signature.json').bytes),
+    ) as PackagedPluginSignature;
+
+    validatePackagedManifest(manifest);
+    validateChecksums(entries, checksums);
+    validateSignaturePayload(signature, manifest, buildInfo, checksumsEntry.bytes);
+
+    return {
+      valid: true,
+      packagePath: resolve(packagePath),
+      manifest,
+      buildInfo,
+      checksums,
+      signature,
+      signerKeyId: signature.keyId,
+      signerFingerprint: signature.fingerprint,
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      packagePath: resolve(packagePath),
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function packPluginPackage(
   input: PackPluginPackageInput = {},
 ): Promise<PackPluginPackageResult> {
+  const privateKeyPath = input.privateKeyPath?.trim();
+  if (!privateKeyPath) {
+    throw new Error('Signing is required. Pass --private-key <path> to pack a .ywp plugin.');
+  }
+
   const buildResult = await buildPluginPackage({ cwd: input.cwd });
   const packageInfo = buildPackageInfo();
 
@@ -411,9 +803,20 @@ export async function packPluginPackage(
   }
 
   const checksums = buildChecksums(entries);
+  const checksumsBytes = toBytes(`${JSON.stringify(checksums, null, 2)}\n`);
   entries.push({
-    path: 'checksums.json',
-    bytes: toBytes(`${JSON.stringify(checksums, null, 2)}\n`),
+    path: CHECKSUMS_PATH,
+    bytes: checksumsBytes,
+  });
+
+  const signature = createPackageSignature(
+    buildResult.runtimeManifest,
+    checksumsBytes,
+    resolve(privateKeyPath),
+  );
+  entries.push({
+    path: 'signature.json',
+    bytes: toBytes(`${JSON.stringify(signature, null, 2)}\n`),
   });
 
   const packageBytes = createStoredZip(entries);
@@ -430,6 +833,7 @@ export async function packPluginPackage(
     packageChecksum: sha256(packageBytes),
     manifest: buildResult.runtimeManifest,
     buildInfo: packageInfo,
+    signature,
   };
 }
 

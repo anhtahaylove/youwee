@@ -446,9 +446,51 @@ export interface PackagedPluginChecksums {
   files: Record<string, string>;
 }
 
+export interface PluginSignaturePayload {
+  checksumsPath: 'checksums.json';
+  checksumsSha256: string;
+  pluginId: string;
+  pluginVersion: string;
+  packageFormat: 'ywp';
+  packageFormatVersion: 1;
+}
+
+export interface PackagedPluginSignature {
+  version: 1;
+  algorithm: 'ed25519';
+  keyId: string;
+  fingerprint: string;
+  publicKey: string;
+  signedAt: string;
+  payload: PluginSignaturePayload;
+  signature: string;
+}
+
+export interface GeneratePluginKeyPairResult {
+  version: 1;
+  algorithm: 'ed25519';
+  keyId: string;
+  fingerprint: string;
+  publicKey: string;
+  privateKey: string;
+}
+
+export interface VerifyPluginPackageResult {
+  valid: boolean;
+  packagePath: string;
+  manifest?: PluginManifest;
+  buildInfo?: PackagedPluginBuildInfo;
+  checksums?: PackagedPluginChecksums;
+  signature?: PackagedPluginSignature;
+  signerKeyId?: string;
+  signerFingerprint?: string;
+  error?: string;
+}
+
 export interface PackPluginPackageInput {
   cwd?: string;
   outDir?: string;
+  privateKeyPath?: string;
 }
 
 export interface PackPluginPackageResult {
@@ -456,4 +498,5 @@ export interface PackPluginPackageResult {
   packageChecksum: string;
   manifest: PluginManifest;
   buildInfo: PackagedPluginBuildInfo;
+  signature: PackagedPluginSignature;
 }
