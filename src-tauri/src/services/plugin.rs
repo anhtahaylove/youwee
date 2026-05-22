@@ -2094,6 +2094,13 @@ pub fn create_plugin_workspace_internal(
             e
         )
     })?;
+    std::fs::create_dir_all(destination.join(".github").join("workflows")).map_err(|e| {
+        format!(
+            "Failed to create plugin workflow directory {}: {}",
+            destination.join(".github").join("workflows").display(),
+            e
+        )
+    })?;
     std::fs::create_dir_all(destination.join("locales")).map_err(|e| {
         format!(
             "Failed to create plugin locales directory {}: {}",
@@ -2148,6 +2155,39 @@ pub fn create_plugin_workspace_internal(
         format!(
             "Failed to write plugin README {}: {}",
             destination.join("README.md").display(),
+            e
+        )
+    })?;
+    std::fs::write(
+        destination.join(".github").join("workflows").join("ci.yml"),
+        build_scaffold_ci_workflow(),
+    )
+    .map_err(|e| {
+        format!(
+            "Failed to write plugin CI workflow {}: {}",
+            destination
+                .join(".github")
+                .join("workflows")
+                .join("ci.yml")
+                .display(),
+            e
+        )
+    })?;
+    std::fs::write(
+        destination
+            .join(".github")
+            .join("workflows")
+            .join("release.yml"),
+        build_scaffold_release_workflow(),
+    )
+    .map_err(|e| {
+        format!(
+            "Failed to write plugin release workflow {}: {}",
+            destination
+                .join(".github")
+                .join("workflows")
+                .join("release.yml")
+                .display(),
             e
         )
     })?;
@@ -3739,6 +3779,114 @@ fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
     )
 }
 
+fn build_scaffold_ci_workflow() -> String {
+    r#"name: Plugin CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build plugin
+        run: bun run build
+
+      - name: Run Node runtime check
+        run: bun run test:node < examples/payload.download.completed.json
+
+      - name: Run Bun runtime check
+        run: bun run test:bun < examples/payload.download.completed.json
+"#
+    .to_string()
+}
+
+fn build_scaffold_release_workflow() -> String {
+    r#"name: Plugin Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Restore signing key
+        env:
+          YOUWEE_PLUGIN_SIGNING_KEY: ${{ secrets.YOUWEE_PLUGIN_SIGNING_KEY }}
+        run: |
+          if [ -z "$YOUWEE_PLUGIN_SIGNING_KEY" ]; then
+            echo "Missing YOUWEE_PLUGIN_SIGNING_KEY secret."
+            exit 1
+          fi
+          printf '%s' "$YOUWEE_PLUGIN_SIGNING_KEY" > plugin.youwee-plugin-key.json
+
+      - name: Build plugin
+        run: bun run build
+
+      - name: Pack signed plugin
+        run: bun run pack
+
+      - name: Generate checksum
+        run: |
+          PACKAGE_FILE=$(find release -maxdepth 1 -name "*.ywp" | head -1)
+          if [ -z "$PACKAGE_FILE" ]; then
+            echo "No .ywp package found in release/."
+            exit 1
+          fi
+          sha256sum "$PACKAGE_FILE" > "$PACKAGE_FILE.sha256"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release/*.ywp
+            release/*.sha256
+"#
+    .to_string()
+}
+
 fn write_sdk_package_files(package_root: &Path) -> Result<(), String> {
     std::fs::create_dir_all(package_root.join("dist")).map_err(|e| {
         format!(
@@ -3956,6 +4104,29 @@ bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
 bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
 ```
 
+## GitHub Actions
+
+This scaffold includes:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/release.yml`
+
+Recommended setup:
+
+1. Push the workspace to a GitHub repository
+2. Add the secret `YOUWEE_PLUGIN_SIGNING_KEY`
+3. Store the full JSON contents of `plugin.youwee-plugin-key.json` in that secret
+4. Create a tag like `v0.1.0` to trigger the release workflow
+
+The CI workflow validates `bun install`, `bun run build`, `bun run test:node`, and `bun run test:bun`.
+
+The release workflow:
+
+1. restores the signing key from `YOUWEE_PLUGIN_SIGNING_KEY`
+2. builds the plugin
+3. packs a signed `.ywp`
+4. uploads the `.ywp` and `.sha256` files to the GitHub release
+
 Node:
 
 ```bash
@@ -4063,9 +4234,10 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        build_scaffold_package_json, build_scaffold_readme, collect_compatibility_issues,
-        current_sdk_version, parse_plugin_result, satisfies_version_range, sanitize_slug,
-        validate_manifest, write_sdk_package_files,
+        build_scaffold_ci_workflow, build_scaffold_package_json, build_scaffold_readme,
+        build_scaffold_release_workflow, collect_compatibility_issues, current_sdk_version,
+        parse_plugin_result, satisfies_version_range, sanitize_slug, validate_manifest,
+        write_sdk_package_files,
     };
     use crate::types::{PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage, PluginRuntimeSpec};
 
@@ -4200,6 +4372,20 @@ mod tests {
         let readme = build_scaffold_readme(&manifest);
         assert!(readme.contains("supportedProviders"));
         assert!(readme.contains("ctx.youwee.ai"));
+        assert!(readme.contains("YOUWEE_PLUGIN_SIGNING_KEY"));
+    }
+
+    #[test]
+    fn scaffold_workflows_cover_ci_and_release() {
+        let ci_workflow = build_scaffold_ci_workflow();
+        let release_workflow = build_scaffold_release_workflow();
+
+        assert!(ci_workflow.contains("name: Plugin CI"));
+        assert!(ci_workflow.contains("bun run build"));
+        assert!(ci_workflow.contains("bun run test:node"));
+        assert!(release_workflow.contains("name: Plugin Release"));
+        assert!(release_workflow.contains("YOUWEE_PLUGIN_SIGNING_KEY"));
+        assert!(release_workflow.contains("release/*.ywp"));
     }
 
     #[test]
