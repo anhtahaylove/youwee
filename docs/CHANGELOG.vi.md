@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-05-24
+
 ### Thêm mới
 - **Tag và bộ sưu tập cho Thư viện** - Thêm tag tự do và bộ sưu tập ảo cho các mục trong Thư viện, bao gồm gán ngay trên từng item, filter nhanh bằng chip, quản lý bộ sưu tập và lọc nâng cao theo tag hoặc bộ sưu tập
 - **Hệ thống plugin có ký và luồng SDK** - Thêm plugin `.ywp` có chữ ký với luồng attach/debug workspace, field cấu hình có kiểu dữ liệu rõ ràng, hướng dẫn plugin đa ngôn ngữ, duyệt quyền, gán vào workflow, xem log, và hỗ trợ đóng gói/ký bằng `youwee-sdk`

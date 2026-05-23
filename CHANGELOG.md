@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-05-24
+
 ### Added
 - **Library tagging and collections** - Added free-form tags and virtual collections for Library items, including item-level assignment, quick chip filters, collection management, and advanced filtering by tags or collections
 - **Signed plugin system and SDK workflow** - Added signed `.ywp` plugins with workspace attach/debug flow, typed configuration fields, localized plugin guides, permission review, workflow assignment, logs, and `youwee-sdk` packaging/signing support
