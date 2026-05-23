@@ -482,6 +482,8 @@ module.exports = definePlugin({
 `.trim(),
       );
       writeFileSync(join(localesDir, 'en.json'), `${JSON.stringify({ done: 'Done' }, null, 2)}\n`);
+      writeFileSync(join(tempDir, 'README.md'), '# English Guide\n');
+      writeFileSync(join(tempDir, 'README.vi.md'), '# Huong dan tieng Viet\n');
 
       const buildResult = await buildPluginPackage({ cwd: tempDir });
       const packResult = await packPluginPackage({ cwd: tempDir, privateKeyPath: keyPath });
@@ -497,6 +499,9 @@ module.exports = definePlugin({
       expect(archiveBytes.includes(Buffer.from('checksums.json'))).toBe(true);
       expect(archiveBytes.includes(Buffer.from('signature.json'))).toBe(true);
       expect(archiveBytes.includes(Buffer.from('dist/plugin.cjs'))).toBe(true);
+      expect(buildResult.copiedFiles).toContain('README.md');
+      expect(buildResult.copiedFiles).toContain('README.vi.md');
+      expect(archiveBytes.includes(Buffer.from('README.vi.md'))).toBe(true);
       expect(verifyResult.valid).toBe(true);
       expect(verifyResult.signerFingerprint).toBe(generatedKey.fingerprint);
     } finally {

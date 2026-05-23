@@ -947,7 +947,7 @@ fn current_sdk_version() -> String {
     serde_json::from_str::<serde_json::Value>(SDK_JS_PACKAGE_JSON)
         .ok()
         .and_then(|value| value.get("version").and_then(|value| value.as_str()).map(str::to_string))
-        .unwrap_or_else(|| "1.0.2".to_string())
+        .unwrap_or_else(|| "1.0.3".to_string())
 }
 
 fn build_scaffold_compatibility_range(version: &str) -> String {

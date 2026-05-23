@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-05-23
+
+### Fixed
+- **Localized plugin guides in packages** - Updated the `.ywp` packager to include localized README files such as `README.vi.md` and `README.zh-CN.md` so Youwee can show the correct guide for the current app language after installation.
+
 ## [1.0.2] - 2026-05-23
 
 ### Added

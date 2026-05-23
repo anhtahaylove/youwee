@@ -97,6 +97,41 @@ function collectFiles(rootDir: string, relativeDir: string): string[] {
   return files;
 }
 
+function collectReadmeFiles(rootDir: string, manifest: PluginManifest): string[] {
+  const candidate = manifest.readme?.trim() || 'README.md';
+  const basePath = resolve(rootDir, candidate);
+  const collected = new Set<string>();
+
+  const addIfFile = (absolutePath: string) => {
+    if (!existsSync(absolutePath) || !statSync(absolutePath).isFile()) {
+      return;
+    }
+    const relativePath = normalizeArchivePath(relative(rootDir, absolutePath));
+    if (!relativePath.startsWith('..')) {
+      collected.add(relativePath);
+    }
+  };
+
+  addIfFile(basePath);
+
+  const directory = dirname(basePath);
+  const baseName = basePath.split(/[\\/]/).pop() || 'README.md';
+  const extensionIndex = baseName.lastIndexOf('.');
+  const stem = extensionIndex >= 0 ? baseName.slice(0, extensionIndex) : baseName;
+  const extension = extensionIndex >= 0 ? baseName.slice(extensionIndex) : '';
+
+  if (existsSync(directory) && statSync(directory).isDirectory()) {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const fileName = entry.name;
+      if (!fileName.startsWith(`${stem}.`) || !fileName.endsWith(extension)) continue;
+      addIfFile(join(directory, fileName));
+    }
+  }
+
+  return [...collected].sort();
+}
+
 function loadSourceManifest(rootDir: string): { path: string; manifest: PluginManifest } {
   const manifestPath = join(rootDir, 'plugin.json');
   if (!existsSync(manifestPath)) {
@@ -220,7 +255,8 @@ export async function buildPluginPackage(
   const i18nDirectory = sourceManifest.i18n?.directory || 'locales';
   copiedFiles.push(...collectFiles(rootDir, i18nDirectory));
   copiedFiles.push(...collectFiles(rootDir, 'assets'));
-  for (const file of ['README.md', 'CHANGELOG.md']) {
+  copiedFiles.push(...collectReadmeFiles(rootDir, sourceManifest));
+  for (const file of ['CHANGELOG.md']) {
     const absolute = join(rootDir, file);
     if (existsSync(absolute) && statSync(absolute).isFile()) {
       copiedFiles.push(file);

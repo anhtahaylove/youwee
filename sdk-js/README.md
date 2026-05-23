@@ -173,7 +173,7 @@ At minimum, your workspace should depend on:
 ```json
 {
   "dependencies": {
-    "youwee-sdk": "^1.0.2"
+    "youwee-sdk": "^1.0.3"
   }
 }
 ```
