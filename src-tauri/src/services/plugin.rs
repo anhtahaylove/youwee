@@ -4409,10 +4409,10 @@ jobs:
         with:
           deno-version: vx
 
-      - name: Install dependencies
+      - name: Install dependencies with Bun
         run: bun install --frozen-lockfile
 
-      - name: Build plugin
+      - name: Build plugin with Bun toolchain
         run: bun run build
 
       - name: Run Deno runtime check
@@ -4451,7 +4451,7 @@ jobs:
         with:
           deno-version: vx
 
-      - name: Install dependencies
+      - name: Install dependencies with Bun
         run: bun install --frozen-lockfile
 
       - name: Restore signing key
@@ -4464,10 +4464,10 @@ jobs:
           fi
           printf '%s' "$YOUWEE_PLUGIN_SIGNING_KEY" > plugin.youwee-plugin-key.json
 
-      - name: Build plugin
+      - name: Build plugin with Bun toolchain
         run: bun run build
 
-      - name: Pack signed plugin
+      - name: Pack signed plugin with Bun toolchain
         run: bun run pack
 
       - name: Generate checksum
@@ -4554,6 +4554,10 @@ fn build_scaffold_readme(manifest: &PluginManifest) -> String {
 ## Overview
 
 This plugin scaffold targets the Youwee JavaScript plugin runtime.
+
+For JavaScript plugins:
+- `Deno` is the runtime used by Youwee to execute the plugin
+- `Bun` is only the local authoring toolchain for install/build/pack commands in this workspace
 
 Identity:
 - `id`: `{plugin_id}`
@@ -4728,19 +4732,19 @@ If your implementation depends on runtime-specific APIs, update
 
 ## Local execution
 
-Install dependencies first:
+Install dependencies first with the Bun toolchain:
 
 ```bash
 bun install
 ```
 
-Build a bundled runtime artifact:
+Build a bundled runtime artifact with the Bun toolchain:
 
 ```bash
 bunx youwee-sdk build
 ```
 
-Create a distributable package:
+Create a distributable package with the Bun toolchain:
 
 ```bash
 bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
@@ -4761,16 +4765,16 @@ Recommended setup:
 3. Store the full JSON contents of `plugin.youwee-plugin-key.json` in that secret
 4. Create a tag like `v0.1.0` to trigger the release workflow
 
-The CI workflow validates `bun install`, `bun run build`, and `bun run test:deno`.
+The CI workflow uses Bun for dependency installation and packaging, then runs a Deno runtime check.
 
 The release workflow:
 
 1. restores the signing key from `YOUWEE_PLUGIN_SIGNING_KEY`
-2. builds the plugin
+2. builds the plugin with the Bun toolchain
 3. packs a signed `.ywp`
 4. uploads the `.ywp` and `.sha256` files to the GitHub release
 
-Deno:
+Deno runtime check:
 
 ```bash
 cat examples/payload.download.completed.json | YOUWEE_PLUGIN_MAIN=src/plugin.js deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --allow-write=. node_modules/youwee-sdk/dist/runtime-cli.js

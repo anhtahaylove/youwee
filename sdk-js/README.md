@@ -168,6 +168,11 @@ From the workspace root:
 bun install
 ```
 
+For JavaScript plugins:
+
+- `Deno` is the runtime used by Youwee to execute the plugin
+- `Bun` is only the local authoring toolchain used for install, build, and pack commands
+
 At minimum, your workspace should depend on:
 
 ```json
@@ -244,10 +249,11 @@ bun run test:deno
 ```
 
 These commands execute the shared SDK bootstrap against your source plugin module.
+They run the plugin through Deno, while the surrounding install/build/pack workflow still uses Bun as the local toolchain.
 
 ## 7. Build
 
-Build bundled runtime output:
+Build bundled runtime output with the Bun toolchain:
 
 ```bash
 bunx youwee-sdk build
@@ -269,7 +275,7 @@ bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json
 
 ## 9. Pack
 
-Create a signed packaged plugin:
+Create a signed packaged plugin with the Bun toolchain:
 
 ```bash
 bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json
@@ -298,7 +304,7 @@ The CI workflow validates the workspace on push and pull request:
 - `bun run build`
 - `bun run test:deno`
 
-This is the fast check to make sure the source workspace still builds and runs through the shared SDK runtime.
+This means the workflow uses Bun as the authoring toolchain, then runs a Deno runtime check to make sure the plugin still executes through the shared SDK runtime.
 
 ### `release.yml`
 
@@ -312,6 +318,8 @@ It:
 4. runs `bun run pack`
 5. generates a `.sha256` file
 6. uploads the `.ywp` and checksum file to the GitHub release
+
+Here too, Bun is only the packaging toolchain. The installed JavaScript plugin still runs in Youwee through Deno.
 
 ### Required GitHub secret
 
