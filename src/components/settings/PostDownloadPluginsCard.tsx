@@ -1070,12 +1070,23 @@ export function PostDownloadPluginsCard() {
     }
   };
 
+  const promptPluginPermissionEnable = (plugin: PluginSummary) => {
+    const requested = buildRequestedPermissionApproval(plugin);
+    setPermissionDialogPlugin(plugin);
+    setPermissionDialogState({
+      network: requested.network ? plugin.installation.approvedPermissions.network : false,
+      fs: requested.fs.filter((permission) =>
+        plugin.installation.approvedPermissions.fs.includes(permission),
+      ),
+    });
+  };
+
   const handleInstallInspection = async () => {
     if (!inspection || !installSource) return;
     setInstalling(true);
     setError(null);
     try {
-      await invoke<PluginSummary>('install_plugin_package', {
+      const installedPlugin = await invoke<PluginSummary>('install_plugin_package', {
         path: installSource.value,
         trusted: true,
       });
@@ -1083,6 +1094,9 @@ export function PostDownloadPluginsCard() {
       setInstallSource(null);
       setInstallAcknowledged(false);
       await loadPlugins();
+      if (hasUnapprovedRequestedPermissions(installedPlugin)) {
+        promptPluginPermissionEnable(installedPlugin);
+      }
     } catch (err) {
       console.error('Failed to install plugin:', err);
       setError(localizeUnknownError(err));
@@ -1093,14 +1107,7 @@ export function PostDownloadPluginsCard() {
 
   const handleTogglePlugin = async (plugin: PluginSummary, enabled: boolean) => {
     if (enabled && hasUnapprovedRequestedPermissions(plugin)) {
-      const requested = buildRequestedPermissionApproval(plugin);
-      setPermissionDialogPlugin(plugin);
-      setPermissionDialogState({
-        network: requested.network ? plugin.installation.approvedPermissions.network : false,
-        fs: requested.fs.filter((permission) =>
-          plugin.installation.approvedPermissions.fs.includes(permission),
-        ),
-      });
+      promptPluginPermissionEnable(plugin);
       return;
     }
 
@@ -2847,9 +2854,6 @@ export function PostDownloadPluginsCard() {
                                             </span>
                                           )}
                                         </div>
-                                        <p className="text-[11px] text-muted-foreground">
-                                          {field.key}
-                                        </p>
                                         {field.description && (
                                           <p className="text-[11px] text-muted-foreground">
                                             {field.description}
