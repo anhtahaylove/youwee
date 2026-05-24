@@ -264,6 +264,62 @@ fn combine_plugin_event_details(
     }
 }
 
+fn build_plugin_completion_details(result: &PluginExecutionResult) -> Option<String> {
+    let mut lines: Vec<String> = Vec::new();
+
+    if let Some(message) = result.message.as_ref() {
+        if !message.trim().is_empty() {
+            lines.push(format!("Message: {message}"));
+        }
+    }
+
+    if let Some(mutation) = result.mutations.as_ref() {
+        if let Some(active_filepath) = mutation.active_filepath.as_ref() {
+            if !active_filepath.trim().is_empty() {
+                lines.push(format!("Active file for next step: {active_filepath}"));
+            }
+        }
+
+        let extra_files: Vec<&String> = mutation
+            .extra_files
+            .iter()
+            .filter(|path| {
+                !path.trim().is_empty()
+                    && mutation
+                        .active_filepath
+                        .as_ref()
+                        .map(|active| active != *path)
+                        .unwrap_or(true)
+            })
+            .collect();
+
+        if !extra_files.is_empty() {
+            lines.push("Extra output files:".to_string());
+            lines.extend(extra_files.into_iter().map(|path| format!("- {path}")));
+        }
+    }
+
+    if let Some(stderr) = result.stderr.as_ref() {
+        let trimmed = stderr.trim();
+        if !trimmed.is_empty() {
+            lines.push(format!("stderr: {trimmed}"));
+        }
+    }
+
+    if let Some(stdout) = result.stdout.as_ref() {
+        let trimmed = stdout.trim();
+        if !trimmed.is_empty() && parse_plugin_result(trimmed).is_none() {
+            lines.push(format!("stdout: {trimmed}"));
+        }
+    }
+
+    if lines.is_empty() {
+        None
+    } else {
+        Some(lines.join("\n"))
+    }
+}
+
 fn shorten_for_event(text: Option<String>) -> Option<String> {
     text.map(|value| truncate_text(&value, 1500))
 }
@@ -3346,7 +3402,9 @@ fn emit_plugin_runtime_output(
         }
     };
     let details = format!("pluginId: {} | pluginName: {} | stream: {}", plugin_id, plugin_name, stream);
-    add_log_internal(log_type, &chunk, Some(&details), log_url).ok();
+    if should_persist_plugin_runtime_output(stream, trimmed, log_type) {
+        add_log_internal(log_type, &chunk, Some(&details), log_url).ok();
+    }
 
     app.emit(
         "plugin-execution-output",
@@ -3362,6 +3420,14 @@ fn emit_plugin_runtime_output(
         },
     )
     .ok();
+}
+
+fn should_persist_plugin_runtime_output(stream: &str, trimmed: &str, log_type: &str) -> bool {
+    if stream == "stdout" {
+        return parse_plugin_result(trimmed).is_none();
+    }
+
+    !matches!(log_type, "info")
 }
 
 async fn capture_process_stream<R>(
@@ -4078,11 +4144,7 @@ async fn execute_plugin_workflow_run(
                 )
                 .ok();
 
-                let details = combine_plugin_event_details(
-                    result.message.as_ref(),
-                    result.stdout.as_ref(),
-                    result.stderr.as_ref(),
-                );
+                let details = build_plugin_completion_details(&result);
                 add_log_internal(
                     if result.success { "success" } else { "error" },
                     &format!("Post-processing step finished: {}", plugin.manifest.name),
@@ -4878,12 +4940,16 @@ mod tests {
     use std::path::Path;
 
     use super::{
-        build_scaffold_ci_workflow, build_scaffold_package_json, build_scaffold_readme,
-        build_scaffold_release_workflow, collect_compatibility_issues, current_sdk_version,
-        parse_plugin_result, satisfies_version_range, sanitize_slug, validate_manifest,
-        write_sdk_package_files,
+        build_plugin_completion_details, build_scaffold_ci_workflow,
+        build_scaffold_package_json, build_scaffold_readme, build_scaffold_release_workflow,
+        collect_compatibility_issues, current_sdk_version, parse_plugin_result,
+        satisfies_version_range, sanitize_slug,
+        should_persist_plugin_runtime_output, validate_manifest, write_sdk_package_files,
     };
-    use crate::types::{PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage, PluginRuntimeSpec};
+    use crate::types::{
+        PluginExecutionResult, PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage,
+        PluginRuntimeSpec,
+    };
 
     #[test]
     fn sanitize_slug_normalizes_values() {
@@ -4923,7 +4989,7 @@ mod tests {
         assert!(readme.contains("src/plugin.js"));
         assert!(readme.contains("ctx.ok"));
         assert!(readme.contains("Execution flow"));
-        assert!(readme.contains("node_modules/youwee-sdk"));
+        assert!(readme.contains("bun run test:deno"));
     }
 
     #[test]
@@ -5091,6 +5157,68 @@ mod tests {
         let parsed = parse_plugin_result(stdout).expect("expected plugin result");
         assert_eq!(parsed.success, Some(true));
         assert_eq!(parsed.message.as_deref(), Some("Uploaded"));
+    }
+
+    #[test]
+    fn plugin_runtime_stdout_json_is_not_persisted_as_a_log_entry() {
+        assert!(!should_persist_plugin_runtime_output(
+            "stdout",
+            r#"{"success":true,"message":"Uploaded"}"#,
+            "info",
+        ));
+        assert!(should_persist_plugin_runtime_output(
+            "stdout",
+            "plain stdout details",
+            "info",
+        ));
+    }
+
+    #[test]
+    fn plugin_runtime_stderr_info_is_not_persisted_but_warnings_are() {
+        assert!(!should_persist_plugin_runtime_output(
+            "stderr",
+            "[info] Created PCM audio file",
+            "info",
+        ));
+        assert!(should_persist_plugin_runtime_output(
+            "stderr",
+            "[warn] Something needs attention",
+            "stderr",
+        ));
+        assert!(should_persist_plugin_runtime_output(
+            "stderr",
+            "[error] Conversion failed",
+            "error",
+        ));
+    }
+
+    #[test]
+    fn plugin_completion_details_highlight_output_paths_for_follow_up_steps() {
+        let result = PluginExecutionResult {
+            plugin_id: "com.example.plugin".to_string(),
+            success: true,
+            message: Some("Created PCM audio file output.mov.".to_string()),
+            artifacts: None,
+            metadata: None,
+            mutations: Some(crate::types::PluginChainMutation {
+                active_filepath: Some("/tmp/output.mov".to_string()),
+                active_filename: Some("output.mov".to_string()),
+                extra_files: vec![
+                    "/tmp/output.mov".to_string(),
+                    "/tmp/output.wav".to_string(),
+                ],
+                metadata_patch: None,
+            }),
+            stdout: Some(r#"{"success":true,"message":"Created PCM audio file output.mov."}"#.to_string()),
+            stderr: None,
+        };
+
+        let details = build_plugin_completion_details(&result).expect("expected details");
+
+        assert!(details.contains("Message: Created PCM audio file output.mov."));
+        assert!(details.contains("Active file for next step: /tmp/output.mov"));
+        assert!(details.contains("Extra output files:\n- /tmp/output.wav"));
+        assert!(!details.contains("stdout:"));
     }
 
     #[test]
