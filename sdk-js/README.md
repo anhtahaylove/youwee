@@ -178,7 +178,7 @@ At minimum, your workspace should depend on:
 ```json
 {
   "dependencies": {
-    "youwee-sdk": "^1.0.3"
+    "youwee-sdk": "^1.0.5"
   }
 }
 ```
@@ -201,21 +201,12 @@ See [Manifest reference](#manifest-reference).
 
 You can optionally set `icon` in `plugin.json` so Youwee shows a custom icon for the plugin.
 If you omit it, Youwee uses the default `Puzzle` icon.
+Youwee resolves the icon dynamically from [Lucide](https://lucide.dev/icons/), so you can use either:
 
-Supported icon names:
+- `PascalCase`, for example `Atom` or `ShieldCheck`
+- `kebab-case`, for example `package-open` or `circle-alert`
 
-- `puzzle`
-- `atom`
-- `plug`
-- `blocks`
-- `package-open`
-- `bot`
-- `shield`
-- `wrench`
-- `globe`
-- `folder-open`
-- `terminal-square`
-- `info`
+Unknown icon names safely fall back to `Puzzle`.
 
 ## 4. Write the plugin module
 
@@ -250,6 +241,7 @@ bun run test:deno
 
 These commands execute the shared SDK bootstrap against your source plugin module.
 They run the plugin through Deno, while the surrounding install/build/pack workflow still uses Bun as the local toolchain.
+The shared `runtime-cli` bootstrap sanitizes macOS linker environment variables before your plugin module loads, so `Deno.Command(...)` and tool helpers like FFmpeg behave the same way they do inside Youwee without relying on shell-specific `env -u ...` syntax.
 
 ## 7. Build
 

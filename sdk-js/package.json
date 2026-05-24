@@ -1,6 +1,6 @@
 {
   "name": "youwee-sdk",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Youwee plugin SDK for JavaScript runtimes.",
   "type": "commonjs",
   "main": "./dist/index.js",

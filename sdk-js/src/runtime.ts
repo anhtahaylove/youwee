@@ -30,6 +30,34 @@ import type {
   YouweeBridge,
 } from './types';
 
+type DenoCommandOutput = {
+  code: number;
+  signal?: string | null;
+  stdout: Uint8Array;
+  stderr: Uint8Array;
+};
+
+type DenoCommandInstance = {
+  output(): Promise<DenoCommandOutput>;
+};
+
+type DenoCommandConstructor = new (
+  command: string,
+  options: {
+    args?: string[];
+    cwd?: string;
+    env?: Record<string, string>;
+    stdout?: 'piped';
+    stderr?: 'piped';
+  },
+) => DenoCommandInstance;
+
+const STRIP_SUBPROCESS_ENV_KEYS = new Set([
+  'DYLD_FALLBACK_LIBRARY_PATH',
+  'DYLD_LIBRARY_PATH',
+  'LD_LIBRARY_PATH',
+]);
+
 function writeStderr(level: string, message: string, metadata?: unknown): void {
   const suffix = metadata ? ` ${JSON.stringify(metadata)}` : '';
   process.stderr.write(`[${level}] ${message}${suffix}\n`);
@@ -80,18 +108,59 @@ function createCommandRunner(toolName: string, pathEnvName: string): ToolRunner 
   };
 }
 
+function createProcessEnv(overrides: Record<string, string> = {}): Record<string, string> {
+  const env: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (typeof value === 'string' && !STRIP_SUBPROCESS_ENV_KEYS.has(key)) {
+      env[key] = value;
+    }
+  }
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (!STRIP_SUBPROCESS_ENV_KEYS.has(key)) {
+      env[key] = value;
+    }
+  }
+
+  return env;
+}
+
 export function spawnCommand(
   command: string,
   args: string[],
   options: { cwd?: string; env?: Record<string, string> } = {},
 ): Promise<CommandResult> {
+  const DenoCommand = (
+    globalThis as typeof globalThis & {
+      Deno?: {
+        Command?: DenoCommandConstructor;
+      };
+    }
+  ).Deno?.Command;
+
+  if (DenoCommand) {
+    const decoder = new TextDecoder();
+    const denoCommand = new DenoCommand(command, {
+      args,
+      cwd: options.cwd || process.cwd(),
+      env: createProcessEnv(options.env || {}),
+      stdout: 'piped',
+      stderr: 'piped',
+    });
+
+    return denoCommand.output().then((result) => ({
+      code: typeof result.code === 'number' ? result.code : null,
+      signal: result.signal ?? null,
+      stdout: decoder.decode(result.stdout),
+      stderr: decoder.decode(result.stderr),
+    }));
+  }
+
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd || process.cwd(),
-      env: {
-        ...process.env,
-        ...(options.env || {}),
-      },
+      env: createProcessEnv(options.env || {}),
       stdio: ['ignore', 'pipe', 'pipe'],
     });
 

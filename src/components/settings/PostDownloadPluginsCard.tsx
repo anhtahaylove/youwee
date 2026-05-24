@@ -1,28 +1,24 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { open } from '@tauri-apps/plugin-dialog';
+import * as LucideIcons from 'lucide-react';
 import {
   Atom,
-  Blocks,
-  Bot,
   Check,
   ChevronDown,
   Download,
   FolderOpen,
-  Globe,
   Info,
+  type LucideIcon,
   MoveDown,
   MoveUp,
   PackageOpen,
-  Plug,
   Plus,
   Puzzle,
   RefreshCw,
-  Shield,
   ShieldCheck,
   TerminalSquare,
   Trash2,
-  Wrench,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -168,20 +164,7 @@ const FILESYSTEM_PERMISSIONS: PluginFilesystemPermission[] = [
   'fs.user-selected.write',
 ];
 
-const PLUGIN_ICON_OPTIONS: PluginManifestIconName[] = [
-  'puzzle',
-  'atom',
-  'plug',
-  'blocks',
-  'package-open',
-  'bot',
-  'shield',
-  'wrench',
-  'globe',
-  'folder-open',
-  'terminal-square',
-  'info',
-];
+const LUCIDE_ICON_REGISTRY = LucideIcons as Record<string, LucideIcon | unknown>;
 
 function summarizeRequestedPermissions(
   plugin: PluginSummary | PluginPackageInspection,
@@ -391,68 +374,36 @@ const DEFAULT_CREATE_PLUGIN_FORM: CreatePluginFormState = {
   configFields: [],
 };
 
-function getPluginIconLabel(
-  icon: PluginManifestIconName,
-  t: (key: string, opts?: Record<string, unknown>) => string,
-) {
-  switch (icon) {
-    case 'puzzle':
-      return t('download.pluginIconPuzzle');
-    case 'atom':
-      return t('download.pluginIconAtom');
-    case 'plug':
-      return t('download.pluginIconPlug');
-    case 'blocks':
-      return t('download.pluginIconBlocks');
-    case 'package-open':
-      return t('download.pluginIconPackageOpen');
-    case 'bot':
-      return t('download.pluginIconBot');
-    case 'shield':
-      return t('download.pluginIconShield');
-    case 'wrench':
-      return t('download.pluginIconWrench');
-    case 'globe':
-      return t('download.pluginIconGlobe');
-    case 'folder-open':
-      return t('download.pluginIconFolderOpen');
-    case 'terminal-square':
-      return t('download.pluginIconTerminalSquare');
-    case 'info':
-      return t('download.pluginIconInfo');
+function toLucideIconName(value: string) {
+  return value
+    .trim()
+    .replace(/\.svg$/i, '')
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join('');
+}
+
+function resolvePluginManifestIcon(icon: string | null | undefined): LucideIcon | null {
+  const trimmed = icon?.trim();
+  if (!trimmed) return null;
+
+  const direct = LUCIDE_ICON_REGISTRY[trimmed];
+  if (typeof direct === 'function') {
+    return direct as LucideIcon;
   }
+
+  const normalized = toLucideIconName(trimmed);
+  const resolved = LUCIDE_ICON_REGISTRY[normalized];
+  return typeof resolved === 'function' ? (resolved as LucideIcon) : null;
 }
 
 function renderPluginManifestIcon(
   icon: PluginManifestIconName | string | null | undefined,
   className = 'h-4 w-4',
 ) {
-  switch (icon) {
-    case 'atom':
-      return <Atom className={className} />;
-    case 'plug':
-      return <Plug className={className} />;
-    case 'blocks':
-      return <Blocks className={className} />;
-    case 'package-open':
-      return <PackageOpen className={className} />;
-    case 'bot':
-      return <Bot className={className} />;
-    case 'shield':
-      return <Shield className={className} />;
-    case 'wrench':
-      return <Wrench className={className} />;
-    case 'globe':
-      return <Globe className={className} />;
-    case 'folder-open':
-      return <FolderOpen className={className} />;
-    case 'terminal-square':
-      return <TerminalSquare className={className} />;
-    case 'info':
-      return <Info className={className} />;
-    default:
-      return <Puzzle className={className} />;
-  }
+  const Icon = resolvePluginManifestIcon(icon) ?? Puzzle;
+  return <Icon className={className} />;
 }
 
 type ToggleChoiceCardProps = {
@@ -3403,30 +3354,21 @@ export function PostDownloadPluginsCard() {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">{t('download.pluginCreateIconLabel')}</p>
-                <Select
-                  value={createPluginForm.icon || '__default__'}
-                  onValueChange={(value) =>
-                    updateCreatePluginForm(
-                      'icon',
-                      value === '__default__' ? '' : (value as PluginManifestIconName),
-                    )
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('download.pluginCreateIconPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__default__">{t('download.pluginIconDefault')}</SelectItem>
-                    {PLUGIN_ICON_OPTIONS.map((icon) => (
-                      <SelectItem key={icon} value={icon}>
-                        {getPluginIconLabel(icon, t)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {t('download.pluginCreateIconHelp')}
-                </p>
+                <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/80 px-3 py-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-muted-foreground">
+                    {renderPluginManifestIcon(createPluginForm.icon || null, 'h-5 w-5')}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <Input
+                      value={createPluginForm.icon}
+                      onChange={(event) => updateCreatePluginForm('icon', event.target.value)}
+                      placeholder={t('download.pluginCreateIconPlaceholder')}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t('download.pluginCreateIconHelp')}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="space-y-2">

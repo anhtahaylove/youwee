@@ -209,19 +209,7 @@ export interface DownloadProgress {
 export type PluginRuntimeLanguage = 'javascript' | 'python';
 export type PluginProvider = 'deno' | 'python';
 export type PluginPackageSourceKind = 'workspace' | 'package-ywp';
-export type PluginManifestIconName =
-  | 'puzzle'
-  | 'atom'
-  | 'plug'
-  | 'blocks'
-  | 'package-open'
-  | 'bot'
-  | 'shield'
-  | 'wrench'
-  | 'globe'
-  | 'folder-open'
-  | 'terminal-square'
-  | 'info';
+export type PluginManifestIconName = string;
 export type PluginFilesystemPermission =
   | 'fs.plugin.read'
   | 'fs.plugin.write'

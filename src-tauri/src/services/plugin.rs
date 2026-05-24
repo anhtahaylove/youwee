@@ -715,25 +715,10 @@ fn validate_manifest(manifest: &PluginManifest, manifest_path: &Path) -> Result<
         ));
     }
     if let Some(icon) = manifest.icon.as_ref() {
-        if !matches!(
-            icon.as_str(),
-            "puzzle"
-                | "atom"
-                | "plug"
-                | "blocks"
-                | "package-open"
-                | "bot"
-                | "shield"
-                | "wrench"
-                | "globe"
-                | "folder-open"
-                | "terminal-square"
-                | "info"
-        ) {
+        if icon.trim().is_empty() {
             return Err(format!(
-                "Plugin manifest {} declares unsupported icon {}",
-                manifest_path.display(),
-                icon
+                "Plugin manifest {} declares an empty icon name",
+                manifest_path.display()
             ));
         }
     }
@@ -947,7 +932,7 @@ fn current_sdk_version() -> String {
     serde_json::from_str::<serde_json::Value>(SDK_JS_PACKAGE_JSON)
         .ok()
         .and_then(|value| value.get("version").and_then(|value| value.as_str()).map(str::to_string))
-        .unwrap_or_else(|| "1.0.3".to_string())
+        .unwrap_or_else(|| "1.0.5".to_string())
 }
 
 fn build_scaffold_compatibility_range(version: &str) -> String {
@@ -3594,6 +3579,15 @@ async fn execute_plugin(
         allow_read_scopes.sort();
         allow_read_scopes.dedup();
     }
+    let mut allow_run_scopes = Vec::<PathBuf>::new();
+    if let Some(path) = ffmpeg_path.as_ref() {
+        allow_run_scopes.extend(path_scope_variants(Path::new(path)));
+    }
+    if let Some(path) = ytdlp_path.as_ref() {
+        allow_run_scopes.extend(path_scope_variants(Path::new(path)));
+    }
+    allow_run_scopes.sort();
+    allow_run_scopes.dedup();
 
     let mut command_args = Vec::<String>::new();
     match selected_provider {
@@ -3609,6 +3603,9 @@ async fn execute_plugin(
             push_allow_flag(&mut command_args, "allow-read", &allow_read_scopes);
             if !allow_write_scopes.is_empty() {
                 push_allow_flag(&mut command_args, "allow-write", &allow_write_scopes);
+            }
+            if !allow_run_scopes.is_empty() {
+                push_allow_flag(&mut command_args, "allow-run", &allow_run_scopes);
             }
             let runtime_cli = app_sdk_runtime_bundle
                 .as_ref()
@@ -3629,6 +3626,11 @@ async fn execute_plugin(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     cmd.hide_window();
+    if matches!(selected_provider, PluginProvider::Deno) {
+        cmd.env_remove("DYLD_FALLBACK_LIBRARY_PATH");
+        cmd.env_remove("DYLD_LIBRARY_PATH");
+        cmd.env_remove("LD_LIBRARY_PATH");
+    }
     cmd.env(
         "YOUWEE_PLUGIN_TIMEOUT_MS",
         timeout_sec.saturating_mul(1000).to_string(),
@@ -4361,7 +4363,7 @@ fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
     "build": "bunx youwee-sdk build",
     "pack": "bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json",
     "keygen": "bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json",
-    "test:deno": "YOUWEE_PLUGIN_MAIN=src/plugin.js deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --allow-write=. node_modules/youwee-sdk/dist/runtime-cli.js"
+    "test:deno": "deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --allow-write=. --allow-run node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.js"
   }},
   "dependencies": {{
     "youwee-sdk": "^{sdk_version}"
@@ -4777,7 +4779,7 @@ The release workflow:
 Deno runtime check:
 
 ```bash
-cat examples/payload.download.completed.json | YOUWEE_PLUGIN_MAIN=src/plugin.js deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --allow-write=. node_modules/youwee-sdk/dist/runtime-cli.js
+bun run test:deno < examples/payload.download.completed.json
 ```
 
 ## Packaging
@@ -5076,8 +5078,11 @@ mod tests {
         assert!(
             package_json.contains("\"keygen\": \"bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json\"")
         );
-        assert!(package_json.contains("YOUWEE_PLUGIN_MAIN=src/plugin.js"));
-        assert!(package_json.contains("deno run --quiet"));
+        assert!(
+            package_json.contains(
+                "\"test:deno\": \"deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --allow-write=. --allow-run node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.js\""
+            )
+        );
     }
 
     #[test]

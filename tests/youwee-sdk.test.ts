@@ -318,8 +318,9 @@ describe('youwee-sdk manifest helpers', () => {
     expect(packageJson).toContain(
       `"keygen": "bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json"`,
     );
-    expect(packageJson).toContain('YOUWEE_PLUGIN_MAIN=src/plugin.js');
+    expect(packageJson).toContain('node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.js');
     expect(packageJson).toContain('deno run');
+    expect(packageJson).toContain('--allow-run');
   });
 
   test('rejects invalid compatibility syntax in manifests', () => {
@@ -720,11 +721,11 @@ describe('youwee-sdk runtime-cli', () => {
           '--allow-env',
           `--allow-read=${tempDir},${resolvedTempDir},${runtimeDistDir}`,
           runtimeCli,
+          pluginFile,
         ],
         {
           env: {
             ...process.env,
-            YOUWEE_PLUGIN_MAIN: pluginFile,
           },
           stdio: ['pipe', 'pipe', 'pipe'],
         },
@@ -758,6 +759,206 @@ describe('youwee-sdk runtime-cli', () => {
       success: true,
       message: 'runtime ok',
       metadata: { filename: 'video.mp4' },
+      artifacts: null,
+      mutations: null,
+    });
+  });
+
+  test('uses Deno.Command for tool runners inside the Deno runtime', async () => {
+    if (spawnSync('deno', ['--version'], { stdio: 'ignore' }).status !== 0) {
+      return;
+    }
+
+    const denoExecPath = spawnSync('deno', ['eval', 'console.log(Deno.execPath())'], {
+      encoding: 'utf8',
+    });
+
+    if (denoExecPath.status !== 0) {
+      throw new Error(denoExecPath.stderr || 'Failed to resolve Deno exec path');
+    }
+
+    const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-tool-runner-'));
+    const resolvedTempDir = realpathSync(tempDir);
+    const pluginFile = join(tempDir, 'plugin.cjs');
+    const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
+    const runtimeCli = resolve(process.cwd(), 'sdk-js/dist/runtime-cli.js');
+    const runtimeDistDir = realpathSync(resolve(process.cwd(), 'sdk-js', 'dist'));
+    const denoPath = denoExecPath.stdout.trim();
+
+    writeFileSync(
+      pluginFile,
+      `
+        const { definePlugin } = require(${JSON.stringify(sdkEntry)});
+        module.exports = definePlugin({
+          meta: { name: "Tool Runner", version: "0.1.0" },
+          hooks: {
+            "download.completed": async (ctx) => {
+              const result = await ctx.youwee.tools.ffmpeg.run([
+                "eval",
+                "console.log('ffmpeg tool ok')",
+              ]);
+              return ctx.ok("tool ok", {
+                stdout: result.stdout.trim(),
+                stderr: result.stderr.trim(),
+                exitCode: result.code,
+              });
+            },
+          },
+        });
+      `,
+    );
+
+    const { exitCode, stdout, stderr } = await new Promise<{
+      exitCode: number | null;
+      stdout: string;
+      stderr: string;
+    }>((resolvePromise, reject) => {
+      const proc = spawn(
+        'deno',
+        [
+          'run',
+          '--quiet',
+          '--unstable-detect-cjs',
+          '--allow-env',
+          `--allow-read=${tempDir},${resolvedTempDir},${runtimeDistDir}`,
+          `--allow-run=${denoPath}`,
+          runtimeCli,
+          pluginFile,
+        ],
+        {
+          env: {
+            ...process.env,
+            YOUWEE_FFMPEG_PATH: denoPath,
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      proc.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      proc.on('error', reject);
+      proc.on('close', (code) => {
+        resolvePromise({ exitCode: code, stdout, stderr });
+      });
+
+      proc.stdin.write(JSON.stringify(samplePayload));
+      proc.stdin.end();
+    });
+
+    rmSync(tempDir, { recursive: true, force: true });
+
+    expect(exitCode).toBe(0);
+    expect(stderr.trim()).toBe('');
+    expect(JSON.parse(stdout)).toEqual({
+      success: true,
+      message: 'tool ok',
+      metadata: {
+        stdout: 'ffmpeg tool ok',
+        stderr: '',
+        exitCode: 0,
+      },
+      artifacts: null,
+      mutations: null,
+    });
+  });
+
+  test('strips linker environment variables before loading the plugin module', async () => {
+    if (spawnSync('deno', ['--version'], { stdio: 'ignore' }).status !== 0) {
+      return;
+    }
+
+    const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-env-sanitize-'));
+    const resolvedTempDir = realpathSync(tempDir);
+    const pluginFile = join(tempDir, 'plugin.cjs');
+    const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
+    const runtimeCli = resolve(process.cwd(), 'sdk-js/dist/runtime-cli.js');
+    const runtimeDistDir = realpathSync(resolve(process.cwd(), 'sdk-js', 'dist'));
+
+    writeFileSync(
+      pluginFile,
+      `
+        const { definePlugin } = require(${JSON.stringify(sdkEntry)});
+        module.exports = definePlugin({
+          meta: { name: "Runtime Env", version: "0.1.0" },
+          hooks: {
+            "download.completed": async (ctx) => ctx.ok("sanitized", {
+              dyldFallback: process.env.DYLD_FALLBACK_LIBRARY_PATH ?? null,
+              dyldLibrary: process.env.DYLD_LIBRARY_PATH ?? null,
+              ldLibrary: process.env.LD_LIBRARY_PATH ?? null,
+            }),
+          },
+        });
+      `,
+    );
+
+    const { exitCode, stdout, stderr } = await new Promise<{
+      exitCode: number | null;
+      stdout: string;
+      stderr: string;
+    }>((resolvePromise, reject) => {
+      const proc = spawn(
+        'deno',
+        [
+          'run',
+          '--quiet',
+          '--unstable-detect-cjs',
+          '--allow-env',
+          `--allow-read=${tempDir},${resolvedTempDir},${runtimeDistDir}`,
+          runtimeCli,
+          pluginFile,
+        ],
+        {
+          env: {
+            ...process.env,
+            DYLD_FALLBACK_LIBRARY_PATH: '/tmp/fallback',
+            DYLD_LIBRARY_PATH: '/tmp/dyld',
+            LD_LIBRARY_PATH: '/tmp/ld',
+          },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        },
+      );
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      proc.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      proc.on('error', reject);
+      proc.on('close', (code) => {
+        resolvePromise({ exitCode: code, stdout, stderr });
+      });
+
+      proc.stdin.write(JSON.stringify(samplePayload));
+      proc.stdin.end();
+    });
+
+    rmSync(tempDir, { recursive: true, force: true });
+
+    expect(exitCode).toBe(0);
+    expect(stderr.trim()).toBe('');
+    expect(JSON.parse(stdout)).toEqual({
+      success: true,
+      message: 'sanitized',
+      metadata: {
+        dyldFallback: null,
+        dyldLibrary: null,
+        ldLibrary: null,
+      },
       artifacts: null,
       mutations: null,
     });

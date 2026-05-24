@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-05-24
+
+### Changed
+- **Plugin icon resolution** - Relaxed plugin icon handling so manifests can declare any Lucide icon name, with Youwee resolving both PascalCase and kebab-case names and falling back safely to `Puzzle`.
+
+### Fixed
+- **Cross-platform Deno test flow** - Updated the shared `runtime-cli` bootstrap and generated `test:deno` scripts so local plugin testing no longer depends on Unix-only `env -u ...` shell syntax.
+
+## [1.0.4] - 2026-05-24
+
+### Fixed
+- **Deno subprocess tool runner** - Updated `ctx.youwee.tools.ffmpeg.run(...)` and other command helpers to use `Deno.Command` when running inside Deno, fixing subprocess stream failures in plugin runtimes.
+- **Deno test flow** - Updated scaffolded `test:deno` scripts and runtime environment handling to clear linker-related environment variables that can block `Deno.Command(...)` subprocess execution on macOS.
+
 ## [1.0.3] - 2026-05-23
 
 ### Fixed
