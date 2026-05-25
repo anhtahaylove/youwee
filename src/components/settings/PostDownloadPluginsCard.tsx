@@ -3110,197 +3110,232 @@ export function PostDownloadPluginsCard() {
           const tone = WORKFLOW_TRIGGER_TONES[trigger];
 
           return (
-            <SettingsCard key={trigger} className={cn('space-y-4', tone.cardClassName)}>
-              {trigger === 'download.queued' && (
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.10),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(148,163,184,0.05),_transparent_34%)]" />
-              )}
-              {trigger === 'download.beforeStart' && (
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.06),_transparent_34%)]" />
-              )}
-              {trigger === 'download.completed' && (
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.06),_transparent_34%)]" />
-              )}
-              {trigger === 'download.failed' && (
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(244,63,94,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,63,94,0.06),_transparent_34%)]" />
-              )}
-              <div className="space-y-1 relative z-10">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={cn(
-                      'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]',
-                      tone.titleBadgeClassName,
-                    )}
+            <Collapsible key={trigger}>
+              <SettingsCard className={cn('space-y-0', tone.cardClassName)}>
+                {trigger === 'download.queued' && (
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(148,163,184,0.10),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(148,163,184,0.05),_transparent_34%)]" />
+                )}
+                {trigger === 'download.beforeStart' && (
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(245,158,11,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(245,158,11,0.06),_transparent_34%)]" />
+                )}
+                {trigger === 'download.completed' && (
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.06),_transparent_34%)]" />
+                )}
+                {trigger === 'download.failed' && (
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(244,63,94,0.12),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(244,63,94,0.06),_transparent_34%)]" />
+                )}
+
+                {/* Header — always visible, clickable to toggle */}
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="relative z-10 flex w-full items-center justify-between gap-3 text-left"
                   >
-                    {t(`download.pluginWorkflowTrigger.${trigger}.title`)}
-                  </span>
-                </div>
-                <p className={cn('text-sm font-medium', tone.titleClassName)}>
-                  {t(`download.pluginWorkflowTrigger.${trigger}.title`)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {t(`download.pluginWorkflowTrigger.${trigger}.desc`)}
-                </p>
-              </div>
-
-              <div className={cn('rounded-xl border border-dashed p-4', tone.panelClassName)}>
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <p className="text-xs font-medium">{t('download.pluginWorkflowAddLabel')}</p>
-                    <Select
-                      value={candidateValue}
-                      onValueChange={(value) =>
-                        setWorkflowCandidates((current) => ({ ...current, [trigger]: value }))
-                      }
-                    >
-                      <SelectTrigger className="h-9 text-xs">
-                        <SelectValue placeholder={t('download.pluginWorkflowAddPlaceholder')} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableWorkflowPlugins.map((plugin) => (
-                          <SelectItem
-                            key={`${trigger}-${plugin.manifest.id}`}
-                            value={plugin.manifest.id}
-                            className="text-xs"
-                          >
-                            {plugin.manifest.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    className="border-dashed"
-                    onClick={() => handleAddWorkflowPlugin(trigger)}
-                    disabled={!candidateValue}
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t('download.pluginWorkflowAddButton')}
-                  </Button>
-                </div>
-              </div>
-
-              {workflowPlugins.length === 0 ? (
-                <div
-                  className={cn(
-                    'rounded-xl border border-dashed px-4 py-6 text-center',
-                    tone.emptyClassName,
-                  )}
-                >
-                  <p className="text-sm font-medium">{t('download.pluginWorkflowEmptyTitle')}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t('download.pluginWorkflowEmptyDesc')}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {workflowPlugins.map(({ step, plugin }, index) => {
-                    if (!plugin) return null;
-                    return (
-                      <div
-                        key={`${trigger}-${plugin.manifest.id}`}
-                        className={cn('rounded-xl border p-4', tone.stepClassName)}
-                      >
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0 flex-1 space-y-2">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className={cn(
-                                  'rounded px-2 py-0.5 text-[10px] uppercase tracking-wide',
-                                  tone.titleBadgeClassName,
-                                )}
-                              >
-                                {t('download.pluginWorkflowStepNumber', { index: index + 1 })}
-                              </span>
-                              <p className="truncate text-sm font-semibold">
-                                {plugin.manifest.name}
-                              </p>
-                              <span className="rounded bg-muted px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground">
-                                v{plugin.manifest.version}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {plugin.manifest.description || t('download.pluginNoDescription')}
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() =>
-                                handleMoveWorkflowStep(trigger, plugin.manifest.id, -1)
-                              }
-                              disabled={index === 0}
-                            >
-                              <MoveUp className="h-4 w-4" />
-                              {t('download.pluginWorkflowMoveUp')}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleMoveWorkflowStep(trigger, plugin.manifest.id, 1)}
-                              disabled={index === workflowPlugins.length - 1}
-                            >
-                              <MoveDown className="h-4 w-4" />
-                              {t('download.pluginWorkflowMoveDown')}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleRemoveWorkflowStep(trigger, plugin.manifest.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              {t('download.pluginWorkflowRemove')}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium">
-                              {t('download.pluginWorkflowStepOrder')}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {t('download.pluginWorkflowStepOrderHelp')}
-                            </p>
-                          </div>
-
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium">
-                              {t('download.pluginWorkflowFailureTitle')}
-                            </p>
-                            <Select
-                              value={step.failurePolicy}
-                              onValueChange={(value) =>
-                                handleWorkflowFailurePolicy(
-                                  trigger,
-                                  plugin.manifest.id,
-                                  value as PluginWorkflowFailurePolicy,
-                                )
-                              }
-                            >
-                              <SelectTrigger className="h-9 text-xs">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="continue" className="text-xs">
-                                  {t('download.pluginWorkflowFailureContinue')}
-                                </SelectItem>
-                                <SelectItem value="stop-chain" className="text-xs">
-                                  {t('download.pluginWorkflowFailureStopChain')}
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            'rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]',
+                            tone.titleBadgeClassName,
+                          )}
+                        >
+                          {t(`download.pluginWorkflowTrigger.${trigger}.title`)}
+                        </span>
+                        {workflowPlugins.length > 0 && (
+                          <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            {workflowPlugins.length}
+                          </span>
+                        )}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </SettingsCard>
+                      <p className="text-xs text-muted-foreground">
+                        {t(`download.pluginWorkflowTrigger.${trigger}.desc`)}
+                      </p>
+                    </div>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 [[data-state=open]_&]:rotate-180" />
+                  </button>
+                </CollapsibleTrigger>
+
+                {/* Body — collapsible */}
+                <CollapsibleContent>
+                  <div className="relative z-10 space-y-4 pt-4">
+                    <div className={cn('rounded-xl border border-dashed p-4', tone.panelClassName)}>
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <p className="text-xs font-medium">
+                            {t('download.pluginWorkflowAddLabel')}
+                          </p>
+                          <Select
+                            value={candidateValue}
+                            onValueChange={(value) =>
+                              setWorkflowCandidates((current) => ({
+                                ...current,
+                                [trigger]: value,
+                              }))
+                            }
+                          >
+                            <SelectTrigger className="h-9 text-xs">
+                              <SelectValue
+                                placeholder={t('download.pluginWorkflowAddPlaceholder')}
+                              />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableWorkflowPlugins.map((plugin) => (
+                                <SelectItem
+                                  key={`${trigger}-${plugin.manifest.id}`}
+                                  value={plugin.manifest.id}
+                                  className="text-xs"
+                                >
+                                  {plugin.manifest.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          className="border-dashed"
+                          onClick={() => handleAddWorkflowPlugin(trigger)}
+                          disabled={!candidateValue}
+                        >
+                          <Plus className="h-4 w-4" />
+                          {t('download.pluginWorkflowAddButton')}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {workflowPlugins.length === 0 ? (
+                      <div
+                        className={cn(
+                          'rounded-xl border border-dashed px-4 py-6 text-center',
+                          tone.emptyClassName,
+                        )}
+                      >
+                        <p className="text-sm font-medium">
+                          {t('download.pluginWorkflowEmptyTitle')}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {t('download.pluginWorkflowEmptyDesc')}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {workflowPlugins.map(({ step, plugin }, index) => {
+                          if (!plugin) return null;
+                          return (
+                            <div
+                              key={`${trigger}-${plugin.manifest.id}`}
+                              className={cn('rounded-xl border p-4', tone.stepClassName)}
+                            >
+                              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="min-w-0 flex-1 space-y-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span
+                                      className={cn(
+                                        'rounded px-2 py-0.5 text-[10px] uppercase tracking-wide',
+                                        tone.titleBadgeClassName,
+                                      )}
+                                    >
+                                      {t('download.pluginWorkflowStepNumber', {
+                                        index: index + 1,
+                                      })}
+                                    </span>
+                                    <p className="truncate text-sm font-semibold">
+                                      {plugin.manifest.name}
+                                    </p>
+                                    <span className="rounded bg-muted px-2 py-0.5 text-[10px] tracking-wide text-muted-foreground">
+                                      v{plugin.manifest.version}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    {plugin.manifest.description ||
+                                      t('download.pluginNoDescription')}
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleMoveWorkflowStep(trigger, plugin.manifest.id, -1)
+                                    }
+                                    disabled={index === 0}
+                                  >
+                                    <MoveUp className="h-4 w-4" />
+                                    {t('download.pluginWorkflowMoveUp')}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleMoveWorkflowStep(trigger, plugin.manifest.id, 1)
+                                    }
+                                    disabled={index === workflowPlugins.length - 1}
+                                  >
+                                    <MoveDown className="h-4 w-4" />
+                                    {t('download.pluginWorkflowMoveDown')}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                      handleRemoveWorkflowStep(trigger, plugin.manifest.id)
+                                    }
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    {t('download.pluginWorkflowRemove')}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium">
+                                    {t('download.pluginWorkflowStepOrder')}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {t('download.pluginWorkflowStepOrderHelp')}
+                                  </p>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <p className="text-xs font-medium">
+                                    {t('download.pluginWorkflowFailureTitle')}
+                                  </p>
+                                  <Select
+                                    value={step.failurePolicy}
+                                    onValueChange={(value) =>
+                                      handleWorkflowFailurePolicy(
+                                        trigger,
+                                        plugin.manifest.id,
+                                        value as PluginWorkflowFailurePolicy,
+                                      )
+                                    }
+                                  >
+                                    <SelectTrigger className="h-9 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="continue" className="text-xs">
+                                        {t('download.pluginWorkflowFailureContinue')}
+                                      </SelectItem>
+                                      <SelectItem value="stop-chain" className="text-xs">
+                                        {t('download.pluginWorkflowFailureStopChain')}
+                                      </SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleContent>
+              </SettingsCard>
+            </Collapsible>
           );
         })}
       </div>
