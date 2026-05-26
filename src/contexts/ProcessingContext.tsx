@@ -28,7 +28,7 @@ import type {
 } from '@/lib/types';
 
 const PREVIEW_THRESHOLD_KEY = 'youwee-preview-size-threshold';
-const DEFAULT_PREVIEW_THRESHOLD_MB = 300;
+const DEFAULT_PREVIEW_THRESHOLD_MB = 100;
 
 export interface PreviewConfirmInfo {
   filename: string;
