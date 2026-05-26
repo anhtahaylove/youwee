@@ -12,6 +12,7 @@ import {
 import { syncAssetScopePaths } from '@/lib/asset-access';
 import { collectAssetScopeCandidates } from '@/lib/asset-paths';
 import { localizeUnknownError } from '@/lib/backend-error';
+import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import {
   loadPluginWorkflowSnapshots,
   loadPostDownloadWorkflowSteps,
@@ -488,42 +489,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
         console.error('Failed to parse settings:', e);
       }
 
-      // Load cookie settings
-      let cookieMode = 'off';
-      let cookieBrowser: string | null = null;
-      let cookieBrowserProfile: string | null = null;
-      let cookieFilePath: string | null = null;
-      try {
-        const savedCookieSettings = localStorage.getItem('youwee-cookie-settings');
-        if (savedCookieSettings) {
-          const parsed = JSON.parse(savedCookieSettings);
-          cookieMode = parsed.mode || 'off';
-          cookieBrowser = parsed.browser || null;
-          cookieBrowserProfile = parsed.browserProfile || null;
-          cookieFilePath = parsed.filePath || null;
-        }
-      } catch (e) {
-        console.error('Failed to parse cookie settings:', e);
-      }
-
-      // Load proxy settings
-      let proxyUrl: string | null = null;
-      try {
-        const savedProxySettings = localStorage.getItem('youwee-proxy-settings');
-        if (savedProxySettings) {
-          const parsed = JSON.parse(savedProxySettings);
-          if (parsed.mode !== 'off' && parsed.host && parsed.port) {
-            const protocol = parsed.mode === 'socks5' ? 'socks5' : 'http';
-            const auth =
-              parsed.username && parsed.password
-                ? `${encodeURIComponent(parsed.username)}:${encodeURIComponent(parsed.password)}@`
-                : '';
-            proxyUrl = `${protocol}://${auth}${parsed.host}:${parsed.port}`;
-          }
-        }
-      } catch (e) {
-        console.error('Failed to parse proxy settings:', e);
-      }
+      const { cookieSettings, proxySettings } = loadNetworkSettings();
+      const networkOptions = buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
 
       // Use saved output path if entry has no filepath
       if (!outputPath && savedOutputPath) {
@@ -585,13 +552,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useBunRuntime,
           useActualPlayerJs,
           historyId: entry.id,
-          // Cookie settings
-          cookieMode,
-          cookieBrowser,
-          cookieBrowserProfile,
-          cookieFilePath,
-          // Proxy settings
-          proxyUrl,
+          ...networkOptions,
           // External downloader settings
           useAria2,
           aria2Args,

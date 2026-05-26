@@ -26,6 +26,11 @@ import {
   waitWithCancellation,
 } from '@/lib/download-retry';
 import {
+  buildCookieProxyInvokeOptions,
+  loadCookieSettings,
+  loadProxySettings,
+} from '@/lib/network-config';
+import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
   loadPostDownloadWorkflowSteps,
@@ -34,7 +39,6 @@ import {
 import { parseUniversalUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
-  CookieSettings,
   DownloadItem,
   DownloadProgress,
   ExternalEnqueueOptions,
@@ -42,14 +46,11 @@ import type {
   Format,
   ItemUniversalSettings,
   PostDownloadPluginPayload,
-  ProxySettings,
   Quality,
   VideoInfoResponse,
 } from '@/lib/types';
 
 const STORAGE_KEY = 'youwee-universal-settings';
-const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
-const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
 const DOWNLOAD_STORAGE_KEY = 'youwee-settings';
 
 // Format duration in seconds to HH:MM:SS or MM:SS
@@ -101,47 +102,6 @@ function loadSavedSettings(): Partial<UniversalSettings> {
     console.error('Failed to load saved settings:', e);
   }
   return {};
-}
-
-// Load cookie settings from localStorage (shared with DownloadContext)
-function loadCookieSettings(): CookieSettings {
-  try {
-    const saved = localStorage.getItem(COOKIE_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load cookie settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Load proxy settings from localStorage (shared with DownloadContext)
-function loadProxySettings(): ProxySettings {
-  try {
-    const saved = localStorage.getItem(PROXY_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load proxy settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Build proxy URL string from settings
-function buildProxyUrl(settings: ProxySettings): string | undefined {
-  if (settings.mode === 'off' || !settings.host || !settings.port) {
-    return undefined;
-  }
-
-  const protocol = settings.mode === 'socks5' ? 'socks5' : 'http';
-  const auth =
-    settings.username && settings.password
-      ? `${encodeURIComponent(settings.username)}:${encodeURIComponent(settings.password)}@`
-      : '';
-
-  return `${protocol}://${auth}${settings.host}:${settings.port}`;
 }
 
 // Load embed settings from main download settings
@@ -452,15 +412,12 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   const fetchMetadataForItems = useCallback((items: DownloadItem[]) => {
     const cookieSettings = loadCookieSettings();
     const proxySettings = loadProxySettings();
+    const networkOptions = buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
 
     for (const item of items) {
       invoke<VideoInfoResponse>('get_video_info', {
         url: item.url,
-        cookieMode: cookieSettings.mode,
-        cookieBrowser: cookieSettings.browser || null,
-        cookieBrowserProfile: cookieSettings.browserProfile || null,
-        cookieFilePath: cookieSettings.filePath || null,
-        proxyUrl: buildProxyUrl(proxySettings) || null,
+        ...networkOptions,
       })
         .then((response) => {
           const info = response.info;
@@ -835,6 +792,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const logStderr = localStorage.getItem('youwee_log_stderr') !== 'false';
       const cookieSettings = loadCookieSettings();
       const proxySettings = loadProxySettings();
+      const networkOptions = buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
       const embedSettings = loadEmbedSettings();
       const sponsorBlockArgs = loadSponsorBlockArgs();
       const aria2Settings = loadAria2Settings();
@@ -876,12 +834,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             // Logging settings
             logStderr,
             // Cookie settings
-            cookieMode: cookieSettings.mode,
-            cookieBrowser: cookieSettings.browser || null,
-            cookieBrowserProfile: cookieSettings.browserProfile || null,
-            cookieFilePath: cookieSettings.filePath || null,
-            // Proxy settings
-            proxyUrl: buildProxyUrl(proxySettings) || null,
+            ...networkOptions,
             // Post-processing settings (from main download settings)
             embedMetadata: embedSettings.embedMetadata,
             embedThumbnail: embedSettings.embedThumbnail,

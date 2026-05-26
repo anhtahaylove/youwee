@@ -14,53 +14,8 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { localizeUnknownError } from '@/lib/backend-error';
-import type { CookieSettings, ProxySettings } from '@/lib/types';
+import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { cn } from '@/lib/utils';
-
-// Cookie settings storage key (same as in DownloadContext)
-const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
-const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
-
-// Load cookie settings from localStorage
-function loadCookieSettings(): CookieSettings {
-  try {
-    const saved = localStorage.getItem(COOKIE_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load cookie settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Load proxy settings from localStorage
-function loadProxySettings(): ProxySettings {
-  try {
-    const saved = localStorage.getItem(PROXY_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load proxy settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Build proxy URL string from settings
-function buildProxyUrl(settings: ProxySettings): string | undefined {
-  if (settings.mode === 'off' || !settings.host || !settings.port) {
-    return undefined;
-  }
-
-  const protocol = settings.mode === 'socks5' ? 'socks5' : 'http';
-  const auth =
-    settings.username && settings.password
-      ? `${encodeURIComponent(settings.username)}:${encodeURIComponent(settings.password)}@`
-      : '';
-
-  return `${protocol}://${auth}${settings.host}:${settings.port}`;
-}
 
 interface VideoInfo {
   id: string;
@@ -174,15 +129,10 @@ export function VideoPreview({ url, onClose, onFormatSelect, className }: VideoP
       const stage2Timer = window.setTimeout(() => setLoadingStage('parsing'), 1200);
 
       try {
-        const cookieSettings = loadCookieSettings();
-        const proxySettings = loadProxySettings();
+        const { cookieSettings, proxySettings } = loadNetworkSettings();
         const result = await invoke<VideoInfoResponse>('get_video_info', {
           url,
-          cookieMode: cookieSettings.mode,
-          cookieBrowser: cookieSettings.browser || null,
-          cookieBrowserProfile: cookieSettings.browserProfile || null,
-          cookieFilePath: cookieSettings.filePath || null,
-          proxyUrl: buildProxyUrl(proxySettings) || null,
+          ...buildCookieProxyInvokeOptions(cookieSettings, proxySettings),
         });
         if (!cancelled) {
           setData(result);

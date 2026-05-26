@@ -26,6 +26,14 @@ import {
   waitWithCancellation,
 } from '@/lib/download-retry';
 import {
+  buildCookieProxyInvokeOptions,
+  buildProxyUrl,
+  loadCookieSettings,
+  loadProxySettings,
+  saveCookieSettings,
+  saveProxySettings,
+} from '@/lib/network-config';
+import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
   loadPostDownloadWorkflowSteps,
@@ -55,8 +63,6 @@ import type {
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
 
 const STORAGE_KEY = 'youwee-settings';
-const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
-const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
 
 // Check if path is absolute (cross-platform)
 const isAbsolutePath = (path: string): boolean => {
@@ -77,50 +83,6 @@ function loadSavedSettings(): Partial<DownloadSettings> {
     console.error('Failed to load saved settings:', e);
   }
   return {};
-}
-
-// Load cookie settings from localStorage
-function loadCookieSettings(): CookieSettings {
-  try {
-    const saved = localStorage.getItem(COOKIE_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load cookie settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Save cookie settings to localStorage
-function saveCookieSettings(settings: CookieSettings) {
-  try {
-    localStorage.setItem(COOKIE_STORAGE_KEY, JSON.stringify(settings));
-  } catch (e) {
-    console.error('Failed to save cookie settings:', e);
-  }
-}
-
-// Load proxy settings from localStorage
-function loadProxySettings(): ProxySettings {
-  try {
-    const saved = localStorage.getItem(PROXY_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load proxy settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Save proxy settings to localStorage
-function saveProxySettings(settings: ProxySettings) {
-  try {
-    localStorage.setItem(PROXY_STORAGE_KEY, JSON.stringify(settings));
-  } catch (e) {
-    console.error('Failed to save proxy settings:', e);
-  }
 }
 
 // Build SponsorBlock category strings for yt-dlp args
@@ -150,21 +112,6 @@ function buildSponsorBlockArgs(settings: DownloadSettings): {
     remove: removeCats.length > 0 ? removeCats.join(',') : null,
     mark: markCats.length > 0 ? markCats.join(',') : null,
   };
-}
-
-// Build proxy URL string from settings
-export function buildProxyUrl(settings: ProxySettings): string | undefined {
-  if (settings.mode === 'off' || !settings.host || !settings.port) {
-    return undefined;
-  }
-
-  const protocol = settings.mode === 'socks5' ? 'socks5' : 'http';
-  const auth =
-    settings.username && settings.password
-      ? `${encodeURIComponent(settings.username)}:${encodeURIComponent(settings.password)}@`
-      : '';
-
-  return `${protocol}://${auth}${settings.host}:${settings.port}`;
 }
 
 // Save settings to localStorage
@@ -363,13 +310,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   // Sync cookie/proxy settings to the Rust polling service so background
   // channel checks can authenticate with Bilibili, YouTube, etc.
   const syncPollingNetworkConfig = useCallback((cookies: CookieSettings, proxy: ProxySettings) => {
-    const proxyUrl = buildProxyUrl(proxy);
     invoke('set_polling_network_config', {
-      cookieMode: cookies.mode || null,
-      cookieBrowser: cookies.browser || null,
-      cookieBrowserProfile: cookies.browserProfile || null,
-      cookieFilePath: cookies.filePath || null,
-      proxyUrl: proxyUrl || null,
+      ...buildCookieProxyInvokeOptions(cookies, proxy),
     }).catch((e) => console.error('Failed to sync polling network config:', e));
   }, []);
 
@@ -768,11 +710,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         const entries = await invoke<PlaylistVideoEntry[]>('get_playlist_entries', {
           url,
           limit,
-          cookieMode: cookieSettings.mode,
-          cookieBrowser: cookieSettings.browser || null,
-          cookieBrowserProfile: cookieSettings.browserProfile || null,
-          cookieFilePath: cookieSettings.filePath || null,
-          proxyUrl: buildProxyUrl(proxySettings) || null,
+          ...buildCookieProxyInvokeOptions(cookieSettings, proxySettings),
         });
 
         // Snapshot current settings for these items
@@ -1069,13 +1007,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             // YouTube specific settings
             useBunRuntime: settings.useBunRuntime,
             useActualPlayerJs: settings.useActualPlayerJs,
-            // Cookie settings
-            cookieMode: cookieSettings.mode,
-            cookieBrowser: cookieSettings.browser || null,
-            cookieBrowserProfile: cookieSettings.browserProfile || null,
-            cookieFilePath: cookieSettings.filePath || null,
-            // Proxy settings
-            proxyUrl: buildProxyUrl(proxySettings) || null,
+            // Network settings
+            ...buildCookieProxyInvokeOptions(cookieSettings, proxySettings),
             // Post-processing settings
             embedMetadata: settings.embedMetadata,
             embedThumbnail: settings.embedThumbnail,

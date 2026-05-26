@@ -20,12 +20,11 @@ import {
   isRetryableError,
   waitWithCancellation,
 } from '@/lib/download-retry';
+import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { parseUniversalUrls } from '@/lib/sources';
-import type { CookieSettings, DownloadItem, ProxySettings } from '@/lib/types';
+import type { DownloadItem } from '@/lib/types';
 
 const STORAGE_KEY = 'youwee-gallerydl-settings';
-const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
-const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
 
 interface GalleryDlSettings {
   outputPath: string;
@@ -85,44 +84,6 @@ function saveSettings(settings: GalleryDlSettings) {
   } catch (error) {
     console.error('Failed to save gallery-dl settings:', error);
   }
-}
-
-function loadCookieSettings(): CookieSettings {
-  try {
-    const saved = localStorage.getItem(COOKIE_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (error) {
-    console.error('Failed to load cookie settings:', error);
-  }
-  return { mode: 'off' };
-}
-
-function loadProxySettings(): ProxySettings {
-  try {
-    const saved = localStorage.getItem(PROXY_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (error) {
-    console.error('Failed to load proxy settings:', error);
-  }
-  return { mode: 'off' };
-}
-
-function buildProxyUrl(settings: ProxySettings): string | undefined {
-  if (settings.mode === 'off' || !settings.host || !settings.port) {
-    return undefined;
-  }
-
-  const protocol = settings.mode === 'socks5' ? 'socks5' : 'http';
-  const auth =
-    settings.username && settings.password
-      ? `${encodeURIComponent(settings.username)}:${encodeURIComponent(settings.password)}@`
-      : '';
-
-  return `${protocol}://${auth}${settings.host}:${settings.port}`;
 }
 
 function buildItemTitle(url: string): string {
@@ -363,8 +324,8 @@ export function GalleryDlProvider({ children }: { children: ReactNode }) {
     const downloadItem = async (item: DownloadItem) => {
       if (!isDownloadingRef.current) return;
 
-      const cookieSettings = loadCookieSettings();
-      const proxySettings = loadProxySettings();
+      const { cookieSettings, proxySettings } = loadNetworkSettings();
+      const networkOptions = buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
       const logStderr = localStorage.getItem('youwee_log_stderr') !== 'false';
       let retryIndex = 0;
 
@@ -382,11 +343,7 @@ export function GalleryDlProvider({ children }: { children: ReactNode }) {
             url: item.url,
             outputPath: settingsRef.current.outputPath,
             logStderr,
-            cookieMode: cookieSettings.mode,
-            cookieBrowser: cookieSettings.browser || null,
-            cookieBrowserProfile: cookieSettings.browserProfile || null,
-            cookieFilePath: cookieSettings.filePath || null,
-            proxyUrl: buildProxyUrl(proxySettings) || null,
+            ...networkOptions,
             source: item.extractor || null,
           });
 

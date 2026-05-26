@@ -9,59 +9,13 @@ import {
   useState,
 } from 'react';
 import { localizeUnknownError } from '@/lib/backend-error';
+import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import type {
   AIConfig,
   AIProvider as AIProviderType,
-  CookieSettings,
   LanguageOption,
   ModelOption,
-  ProxySettings,
 } from '@/lib/types';
-
-// Cookie settings storage key (same as in DownloadContext)
-const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
-const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
-
-// Load cookie settings from localStorage
-function loadCookieSettings(): CookieSettings {
-  try {
-    const saved = localStorage.getItem(COOKIE_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load cookie settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Load proxy settings from localStorage
-function loadProxySettings(): ProxySettings {
-  try {
-    const saved = localStorage.getItem(PROXY_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load proxy settings:', e);
-  }
-  return { mode: 'off' };
-}
-
-// Build proxy URL string from settings
-function buildProxyUrl(settings: ProxySettings): string | undefined {
-  if (settings.mode === 'off' || !settings.host || !settings.port) {
-    return undefined;
-  }
-
-  const protocol = settings.mode === 'socks5' ? 'socks5' : 'http';
-  const auth =
-    settings.username && settings.password
-      ? `${encodeURIComponent(settings.username)}:${encodeURIComponent(settings.password)}@`
-      : '';
-
-  return `${protocol}://${auth}${settings.host}:${settings.port}`;
-}
 
 function extractErrorMessage(error: unknown): string {
   return localizeUnknownError(error);
@@ -234,8 +188,8 @@ export function AIProvider({ children }: { children: ReactNode }) {
   const fetchTranscript = useCallback(
     async (url: string): Promise<string> => {
       const languages = config.transcript_languages || ['en'];
-      const cookieSettings = loadCookieSettings();
-      const proxySettings = loadProxySettings();
+      const { cookieSettings, proxySettings } = loadNetworkSettings();
+      const networkOptions = buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
       let transcriptError: string | null = null;
 
       // Try YouTube captions first
@@ -243,11 +197,7 @@ export function AIProvider({ children }: { children: ReactNode }) {
         const transcript = await invoke<string>('get_video_transcript', {
           url,
           languages,
-          cookieMode: cookieSettings.mode,
-          cookieBrowser: cookieSettings.browser || null,
-          cookieBrowserProfile: cookieSettings.browserProfile || null,
-          cookieFilePath: cookieSettings.filePath || null,
-          proxyUrl: buildProxyUrl(proxySettings) || null,
+          ...networkOptions,
         });
 
         const normalizedTranscript = transcript?.trim();
@@ -281,11 +231,7 @@ export function AIProvider({ children }: { children: ReactNode }) {
               responseFormat: 'text',
               openaiApiKey: whisperKey,
               language: languages[0] || null, // Use first preferred language as hint
-              cookieMode: cookieSettings.mode,
-              cookieBrowser: cookieSettings.browser || null,
-              cookieBrowserProfile: cookieSettings.browserProfile || null,
-              cookieFilePath: cookieSettings.filePath || null,
-              proxyUrl: buildProxyUrl(proxySettings) || null,
+              ...networkOptions,
               whisperEndpointUrl: config.whisper_endpoint_url || null,
               whisperModel: config.whisper_model || null,
             });

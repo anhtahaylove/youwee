@@ -11,6 +11,7 @@ import {
   useState,
 } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
@@ -329,48 +330,9 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
     }
   }, [outputPath]);
 
-  // Load cookie/proxy settings from localStorage
-  const getCookieSettings = useCallback(() => {
-    try {
-      const saved = localStorage.getItem('youwee-cookie-settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          cookieMode: parsed.mode || 'off',
-          cookieBrowser: parsed.browser || null,
-          cookieBrowserProfile: parsed.browserProfile || null,
-          cookieFilePath: parsed.filePath || null,
-        };
-      }
-    } catch (_e) {
-      /* ignore */
-    }
-    return {
-      cookieMode: 'off',
-      cookieBrowser: null,
-      cookieBrowserProfile: null,
-      cookieFilePath: null,
-    };
-  }, []);
-
-  const getProxyUrl = useCallback(() => {
-    try {
-      const saved = localStorage.getItem('youwee-proxy-settings');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.mode !== 'off' && parsed.host && parsed.port) {
-          const protocol = parsed.mode === 'socks5' ? 'socks5' : 'http';
-          const auth =
-            parsed.username && parsed.password
-              ? `${encodeURIComponent(parsed.username)}:${encodeURIComponent(parsed.password)}@`
-              : '';
-          return `${protocol}://${auth}${parsed.host}:${parsed.port}`;
-        }
-      }
-    } catch (_e) {
-      /* ignore */
-    }
-    return null;
+  const getNetworkOptions = useCallback(() => {
+    const { cookieSettings, proxySettings } = loadNetworkSettings();
+    return buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
   }, []);
 
   // Sync browse videos to channel_videos DB for a followed channel
@@ -568,9 +530,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
       }
       setBrowseFetchProgress(null);
 
-      const { cookieMode, cookieBrowser, cookieBrowserProfile, cookieFilePath } =
-        getCookieSettings();
-      const proxyUrl = getProxyUrl();
+      const networkOptions = getNetworkOptions();
 
       try {
         const videosPromise = invoke<PlaylistVideoEntry[]>('get_channel_videos', {
@@ -578,21 +538,13 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
           limit: effectiveLimit,
           start,
           requestId: requestId,
-          cookieMode,
-          cookieBrowser,
-          cookieBrowserProfile,
-          cookieFilePath,
-          proxyUrl,
+          ...networkOptions,
         });
         const channelInfoPromise = isLoadMore
           ? Promise.resolve(null)
           : invoke<{ name: string; avatar_url: string | null }>('get_channel_info', {
               url,
-              cookieMode,
-              cookieBrowser,
-              cookieBrowserProfile,
-              cookieFilePath,
-              proxyUrl,
+              ...networkOptions,
             }).catch(() => null);
 
         const [videos, channelInfo] = await Promise.all([videosPromise, channelInfoPromise]);
@@ -689,7 +641,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [getCookieSettings, getProxyUrl, syncVideosToDb, refreshChannelNewCounts],
+    [getNetworkOptions, syncVideosToDb, refreshChannelNewCounts],
   );
 
   const fetchChannelVideos = useCallback(
@@ -814,9 +766,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         currentOutputPath = `${currentOutputPath}/${folderName}`;
       }
 
-      const { cookieMode, cookieBrowser, cookieBrowserProfile, cookieFilePath } =
-        getCookieSettings();
-      const proxyUrl = getProxyUrl();
+      const networkOptions = getNetworkOptions();
 
       // Determine concurrency from followed channel settings
       const followedCh = followedChannelsRef.current.find((c) => c.url === browseUrl);
@@ -903,11 +853,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
             logStderr,
             useBunRuntime,
             useActualPlayerJs,
-            cookieMode,
-            cookieBrowser,
-            cookieBrowserProfile,
-            cookieFilePath,
-            proxyUrl,
+            ...networkOptions,
             embedMetadata,
             embedThumbnail,
             liveFromStart,
@@ -960,15 +906,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         setDownloadingIds(new Set());
       }
     },
-    [
-      browseUrl,
-      browseVideos,
-      browseChannelName,
-      selectedVideoIds,
-      outputPath,
-      getCookieSettings,
-      getProxyUrl,
-    ],
+    [browseUrl, browseVideos, browseChannelName, selectedVideoIds, outputPath, getNetworkOptions],
   );
 
   // Stop all downloads
@@ -1074,8 +1012,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
 
   // Refresh followed channels' name and avatar from YouTube
   const refreshFollowedChannelInfo = useCallback(async () => {
-    const { cookieMode, cookieBrowser, cookieBrowserProfile, cookieFilePath } = getCookieSettings();
-    const proxyUrl = getProxyUrl();
+    const networkOptions = getNetworkOptions();
 
     try {
       const channels = await invoke<FollowedChannel[]>('get_followed_channels');
@@ -1087,11 +1024,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
             'get_channel_info',
             {
               url: ch.url,
-              cookieMode,
-              cookieBrowser,
-              cookieBrowserProfile,
-              cookieFilePath,
-              proxyUrl,
+              ...networkOptions,
             },
           );
 
@@ -1131,7 +1064,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
     } catch {
       // ignore
     }
-  }, [getCookieSettings, getProxyUrl, refreshChannels]);
+  }, [getNetworkOptions, refreshChannels]);
 
   // Load on mount
   useEffect(() => {
@@ -1247,9 +1180,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
         const folderName = sanitizeChannelFolderName(channel_name);
         autoOutputPath = `${autoOutputPath}/${folderName}`;
 
-        const { cookieMode, cookieBrowser, cookieBrowserProfile, cookieFilePath } =
-          getCookieSettings();
-        const proxyUrl = getProxyUrl();
+        const networkOptions = getNetworkOptions();
 
         const maxConcurrent = Math.max(1, download_threads || 1);
         const workflowSnapshots = loadPluginWorkflowSnapshots();
@@ -1314,11 +1245,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
               logStderr,
               useBunRuntime,
               useActualPlayerJs,
-              cookieMode,
-              cookieBrowser,
-              cookieBrowserProfile,
-              cookieFilePath,
-              proxyUrl,
+              ...networkOptions,
               useAria2,
               aria2Args,
               pluginWorkflowSnapshots: workflowSnapshots,
@@ -1362,7 +1289,7 @@ export function ChannelsProvider({ children }: { children: ReactNode }) {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [getCookieSettings, getProxyUrl, refreshChannelNewCounts]);
+  }, [getNetworkOptions, refreshChannelNewCounts]);
 
   // Refresh active channel videos when activeChannel changes
   useEffect(() => {

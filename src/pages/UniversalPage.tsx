@@ -15,21 +15,9 @@ import { Button } from '@/components/ui/button';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useUniversal } from '@/contexts/UniversalContext';
 import { formatTime, useSchedule } from '@/hooks/useSchedule';
-import type { CookieSettings, Quality } from '@/lib/types';
+import { loadCookieSettings } from '@/lib/network-config';
+import type { Quality } from '@/lib/types';
 import { cn } from '@/lib/utils';
-
-// Load cookie settings from localStorage (for dialog browser name)
-function loadCookieSettings(): CookieSettings {
-  try {
-    const saved = localStorage.getItem('youwee-cookie-settings');
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Failed to load cookie settings:', e);
-  }
-  return { mode: 'off' };
-}
 
 // Qualities that require FFmpeg for video+audio merging
 const FFMPEG_REQUIRED_QUALITIES: Quality[] = ['best', '8k', '4k', '2k'];
