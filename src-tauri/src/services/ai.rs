@@ -131,22 +131,26 @@ fn build_prompt(
 ) -> String {
     let style_instruction = match style {
         SummaryStyle::Short => {
-            "Provide a concise summary in 2-3 sentences capturing the main idea."
+            "Provide a concise summary in 2-3 sentences capturing the main idea. Return plain Markdown paragraphs only, with no bullet list unless absolutely necessary."
         }
         SummaryStyle::Concise => {
-            r#"Summarize this video in a clear, structured format:
-1. Start with a one-sentence overview of what the video is about
-2. List 3-5 key points or takeaways using bullet points
-3. Keep each bullet point to 1-2 sentences maximum
+            r#"Summarize this video in clean Markdown:
+1. Start with a short overview paragraph of 1-2 sentences.
+2. Then provide 3-5 bullet points for the most important takeaways.
+3. Keep each bullet point to 1-2 sentences maximum.
+4. Do not create nested bullets unless they are truly necessary.
 Be informative but concise. Focus on the most valuable insights."#
         }
         SummaryStyle::Detailed => {
-            r#"Provide a comprehensive summary of this video:
-1. Begin with a brief introduction (2-3 sentences) explaining the video's purpose and context
-2. Break down ALL major topics discussed using organized bullet points with sub-points where needed
-3. Include specific details, examples, statistics, or quotes mentioned
-4. End with key conclusions or action items if applicable
-Be thorough and capture all important information."#
+            r#"Provide a comprehensive summary in clean Markdown:
+1. Start with a brief overview paragraph (2-3 sentences) explaining the video's purpose and context.
+2. Add a section heading exactly as `## Major Topics`.
+3. Under that heading, use a numbered list for the main topics.
+4. Under each numbered topic, use indented `-` bullet points only for supporting details, examples, quotes, or explanations.
+5. Keep the hierarchy clear: main topics should stay top-level, supporting details should stay nested under the relevant topic.
+6. Do not turn every sentence into its own bullet. Group related details together naturally.
+7. If there are final conclusions or action items, add a final section heading `## Key Takeaways` with 2-4 bullet points.
+Be thorough, readable, and well-structured."#
         }
     };
 

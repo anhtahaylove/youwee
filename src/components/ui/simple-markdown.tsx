@@ -5,34 +5,34 @@ interface SimpleMarkdownProps {
   className?: string;
 }
 
+type MarkdownListItem = {
+  text: string;
+  children: MarkdownListNode[];
+};
+
+type MarkdownListNode = {
+  kind: 'ul' | 'ol';
+  items: MarkdownListItem[];
+};
+
+type MarkdownListToken = {
+  indent: number;
+  kind: 'ul' | 'ol';
+  text: string;
+};
+
 /**
  * A lightweight markdown renderer for basic formatting.
- * Supports: **bold**, *italic*, ### headers, - lists, [links](url), `code`, ```code blocks```, pipe tables
+ * Supports: **bold**, *italic*, ### headers, ordered/unordered lists, [links](url), `code`, ```code blocks```, pipe tables
  */
 export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
   const lines = content.split('\n');
   const elements: React.ReactNode[] = [];
-  let listItems: string[] = [];
-  let listKey = 0;
   let codeBlockLines: string[] = [];
   let codeBlockKey = 0;
   let tableKey = 0;
+  let listKey = 0;
   let inCodeBlock = false;
-
-  const flushList = () => {
-    if (listItems.length > 0) {
-      elements.push(
-        <ul key={`list-${listKey++}`} className="list-disc list-inside space-y-1 my-2">
-          {listItems.map((item) => (
-            <li key={`${listKey}-${item}`} className="min-w-0 break-words text-inherit">
-              {parseInline(item)}
-            </li>
-          ))}
-        </ul>,
-      );
-      listItems = [];
-    }
-  };
 
   const flushCodeBlock = () => {
     if (codeBlockLines.length > 0) {
@@ -51,6 +51,7 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
   };
 
   const isTableRow = (line: string) => /^\|(?:[^|\n]*\|)+\s*$/.test(line.trim());
+  const isListLine = (line: string) => /^(\s*)([-*]|\d+\.)\s+.+$/.test(line);
 
   const isTableSeparator = (line: string) => {
     const cells = splitTableRow(line);
@@ -62,7 +63,6 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
     const trimmed = line.trim();
 
     if (trimmed.startsWith('```')) {
-      flushList();
       if (inCodeBlock) {
         flushCodeBlock();
         inCodeBlock = false;
@@ -80,13 +80,10 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
 
     // Empty line
     if (!trimmed) {
-      flushList();
       continue;
     }
 
     if (isTableRow(trimmed) && i + 1 < lines.length && isTableSeparator(lines[i + 1] ?? '')) {
-      flushList();
-
       const headerCells = splitTableRow(trimmed);
       const bodyRows: string[][] = [];
       i += 2;
@@ -137,9 +134,30 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
       continue;
     }
 
+    if (isListLine(line)) {
+      const listLines = [line];
+      let nextIndex = i + 1;
+
+      while (nextIndex < lines.length) {
+        const candidate = lines[nextIndex] ?? '';
+        if (!candidate.trim() || !isListLine(candidate)) {
+          break;
+        }
+        listLines.push(candidate);
+        nextIndex += 1;
+      }
+
+      elements.push(
+        <div key={`list-block-${listKey++}`} className="my-2">
+          {renderListNodes(parseListBlock(listLines))}
+        </div>,
+      );
+      i = nextIndex - 1;
+      continue;
+    }
+
     // Headers
     if (trimmed.startsWith('### ')) {
-      flushList();
       elements.push(
         <h4 key={i} className="mt-3 mb-1 break-words font-semibold text-foreground">
           {parseInline(trimmed.slice(4))}
@@ -148,7 +166,6 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
       continue;
     }
     if (trimmed.startsWith('## ')) {
-      flushList();
       elements.push(
         <h3 key={i} className="mt-3 mb-1 break-words font-semibold text-foreground">
           {parseInline(trimmed.slice(3))}
@@ -157,7 +174,6 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
       continue;
     }
     if (trimmed.startsWith('# ')) {
-      flushList();
       elements.push(
         <h2 key={i} className="mt-3 mb-1 break-words font-bold text-foreground">
           {parseInline(trimmed.slice(2))}
@@ -166,21 +182,7 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
       continue;
     }
 
-    // List items (- or *)
-    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-      listItems.push(trimmed.slice(2));
-      continue;
-    }
-
-    // Numbered list (1. 2. etc)
-    const numberedMatch = trimmed.match(/^\d+\.\s+(.*)$/);
-    if (numberedMatch) {
-      listItems.push(numberedMatch[1]);
-      continue;
-    }
-
     // Regular paragraph
-    flushList();
     elements.push(
       <p key={i} className="my-1 min-w-0 break-words">
         {parseInline(trimmed)}
@@ -188,7 +190,6 @@ export function SimpleMarkdown({ content, className }: SimpleMarkdownProps) {
     );
   }
 
-  flushList();
   flushCodeBlock();
 
   return (
@@ -205,6 +206,108 @@ function splitTableRow(line: string): string[] {
     .replace(/\|$/, '')
     .split('|')
     .map((cell) => cell.trim());
+}
+
+function parseListBlock(lines: string[]): MarkdownListNode[] {
+  const tokens = lines
+    .map(parseListToken)
+    .filter((token): token is MarkdownListToken => token != null);
+  const nodes: MarkdownListNode[] = [];
+  let index = 0;
+
+  while (index < tokens.length) {
+    const [node, nextIndex] = consumeListNode(
+      tokens,
+      index,
+      tokens[index].indent,
+      tokens[index].kind,
+    );
+    nodes.push(node);
+    index = nextIndex;
+  }
+
+  return nodes;
+}
+
+function parseListToken(line: string): MarkdownListToken | null {
+  const normalizedLine = line.replace(/\t/g, '  ');
+  const match = normalizedLine.match(/^(\s*)([-*]|\d+\.)\s+(.+)$/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    indent: match[1].length,
+    kind: /^\d+\.$/.test(match[2]) ? 'ol' : 'ul',
+    text: match[3].trim(),
+  };
+}
+
+function consumeListNode(
+  tokens: MarkdownListToken[],
+  startIndex: number,
+  indent: number,
+  kind: 'ul' | 'ol',
+): [MarkdownListNode, number] {
+  const node: MarkdownListNode = { kind, items: [] };
+  let index = startIndex;
+
+  while (index < tokens.length) {
+    const token = tokens[index];
+
+    if (token.indent < indent) {
+      break;
+    }
+
+    if (token.indent > indent) {
+      const lastItem = node.items.at(-1);
+      if (!lastItem) {
+        index += 1;
+        continue;
+      }
+
+      const [childNode, nextIndex] = consumeListNode(tokens, index, token.indent, token.kind);
+      lastItem.children.push(childNode);
+      index = nextIndex;
+      continue;
+    }
+
+    if (token.kind !== kind) {
+      break;
+    }
+
+    node.items.push({
+      text: token.text,
+      children: [],
+    });
+    index += 1;
+  }
+
+  return [node, index];
+}
+
+function renderListNodes(nodes: MarkdownListNode[]): React.ReactNode {
+  return nodes.map((node, nodeIndex) => {
+    const ListTag = node.kind;
+    const listClassName =
+      node.kind === 'ol' ? 'list-decimal space-y-1 pl-5' : 'list-disc space-y-1 pl-5';
+
+    return (
+      <ListTag key={`markdown-list-${node.kind}-${nodeIndex}`} className={listClassName}>
+        {node.items.map((item, itemIndex) => (
+          <li
+            key={`markdown-list-item-${node.kind}-${item.text}-${itemIndex}`}
+            className="min-w-0 break-words text-inherit"
+          >
+            <span>{parseInline(item.text)}</span>
+            {item.children.length > 0 ? (
+              <div className="mt-1">{renderListNodes(item.children)}</div>
+            ) : null}
+          </li>
+        ))}
+      </ListTag>
+    );
+  });
 }
 
 /**
