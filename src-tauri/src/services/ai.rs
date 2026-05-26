@@ -131,15 +131,18 @@ fn build_prompt(
 ) -> String {
     let style_instruction = match style {
         SummaryStyle::Short => {
-            "Provide a concise summary in 2-3 sentences capturing the main idea. Return plain Markdown paragraphs only, with no bullet list unless absolutely necessary."
+            r#"Provide a very short summary in plain Markdown text:
+- Return exactly one paragraph of 2-3 sentences.
+- Do not use headings, bullets, numbering, or introductory phrases.
+- Focus on what the video is about, what it mainly covers, and the main takeaway."#
         }
         SummaryStyle::Concise => {
             r#"Summarize this video in clean Markdown:
-1. Start with a short overview paragraph of 1-2 sentences.
-2. Then provide 3-5 bullet points for the most important takeaways.
-3. Keep each bullet point to 1-2 sentences maximum.
-4. Do not create nested bullets unless they are truly necessary.
-Be informative but concise. Focus on the most valuable insights."#
+1. Start with one short overview paragraph of 1-2 sentences.
+2. Then provide 3-5 bullet points for the main takeaways.
+3. Keep each bullet concise and practical, ideally one sentence and no more than two.
+4. Do not use nested bullets, long quotes, or overly detailed examples.
+Focus on the most useful information, not every topic mentioned."#
         }
         SummaryStyle::Detailed => {
             r#"Provide a comprehensive summary in clean Markdown:
