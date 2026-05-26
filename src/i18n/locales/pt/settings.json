@@ -583,7 +583,7 @@
     "whisperCustom": "Customizado",
     "whisperEndpointPlaceholder": "Insira uma Endpoint",
     "whisperModelPlaceholder": "Nome do Modelo",
-    "whisperCompatible": "Trazendo compatibilidade com LLM e APIs que sigam a mesma interface OpenAI",
+    "whisperCompatible": "Compatível com APIs compatíveis com OpenAI",
     "ollamaUrl": "Ollama URL",
     "lmstudioUrl": "URL do LM Studio",
     "proxyUrl": "URLs customizadas de proxy",

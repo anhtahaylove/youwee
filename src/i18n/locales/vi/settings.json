@@ -587,7 +587,7 @@
     "whisperCustom": "Tùy chỉnh",
     "whisperEndpointPlaceholder": "URL endpoint",
     "whisperModelPlaceholder": "Model (mặc định: whisper-1)",
-    "whisperCompatible": "Tương thích với Groq, LocalAI, Faster-Whisper và các API tương thích OpenAI khác",
+    "whisperCompatible": "Tương thích với các API tương thích OpenAI",
     "ollamaUrl": "URL Ollama",
     "lmstudioUrl": "URL LM Studio",
     "proxyUrl": "URL API Endpoint",

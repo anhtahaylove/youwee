@@ -583,7 +583,7 @@
     "whisperCustom": "Настроить",
     "whisperEndpointPlaceholder": "URL конечной точки",
     "whisperModelPlaceholder": "Модель (по умолчанию: whisper-1)",
-    "whisperCompatible": "Совместим с Groq, LocalAI, Faster-Whisper и другими OpenAI-совместимыми API",
+    "whisperCompatible": "Совместимо с OpenAI-совместимыми API",
     "ollamaUrl": "URL Ollama",
     "lmstudioUrl": "URL LM Studio",
     "proxyUrl": "URL конечной точки API",

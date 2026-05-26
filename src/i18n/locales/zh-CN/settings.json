@@ -587,7 +587,7 @@
     "whisperCustom": "自定义",
     "whisperEndpointPlaceholder": "端点 URL",
     "whisperModelPlaceholder": "模型（默认：whisper-1）",
-    "whisperCompatible": "兼容 Groq、LocalAI、Faster-Whisper 等 OpenAI 兼容 API",
+    "whisperCompatible": "兼容 OpenAI 兼容 API",
     "ollamaUrl": "Ollama 地址",
     "lmstudioUrl": "LM Studio 地址",
     "proxyUrl": "API 端点地址",

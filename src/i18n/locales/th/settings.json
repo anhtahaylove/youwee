@@ -583,7 +583,7 @@
     "whisperCustom": "กำหนดเอง",
     "whisperEndpointPlaceholder": "URL ของ endpoint",
     "whisperModelPlaceholder": "โมเดล (ค่าเริ่มต้น: whisper-1)",
-    "whisperCompatible": "รองรับ Groq, LocalAI, Faster-Whisper และ API แบบเข้ากันกับ OpenAI อื่น ๆ",
+    "whisperCompatible": "รองรับ API ที่เข้ากันได้กับ OpenAI",
     "ollamaUrl": "Ollama URL",
     "lmstudioUrl": "LM Studio URL",
     "proxyUrl": "URL ของ API Endpoint",

@@ -587,7 +587,7 @@
     "whisperCustom": "Custom",
     "whisperEndpointPlaceholder": "Endpoint URL",
     "whisperModelPlaceholder": "Model (default: whisper-1)",
-    "whisperCompatible": "Compatible with Groq, LocalAI, Faster-Whisper and other OpenAI-compatible APIs",
+    "whisperCompatible": "Compatible with OpenAI-compatible APIs",
     "ollamaUrl": "Ollama URL",
     "lmstudioUrl": "LM Studio URL",
     "proxyUrl": "API Endpoint URL",

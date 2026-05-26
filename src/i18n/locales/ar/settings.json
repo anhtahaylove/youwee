@@ -583,7 +583,7 @@
     "whisperCustom": "مخصص",
     "whisperEndpointPlaceholder": "رابط Endpoint",
     "whisperModelPlaceholder": "النموذج (الافتراضي: whisper-1)",
-    "whisperCompatible": "متوافق مع Groq وLocalAI وFaster-Whisper وواجهات OpenAI-compatible الأخرى",
+    "whisperCompatible": "متوافق مع واجهات OpenAI المتوافقة",
     "ollamaUrl": "رابط Ollama",
     "lmstudioUrl": "رابط LM Studio",
     "proxyUrl": "رابط API Endpoint",
