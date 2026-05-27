@@ -432,21 +432,25 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                 onClick={handleGenerateSummary}
                 disabled={isGeneratingSummary}
                 className={cn(
-                  'flex items-center gap-1.5 text-xs text-purple-500 hover:text-purple-400 transition-colors',
+                  'flex items-center gap-1.5 text-sm font-medium text-primary transition-opacity hover:opacity-80',
                   isGeneratingSummary && 'opacity-50',
                 )}
               >
                 {isGeneratingSummary ? (
                   <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    {task?.status === 'fetching'
-                      ? t('library.item.fetchingTranscript')
-                      : t('library.item.generatingSummary')}
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span className="gradient-text">
+                      {task?.status === 'fetching'
+                        ? t('library.item.fetchingTranscript')
+                        : t('library.item.generatingSummary')}
+                    </span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3 h-3" />
-                    {t('library.item.generateAiSummary')}
+                    <span className="gradient-text inline-flex">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="gradient-text">{t('library.item.generateAiSummary')}</span>
                   </>
                 )}
               </button>
