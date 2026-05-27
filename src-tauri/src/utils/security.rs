@@ -100,7 +100,8 @@ pub fn validate_ffmpeg_args(args: &[String]) -> Result<(), String> {
 /// unquoted shell control syntax so malicious model output cannot be carried
 /// forward as a plausible command.
 pub fn parse_ffmpeg_command_args(command: &str) -> Result<Vec<String>, String> {
-    let tokens = tokenize_command(command)?;
+    let normalized_command = normalize_ai_escaped_quotes(command);
+    let tokens = tokenize_command(&normalized_command)?;
     let program = tokens
         .first()
         .ok_or_else(|| "FFmpeg command cannot be empty".to_string())?;
@@ -112,6 +113,13 @@ pub fn parse_ffmpeg_command_args(command: &str) -> Result<Vec<String>, String> {
     let args = tokens[1..].to_vec();
     validate_ffmpeg_args(&args)?;
     Ok(args)
+}
+
+fn normalize_ai_escaped_quotes(command: &str) -> String {
+    command
+        .replace("\\/", "/")
+        .replace("\\\"", "\"")
+        .replace("\\'", "'")
 }
 
 fn is_ffmpeg_program(program: &str) -> bool {
@@ -169,8 +177,12 @@ fn tokenize_command(command: &str) -> Result<Vec<String>, String> {
                     return Err("Command substitution is not allowed in ffmpeg command".to_string());
                 }
                 '\\' => {
-                    if let Some(next) = chars.next() {
-                        current.push(next);
+                    if let Some(next) = chars.peek().copied() {
+                        if is_unquoted_backslash_escape(next) {
+                            current.push(chars.next().unwrap());
+                        } else {
+                            current.push(c);
+                        }
                     } else {
                         current.push(c);
                     }
@@ -188,6 +200,10 @@ fn tokenize_command(command: &str) -> Result<Vec<String>, String> {
     }
 
     Ok(args)
+}
+
+fn is_unquoted_backslash_escape(next: char) -> bool {
+    matches!(next, ' ' | '\t' | '"' | '\'' | '\\')
 }
 
 /// Convert a Vec of ffmpeg args into a display-friendly command string.
@@ -318,6 +334,101 @@ mod tests {
         assert_eq!(args[2], "/tmp/Input File.mp4");
         assert!(args.contains(&"[0:v]scale=1280:-1[v];[0:a]anull[a]".to_string()));
         assert_eq!(args.last().unwrap(), "/tmp/output file.mp4");
+    }
+
+    #[test]
+    fn parse_ffmpeg_command_accepts_json_escaped_quoted_paths() {
+        let args = parse_ffmpeg_command_args(
+            r#"ffmpeg -y -hwaccel auto -i \"/Users/locnguyen/yt/GIẢI CỨU THỎ BẢY MÀU.mp4\" -vn -c:a libmp3lame -q:a 2 -progress pipe:2 \"/Users/locnguyen/yt/GIẢI CỨU THỎ BẢY MÀU_audio.mp3\""#,
+        )
+        .expect("AI JSON-escaped quotes should still preserve paths with spaces");
+
+        assert_eq!(
+            args,
+            vec![
+                "-y",
+                "-hwaccel",
+                "auto",
+                "-i",
+                "/Users/locnguyen/yt/GIẢI CỨU THỎ BẢY MÀU.mp4",
+                "-vn",
+                "-c:a",
+                "libmp3lame",
+                "-q:a",
+                "2",
+                "-progress",
+                "pipe:2",
+                "/Users/locnguyen/yt/GIẢI CỨU THỎ BẢY MÀU_audio.mp3",
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_ffmpeg_command_accepts_json_escaped_slashes() {
+        let args = parse_ffmpeg_command_args(
+            r#"ffmpeg -y -i "\/Users\/locnguyen\/yt\/ruindkid - Bad Pitch For You.mp4" -filter:a "atempo=2.0" "\/Users\/locnguyen\/yt\/ruindkid - Bad Pitch For You_x2.mp3""#,
+        )
+        .expect("AI JSON-escaped slashes should be normalized before execution");
+
+        assert_eq!(
+            args,
+            vec![
+                "-y",
+                "-i",
+                "/Users/locnguyen/yt/ruindkid - Bad Pitch For You.mp4",
+                "-filter:a",
+                "atempo=2.0",
+                "/Users/locnguyen/yt/ruindkid - Bad Pitch For You_x2.mp3",
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_ffmpeg_command_preserves_quoted_windows_paths() {
+        let args = parse_ffmpeg_command_args(
+            r#"ffmpeg -y -i "C:\Users\locnguyen\Videos\Input File.mp4" "C:\Users\locnguyen\Videos\Output File.mp3""#,
+        )
+        .expect("quoted Windows paths should preserve backslashes");
+
+        assert_eq!(
+            args,
+            vec![
+                "-y",
+                "-i",
+                r#"C:\Users\locnguyen\Videos\Input File.mp4"#,
+                r#"C:\Users\locnguyen\Videos\Output File.mp3"#,
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_ffmpeg_command_preserves_unquoted_windows_paths() {
+        let args = parse_ffmpeg_command_args(
+            r#"ffmpeg -y -i C:\Users\locnguyen\Videos\input.mp4 C:\Users\locnguyen\Videos\output.mp3"#,
+        )
+        .expect("unquoted Windows paths should preserve backslashes");
+
+        assert_eq!(
+            args,
+            vec![
+                "-y",
+                "-i",
+                r#"C:\Users\locnguyen\Videos\input.mp4"#,
+                r#"C:\Users\locnguyen\Videos\output.mp3"#,
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_ffmpeg_command_keeps_unix_escaped_spaces() {
+        let args =
+            parse_ffmpeg_command_args(r#"ffmpeg -y -i /tmp/Input\ File.mp4 /tmp/Output\ File.mp3"#)
+                .expect("escaped spaces should still be accepted for Unix-like paths");
+
+        assert_eq!(
+            args,
+            vec!["-y", "-i", "/tmp/Input File.mp4", "/tmp/Output File.mp3"]
+        );
     }
 
     #[test]
