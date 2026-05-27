@@ -14,7 +14,7 @@ use super::scaffold::{
     build_scaffold_changelog, build_scaffold_ci_workflow, build_scaffold_failure_result_example,
     build_scaffold_locale_file, build_scaffold_package_json, build_scaffold_plugin_module,
     build_scaffold_readme, build_scaffold_release_workflow, build_scaffold_success_result_example,
-    sample_download_payload,
+    build_scaffold_tsconfig, sample_download_payload,
 };
 use super::sdk_bundle::current_sdk_version;
 use super::CreatePluginWorkspaceInput;
@@ -191,7 +191,7 @@ pub fn create_plugin_workspace_internal(
             language: PluginRuntimeLanguage::Javascript,
             supported_providers,
             preferred_provider,
-            entrypoint: "src/plugin.js".to_string(),
+            entrypoint: "src/plugin.ts".to_string(),
         },
         compatibility: Some(PluginCompatibilitySpec {
             app_version: Some(build_scaffold_compatibility_range(env!(
@@ -281,14 +281,21 @@ pub fn create_plugin_workspace_internal(
             e
         )
     })?;
+    std::fs::write(destination.join("tsconfig.json"), build_scaffold_tsconfig()).map_err(|e| {
+        format!(
+            "Failed to write plugin tsconfig.json {}: {}",
+            destination.join("tsconfig.json").display(),
+            e
+        )
+    })?;
     std::fs::write(
-        destination.join("src").join("plugin.js"),
+        destination.join("src").join("plugin.ts"),
         build_scaffold_plugin_module(&manifest),
     )
     .map_err(|e| {
         format!(
             "Failed to write plugin module {}: {}",
-            destination.join("src").join("plugin.js").display(),
+            destination.join("src").join("plugin.ts").display(),
             e
         )
     })?;

@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - **App-mediated runtime permissions** - Reworked filesystem and tool access so installed plugins must use Youwee's runtime bridge through `ctx.youwee.fs` and `ctx.youwee.tools` instead of receiving direct Deno write/run permissions.
 - **Tool execution contract** - `ctx.youwee.tools.ffmpeg.run(...)` and `ctx.youwee.tools.ytdlp.run(...)` now delegate to Youwee, which runs approved tool binaries without a shell and validates tool arguments against approved read/write scopes.
+- **TypeScript-first plugin workspaces** - Changed generated plugin workspaces to use `src/plugin.ts`, ESM exports, `tsconfig.json`, and a `typecheck` script by default.
 - **Workspace test script** - Updated generated `test:deno` scripts to avoid direct `--allow-write`, making local checks better match the installed runtime security model.
 - **Compatibility baseline** - Updated SDK examples to target Youwee `>=0.14.1 <0.15.0`, because SDK 2.x expects the app-mediated plugin bridge.
 

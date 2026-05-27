@@ -376,7 +376,7 @@ export function validatePluginManifest(manifest: PluginManifest): ManifestValida
 export function createPluginPackageDefinition(
   input: PluginPackageDefinitionInput,
 ): Record<string, unknown> {
-  const main = input.main || 'src/plugin.js';
+  const main = input.main || 'src/plugin.ts';
   const sdkVersion = input.sdkVersion || `^${SDK_VERSION}`;
 
   return {
@@ -384,17 +384,21 @@ export function createPluginPackageDefinition(
     version: input.version,
     private: true,
     description: input.description || 'Youwee plugin package',
-    type: 'commonjs',
+    type: 'module',
     main,
     scripts: {
       build: 'bunx youwee-sdk build',
       pack: 'bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json',
       keygen: 'bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json',
+      typecheck: 'tsc --noEmit -p tsconfig.json',
       'test:deno':
-        'deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.js',
+        'deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --node-modules-dir=manual node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.ts',
     },
     dependencies: {
       'youwee-sdk': sdkVersion,
+    },
+    devDependencies: {
+      typescript: '^5.9.3',
     },
   };
 }

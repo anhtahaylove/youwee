@@ -19,9 +19,9 @@ pub(super) fn build_scaffold_plugin_module(manifest: &PluginManifest) -> String 
         .map(|trigger| sdk_trigger_identifier(trigger))
         .unwrap_or("triggers.downloadCompleted");
     format!(
-        r#"const {{ definePlugin, triggers }} = require("youwee-sdk");
+        r#"import {{ definePlugin, triggers, type PluginDefinition }} from "youwee-sdk";
 
-module.exports = definePlugin({{
+const plugin = definePlugin({{
   meta: {{
     name: "{name}",
     version: "{version}",
@@ -50,7 +50,9 @@ module.exports = definePlugin({{
       }});
     }},
   }},
-}});
+}} satisfies PluginDefinition);
+
+export default plugin;
 "#,
         name = manifest.name.replace('"', "\\\""),
         version = manifest.version.replace('"', "\\\""),
@@ -80,16 +82,20 @@ pub(super) fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
   "version": "{version}",
   "private": true,
   "description": "{description}",
-  "type": "commonjs",
-  "main": "src/plugin.js",
+  "type": "module",
+  "main": "src/plugin.ts",
   "scripts": {{
     "build": "bunx youwee-sdk build",
     "pack": "bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json",
     "keygen": "bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json",
-    "test:deno": "deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.js"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:deno": "deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --node-modules-dir=manual node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.ts"
   }},
   "dependencies": {{
     "youwee-sdk": "^{sdk_version}"
+  }},
+  "devDependencies": {{
+    "typescript": "^5.9.3"
   }}
 }}
 "#,
@@ -102,6 +108,24 @@ pub(super) fn build_scaffold_package_json(manifest: &PluginManifest) -> String {
             .unwrap_or("Youwee plugin scaffold")
             .replace('"', "\\\"")
     )
+}
+
+pub(super) fn build_scaffold_tsconfig() -> String {
+    r#"{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"]
+}
+"#
+    .to_string()
 }
 
 pub(super) fn build_scaffold_ci_workflow() -> String {
@@ -136,6 +160,9 @@ jobs:
 
       - name: Install dependencies with Bun
         run: bun install --frozen-lockfile
+
+      - name: Typecheck plugin
+        run: bun run typecheck
 
       - name: Build plugin with Bun toolchain
         run: bun run build
@@ -188,6 +215,9 @@ jobs:
             exit 1
           fi
           printf '%s' "$YOUWEE_PLUGIN_SIGNING_KEY" > plugin.youwee-plugin-key.json
+
+      - name: Typecheck plugin
+        run: bun run typecheck
 
       - name: Build plugin with Bun toolchain
         run: bun run build
@@ -244,7 +274,8 @@ Identity:
 Package layout:
 - `plugin.json`: plugin manifest consumed by Youwee
 - `package.json`: package metadata and local test scripts
-- `src/plugin.js`: plugin module and hook implementations
+- `tsconfig.json`: TypeScript compiler settings for editor and CI checks
+- `src/plugin.ts`: TypeScript plugin module and hook implementations
 - `locales/en.json`: default translation file for plugin messages
 - `README.md`: default documentation shown inside Youwee
 - `README.vi.md` / `README.zh-CN.md`: optional localized plugin guides shown when the app language matches
@@ -254,7 +285,7 @@ Package layout:
 
 ## Entry module
 
-The plugin entrypoint is `src/plugin.js`.
+The plugin entrypoint is `src/plugin.ts`.
 
 You do not need a per-plugin runner file. Youwee launches the shared bootstrap from
 `youwee-sdk` and passes your plugin entry module through the runtime bridge.
@@ -276,9 +307,9 @@ Use raw runtime trigger strings in `plugin.json`:
 }}
 ```
 
-Use SDK identifiers only inside `src/plugin.js`:
+Use SDK identifiers only inside `src/plugin.ts`:
 
-```js
+```ts
 hooks: {{
   [triggers.downloadCompleted]: async (ctx) => {{
     return ctx.ok("Done");
@@ -292,7 +323,7 @@ Do not write values like `"triggers.downloadCompleted"` in `plugin.json`.
 
 Execution flow:
 1. Youwee dispatches a trigger such as `download.completed`
-2. The shared SDK bootstrap loads `src/plugin.js`
+2. The shared SDK bootstrap loads `src/plugin.ts`
 3. The SDK reads the payload JSON from `stdin`
 4. The SDK creates `ctx`
 5. The matching hook runs
@@ -301,9 +332,9 @@ Execution flow:
 
 ## Hook implementation
 
-Implement hooks in `src/plugin.js`:
+Implement hooks in `src/plugin.ts`:
 
-```js
+```ts
 hooks: {{
   [triggers.downloadCompleted]: async (ctx) => {{
     return ctx.ok("Done");
@@ -348,7 +379,7 @@ Return a JSON-serializable result:
 
 Examples:
 
-```js
+```ts
 return ctx.ok("Uploaded successfully", {{ driveFileId: "abc123" }});
 return ctx.fail("Missing API token");
 ```
@@ -390,7 +421,7 @@ Example:
 
 Read them at runtime with:
 
-```js
+```ts
 const outputDirectory = ctx.config.require("outputDirectory");
 ```
 
@@ -429,6 +460,12 @@ Install dependencies first with the Bun toolchain:
 bun install
 ```
 
+Run a TypeScript check:
+
+```bash
+bun run typecheck
+```
+
 Build a bundled runtime artifact with the Bun toolchain:
 
 ```bash
@@ -456,14 +493,15 @@ Recommended setup:
 3. Store the full JSON contents of `plugin.youwee-plugin-key.json` in that secret
 4. Create a tag like `v0.1.0` to trigger the release workflow
 
-The CI workflow uses Bun for dependency installation and packaging, then runs a Deno runtime check.
+The CI workflow uses Bun for dependency installation, TypeScript checking, and packaging, then runs a Deno runtime check.
 
 The release workflow:
 
 1. restores the signing key from `YOUWEE_PLUGIN_SIGNING_KEY`
-2. builds the plugin with the Bun toolchain
-3. packs a signed `.ywp`
-4. uploads the `.ywp` and `.sha256` files to the GitHub release
+2. typechecks the plugin
+3. builds the plugin with the Bun toolchain
+4. packs a signed `.ywp`
+5. uploads the `.ywp` and `.sha256` files to the GitHub release
 
 Deno runtime check:
 
@@ -488,7 +526,7 @@ The source workspace is for development and packaging, not direct end-user insta
 
 ## Next step
 
-Edit `src/plugin.js` first and replace the example hook body with your actual logic.
+Edit `src/plugin.ts` first and replace the example hook body with your actual logic.
 "#,
         name = manifest.name,
         plugin_id = manifest.plugin_id,

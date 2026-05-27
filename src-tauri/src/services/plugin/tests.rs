@@ -92,7 +92,7 @@ fn scaffold_readme_mentions_framework_entrypoint() {
             language: PluginRuntimeLanguage::Javascript,
             supported_providers: vec![PluginProvider::Deno],
             preferred_provider: Some(PluginProvider::Deno),
-            entrypoint: "src/plugin.js".to_string(),
+            entrypoint: "src/plugin.ts".to_string(),
         },
         compatibility: None,
         i18n: None,
@@ -105,9 +105,10 @@ fn scaffold_readme_mentions_framework_entrypoint() {
         published_at: None,
     };
     let readme = build_scaffold_readme(&manifest);
-    assert!(readme.contains("src/plugin.js"));
+    assert!(readme.contains("src/plugin.ts"));
     assert!(readme.contains("ctx.ok"));
     assert!(readme.contains("Execution flow"));
+    assert!(readme.contains("bun run typecheck"));
     assert!(readme.contains("bun run test:deno"));
 }
 
@@ -161,7 +162,7 @@ fn validate_manifest_rejects_sdk_trigger_identifiers() {
             language: PluginRuntimeLanguage::Javascript,
             supported_providers: vec![PluginProvider::Deno],
             preferred_provider: Some(PluginProvider::Deno),
-            entrypoint: "src/plugin.js".to_string(),
+            entrypoint: "src/plugin.ts".to_string(),
         },
         compatibility: None,
         i18n: None,
@@ -218,9 +219,11 @@ fn scaffold_workflows_cover_ci_and_release() {
     let release_workflow = build_scaffold_release_workflow();
 
     assert!(ci_workflow.contains("name: Plugin CI"));
+    assert!(ci_workflow.contains("bun run typecheck"));
     assert!(ci_workflow.contains("bun run build"));
     assert!(ci_workflow.contains("bun run test:deno"));
     assert!(release_workflow.contains("name: Plugin Release"));
+    assert!(release_workflow.contains("bun run typecheck"));
     assert!(release_workflow.contains("YOUWEE_PLUGIN_SIGNING_KEY"));
     assert!(release_workflow.contains("release/*.ywp"));
 }
@@ -242,7 +245,7 @@ fn scaffold_package_json_uses_npm_sdk_dependency() {
             language: PluginRuntimeLanguage::Javascript,
             supported_providers: vec![PluginProvider::Deno],
             preferred_provider: Some(PluginProvider::Deno),
-            entrypoint: "src/plugin.js".to_string(),
+            entrypoint: "src/plugin.ts".to_string(),
         },
         compatibility: None,
         i18n: None,
@@ -256,14 +259,18 @@ fn scaffold_package_json_uses_npm_sdk_dependency() {
     };
     let package_json = build_scaffold_package_json(&manifest);
     assert!(package_json.contains(&format!("\"youwee-sdk\": \"^{}\"", current_sdk_version())));
+    assert!(package_json.contains("\"type\": \"module\""));
+    assert!(package_json.contains("\"main\": \"src/plugin.ts\""));
+    assert!(package_json.contains("\"typescript\": \"^5.9.3\""));
     assert!(package_json.contains(
         "\"pack\": \"bunx youwee-sdk pack --private-key ./plugin.youwee-plugin-key.json\""
     ));
     assert!(package_json
         .contains("\"keygen\": \"bunx youwee-sdk keygen ./plugin.youwee-plugin-key.json\""));
+    assert!(package_json.contains("\"typecheck\": \"tsc --noEmit -p tsconfig.json\""));
     assert!(
             package_json.contains(
-                "\"test:deno\": \"deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.js\""
+                "\"test:deno\": \"deno run --quiet --unstable-detect-cjs --allow-env --allow-read=. --node-modules-dir=manual node_modules/youwee-sdk/dist/runtime-cli.js src/plugin.ts\""
             )
         );
 }
@@ -361,7 +368,7 @@ fn compatibility_issues_are_reported_for_mismatched_ranges() {
             language: PluginRuntimeLanguage::Javascript,
             supported_providers: vec![PluginProvider::Deno],
             preferred_provider: Some(PluginProvider::Deno),
-            entrypoint: "src/plugin.js".to_string(),
+            entrypoint: "src/plugin.ts".to_string(),
         },
         compatibility: Some(crate::types::PluginCompatibilitySpec {
             app_version: Some(">=999.0.0 <1000.0.0".to_string()),

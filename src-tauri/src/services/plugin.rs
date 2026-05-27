@@ -1041,7 +1041,7 @@ async fn execute_plugin(
             command_args.push("run".to_string());
             command_args.push("--quiet".to_string());
             command_args.push("--unstable-detect-cjs".to_string());
-            command_args.push("--node-modules-dir=auto".to_string());
+            command_args.push("--node-modules-dir=manual".to_string());
             command_args.push(format!("--allow-env={}", plugin_env_keys.join(",")));
             if plugin.manifest.permissions.network {
                 command_args.push("--allow-net".to_string());

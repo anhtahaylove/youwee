@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { runPluginModule } from './runtime';
 import type { PluginDefinition } from './types';
 
@@ -6,6 +8,10 @@ const STRIP_RUNTIME_ENV_KEYS = [
   'DYLD_LIBRARY_PATH',
   'LD_LIBRARY_PATH',
 ] as const;
+
+const nativeDynamicImport = new Function('specifier', 'return import(specifier)') as (
+  specifier: string,
+) => Promise<unknown>;
 
 function sanitizeRuntimeEnvironment(): void {
   for (const key of STRIP_RUNTIME_ENV_KEYS) {
@@ -48,8 +54,14 @@ async function loadPluginModule(): Promise<PluginDefinition | { default?: Plugin
     );
   }
 
-  const loaded = require(pluginMain) as PluginDefinition | { default?: PluginDefinition };
-  return loaded;
+  const resolvedPluginMain = resolve(pluginMain);
+  if (/\.(mjs|mts|ts)$/i.test(resolvedPluginMain)) {
+    return (await nativeDynamicImport(pathToFileURL(resolvedPluginMain).href)) as
+      | PluginDefinition
+      | { default?: PluginDefinition };
+  }
+
+  return require(resolvedPluginMain) as PluginDefinition | { default?: PluginDefinition };
 }
 
 async function main(): Promise<void> {
