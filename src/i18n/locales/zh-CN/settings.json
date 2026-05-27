@@ -365,6 +365,7 @@
     "pluginConfigBrowseDirectory": "选择文件夹",
     "pluginConfigSave": "保存",
     "pluginConfigClear": "清除",
+    "pluginConfigSaveSuccess": "插件配置已保存。",
     "pluginConfigSaveError": "保存插件配置失败。",
     "pluginConfigInvalidNumber": "保存前请输入有效数字。",
     "pluginConfigInputType": {

@@ -365,6 +365,7 @@
     "pluginConfigBrowseDirectory": "Chọn thư mục",
     "pluginConfigSave": "Lưu",
     "pluginConfigClear": "Xóa",
+    "pluginConfigSaveSuccess": "Đã lưu cấu hình plugin.",
     "pluginConfigSaveError": "Không thể lưu cấu hình plugin.",
     "pluginConfigInvalidNumber": "Hãy nhập một số hợp lệ trước khi lưu.",
     "pluginConfigInputType": {

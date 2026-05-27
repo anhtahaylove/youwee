@@ -410,6 +410,7 @@
     "pluginConfigBrowseDirectory": "Choisir un dossier",
     "pluginConfigSave": "Enregistrer",
     "pluginConfigClear": "Effacer",
+    "pluginConfigSaveSuccess": "Configuration du plugin enregistrée.",
     "pluginConfigSaveError": "Échec de l’enregistrement de la configuration du plugin.",
     "pluginConfigInvalidNumber": "Saisissez un nombre valide avant d’enregistrer.",
     "pluginConfigInputType": {

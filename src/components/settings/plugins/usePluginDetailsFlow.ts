@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import type { TFunction } from 'i18next';
 import type { Dispatch, SetStateAction } from 'react';
 import { useCallback, useState } from 'react';
+import { useToast } from '@/components/ui/toast';
 import { localizeUnknownError } from '@/lib/backend-error';
 import type {
   PluginConfigField,
@@ -44,6 +45,7 @@ export function usePluginDetailsFlow(
   setError: Dispatch<SetStateAction<string | null>>,
   deps: DetailsDeps,
 ) {
+  const toast = useToast();
   const {
     closeLogsDialog,
     runtimeStatuses,
@@ -400,12 +402,17 @@ export function usePluginDetailsFlow(
                 ? ''
                 : stringifyConfigFieldValue(value ?? field.defaultValue ?? undefined),
         );
+        toast.success({
+          title: plugin.manifest.name,
+          message: t('download.pluginConfigSaveSuccess'),
+          durationMs: 3000,
+        });
       } catch (err) {
         console.error('Failed to update plugin config values:', err);
         setError(t('download.pluginConfigSaveError'));
       }
     },
-    [getConfigDraftValue, setConfigDraftValue, setError, t, updatePluginList],
+    [getConfigDraftValue, setConfigDraftValue, setError, t, toast, updatePluginList],
   );
 
   const handleClearPluginConfig = useCallback(

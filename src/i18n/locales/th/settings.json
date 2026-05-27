@@ -417,6 +417,7 @@
     "pluginConfigBrowseDirectory": "เลือกโฟลเดอร์",
     "pluginConfigSave": "บันทึก",
     "pluginConfigClear": "ล้าง",
+    "pluginConfigSaveSuccess": "บันทึกการตั้งค่าปลั๊กอินแล้ว",
     "pluginConfigSaveError": "บันทึกการตั้งค่าปลั๊กอินไม่สำเร็จ",
     "pluginConfigInvalidNumber": "ป้อนตัวเลขที่ถูกต้องก่อนบันทึก",
     "pluginConfigInputType": {

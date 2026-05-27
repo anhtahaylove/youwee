@@ -417,6 +417,7 @@
     "pluginConfigBrowseDirectory": "اختر مجلدًا",
     "pluginConfigSave": "حفظ",
     "pluginConfigClear": "مسح",
+    "pluginConfigSaveSuccess": "تم حفظ إعدادات الإضافة.",
     "pluginConfigSaveError": "تعذر حفظ إعدادات الإضافة.",
     "pluginConfigInvalidNumber": "أدخل رقمًا صالحًا قبل الحفظ.",
     "pluginConfigInputType": {

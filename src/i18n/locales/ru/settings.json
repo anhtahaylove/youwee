@@ -410,6 +410,7 @@
     "pluginConfigBrowseDirectory": "Выбрать папку",
     "pluginConfigSave": "Сохранить",
     "pluginConfigClear": "Очистить",
+    "pluginConfigSaveSuccess": "Конфигурация плагина сохранена.",
     "pluginConfigSaveError": "Не удалось сохранить конфигурацию плагина.",
     "pluginConfigInvalidNumber": "Введите корректное число перед сохранением.",
     "pluginConfigInputType": {

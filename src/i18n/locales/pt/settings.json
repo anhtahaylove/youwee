@@ -410,6 +410,7 @@
     "pluginConfigBrowseDirectory": "Escolher pasta",
     "pluginConfigSave": "Salvar",
     "pluginConfigClear": "Limpar",
+    "pluginConfigSaveSuccess": "Configuração do plugin salva.",
     "pluginConfigSaveError": "Falha ao salvar a configuração do plugin.",
     "pluginConfigInvalidNumber": "Digite um número válido antes de salvar.",
     "pluginConfigInputType": {

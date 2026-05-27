@@ -365,6 +365,7 @@
     "pluginConfigBrowseDirectory": "Choose folder",
     "pluginConfigSave": "Save",
     "pluginConfigClear": "Clear",
+    "pluginConfigSaveSuccess": "Plugin configuration saved.",
     "pluginConfigSaveError": "Failed to save plugin configuration.",
     "pluginConfigInvalidNumber": "Enter a valid number before saving.",
     "pluginConfigInputType": {

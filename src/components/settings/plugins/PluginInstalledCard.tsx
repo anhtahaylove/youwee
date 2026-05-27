@@ -45,6 +45,7 @@ export function PluginInstalledCard({
   const { t } = useTranslation('settings');
   const runtimeStatus = controller.runtimeStatuses[plugin.manifest.id];
   const isExpanded = controller.expandedPluginId === plugin.manifest.id;
+  const isWorkspacePlugin = plugin.installation.source.kind === 'workspace';
 
   return (
     <Collapsible
@@ -117,15 +118,17 @@ export function PluginInstalledCard({
         <CollapsibleContent className="border-t border-border/60 px-4 py-4">
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => controller.handleRefreshPlugin(plugin.manifest.id)}
-                aria-label={t('download.pluginRefreshInfo')}
-                title={t('download.pluginRefreshInfo')}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+              {isWorkspacePlugin && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => controller.handleRefreshPlugin(plugin.manifest.id)}
+                  aria-label={t('download.pluginRefreshInfo')}
+                  title={t('download.pluginRefreshInfo')}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              )}
               {plugin.readmeContent && (
                 <Button
                   variant="outline"
@@ -162,9 +165,7 @@ export function PluginInstalledCard({
               >
                 <Trash2 className="h-4 w-4" />
                 {t(
-                  plugin.installation.source.kind === 'workspace'
-                    ? 'download.pluginDetachWorkspace'
-                    : 'download.pluginUninstall',
+                  isWorkspacePlugin ? 'download.pluginDetachWorkspace' : 'download.pluginUninstall',
                 )}
               </Button>
             </div>
