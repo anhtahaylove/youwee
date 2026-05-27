@@ -35,10 +35,10 @@ export function SettingsSidebar({ activeSection, onSectionChange }: SettingsSide
     { id: 'general', labelKey: 'sections.general' },
     { id: 'dependencies', labelKey: 'sections.dependencies' },
     { id: 'download', labelKey: 'sections.download' },
-    { id: 'plugins', labelKey: 'sections.plugins' },
-    { id: 'extension', labelKey: 'sections.extension' },
     { id: 'ai', labelKey: 'sections.ai' },
     { id: 'network', labelKey: 'sections.network' },
+    { id: 'plugins', labelKey: 'sections.plugins' },
+    { id: 'extension', labelKey: 'sections.extension' },
     { id: 'about', labelKey: 'sections.about' },
   ];
 
