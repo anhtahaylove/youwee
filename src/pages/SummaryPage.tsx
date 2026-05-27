@@ -115,9 +115,15 @@ export function SummaryPage({ onNavigateToSettings }: SummaryPageProps) {
     setSaved(false);
     isCancelledRef.current = false;
 
+    let activeStep = '';
+    const updateLoadingStatus = (status: string) => {
+      activeStep = status;
+      setLoadingStatus(status);
+    };
+
     try {
       // Step 1: Fetch video info
-      setLoadingStatus(t('summary.loading.fetchingInfo'));
+      updateLoadingStatus(t('summary.loading.fetchingInfo'));
       const videoInfoResponse = await invoke<{
         info: {
           title: string;
@@ -144,7 +150,7 @@ export function SummaryPage({ onNavigateToSettings }: SummaryPageProps) {
       }
 
       // Step 2: Fetch transcript
-      setLoadingStatus(t('summary.loading.fetchingTranscript'));
+      updateLoadingStatus(t('summary.loading.fetchingTranscript'));
       const transcript = await invoke<string>('get_video_transcript', {
         url: url.trim(),
         languages: transcriptLanguages,
@@ -162,7 +168,7 @@ export function SummaryPage({ onNavigateToSettings }: SummaryPageProps) {
       }
 
       // Step 3: Generate summary with local settings
-      setLoadingStatus(t('summary.loading.generating'));
+      updateLoadingStatus(t('summary.loading.generating'));
       const summaryResult = await invoke<{ summary: string }>('generate_summary_with_options', {
         transcript,
         style: summaryStyle,
@@ -184,7 +190,7 @@ export function SummaryPage({ onNavigateToSettings }: SummaryPageProps) {
     } catch (err) {
       if (isCancelledRef.current) return;
       const message = localizeUnknownError(err);
-      setError(message);
+      setError(activeStep ? `${activeStep}: ${message}` : message);
     } finally {
       if (!isCancelledRef.current) {
         setIsLoading(false);

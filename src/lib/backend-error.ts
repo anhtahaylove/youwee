@@ -153,6 +153,15 @@ export function extractBackendError(error: unknown): BackendErrorPayload {
 }
 
 export function localizeBackendError(payload: BackendErrorPayload): string {
+  if (
+    payload.source === 'ai' &&
+    ['AI_API_ERROR', 'NETWORK_REQUEST_FAILED', 'PARSE_FAILED', 'AI_NO_API_KEY'].includes(
+      payload.code,
+    )
+  ) {
+    return payload.message;
+  }
+
   const key = `common:backendErrors.${payload.code}`;
   const translated = i18n.t(key, payload.params ?? {});
   return translated === key ? payload.message : translated;

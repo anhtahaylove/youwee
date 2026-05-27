@@ -46,7 +46,9 @@ pub async fn get_ai_config(app: AppHandle) -> Result<AIConfig, String> {
 /// Test AI connection
 #[tauri::command]
 pub async fn test_ai_connection(config: AIConfig) -> Result<String, String> {
-    test_connection(&config).await.map_err(|e| e.to_string())
+    test_connection(&config)
+        .await
+        .map_err(|e| e.to_wire_string())
 }
 
 /// Generate summary for a video transcript
@@ -65,7 +67,7 @@ pub async fn generate_video_summary(
 
     let result = generate_summary(&config, &transcript, title.as_deref())
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_wire_string())?;
 
     // If history_id is provided, save summary to database
     if let Some(id) = history_id {
@@ -106,7 +108,7 @@ pub async fn generate_summary_with_options(
         title.as_deref(),
     )
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_wire_string())?;
 
     Ok(SummaryResult {
         summary: result.summary,
@@ -307,7 +309,7 @@ pub async fn generate_ai_response(app: AppHandle, prompt: String) -> Result<Stri
 
     let result = generate_raw(&config, &prompt)
         .await
-        .map_err(|e| format!("AI generation failed: {}", e))?;
+        .map_err(|e| e.to_wire_string())?;
 
     Ok(result.summary)
 }

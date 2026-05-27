@@ -641,7 +641,7 @@ For valid video requests:
 
     let result = generate_raw(&config, &ai_prompt)
         .await
-        .map_err(|e| format!("AI generation failed: {}", e))?;
+        .map_err(|e| e.to_wire_string())?;
 
     #[cfg(debug_assertions)]
     {

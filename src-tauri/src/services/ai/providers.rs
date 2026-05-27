@@ -1,6 +1,108 @@
 use super::*;
 use reqwest::Client;
 
+fn chat_completions_url(base_url: &str) -> String {
+    let trimmed = base_url.trim_end_matches('/');
+    if trimmed.ends_with("/chat/completions") || trimmed.ends_with("/v1/chat/completions") {
+        trimmed.to_string()
+    } else if trimmed.ends_with("/v1") {
+        format!("{}/chat/completions", trimmed)
+    } else {
+        format!("{}/v1/chat/completions", trimmed)
+    }
+}
+
+fn response_snippet(response_text: &str) -> String {
+    const MAX_CHARS: usize = 700;
+    let mut snippet = response_text.chars().take(MAX_CHARS).collect::<String>();
+    if response_text.chars().count() > MAX_CHARS {
+        snippet.push_str("...");
+    }
+    snippet
+}
+
+fn extract_openai_compatible_error(response_text: &str) -> Option<String> {
+    let json = serde_json::from_str::<serde_json::Value>(response_text).ok()?;
+    let error = json.get("error")?;
+    error
+        .get("message")
+        .and_then(|m| m.as_str())
+        .or_else(|| error.as_str())
+        .map(str::to_string)
+}
+
+fn extract_openai_compatible_text(json: &serde_json::Value) -> Option<String> {
+    let choice = json.get("choices")?.get(0)?;
+    let message = choice.get("message");
+
+    if let Some(content) = message
+        .and_then(|m| m.get("content"))
+        .and_then(|content| content.as_str())
+    {
+        if !content.trim().is_empty() {
+            return Some(content.to_string());
+        }
+    }
+
+    if let Some(parts) = message
+        .and_then(|m| m.get("content"))
+        .and_then(|content| content.as_array())
+    {
+        let text = parts
+            .iter()
+            .filter_map(|part| {
+                part.get("text")
+                    .and_then(|text| text.as_str())
+                    .or_else(|| part.get("content").and_then(|text| text.as_str()))
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        if !text.trim().is_empty() {
+            return Some(text);
+        }
+    }
+
+    if let Some(text) = choice.get("text").and_then(|text| text.as_str()) {
+        if !text.trim().is_empty() {
+            return Some(text.to_string());
+        }
+    }
+
+    None
+}
+
+fn parse_openai_compatible_response(
+    provider_label: &str,
+    status: reqwest::StatusCode,
+    response_text: &str,
+) -> Result<String, AIError> {
+    if !status.is_success() {
+        let detail = extract_openai_compatible_error(response_text)
+            .unwrap_or_else(|| response_snippet(response_text));
+        return Err(AIError::ApiError(format!(
+            "{} API returned HTTP {}: {}",
+            provider_label, status, detail
+        )));
+    }
+
+    let json: serde_json::Value = serde_json::from_str(response_text).map_err(|e| {
+        AIError::ParseError(format!(
+            "{} API returned invalid JSON: {}. Response: {}",
+            provider_label,
+            e,
+            response_snippet(response_text)
+        ))
+    })?;
+
+    extract_openai_compatible_text(&json).ok_or_else(|| {
+        AIError::ParseError(format!(
+            "{} API response did not contain message content. Response: {}",
+            provider_label,
+            response_snippet(response_text)
+        ))
+    })
+}
+
 pub async fn generate_with_gemini(
     api_key: &str,
     model: &str,
@@ -154,24 +256,9 @@ pub async fn generate_with_openai(
         .await
         .map_err(|e| AIError::NetworkError(e.to_string()))?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
-        return Err(AIError::ApiError(format!("Status {}: {}", status, text)));
-    }
-
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let summary = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No content in response".to_string()))?;
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    let summary = parse_openai_compatible_response("OpenAI", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: summary.trim().to_string(),
@@ -262,27 +349,9 @@ pub async fn generate_with_deepseek(
         .await
         .map_err(|e| AIError::NetworkError(e.to_string()))?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
-        return Err(AIError::ApiError(format!(
-            "DeepSeek API error ({}): {}",
-            status, text
-        )));
-    }
-
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let summary = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No content in response".to_string()))?;
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    let summary = parse_openai_compatible_response("DeepSeek", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: summary.trim().to_string(),
@@ -318,27 +387,9 @@ pub async fn generate_with_qwen(
         .await
         .map_err(|e| AIError::NetworkError(e.to_string()))?;
 
-    if !response.status().is_success() {
-        let status = response.status();
-        let text = response.text().await.unwrap_or_default();
-        return Err(AIError::ApiError(format!(
-            "Qwen API error ({}): {}",
-            status, text
-        )));
-    }
-
-    let json: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let summary = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No content in response".to_string()))?;
+    let status = response.status();
+    let response_text = response.text().await.unwrap_or_default();
+    let summary = parse_openai_compatible_response("Qwen", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: summary.trim().to_string(),
@@ -359,15 +410,7 @@ pub async fn generate_with_proxy(
     let client = Client::new();
     let prompt = build_prompt(transcript, style, language, title);
 
-    let base_url = proxy_url.trim_end_matches('/');
-    let url =
-        if base_url.ends_with("/chat/completions") || base_url.ends_with("/v1/chat/completions") {
-            base_url.to_string()
-        } else if base_url.ends_with("/v1") {
-            format!("{}/chat/completions", base_url)
-        } else {
-            format!("{}/v1/chat/completions", base_url)
-        };
+    let url = chat_completions_url(proxy_url);
 
     let body = serde_json::json!({
         "model": model,
@@ -393,36 +436,7 @@ pub async fn generate_with_proxy(
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
 
-    if !status.is_success() {
-        if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
-            let error_msg = error_json
-                .get("error")
-                .and_then(|e| e.get("message"))
-                .and_then(|m| m.as_str())
-                .unwrap_or(&response_text);
-            return Err(AIError::ApiError(format!("Proxy API error: {}", error_msg)));
-        }
-        return Err(AIError::ApiError(format!(
-            "Status {}: {}",
-            status, response_text
-        )));
-    }
-
-    let json: serde_json::Value = serde_json::from_str(&response_text)
-        .map_err(|e| AIError::ParseError(format!("Failed to parse response: {}", e)))?;
-
-    let summary = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| {
-            AIError::ParseError(format!(
-                "No content in response. Response: {}",
-                &response_text[..response_text.len().min(500)]
-            ))
-        })?;
+    let summary = parse_openai_compatible_response("Proxy", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: summary.trim().to_string(),
@@ -442,15 +456,7 @@ pub async fn generate_with_lmstudio(
     let client = Client::new();
     let prompt = build_prompt(transcript, style, language, title);
 
-    let base_url = lmstudio_url.trim_end_matches('/');
-    let url =
-        if base_url.ends_with("/chat/completions") || base_url.ends_with("/v1/chat/completions") {
-            base_url.to_string()
-        } else if base_url.ends_with("/v1") {
-            format!("{}/chat/completions", base_url)
-        } else {
-            format!("{}/v1/chat/completions", base_url)
-        };
+    let url = chat_completions_url(lmstudio_url);
 
     let body = serde_json::json!({
         "model": model,
@@ -475,39 +481,7 @@ pub async fn generate_with_lmstudio(
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
 
-    if !status.is_success() {
-        if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&response_text) {
-            let error_msg = error_json
-                .get("error")
-                .and_then(|e| e.get("message"))
-                .and_then(|m| m.as_str())
-                .unwrap_or(&response_text);
-            return Err(AIError::ApiError(format!(
-                "LM Studio API error: {}",
-                error_msg
-            )));
-        }
-        return Err(AIError::ApiError(format!(
-            "Status {}: {}",
-            status, response_text
-        )));
-    }
-
-    let json: serde_json::Value = serde_json::from_str(&response_text)
-        .map_err(|e| AIError::ParseError(format!("Failed to parse response: {}", e)))?;
-
-    let summary = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| {
-            AIError::ParseError(format!(
-                "No content in response. Response: {}",
-                &response_text[..response_text.len().min(500)]
-            ))
-        })?;
+    let summary = parse_openai_compatible_response("LM Studio", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: summary.trim().to_string(),
@@ -621,23 +595,7 @@ async fn generate_raw_with_openai(
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(AIError::ApiError(format!(
-            "OpenAI API error: {}",
-            response_text
-        )));
-    }
-
-    let json: serde_json::Value =
-        serde_json::from_str(&response_text).map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let text = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No text in response".to_string()))?;
+    let text = parse_openai_compatible_response("OpenAI", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: text.to_string(),
@@ -699,15 +657,7 @@ async fn generate_raw_with_lmstudio(
     prompt: &str,
 ) -> Result<SummaryResult, AIError> {
     let client = Client::new();
-    let base_url = lmstudio_url.trim_end_matches('/');
-    let url =
-        if base_url.ends_with("/chat/completions") || base_url.ends_with("/v1/chat/completions") {
-            base_url.to_string()
-        } else if base_url.ends_with("/v1") {
-            format!("{}/chat/completions", base_url)
-        } else {
-            format!("{}/v1/chat/completions", base_url)
-        };
+    let url = chat_completions_url(lmstudio_url);
 
     let body = serde_json::json!({
         "model": model,
@@ -731,23 +681,7 @@ async fn generate_raw_with_lmstudio(
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(AIError::ApiError(format!(
-            "LM Studio API error: {}",
-            response_text
-        )));
-    }
-
-    let json: serde_json::Value =
-        serde_json::from_str(&response_text).map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let text = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No text in response".to_string()))?;
+    let text = parse_openai_compatible_response("LM Studio", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: text.to_string(),
@@ -780,23 +714,7 @@ async fn generate_raw_with_deepseek(
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(AIError::ApiError(format!(
-            "DeepSeek API error: {}",
-            response_text
-        )));
-    }
-
-    let json: serde_json::Value =
-        serde_json::from_str(&response_text).map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let text = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No text in response".to_string()))?;
+    let text = parse_openai_compatible_response("DeepSeek", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: text.to_string(),
@@ -829,23 +747,7 @@ async fn generate_raw_with_qwen(
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(AIError::ApiError(format!(
-            "Qwen API error: {}",
-            response_text
-        )));
-    }
-
-    let json: serde_json::Value =
-        serde_json::from_str(&response_text).map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let text = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No text in response".to_string()))?;
+    let text = parse_openai_compatible_response("Qwen", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: text.to_string(),
@@ -861,7 +763,7 @@ async fn generate_raw_with_proxy(
     prompt: &str,
 ) -> Result<SummaryResult, AIError> {
     let client = Client::new();
-    let url = format!("{}/v1/chat/completions", proxy_url.trim_end_matches('/'));
+    let url = chat_completions_url(proxy_url);
 
     let body = serde_json::json!({
         "model": model,
@@ -881,23 +783,7 @@ async fn generate_raw_with_proxy(
 
     let status = response.status();
     let response_text = response.text().await.unwrap_or_default();
-    if !status.is_success() {
-        return Err(AIError::ApiError(format!(
-            "Proxy API error: {}",
-            response_text
-        )));
-    }
-
-    let json: serde_json::Value =
-        serde_json::from_str(&response_text).map_err(|e| AIError::ParseError(e.to_string()))?;
-
-    let text = json
-        .get("choices")
-        .and_then(|c| c.get(0))
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|t| t.as_str())
-        .ok_or_else(|| AIError::ParseError("No text in response".to_string()))?;
+    let text = parse_openai_compatible_response("Proxy", status, &response_text)?;
 
     Ok(SummaryResult {
         summary: text.to_string(),

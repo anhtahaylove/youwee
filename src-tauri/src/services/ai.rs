@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::types::{code, BackendError};
+
 #[path = "ai/dispatch.rs"]
 mod dispatch;
 #[path = "ai/providers.rs"]
@@ -120,6 +122,34 @@ impl std::fmt::Display for AIError {
 impl From<AIError> for String {
     fn from(err: AIError) -> String {
         err.to_string()
+    }
+}
+
+impl AIError {
+    pub fn to_backend_error(&self) -> BackendError {
+        match self {
+            AIError::NoApiKey => BackendError::new(code::AI_NO_API_KEY, self.to_string())
+                .with_source("ai")
+                .with_retryable(false),
+            AIError::NoTranscript => BackendError::new(code::AI_NO_TRANSCRIPT, self.to_string())
+                .with_source("ai")
+                .with_retryable(false),
+            AIError::ApiError(_) => BackendError::new(code::AI_API_ERROR, self.to_string())
+                .with_source("ai")
+                .with_retryable(false),
+            AIError::NetworkError(_) => {
+                BackendError::new(code::NETWORK_REQUEST_FAILED, self.to_string())
+                    .with_source("ai")
+                    .with_retryable(true)
+            }
+            AIError::ParseError(_) => BackendError::new(code::PARSE_FAILED, self.to_string())
+                .with_source("ai")
+                .with_retryable(false),
+        }
+    }
+
+    pub fn to_wire_string(&self) -> String {
+        self.to_backend_error().to_wire_string()
     }
 }
 
