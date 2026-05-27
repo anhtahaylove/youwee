@@ -516,8 +516,10 @@ Use `ctx.youwee.fs` for filesystem work:
 
 ```ts
 const content = await ctx.youwee.fs.readText(ctx.file.path);
+const bytes = await ctx.youwee.fs.readBytes(ctx.file.path);
 await ctx.youwee.fs.ensureDir(outputDirectory);
 await ctx.youwee.fs.writeText(`${outputDirectory}/result.txt`, content);
+await ctx.youwee.fs.writeBytes(`${outputDirectory}/copy.bin`, bytes);
 const tempDirectory = await ctx.youwee.fs.tempDir("my-plugin-");
 const scratchFile = `${tempDirectory}/scratch.txt`;
 await ctx.youwee.fs.writeText(scratchFile, "temporary data");
@@ -529,10 +531,14 @@ Filesystem calls are mediated by Youwee:
 - `fs.plugin.read` allows reading files from the installed plugin package/workspace
 - `fs.plugin.write` allows writing inside the plugin package/workspace only when explicitly approved
 - `fs.payload-file.read` allows reading the current downloaded file
-- `fs.payload-directory.read` allows reading files beside the current downloaded file
+- `fs.payload-directory.read` allows reading and listing files beside the current downloaded file
 - `fs.payload-directory.write` allows writing files beside the current downloaded file
 - `fs.temp.read` and `fs.temp.write` allow app-managed temporary files
 - `fs.user-selected.read` and `fs.user-selected.write` resolve from user-selected `file` or `directory` config fields
+
+Use `readText(...)` / `writeText(...)` for UTF-8 text files.
+Use `readBase64(...)`, `readBytes(...)`, `writeBase64(...)`, or `writeBytes(...)` for binary files such as media, thumbnails, archives, and upload payloads.
+Use `readDir(...)` when the plugin has directory read permission and needs to list files in an approved directory.
 
 Write permissions are still constrained even after approval.
 Youwee blocks dangerous write scopes such as the filesystem root, home directory root, startup/autostart locations, shell profile files, SSH/keychain/browser profile areas, application/system folders, and other sensitive OS locations.
@@ -1115,7 +1121,11 @@ That usually means the plugin is using direct Deno APIs or a shell instead of th
 Use:
 
 - `ctx.youwee.fs.readText(...)`
+- `ctx.youwee.fs.readBytes(...)`
+- `ctx.youwee.fs.readBase64(...)`
 - `ctx.youwee.fs.writeText(...)`
+- `ctx.youwee.fs.writeBytes(...)`
+- `ctx.youwee.fs.writeBase64(...)`
 - `ctx.youwee.fs.removeFile(...)`
 - `ctx.youwee.fs.ensureDir(...)`
 - `ctx.youwee.tools.ffmpeg.run(...)`

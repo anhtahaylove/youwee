@@ -190,11 +190,22 @@ export interface AIBridge {
 
 export interface PluginFileSystemBridge {
   exists(path: string): Promise<boolean>;
+  readDir(path: string): Promise<PluginDirectoryEntry[]>;
   readText(path: string): Promise<string>;
+  readBase64(path: string): Promise<string>;
+  readBytes(path: string): Promise<Uint8Array>;
   writeText(path: string, content: string): Promise<void>;
+  writeBase64(path: string, content: string): Promise<void>;
+  writeBytes(path: string, content: Uint8Array | ArrayBuffer | number[]): Promise<void>;
   removeFile(path: string): Promise<void>;
   ensureDir(path: string): Promise<void>;
   tempDir(prefix?: string): Promise<string>;
+}
+
+export interface PluginDirectoryEntry {
+  name: string;
+  path: string;
+  kind: 'file' | 'directory' | 'symlink' | 'other';
 }
 
 export interface PluginHttpRequestOptions {

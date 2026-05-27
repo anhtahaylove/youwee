@@ -358,6 +358,10 @@ Available high-level APIs:
 - `ctx.youwee.tools.ffmpeg`
 - `ctx.youwee.tools.ytdlp`
 - `ctx.youwee.fs.readText(...)`
+- `ctx.youwee.fs.readDir(...)`
+- `ctx.youwee.fs.readBytes(...)`
+- `ctx.youwee.fs.writeText(...)`
+- `ctx.youwee.fs.writeBytes(...)`
 - `ctx.youwee.fs.removeFile(...)`
 - `ctx.youwee.http.getJson(...)`
 - `ctx.ok(...)`
@@ -436,12 +440,17 @@ Runtime permission mapping:
 - `fs.plugin.read` allows reading files from this workspace/package through `ctx.youwee.fs`
 - `fs.plugin.write` allows writing inside this workspace/package only when Youwee approves it
 - `fs.payload-file.read` allows reading the current downloaded file
-- `fs.payload-directory.read` allows reading the current download directory
+- `fs.payload-directory.read` allows reading and listing the current download directory
 - `fs.payload-directory.write` allows writing beside the current downloaded file
 - `fs.temp.read` and `fs.temp.write` allow app-managed temporary work files
 - `fs.user-selected.read` and `fs.user-selected.write` use user-selected `file` or `directory` config fields
 - `tool.ffmpeg.run` allows `ctx.youwee.tools.ffmpeg.run(...)`
 - `tool.ytdlp.run` allows `ctx.youwee.tools.ytdlp.run(...)`
+
+Use `ctx.youwee.fs.readText(...)` / `ctx.youwee.fs.writeText(...)` for UTF-8 text files.
+Use `ctx.youwee.fs.readBytes(...)`, `ctx.youwee.fs.readBase64(...)`, `ctx.youwee.fs.writeBytes(...)`, or
+`ctx.youwee.fs.writeBase64(...)` for binary files such as media, thumbnails, archives, and upload payloads.
+Use `ctx.youwee.fs.readDir(...)` when the plugin has directory read permission and needs to list files.
 
 Do not call `Deno.Command(...)`, `child_process`, shell wrappers, or direct filesystem write APIs
 for plugin capabilities. They are blocked in the installed runtime. Use the SDK context APIs so

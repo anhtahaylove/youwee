@@ -105,6 +105,7 @@ export type {
   PluginConfigFieldValue,
   PluginContext,
   PluginDefinition,
+  PluginDirectoryEntry,
   PluginFileSystemBridge,
   PluginFilesystemPermission,
   PluginHookHandler,

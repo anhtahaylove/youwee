@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-05-27
+
+### Added
+- **Binary and directory filesystem bridge APIs** - Added `ctx.youwee.fs.readBytes(...)`, `readBase64(...)`, `writeBytes(...)`, `writeBase64(...)`, and `readDir(...)` so approved read/write permissions work for binary payloads and directory listings through Youwee's app-mediated runtime bridge.
+
 ## [2.1.0] - 2026-05-27
 
 ### Added

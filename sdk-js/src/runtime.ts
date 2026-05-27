@@ -15,6 +15,7 @@ import type {
   PluginConfigFieldValue,
   PluginContext,
   PluginDefinition,
+  PluginDirectoryEntry,
   PluginFileSystemBridge,
   PluginHttpBridge,
   PluginHttpRequestOptions,
@@ -285,12 +286,32 @@ function createFileSystemBridge(): PluginFileSystemBridge {
     async exists(path) {
       return await bridgeRequest<boolean>('/fs/exists', { path });
     },
+    async readDir(path) {
+      return await bridgeRequest<PluginDirectoryEntry[]>('/fs/readDir', { path });
+    },
     async readText(path) {
       return await bridgeRequest<string>('/fs/readText', { path });
+    },
+    async readBase64(path) {
+      return await bridgeRequest<string>('/fs/readBase64', { path });
+    },
+    async readBytes(path) {
+      return decodeBase64ToBytes(await bridgeRequest<string>('/fs/readBase64', { path }));
     },
     async writeText(path, content) {
       assertSafePluginWritePath(path);
       await bridgeRequest<null>('/fs/writeText', { path, content });
+    },
+    async writeBase64(path, content) {
+      assertSafePluginWritePath(path);
+      await bridgeRequest<null>('/fs/writeBase64', { path, content });
+    },
+    async writeBytes(path, content) {
+      assertSafePluginWritePath(path);
+      await bridgeRequest<null>('/fs/writeBase64', {
+        path,
+        content: encodeBytesToBase64(content),
+      });
     },
     async removeFile(path) {
       assertSafePluginWritePath(path);
@@ -306,6 +327,26 @@ function createFileSystemBridge(): PluginFileSystemBridge {
       return await bridgeRequest<string>('/fs/tempDir', { prefix });
     },
   };
+}
+
+function decodeBase64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function encodeBytesToBase64(value: Uint8Array | ArrayBuffer | number[]): string {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    const chunk = bytes.subarray(index, index + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function createHttpBridge(): PluginHttpBridge {

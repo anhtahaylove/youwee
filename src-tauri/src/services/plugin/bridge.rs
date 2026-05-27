@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -82,6 +83,13 @@ struct FsWriteTextRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct FsWriteBase64Request {
+    path: String,
+    content: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct FsTempDirRequest {
     prefix: Option<String>,
 }
@@ -112,6 +120,14 @@ struct ToolRunResponse {
     signal: Option<String>,
     stdout: String,
     stderr: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FsDirectoryEntry {
+    name: String,
+    path: String,
+    kind: &'static str,
 }
 
 pub(super) async fn start_plugin_bridge(
@@ -251,6 +267,17 @@ async fn handle_bridge_request(
             validate_read_path(&policy, &path)?;
             Ok((200, Some(serde_json::json!(path.exists())), None))
         }
+        "/fs/readDir" => {
+            let request: FsPathRequest = parse_body(&body)?;
+            let path = PathBuf::from(request.path);
+            validate_read_path(&policy, &path)?;
+            let entries = read_directory_entries(&path).await?;
+            Ok((
+                200,
+                Some(serde_json::to_value(entries).unwrap_or_default()),
+                None,
+            ))
+        }
         "/fs/readText" => {
             let request: FsPathRequest = parse_body(&body)?;
             let path = PathBuf::from(request.path);
@@ -260,12 +287,38 @@ async fn handle_bridge_request(
                 .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
             Ok((200, Some(serde_json::json!(content)), None))
         }
+        "/fs/readBase64" => {
+            let request: FsPathRequest = parse_body(&body)?;
+            let path = PathBuf::from(request.path);
+            validate_read_path(&policy, &path)?;
+            let bytes = tokio::fs::read(&path)
+                .await
+                .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+            let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+            Ok((200, Some(serde_json::json!(encoded)), None))
+        }
         "/fs/writeText" => {
             let request: FsWriteTextRequest = parse_body(&body)?;
             let path = PathBuf::from(request.path);
             validate_write_path(&policy, &path)?;
             let created_by_plugin = !path.exists();
             tokio::fs::write(&path, request.content)
+                .await
+                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+            if created_by_plugin {
+                remember_generated_file(&state, &path).await;
+            }
+            Ok((200, Some(serde_json::Value::Null), None))
+        }
+        "/fs/writeBase64" => {
+            let request: FsWriteBase64Request = parse_body(&body)?;
+            let path = PathBuf::from(request.path);
+            validate_write_path(&policy, &path)?;
+            let created_by_plugin = !path.exists();
+            let content = base64::engine::general_purpose::STANDARD
+                .decode(request.content)
+                .map_err(|e| format!("Invalid base64 file content: {e}"))?;
+            tokio::fs::write(&path, content)
                 .await
                 .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
             if created_by_plugin {
@@ -319,6 +372,51 @@ async fn handle_bridge_request(
             Some("Unknown plugin bridge operation.".to_string()),
         )),
     }
+}
+
+async fn read_directory_entries(path: &Path) -> Result<Vec<FsDirectoryEntry>, String> {
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|e| format!("Failed to inspect directory {}: {e}", path.display()))?;
+    if !metadata.is_dir() {
+        return Err(format!(
+            "Plugin read path is not a directory: {}",
+            path.display()
+        ));
+    }
+
+    let mut reader = tokio::fs::read_dir(path)
+        .await
+        .map_err(|e| format!("Failed to read directory {}: {e}", path.display()))?;
+    let mut entries = Vec::new();
+    while let Some(entry) = reader
+        .next_entry()
+        .await
+        .map_err(|e| format!("Failed to read directory entry in {}: {e}", path.display()))?
+    {
+        let entry_path = entry.path();
+        let name = entry.file_name().to_string_lossy().to_string();
+        let file_type = entry
+            .file_type()
+            .await
+            .map_err(|e| format!("Failed to inspect {}: {e}", entry_path.display()))?;
+        let kind = if file_type.is_file() {
+            "file"
+        } else if file_type.is_dir() {
+            "directory"
+        } else if file_type.is_symlink() {
+            "symlink"
+        } else {
+            "other"
+        };
+        entries.push(FsDirectoryEntry {
+            name,
+            path: entry_path.to_string_lossy().to_string(),
+            kind,
+        });
+    }
+    entries.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(entries)
 }
 
 fn parse_body<T: for<'de> Deserialize<'de>>(body: &[u8]) -> Result<T, String> {
@@ -640,6 +738,108 @@ mod tests {
             ffmpeg_path: None,
             ytdlp_path: None,
         }
+    }
+
+    #[tokio::test]
+    async fn read_base64_returns_binary_file_content() {
+        let root = test_dir("read-base64");
+        let file = root.join("payload.bin");
+        std::fs::write(&file, [0, 1, 2, 250, 255]).expect("write binary file");
+        let policy = Arc::new(test_policy(&root));
+        let state = Arc::new(Mutex::new(PluginBridgeRunState::default()));
+        let body = serde_json::to_vec(&serde_json::json!({
+            "path": file.to_string_lossy(),
+        }))
+        .expect("serialize body");
+
+        let result = handle_bridge_request(
+            "token",
+            policy,
+            state,
+            b"POST /fs/readBase64 HTTP/1.1\r\nauthorization: Bearer token",
+            body,
+        )
+        .await
+        .expect("read base64");
+
+        std::fs::remove_dir_all(&root).ok();
+        assert_eq!(result.0, 200);
+        assert_eq!(result.1, Some(serde_json::json!("AAEC+v8=")));
+    }
+
+    #[tokio::test]
+    async fn read_dir_returns_directory_entries() {
+        let root = test_dir("read-dir");
+        let file = root.join("a.txt");
+        let directory = root.join("nested");
+        std::fs::write(&file, "ok").expect("write file");
+        std::fs::create_dir_all(&directory).expect("create nested directory");
+        let policy = Arc::new(test_policy(&root));
+        let state = Arc::new(Mutex::new(PluginBridgeRunState::default()));
+        let body = serde_json::to_vec(&serde_json::json!({
+            "path": root.to_string_lossy(),
+        }))
+        .expect("serialize body");
+
+        let result = handle_bridge_request(
+            "token",
+            policy,
+            state,
+            b"POST /fs/readDir HTTP/1.1\r\nauthorization: Bearer token",
+            body,
+        )
+        .await
+        .expect("read directory");
+
+        std::fs::remove_dir_all(&root).ok();
+        assert_eq!(result.0, 200);
+        assert_eq!(
+            result.1,
+            Some(serde_json::json!([
+                {
+                    "kind": "file",
+                    "name": "a.txt",
+                    "path": file.to_string_lossy(),
+                },
+                {
+                    "kind": "directory",
+                    "name": "nested",
+                    "path": directory.to_string_lossy(),
+                },
+            ]))
+        );
+    }
+
+    #[tokio::test]
+    async fn write_base64_writes_binary_file_and_marks_generated() {
+        let root = test_dir("write-base64");
+        let file = root.join("payload.bin");
+        let policy = Arc::new(test_policy(&root));
+        let state = Arc::new(Mutex::new(PluginBridgeRunState::default()));
+        let body = serde_json::to_vec(&serde_json::json!({
+            "path": file.to_string_lossy(),
+            "content": "AAEC+v8=",
+        }))
+        .expect("serialize body");
+
+        let result = handle_bridge_request(
+            "token",
+            policy,
+            state.clone(),
+            b"POST /fs/writeBase64 HTTP/1.1\r\nauthorization: Bearer token",
+            body,
+        )
+        .await
+        .expect("write base64");
+        let remove_result = validate_remove_file_path(&test_policy(&root), &state, &file).await;
+
+        assert_eq!(result.0, 200);
+        assert_eq!(
+            std::fs::read(&file).expect("read written file"),
+            [0, 1, 2, 250, 255]
+        );
+        assert!(remove_result.is_ok());
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[tokio::test]
