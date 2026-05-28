@@ -50,13 +50,20 @@ pub enum TelegramStatusState {
 struct TelegramDownloadCommandEvent {
     command: String,
     url: Option<String>,
+    quality: Option<String>,
     chat_id: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TelegramCommand {
-    Add { url: String },
-    Download { url: String },
+    Add {
+        url: String,
+        quality: Option<String>,
+    },
+    Download {
+        url: String,
+        quality: Option<String>,
+    },
     Status,
     Queue,
     Stop,
@@ -287,11 +294,11 @@ async fn handle_update(
     };
 
     match parse_command(text) {
-        TelegramCommand::Add { url } => {
-            emit_url_command(app, "add", &url, &chat_id);
+        TelegramCommand::Add { url, quality } => {
+            emit_url_command(app, "add", &url, quality.as_deref(), &chat_id);
         }
-        TelegramCommand::Download { url } => {
-            emit_url_command(app, "download", &url, &chat_id);
+        TelegramCommand::Download { url, quality } => {
+            emit_url_command(app, "download", &url, quality.as_deref(), &chat_id);
         }
         TelegramCommand::Status => {
             emit_simple_command(app, "status", &chat_id);
@@ -317,12 +324,13 @@ async fn handle_update(
     }
 }
 
-fn emit_url_command(app: &AppHandle, command: &str, url: &str, chat_id: &str) {
+fn emit_url_command(app: &AppHandle, command: &str, url: &str, quality: Option<&str>, chat_id: &str) {
     let _ = app.emit(
         "telegram-download-command",
         TelegramDownloadCommandEvent {
             command: command.to_string(),
             url: Some(url.to_string()),
+            quality: quality.map(ToString::to_string),
             chat_id: chat_id.to_string(),
         },
     );
@@ -334,6 +342,7 @@ fn emit_simple_command(app: &AppHandle, command: &str, chat_id: &str) {
         TelegramDownloadCommandEvent {
             command: command.to_string(),
             url: None,
+            quality: None,
             chat_id: chat_id.to_string(),
         },
     );
@@ -428,7 +437,7 @@ fn set_status(state: TelegramStatusState, message: Option<String>) {
 }
 
 fn help_text() -> &'static str {
-    "Youwee Telegram commands:\n/add <url> - Add a URL to the queue.\n/download <url> - Add a URL and start downloading when idle.\n/status - Show download status.\n/queue - Show recent queue items.\n/stop - Stop the current download.\n/help - Show this help."
+    "Youwee Telegram commands:\n/add <url> [quality] - Add a URL to the queue.\n/download <url> [quality] - Add a URL and start downloading when idle.\n/status - Show download status.\n/queue - Show recent queue items.\n/stop - Stop the current download.\n/help - Show this help.\n\nQuality: best, 8k, 4k, 2k, 1080, 720, 480, 360, audio, mp3."
 }
 
 pub fn parse_command(text: &str) -> TelegramCommand {
@@ -450,12 +459,14 @@ pub fn parse_command(text: &str) -> TelegramCommand {
             .next()
             .map(|url| TelegramCommand::Add {
                 url: url.to_string(),
+                quality: parts.next().map(|quality| quality.to_string()),
             })
             .unwrap_or(TelegramCommand::Unsupported),
         "/download" | "download" => parts
             .next()
             .map(|url| TelegramCommand::Download {
                 url: url.to_string(),
+                quality: parts.next().map(|quality| quality.to_string()),
             })
             .unwrap_or(TelegramCommand::Unsupported),
         _ => TelegramCommand::Unsupported,
@@ -484,7 +495,15 @@ mod tests {
         assert_eq!(
             parse_command("  /add   https://example.com/video  "),
             TelegramCommand::Add {
-                url: "https://example.com/video".to_string()
+                url: "https://example.com/video".to_string(),
+                quality: None
+            }
+        );
+        assert_eq!(
+            parse_command("/add https://example.com/video 720"),
+            TelegramCommand::Add {
+                url: "https://example.com/video".to_string(),
+                quality: Some("720".to_string())
             }
         );
     }
@@ -494,7 +513,15 @@ mod tests {
         assert_eq!(
             parse_command("/download https://example.com/video"),
             TelegramCommand::Download {
-                url: "https://example.com/video".to_string()
+                url: "https://example.com/video".to_string(),
+                quality: None
+            }
+        );
+        assert_eq!(
+            parse_command("/download https://example.com/video audio"),
+            TelegramCommand::Download {
+                url: "https://example.com/video".to_string(),
+                quality: Some("audio".to_string())
             }
         );
     }

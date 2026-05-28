@@ -171,7 +171,7 @@ export function RemoteDownloadSection({ highlightId }: RemoteDownloadSectionProp
                 </DialogHeader>
 
                 <div className="space-y-3">
-                  {(['add', 'download', 'status', 'queue', 'stop', 'help'] as const).map(
+                  {(['add', 'download', 'quality', 'status', 'queue', 'stop', 'help'] as const).map(
                     (command) => (
                       <div
                         key={command}

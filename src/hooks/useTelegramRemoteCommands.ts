@@ -5,12 +5,13 @@ import type { Page } from '@/components/layout';
 import { useDownload } from '@/contexts/DownloadContext';
 import { useUniversal } from '@/contexts/UniversalContext';
 import { normalizeExternalVideoUrl, resolveExternalRouteTarget } from '@/lib/external-link';
-import type { DownloadItem } from '@/lib/types';
+import type { DownloadItem, ExternalEnqueueOptions, Quality } from '@/lib/types';
 import { isSafeUrl } from '@/lib/utils';
 
 interface TelegramDownloadCommandEvent {
   command: 'add' | 'download' | 'status' | 'queue' | 'stop';
   url?: string | null;
+  quality?: string | null;
   chatId: string;
 }
 
@@ -103,6 +104,38 @@ function buildQueueReply(youtubeItems: DownloadItem[], universalItems: DownloadI
   ].join('\n');
 }
 
+function parseTelegramQuality(token?: string | null): ExternalEnqueueOptions | null {
+  const normalized = token?.trim().toLowerCase();
+  if (!normalized) return {};
+
+  if (normalized === 'audio' || normalized === 'mp3') {
+    return {
+      mediaType: 'audio',
+      quality: 'audio',
+    };
+  }
+
+  const allowedQualities = new Set<Quality>([
+    'best',
+    '8k',
+    '4k',
+    '2k',
+    '1080',
+    '720',
+    '480',
+    '360',
+  ]);
+
+  if (allowedQualities.has(normalized as Quality)) {
+    return {
+      mediaType: 'video',
+      quality: normalized as Quality,
+    };
+  }
+
+  return null;
+}
+
 export function useTelegramRemoteCommands(
   setCurrentPage: (page: Page) => void,
   startLockRef: StartLockRef,
@@ -165,12 +198,21 @@ export function useTelegramRemoteCommands(
         return;
       }
 
+      const enqueueOptions = parseTelegramQuality(payload.quality);
+      if (!enqueueOptions) {
+        await sendTelegramReply(
+          payload.chatId,
+          'Unsupported quality. Use: best, 8k, 4k, 2k, 1080, 720, 480, 360, audio, or mp3.',
+        );
+        return;
+      }
+
       const routeTarget = resolveExternalRouteTarget('auto', normalizedUrl);
 
       try {
         if (routeTarget === 'youtube') {
           setCurrentPage('youtube');
-          const result = await download.enqueueExternalUrl(normalizedUrl);
+          const result = await download.enqueueExternalUrl(normalizedUrl, enqueueOptions);
           if (!result.added) {
             await sendTelegramReply(payload.chatId, 'This URL is already in the Youwee queue.');
             return;
@@ -198,7 +240,7 @@ export function useTelegramRemoteCommands(
         }
 
         setCurrentPage('universal');
-        const result = await universal.enqueueExternalUrl(normalizedUrl);
+        const result = await universal.enqueueExternalUrl(normalizedUrl, enqueueOptions);
         if (!result.added) {
           await sendTelegramReply(payload.chatId, 'This URL is already in the Youwee queue.');
           return;
