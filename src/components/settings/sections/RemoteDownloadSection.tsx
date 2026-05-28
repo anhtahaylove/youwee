@@ -5,8 +5,8 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Info,
   Key,
-  MessageSquare,
   Settings2,
   Shield,
 } from 'lucide-react';
@@ -40,12 +40,12 @@ const CONFIG_HIGHLIGHT_IDS = new Set([
 ]);
 
 const TELEGRAM_COMMANDS = [
-  { key: 'add', cmd: '/add <url> [quality]' },
-  { key: 'download', cmd: '/download <url> [quality]' },
-  { key: 'status', cmd: '/status' },
-  { key: 'queue', cmd: '/queue' },
-  { key: 'stop', cmd: '/stop' },
-  { key: 'help', cmd: '/help' },
+  { key: 'add', commandName: '/add' },
+  { key: 'download', commandName: '/download' },
+  { key: 'status', commandName: '/status' },
+  { key: 'queue', commandName: '/queue' },
+  { key: 'stop', commandName: '/stop' },
+  { key: 'help', commandName: '/help' },
 ] as const;
 
 export function RemoteDownloadSection({ highlightId }: RemoteDownloadSectionProps) {
@@ -334,7 +334,7 @@ export function RemoteDownloadSection({ highlightId }: RemoteDownloadSectionProp
             )}
           >
             <div className="flex items-center gap-2.5">
-              <MessageSquare className="w-4 h-4 text-muted-foreground" />
+              <Info className="w-4 h-4 text-muted-foreground" />
               <div>
                 <p className="text-sm font-medium">{t('remoteDownload.telegramGuide')}</p>
                 <p className="text-[11px] text-muted-foreground">
@@ -359,9 +359,7 @@ export function RemoteDownloadSection({ highlightId }: RemoteDownloadSectionProp
                 </DialogHeader>
 
                 <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-                  {TELEGRAM_COMMANDS.map(({ key, cmd }) => {
-                    const commandName = cmd.split(' ')[0];
-
+                  {TELEGRAM_COMMANDS.map(({ key, commandName }) => {
                     return (
                       <div
                         key={key}
@@ -369,7 +367,9 @@ export function RemoteDownloadSection({ highlightId }: RemoteDownloadSectionProp
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <code className="text-[13px] font-semibold text-foreground">{cmd}</code>
+                            <code className="text-[13px] font-semibold text-foreground">
+                              {t(`remoteDownload.telegramCommand_${key}`)}
+                            </code>
                             <button
                               type="button"
                               onClick={() => void handleCopyCommand(commandName)}

@@ -400,7 +400,7 @@ export const SECTION_INFO: Record<SettingsSectionId, { label: string; icon: stri
   general: { label: 'General', icon: 'Palette' },
   dependencies: { label: 'Dependencies', icon: 'Package' },
   download: { label: 'Download', icon: 'ArrowDownToLine' },
-  'remote-download': { label: 'Remote Download', icon: 'MessageCircle' },
+  'remote-download': { label: 'Remote Download', icon: 'MessageCircleCode' },
   plugins: { label: 'Plugins', icon: 'Atom' },
   extension: { label: 'Extension', icon: 'Puzzle' },
   ai: { label: 'AI Features', icon: 'Sparkles' },
