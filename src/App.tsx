@@ -32,6 +32,7 @@ import { SubtitleProvider } from '@/contexts/SubtitleContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { UniversalProvider, useUniversal } from '@/contexts/UniversalContext';
 import { UpdaterProvider, useUpdater } from '@/contexts/UpdaterContext';
+import { useTelegramRemoteCommands } from '@/hooks/useTelegramRemoteCommands';
 import {
   isTrustedExternalSource,
   parseExternalDeepLink,
@@ -90,6 +91,8 @@ function AppContent() {
   const activePluginRunRef = useRef<Map<string, string>>(new Map());
   const pluginRuntimeNameRef = useRef(new Map<string, string>());
   const toast = useToast();
+
+  useTelegramRemoteCommands(setCurrentPage, externalStartLockRef);
 
   const openSettingsPage = useCallback((section: SettingsSectionId = 'general') => {
     setSettingsInitialSection(section);
