@@ -10,6 +10,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Thêm mới
 - **Tải từ xa qua Telegram** - Thêm mục cài đặt Remote Download với điều khiển Telegram bằng long polling, nhập chat ID được phép dạng tag, popup hướng dẫn lệnh, hỗ trợ `/add`, `/download`, `/status`, `/queue`, `/stop`, `/help`, cùng cú pháp chất lượng ngắn như `720`, `audio`, và `mp3`
 
+### Thay đổi
+- **Chọn định dạng YouTube** - Đổi codec video mặc định của YouTube sang Auto để lượt tải mới không còn ép chọn riêng H.264 và đồng nhất hơn với Universal khi video không có stream AVC phù hợp
+
+### Sửa lỗi
+- **Xung đột cài đặt deb trên Linux** - Đổi tên yt-dlp bundled sang tên binary riêng của Youwee để gói `.deb` không còn đụng với package `yt-dlp` do distro quản lý
+
 ## [0.15.1] - 2026-05-27
 
 ### Thay đổi
