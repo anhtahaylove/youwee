@@ -29,17 +29,19 @@ pub fn system_gallerydl_not_found_message() -> String {
 }
 
 fn get_system_binary_candidates(binary_name: &str) -> Vec<PathBuf> {
-    let mut candidates = vec![
-        PathBuf::from("/opt/homebrew/bin").join(binary_name),
-        PathBuf::from("/usr/local/bin").join(binary_name),
-        PathBuf::from("/usr/bin").join(binary_name),
-    ];
+    let mut candidates = Vec::new();
 
     if let Ok(path_var) = std::env::var("PATH") {
         for dir in std::env::split_paths(&path_var) {
             candidates.push(dir.join(binary_name));
         }
     }
+
+    candidates.extend([
+        PathBuf::from("/opt/homebrew/bin").join(binary_name),
+        PathBuf::from("/usr/local/bin").join(binary_name),
+        PathBuf::from("/usr/bin").join(binary_name),
+    ]);
 
     let mut unique = Vec::new();
     let mut seen = HashSet::new();

@@ -16,6 +16,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Sửa lỗi
 - **Xung đột cài đặt deb trên Linux** - Đổi tên yt-dlp bundled sang tên binary riêng của Youwee để gói `.deb` không còn đụng với package `yt-dlp` do distro quản lý
+- **Resolve đường dẫn dependency hệ thống** - Ưu tiên binary từ `PATH` của người dùng trước khi fallback sang các vị trí phổ biến cho yt-dlp, FFmpeg, Deno, gallery-dl và các công cụ phụ trợ liên quan
 - **Chọn profile cookie Firefox** - Ưu tiên profile Firefox đang active từ `profiles.ini` để tải bằng cookie trình duyệt dùng đúng profile có khả năng đang lưu cookie
 
 ## [0.15.1] - 2026-05-27

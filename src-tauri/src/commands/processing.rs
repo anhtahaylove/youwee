@@ -1185,11 +1185,27 @@ async fn get_ffprobe_path(app: &AppHandle) -> Option<std::path::PathBuf> {
         let mut cmd = Command::new("which");
         cmd.arg("ffprobe");
         cmd.hide_window();
-        let output = cmd.output().await.ok()?;
-        if output.status.success() {
+        let output = cmd.output().await.ok();
+        if let Some(output) = output.filter(|output| output.status.success()) {
             let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path_str.is_empty() {
                 return Some(std::path::PathBuf::from(path_str));
+            }
+        }
+
+        if let Some(ffmpeg_path) = get_ffmpeg_path(app).await {
+            if let Some(parent) = ffmpeg_path.parent() {
+                let ffprobe_path = parent.join("ffprobe");
+                if ffprobe_path.exists() {
+                    return Some(ffprobe_path);
+                }
+            }
+        }
+
+        for dir in ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"] {
+            let ffprobe_path = std::path::PathBuf::from(dir).join("ffprobe");
+            if ffprobe_path.exists() {
+                return Some(ffprobe_path);
             }
         }
     }

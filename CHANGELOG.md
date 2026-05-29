@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Linux deb install conflict** - Renamed the bundled yt-dlp sidecar to a Youwee-specific binary name so `.deb` installs no longer conflict with distro-managed `yt-dlp` packages
+- **System dependency path resolution** - Prioritized binaries from the user's `PATH` before falling back to well-known locations for yt-dlp, FFmpeg, Deno, gallery-dl, and related helper tools
 - **Firefox cookie profile selection** - Prioritized the active Firefox profile from `profiles.ini` so browser-cookie downloads target the profile where cookies are most likely stored
 
 ## [0.15.1] - 2026-05-27
