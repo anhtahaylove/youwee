@@ -8,6 +8,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thêm mới
+- **Xuất dữ liệu** - Thêm không gian Xuất dữ liệu mới để xuất danh sách từ playlist và kênh YouTube, chọn chính xác các cột cần lấy, lưu file ở nhiều định dạng như CSV, Excel, JSON, Markdown, HTML, SQLite và Word, đồng thời lưu file đã xuất vào Thư viện để mở lại sau
 - **Tải từ xa qua Telegram** - Thêm mục cài đặt Remote Download với điều khiển Telegram bằng long polling, nhập chat ID được phép dạng tag, popup hướng dẫn lệnh, hỗ trợ `/add`, `/download`, `/status`, `/queue`, `/stop`, `/help`, cùng cú pháp chất lượng ngắn như `720`, `audio`, và `mp3`
 
 ### Thay đổi
