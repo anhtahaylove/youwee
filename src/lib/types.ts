@@ -184,6 +184,7 @@ export interface DownloadSettings {
   telegramEnabled: boolean;
   telegramBotToken: string;
   telegramAllowedChatIds: string;
+  telegramPlainUrlAction: 'add' | 'download';
 }
 
 export interface TelegramStatus {

@@ -153,6 +153,7 @@ function saveSettings(settings: DownloadSettings) {
         telegramEnabled: settings.telegramEnabled,
         telegramBotToken: settings.telegramBotToken,
         telegramAllowedChatIds: settings.telegramAllowedChatIds,
+        telegramPlainUrlAction: settings.telegramPlainUrlAction,
       }),
     );
   } catch (e) {
@@ -235,7 +236,7 @@ interface DownloadContextType {
   updateTelegramSettings: (
     updates: Pick<
       Partial<DownloadSettings>,
-      'telegramEnabled' | 'telegramBotToken' | 'telegramAllowedChatIds'
+      'telegramEnabled' | 'telegramBotToken' | 'telegramAllowedChatIds' | 'telegramPlainUrlAction'
     >,
   ) => void;
   refreshTelegramStatus: () => Promise<TelegramStatus>;
@@ -313,6 +314,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       telegramEnabled: saved.telegramEnabled === true,
       telegramBotToken: saved.telegramBotToken || '',
       telegramAllowedChatIds: saved.telegramAllowedChatIds || '',
+      telegramPlainUrlAction: saved.telegramPlainUrlAction === 'add' ? 'add' : 'download',
     };
   });
 
@@ -351,6 +353,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           enabled: settings.telegramEnabled,
           botToken: settings.telegramBotToken,
           allowedChatIds,
+          plainUrlAction: settings.telegramPlainUrlAction,
         },
       }).catch((e) => console.error('Failed to sync Telegram config:', e));
     }, 300);
@@ -358,7 +361,12 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [settings.telegramEnabled, settings.telegramBotToken, settings.telegramAllowedChatIds]);
+  }, [
+    settings.telegramEnabled,
+    settings.telegramBotToken,
+    settings.telegramAllowedChatIds,
+    settings.telegramPlainUrlAction,
+  ]);
 
   const [currentPlaylistInfo, setCurrentPlaylistInfo] = useState<PlaylistInfo | null>(null);
 
@@ -1478,7 +1486,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     (
       updates: Pick<
         Partial<DownloadSettings>,
-        'telegramEnabled' | 'telegramBotToken' | 'telegramAllowedChatIds'
+        'telegramEnabled' | 'telegramBotToken' | 'telegramAllowedChatIds' | 'telegramPlainUrlAction'
       >,
     ) => {
       setSettings((s) => {
