@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { type MutableRefObject, useCallback, useEffect } from 'react';
+import { type MutableRefObject, useCallback, useEffect, useRef } from 'react';
 import type { Page } from '@/components/layout';
 import { useDownload } from '@/contexts/DownloadContext';
 import { useUniversal } from '@/contexts/UniversalContext';
@@ -168,6 +168,8 @@ export function useTelegramRemoteCommands(
 ) {
   const download = useDownload();
   const universal = useUniversal();
+  const latestRef = useRef({ download, setCurrentPage, universal });
+  latestRef.current = { download, setCurrentPage, universal };
 
   const sendTelegramReply = useCallback(async (chatId: string, text: string) => {
     try {
@@ -179,6 +181,8 @@ export function useTelegramRemoteCommands(
 
   const handleTelegramDownloadCommand = useCallback(
     async (payload: TelegramDownloadCommandEvent) => {
+      const { download, setCurrentPage, universal } = latestRef.current;
+
       if (payload.command === 'status') {
         await sendTelegramReply(
           payload.chatId,
@@ -337,30 +341,27 @@ export function useTelegramRemoteCommands(
         await sendTelegramReply(payload.chatId, 'Failed to add that URL to Youwee.');
       }
     },
-    [
-      download.enqueueExternalUrl,
-      download.isDownloading,
-      download.items,
-      download.startDownload,
-      download.stopDownload,
-      sendTelegramReply,
-      setCurrentPage,
-      startLockRef,
-      universal.enqueueExternalUrl,
-      universal.isDownloading,
-      universal.items,
-      universal.startDownload,
-      universal.stopDownload,
-    ],
+    [sendTelegramReply, startLockRef],
   );
 
   useEffect(() => {
-    const unlisten = listen<TelegramDownloadCommandEvent>('telegram-download-command', (event) => {
-      void handleTelegramDownloadCommand(event.payload);
+    let disposed = false;
+    const unlistenPromise = listen<TelegramDownloadCommandEvent>(
+      'telegram-download-command',
+      (event) => {
+        void handleTelegramDownloadCommand(event.payload);
+      },
+    );
+
+    unlistenPromise.then((unlisten) => {
+      if (disposed) {
+        unlisten();
+      }
     });
 
     return () => {
-      unlisten.then((fn) => fn());
+      disposed = true;
+      unlistenPromise.then((unlisten) => unlisten());
     };
   }, [handleTelegramDownloadCommand]);
 }

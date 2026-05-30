@@ -701,7 +701,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   }, [settings.outputPath]);
 
   const removeItem = useCallback((id: string) => {
-    setItems((items) => items.filter((item) => item.id !== id));
+    setItems((items) => {
+      const nextItems = items.filter((item) => item.id !== id);
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
   }, []);
 
   const updateItemTimeRange = useCallback((id: string, start?: string, end?: string) => {
@@ -759,11 +763,16 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearAll = useCallback(() => {
+    itemsRef.current = [];
     setItems([]);
   }, []);
 
   const clearCompleted = useCallback(() => {
-    setItems((items) => items.filter((item) => item.status !== 'completed'));
+    setItems((items) => {
+      const nextItems = items.filter((item) => item.status !== 'completed');
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
   }, []);
 
   const startDownload = useCallback(async () => {
