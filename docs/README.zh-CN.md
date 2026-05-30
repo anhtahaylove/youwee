@@ -111,10 +111,10 @@
 
 ### 插件
 
-- 安装已签名的 `.ywp` 插件，为下载后工作流增加通知、文件上传或第三方集成等自定义动作
-- 可直接在 Youwee 中创建插件 workspace，附加到应用进行实时调试，然后使用 `youwee-sdk` 构建并签名最终插件包
-- 插件支持多语言说明文档、强类型配置字段、可审批权限，以及基于触发器的工作流步骤
-- SDK 文档：[sdk-js/README.md](../sdk-js/README.md)
+使用已签名的 `.ywp` 插件扩展 Youwee 的下载后工作流，例如通知、上传和第三方集成。
+
+- 推荐插件和安装指南：[PLUGINS.zh-CN.md](PLUGINS.zh-CN.md)
+- SDK：[sdk-js/README.md](../sdk-js/README.md) · [youwee-sdk](https://www.npmjs.com/package/youwee-sdk)
 
 ### 从源码构建
 

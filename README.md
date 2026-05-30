@@ -115,10 +115,10 @@
 
 ### Plugins
 
-- Install signed `.ywp` plugins to extend post-download workflows with custom actions such as notifications, uploads, and third-party integrations
-- Create a plugin workspace from Youwee, attach it for live debugging, then build and sign the final plugin package with `youwee-sdk`
-- Plugins can provide localized guides, typed configuration fields, requested permissions, and trigger-based workflow steps inside the app
-- SDK guide: [sdk-js/README.md](sdk-js/README.md)
+Extend Youwee with signed `.ywp` plugins for post-download workflows such as notifications, uploads, and third-party integrations.
+
+- Recommended plugins and install guide: [PLUGINS.md](PLUGINS.md)
+- SDK: [sdk-js/README.md](sdk-js/README.md) · [youwee-sdk](https://www.npmjs.com/package/youwee-sdk)
 
 ### Build from Source
 

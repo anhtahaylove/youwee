@@ -111,10 +111,10 @@
 
 ### Plugin
 
-- Cài plugin `.ywp` đã ký để mở rộng workflow sau khi tải xong với các tác vụ như gửi thông báo, upload file hoặc tích hợp dịch vụ bên thứ ba
-- Tạo plugin workspace ngay trong Youwee, attach để debug trực tiếp, rồi build và ký gói plugin cuối cùng bằng `youwee-sdk`
-- Plugin có thể cung cấp hướng dẫn đa ngôn ngữ, field cấu hình có kiểu dữ liệu rõ ràng, quyền truy cập cần duyệt và các bước workflow theo trigger
-- Hướng dẫn SDK: [sdk-js/README.md](../sdk-js/README.md)
+Mở rộng Youwee bằng plugin `.ywp` đã ký cho workflow sau khi tải xong, như gửi thông báo, upload file hoặc tích hợp dịch vụ bên thứ ba.
+
+- Plugin khuyến nghị và hướng dẫn cài đặt: [PLUGINS.vi.md](PLUGINS.vi.md)
+- SDK: [sdk-js/README.md](../sdk-js/README.md) · [youwee-sdk](https://www.npmjs.com/package/youwee-sdk)
 
 ### Xây dựng từ mã nguồn
 
