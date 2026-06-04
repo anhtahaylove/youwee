@@ -44,7 +44,12 @@
       "selectAll": "全选",
       "clearSelection": "清除",
       "loadMore": "加载更多",
-      "addSelected": "添加所选"
+      "addSelected": "添加所选",
+      "openButton": "按关键词搜索",
+      "back": "返回下载",
+      "pageTitle": "按关键词搜索",
+      "pageDescription": "查找 YouTube 视频，并将所选结果加入队列。",
+      "added": "已添加"
     }
   },
   "page": {

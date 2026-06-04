@@ -148,6 +148,11 @@ export interface YoutubeSearchResponse {
   continuation?: string | null;
 }
 
+export interface YoutubeSearchQueueResult {
+  added: number;
+  queuedIds: string[];
+}
+
 export interface ExternalEnqueueResult {
   added: boolean;
   itemId: string | null;

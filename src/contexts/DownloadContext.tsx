@@ -61,9 +61,11 @@ import type {
   SubtitleMode,
   TelegramStatus,
   VideoCodec,
+  YoutubeSearchQueueResult,
   YoutubeSearchVideo,
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
+import { extractYouTubeVideoId } from '@/lib/youtube-url';
 
 const STORAGE_KEY = 'youwee-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
@@ -186,7 +188,7 @@ interface DownloadContextType {
   proxySettings: ProxySettings;
   currentPlaylistInfo: PlaylistInfo | null;
   addFromText: (text: string) => Promise<number>;
-  addSearchResultsToQueue: (results: YoutubeSearchVideo[]) => Promise<number>;
+  addSearchResultsToQueue: (results: YoutubeSearchVideo[]) => Promise<YoutubeSearchQueueResult>;
   enqueueExternalUrl: (
     url: string,
     options?: ExternalEnqueueOptions,
@@ -762,8 +764,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   );
 
   const addSearchResultsToQueue = useCallback(
-    async (results: YoutubeSearchVideo[]): Promise<number> => {
-      if (results.length === 0) return 0;
+    async (results: YoutubeSearchVideo[]): Promise<YoutubeSearchQueueResult> => {
+      if (results.length === 0) return { added: 0, queuedIds: [] };
 
       const workflowSnapshots = loadPluginWorkflowSnapshots();
       const currentSettings = settingsRef.current;
@@ -788,12 +790,27 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
       const currentItems = itemsRef.current;
       const seenUrls = new Set(currentItems.map((item) => item.url));
+      const seenYoutubeIds = new Set(
+        currentItems
+          .map((item) => extractYouTubeVideoId(item.url))
+          .filter((id): id is string => id !== null),
+      );
       const newItems: DownloadItem[] = [];
+      const queuedIds: string[] = [];
 
       for (const result of results) {
         const url = result.url.trim();
-        if (!url || seenUrls.has(url)) continue;
+        if (!url) continue;
+        const videoId = result.id || extractYouTubeVideoId(url);
+        if (seenUrls.has(url) || (videoId && seenYoutubeIds.has(videoId))) {
+          queuedIds.push(result.id);
+          continue;
+        }
         seenUrls.add(url);
+        if (videoId) {
+          seenYoutubeIds.add(videoId);
+        }
+        queuedIds.push(result.id);
 
         newItems.push({
           id: crypto.randomUUID(),
@@ -812,14 +829,14 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (newItems.length === 0) return 0;
+      if (newItems.length === 0) return { added: 0, queuedIds };
 
       const nextItems = [...itemsRef.current, ...newItems];
       itemsRef.current = nextItems;
       setItems(nextItems);
       focusItem(newItems[0].id);
       enqueueQueuedWorkflowForItems(newItems);
-      return newItems.length;
+      return { added: newItems.length, queuedIds };
     },
     [enqueueQueuedWorkflowForItems, focusItem],
   );

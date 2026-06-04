@@ -44,7 +44,12 @@
       "selectAll": "Chọn tất cả",
       "clearSelection": "Bỏ chọn",
       "loadMore": "Tải thêm",
-      "addSelected": "Thêm đã chọn"
+      "addSelected": "Thêm đã chọn",
+      "openButton": "Tìm theo từ khóa",
+      "back": "Quay lại tải video",
+      "pageTitle": "Tìm theo từ khóa",
+      "pageDescription": "Tìm video YouTube và thêm các kết quả đã chọn vào hàng đợi.",
+      "added": "Đã thêm"
     }
   },
   "page": {

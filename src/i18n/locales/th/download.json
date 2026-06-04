@@ -44,7 +44,12 @@
       "selectAll": "Select all",
       "clearSelection": "Clear",
       "loadMore": "Load more",
-      "addSelected": "Add selected"
+      "addSelected": "Add selected",
+      "openButton": "Search by keyword",
+      "back": "Back to downloads",
+      "pageTitle": "Search by keyword",
+      "pageDescription": "Find YouTube videos and add selected results to the queue.",
+      "added": "Added"
     }
   },
   "page": {

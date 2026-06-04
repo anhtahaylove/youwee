@@ -1,6 +1,7 @@
 use crate::types::{BackendError, YoutubeSearchResponse, YoutubeSearchVideo};
 use reqwest::StatusCode;
 use serde_json::{json, Value};
+use std::collections::HashSet;
 
 const YOUTUBE_SEARCH_API_URL: &str = "https://www.youtube.com/youtubei/v1/search?prettyPrint=false";
 const YOUTUBE_WEB_CLIENT_NAME: &str = "WEB";
@@ -41,15 +42,38 @@ fn run_text(value: Option<&Value>) -> Option<String> {
     }
 }
 
-fn best_thumbnail(renderer: &Value) -> Option<String> {
-    renderer
+fn normalize_thumbnail_url(url: &str) -> String {
+    if url.starts_with("//") {
+        format!("https:{url}")
+    } else {
+        url.replace("http://", "https://")
+    }
+}
+
+fn thumbnail_matches_video(url: &str, video_id: &str) -> bool {
+    url.contains(&format!("/vi/{video_id}/")) || url.contains(&format!("/vi_webp/{video_id}/"))
+}
+
+fn fallback_thumbnail(video_id: &str) -> String {
+    format!("https://i.ytimg.com/vi/{video_id}/hqdefault.jpg")
+}
+
+fn best_thumbnail(renderer: &Value, video_id: &str) -> String {
+    let matching_thumbnail = renderer
         .get("thumbnail")
         .and_then(|thumbnail| thumbnail.get("thumbnails"))
         .and_then(|thumbnails| thumbnails.as_array())
-        .and_then(|thumbnails| thumbnails.last())
-        .and_then(|thumbnail| thumbnail.get("url"))
-        .and_then(|url| url.as_str())
-        .map(|url| url.replace("http://", "https://"))
+        .and_then(|thumbnails| {
+            thumbnails.iter().rev().find_map(|thumbnail| {
+                thumbnail
+                    .get("url")
+                    .and_then(|url| url.as_str())
+                    .map(normalize_thumbnail_url)
+                    .filter(|url| thumbnail_matches_video(url, video_id))
+            })
+        });
+
+    matching_thumbnail.unwrap_or_else(|| fallback_thumbnail(video_id))
 }
 
 fn parse_video_renderer(renderer: &Value) -> Option<YoutubeSearchVideo> {
@@ -67,7 +91,7 @@ fn parse_video_renderer(renderer: &Value) -> Option<YoutubeSearchVideo> {
         id: id.to_string(),
         url: format!("https://www.youtube.com/watch?v={id}"),
         title,
-        thumbnail: best_thumbnail(renderer),
+        thumbnail: Some(best_thumbnail(renderer, id)),
         duration: run_text(renderer.get("lengthText")),
         channel: run_text(renderer.get("ownerText"))
             .or_else(|| run_text(renderer.get("longBylineText")))
@@ -121,7 +145,8 @@ fn parse_youtube_search_response(json: &Value) -> YoutubeSearchResponse {
     let mut videos = Vec::new();
     let mut continuation = None;
     collect_search_parts(json, &mut videos, &mut continuation);
-    videos.dedup_by(|a, b| a.id == b.id);
+    let mut seen_ids = HashSet::new();
+    videos.retain(|video| seen_ids.insert(video.id.clone()));
     YoutubeSearchResponse {
         videos,
         continuation,
@@ -256,8 +281,8 @@ mod tests {
                                 "title": {"runs": [{"text": "Test "}, {"text": "Video"}]},
                                 "thumbnail": {
                                     "thumbnails": [
-                                        {"url": "http://example.com/s.jpg", "width": 120},
-                                        {"url": "https://example.com/l.jpg", "width": 720}
+                                        {"url": "http://i.ytimg.com/vi/abc123/mqdefault.jpg", "width": 320},
+                                        {"url": "https://i.ytimg.com/vi/abc123/hqdefault.jpg", "width": 480}
                                     ]
                                 },
                                 "lengthText": {"simpleText": "3:21"},
@@ -290,10 +315,37 @@ mod tests {
         );
         assert_eq!(
             response.videos[0].thumbnail.as_deref(),
-            Some("https://example.com/l.jpg")
+            Some("https://i.ytimg.com/vi/abc123/hqdefault.jpg")
         );
         assert_eq!(response.videos[0].duration.as_deref(), Some("3:21"));
         assert_eq!(response.videos[0].channel.as_deref(), Some("Channel"));
+    }
+
+    #[test]
+    fn falls_back_when_thumbnail_does_not_match_video_id() {
+        let json = json!({
+            "items": [
+                {
+                    "videoRenderer": {
+                        "videoId": "abc123",
+                        "title": {"simpleText": "Correct video"},
+                        "thumbnail": {
+                            "thumbnails": [
+                                {"url": "https://i.ytimg.com/vi/other-id/hqdefault.jpg"}
+                            ]
+                        }
+                    }
+                }
+            ]
+        });
+
+        let response = parse_youtube_search_response(&json);
+
+        assert_eq!(response.videos.len(), 1);
+        assert_eq!(
+            response.videos[0].thumbnail.as_deref(),
+            Some("https://i.ytimg.com/vi/abc123/hqdefault.jpg")
+        );
     }
 
     #[test]
