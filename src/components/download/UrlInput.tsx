@@ -7,6 +7,7 @@ import {
   List,
   Loader2,
   Plus,
+  Search,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -21,13 +22,18 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import type { YoutubeSearchVideo } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { VideoPreview } from './VideoPreview';
+import { YoutubeKeywordSearch } from './YoutubeKeywordSearch';
+
+type UrlInputMode = 'single' | 'multiple' | 'keyword';
 
 interface UrlInputProps {
   disabled?: boolean;
   isExpandingPlaylist?: boolean;
   onAddUrls: (text: string) => Promise<number>;
+  onAddSearchResults: (results: YoutubeSearchVideo[]) => Promise<number>;
   onImportFile: () => Promise<number>;
   onImportClipboard: () => Promise<number>;
   onGoToSettings?: () => void;
@@ -71,6 +77,7 @@ export function UrlInput({
   disabled,
   isExpandingPlaylist,
   onAddUrls,
+  onAddSearchResults,
   onImportFile,
   onImportClipboard,
   onGoToSettings,
@@ -82,7 +89,7 @@ export function UrlInput({
   const [showPreview, setShowPreview] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [mode, setModeState] = useState<UrlInputMode>('single');
   const [showGuideDialog, setShowGuideDialog] = useState(false);
   const debounceRef = useRef<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -90,13 +97,15 @@ export function UrlInput({
 
   const urlCount = countUrls(value);
   const hasMultipleLines = value.includes('\n');
+  const isExpanded = mode === 'multiple';
+  const isKeywordMode = mode === 'keyword';
 
   // Auto-expand when multiple lines detected
   useEffect(() => {
-    if (hasMultipleLines && !isExpanded) {
-      setIsExpanded(true);
+    if (hasMultipleLines && mode === 'single') {
+      setModeState('multiple');
     }
-  }, [hasMultipleLines, isExpanded]);
+  }, [hasMultipleLines, mode]);
 
   // Auto-show preview when single URL is entered
   useEffect(() => {
@@ -109,7 +118,7 @@ export function UrlInput({
       .split('\n')
       .filter((l) => l.trim() && !l.trim().startsWith('#'));
 
-    if (lines.length === 1) {
+    if (!isKeywordMode && lines.length === 1) {
       const url = extractFirstUrl(value);
       if (url && url !== previewUrl && !isPlaylistOnlyUrl(url)) {
         debounceRef.current = window.setTimeout(() => {
@@ -130,7 +139,7 @@ export function UrlInput({
         clearTimeout(debounceRef.current);
       }
     };
-  }, [value, previewUrl]);
+  }, [isKeywordMode, value, previewUrl]);
 
   const handleAdd = useCallback(async () => {
     setIsAdding(true);
@@ -140,7 +149,7 @@ export function UrlInput({
         setValue('');
         setShowPreview(false);
         setPreviewUrl(null);
-        setIsExpanded(false);
+        setModeState('single');
       }
     } finally {
       setIsAdding(false);
@@ -176,6 +185,8 @@ export function UrlInput({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isKeywordMode) return;
+
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleAdd();
@@ -220,11 +231,16 @@ export function UrlInput({
     setValue(newValue);
   };
 
-  const setMode = (expanded: boolean) => {
-    setIsExpanded(expanded);
+  const setMode = (nextMode: UrlInputMode) => {
+    setModeState(nextMode);
+    if (nextMode === 'keyword') {
+      setShowPreview(false);
+      setPreviewUrl(null);
+      return;
+    }
     // Focus appropriate input after toggle
     setTimeout(() => {
-      if (expanded) {
+      if (nextMode === 'multiple') {
         textareaRef.current?.focus();
       } else {
         inputRef.current?.focus();
@@ -244,15 +260,15 @@ export function UrlInput({
       aria-label="URL drop zone"
     >
       {/* Mode Toggle - Segmented Control */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="inline-flex items-center rounded-lg bg-muted/50 p-1">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex max-w-full items-center overflow-x-auto rounded-lg bg-muted/50 p-1">
           <button
             type="button"
-            onClick={() => setMode(false)}
+            onClick={() => setMode('single')}
             disabled={disabled}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-              !isExpanded
+              mode === 'single'
                 ? 'bg-background shadow-sm text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
@@ -263,11 +279,11 @@ export function UrlInput({
           </button>
           <button
             type="button"
-            onClick={() => setMode(true)}
+            onClick={() => setMode('multiple')}
             disabled={disabled}
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-              isExpanded
+              mode === 'multiple'
                 ? 'bg-background shadow-sm text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
@@ -276,36 +292,55 @@ export function UrlInput({
             <List className="w-3.5 h-3.5" />
             <span>{t('urlInput.multiple')}</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setMode('keyword')}
+            disabled={disabled}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              mode === 'keyword'
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            title={t('urlInput.keyword.hint')}
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>{t('urlInput.keyword.tab')}</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-1.5">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleImportClipboard}
-            disabled={disabled || isImporting}
-            className="h-8 gap-1.5 text-xs"
-            title={t('urlInput.paste')}
-          >
-            {isImporting ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <ClipboardPaste className="w-3.5 h-3.5" />
-            )}
-            <span className="hidden sm:inline">{t('urlInput.paste')}</span>
-          </Button>
+          {!isKeywordMode && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleImportClipboard}
+                disabled={disabled || isImporting}
+                className="h-8 gap-1.5 text-xs"
+                title={t('urlInput.paste')}
+              >
+                {isImporting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ClipboardPaste className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">{t('urlInput.paste')}</span>
+              </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleImportFile}
-            disabled={disabled || isImporting}
-            className="h-8 gap-1.5 text-xs"
-            title={t('urlInput.import')}
-          >
-            <FileText className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{t('urlInput.import')}</span>
-          </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleImportFile}
+                disabled={disabled || isImporting}
+                className="h-8 gap-1.5 text-xs"
+                title={t('urlInput.import')}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{t('urlInput.import')}</span>
+              </Button>
+            </>
+          )}
 
           <button
             type="button"
@@ -320,78 +355,82 @@ export function UrlInput({
       </div>
 
       {/* Main Input Area */}
-      <div className="relative">
-        {!isExpanded ? (
-          // Compact single-line input
-          <div className="relative flex items-center gap-2">
-            <div className="relative flex-1">
-              <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                ref={inputRef}
-                placeholder={t('urlInput.placeholder')}
+      {isKeywordMode ? (
+        <YoutubeKeywordSearch disabled={disabled} onAddResults={onAddSearchResults} />
+      ) : (
+        <div className="relative">
+          {!isExpanded ? (
+            // Compact single-line input
+            <div className="relative flex items-center gap-2">
+              <div className="relative flex-1">
+                <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  ref={inputRef}
+                  placeholder={t('urlInput.placeholder')}
+                  value={value}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  disabled={disabled}
+                  className={cn(
+                    'pl-10 pr-20 h-11 text-sm',
+                    'bg-background/50 border-border/50',
+                    'focus:bg-background transition-colors',
+                    'placeholder:text-muted-foreground/50',
+                  )}
+                />
+                {urlCount > 0 && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                    {urlCount} URL{urlCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                className="h-11 px-4 rounded-md font-medium text-sm btn-gradient flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleAdd}
+                disabled={disabled || !value.trim() || isAdding || isExpandingPlaylist}
+                title={t('urlInput.add')}
+              >
+                {isAdding || isExpandingPlaylist ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {isExpandingPlaylist ? t('urlInput.loading') : t('urlInput.add')}
+                </span>
+              </button>
+            </div>
+          ) : (
+            // Expanded textarea
+            <div className="relative">
+              <Textarea
+                ref={textareaRef}
+                placeholder={t('urlInput.placeholderMultiple')}
                 value={value}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 disabled={disabled}
                 className={cn(
-                  'pl-10 pr-20 h-11 text-sm',
+                  'min-h-[100px] resize-none font-mono text-sm',
                   'bg-background/50 border-border/50',
                   'focus:bg-background transition-colors',
                   'placeholder:text-muted-foreground/50',
                 )}
               />
               {urlCount > 0 && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                  {urlCount} URL{urlCount !== 1 ? 's' : ''}
-                </span>
+                <div className="absolute bottom-2 right-2">
+                  <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+                    {urlCount} URL{urlCount !== 1 ? 's' : ''}
+                  </span>
+                </div>
               )}
             </div>
-            <button
-              type="button"
-              className="h-11 px-4 rounded-md font-medium text-sm btn-gradient flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleAdd}
-              disabled={disabled || !value.trim() || isAdding || isExpandingPlaylist}
-              title={t('urlInput.add')}
-            >
-              {isAdding || isExpandingPlaylist ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Plus className="w-4 h-4" />
-              )}
-              <span className="hidden sm:inline">
-                {isExpandingPlaylist ? t('urlInput.loading') : t('urlInput.add')}
-              </span>
-            </button>
-          </div>
-        ) : (
-          // Expanded textarea
-          <div className="relative">
-            <Textarea
-              ref={textareaRef}
-              placeholder={t('urlInput.placeholderMultiple')}
-              value={value}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              disabled={disabled}
-              className={cn(
-                'min-h-[100px] resize-none font-mono text-sm',
-                'bg-background/50 border-border/50',
-                'focus:bg-background transition-colors',
-                'placeholder:text-muted-foreground/50',
-              )}
-            />
-            {urlCount > 0 && (
-              <div className="absolute bottom-2 right-2">
-                <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-                  {urlCount} URL{urlCount !== 1 ? 's' : ''}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      {value.trim() && urlCount > 1 && (
+      {!isKeywordMode && value.trim() && urlCount > 1 && (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-2.5 py-1.5">
           <div className="min-w-0 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 rounded bg-blue-500/10 px-1.5 py-0.5 text-blue-600 dark:text-blue-400">
@@ -410,7 +449,7 @@ export function UrlInput({
             setValue('');
             setShowPreview(false);
             setPreviewUrl(null);
-            setIsExpanded(false);
+            setModeState('single');
           }}
         />
       )}

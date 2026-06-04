@@ -196,6 +196,7 @@ pub fn run() {
             // Video info commands
             commands::get_video_info,
             commands::get_playlist_entries,
+            commands::search_youtube_videos,
             commands::get_available_subtitles,
             commands::get_video_transcript,
             // yt-dlp commands

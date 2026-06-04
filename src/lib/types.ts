@@ -132,6 +132,22 @@ export interface DownloadItem {
   retryState?: DownloadRetryState;
 }
 
+export interface YoutubeSearchVideo {
+  id: string;
+  url: string;
+  title: string;
+  thumbnail?: string | null;
+  duration?: string | null;
+  channel?: string | null;
+  view_count_text?: string | null;
+  published_time_text?: string | null;
+}
+
+export interface YoutubeSearchResponse {
+  videos: YoutubeSearchVideo[];
+  continuation?: string | null;
+}
+
 export interface ExternalEnqueueResult {
   added: boolean;
   itemId: string | null;

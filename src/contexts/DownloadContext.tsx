@@ -61,6 +61,7 @@ import type {
   SubtitleMode,
   TelegramStatus,
   VideoCodec,
+  YoutubeSearchVideo,
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
 
@@ -185,6 +186,7 @@ interface DownloadContextType {
   proxySettings: ProxySettings;
   currentPlaylistInfo: PlaylistInfo | null;
   addFromText: (text: string) => Promise<number>;
+  addSearchResultsToQueue: (results: YoutubeSearchVideo[]) => Promise<number>;
   enqueueExternalUrl: (
     url: string,
     options?: ExternalEnqueueOptions,
@@ -755,6 +757,69 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       focusItem(newItem.id);
       enqueueQueuedWorkflowForItems([newItem]);
       return { added: true, itemId: newItem.id };
+    },
+    [enqueueQueuedWorkflowForItems, focusItem],
+  );
+
+  const addSearchResultsToQueue = useCallback(
+    async (results: YoutubeSearchVideo[]): Promise<number> => {
+      if (results.length === 0) return 0;
+
+      const workflowSnapshots = loadPluginWorkflowSnapshots();
+      const currentSettings = settingsRef.current;
+      const settingsSnapshot: ItemDownloadSettings = {
+        quality: currentSettings.quality,
+        format: currentSettings.format,
+        outputPath: currentSettings.outputPath,
+        videoCodec: currentSettings.videoCodec,
+        audioBitrate: currentSettings.audioBitrate,
+        useAria2: currentSettings.useAria2,
+        aria2Args: currentSettings.aria2Args,
+        subtitleMode: currentSettings.subtitleMode,
+        subtitleLangs: [...currentSettings.subtitleLangs],
+        subtitleEmbed: currentSettings.subtitleEmbed,
+        subtitleFormat: currentSettings.subtitleFormat,
+        pluginWorkflowSnapshots: workflowSnapshots,
+        postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
+        autoRetryEnabled: currentSettings.autoRetryEnabled,
+        autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
+        autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
+      };
+
+      const currentItems = itemsRef.current;
+      const seenUrls = new Set(currentItems.map((item) => item.url));
+      const newItems: DownloadItem[] = [];
+
+      for (const result of results) {
+        const url = result.url.trim();
+        if (!url || seenUrls.has(url)) continue;
+        seenUrls.add(url);
+
+        newItems.push({
+          id: crypto.randomUUID(),
+          url,
+          title: result.title || url,
+          status: 'pending',
+          progress: 0,
+          speed: '',
+          eta: '',
+          isPlaylist: false,
+          thumbnail: result.thumbnail || undefined,
+          duration: result.duration || undefined,
+          channel: result.channel || undefined,
+          extractor: 'youtube',
+          settings: settingsSnapshot,
+        });
+      }
+
+      if (newItems.length === 0) return 0;
+
+      const nextItems = [...itemsRef.current, ...newItems];
+      itemsRef.current = nextItems;
+      setItems(nextItems);
+      focusItem(newItems[0].id);
+      enqueueQueuedWorkflowForItems(newItems);
+      return newItems.length;
     },
     [enqueueQueuedWorkflowForItems, focusItem],
   );
@@ -1566,6 +1631,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     proxySettings,
     currentPlaylistInfo,
     addFromText,
+    addSearchResultsToQueue,
     enqueueExternalUrl,
     focusItem,
     importFromFile,

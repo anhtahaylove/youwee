@@ -29,7 +29,23 @@
     "detectedMultiple": "Đã nhận diện {{count}} URL",
     "detectedSingle": "Sẵn sàng thêm 1 URL",
     "readyToAdd": "Kiểm tra và thêm vào hàng đợi",
-    "clearInput": "Xóa"
+    "clearInput": "Xóa",
+    "keyword": {
+      "tab": "Từ khóa",
+      "hint": "Tìm video YouTube theo từ khóa",
+      "placeholder": "Tìm video YouTube...",
+      "limitLabel": "Số kết quả",
+      "search": "Tìm",
+      "searching": "Đang tìm trên YouTube...",
+      "emptyTitle": "Tìm theo từ khóa",
+      "emptyDescription": "Tìm video YouTube, chọn kết quả bạn muốn, rồi thêm vào hàng đợi.",
+      "errorTitle": "Tìm kiếm thất bại",
+      "selectedCount": "Đã chọn {{selected}}/{{total}}",
+      "selectAll": "Chọn tất cả",
+      "clearSelection": "Bỏ chọn",
+      "loadMore": "Tải thêm",
+      "addSelected": "Thêm đã chọn"
+    }
   },
   "page": {
     "quickSettings": "Cài đặt nhanh",

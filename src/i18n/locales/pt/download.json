@@ -29,7 +29,23 @@
     "detectedMultiple": "{{count}} URLs detectados",
     "detectedSingle": "Único URL pronto",
     "readyToAdd": "Revisar e adicionar à fila",
-    "clearInput": "Limpar"
+    "clearInput": "Limpar",
+    "keyword": {
+      "tab": "Keyword",
+      "hint": "Search YouTube videos by keyword",
+      "placeholder": "Search YouTube videos...",
+      "limitLabel": "Result limit",
+      "search": "Search",
+      "searching": "Searching YouTube...",
+      "emptyTitle": "Search by keyword",
+      "emptyDescription": "Find YouTube videos, select the results you want, then add them to the queue.",
+      "errorTitle": "Search failed",
+      "selectedCount": "{{selected}}/{{total}} selected",
+      "selectAll": "Select all",
+      "clearSelection": "Clear",
+      "loadMore": "Load more",
+      "addSelected": "Add selected"
+    }
   },
   "page": {
     "quickSettings": "Configurações rápidas",

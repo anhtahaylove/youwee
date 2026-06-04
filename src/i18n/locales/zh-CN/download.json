@@ -29,7 +29,23 @@
     "detectedMultiple": "已识别 {{count}} 个链接",
     "detectedSingle": "已准备好单个链接",
     "readyToAdd": "确认后加入队列",
-    "clearInput": "清空"
+    "clearInput": "清空",
+    "keyword": {
+      "tab": "关键词",
+      "hint": "按关键词搜索 YouTube 视频",
+      "placeholder": "搜索 YouTube 视频...",
+      "limitLabel": "结果数量",
+      "search": "搜索",
+      "searching": "正在搜索 YouTube...",
+      "emptyTitle": "按关键词搜索",
+      "emptyDescription": "查找 YouTube 视频，选择需要的结果，然后加入队列。",
+      "errorTitle": "搜索失败",
+      "selectedCount": "已选择 {{selected}}/{{total}}",
+      "selectAll": "全选",
+      "clearSelection": "清除",
+      "loadMore": "加载更多",
+      "addSelected": "添加所选"
+    }
   },
   "page": {
     "quickSettings": "快捷设置",

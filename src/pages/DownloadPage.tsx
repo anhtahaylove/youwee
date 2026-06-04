@@ -31,6 +31,7 @@ export function DownloadPage({ onNavigateToSettings }: DownloadPageProps) {
     cookieSettings,
     currentPlaylistInfo,
     addFromText,
+    addSearchResultsToQueue,
     importFromFile,
     importFromClipboard,
     selectOutputFolder,
@@ -117,6 +118,7 @@ export function DownloadPage({ onNavigateToSettings }: DownloadPageProps) {
           <UrlInput
             isExpandingPlaylist={isExpandingPlaylist}
             onAddUrls={addFromText}
+            onAddSearchResults={addSearchResultsToQueue}
             onImportFile={importFromFile}
             onImportClipboard={importFromClipboard}
             onGoToSettings={onNavigateToSettings}

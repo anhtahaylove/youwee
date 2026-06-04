@@ -14,6 +14,7 @@ mod processing;
 mod telegram;
 mod video;
 mod whisper;
+mod youtube_search;
 
 pub use ai::*;
 pub use assets::*;
@@ -31,3 +32,4 @@ pub use processing::*;
 pub use telegram::*;
 pub use video::*;
 pub use whisper::*;
+pub use youtube_search::*;
