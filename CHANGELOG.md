@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **AI summary search** - Added SQLite FTS5-powered Library search across titles, URLs, file paths, and saved AI summaries, with search scope controls for all content, details only, or AI summaries only
+- **YouTube keyword search** - Added a dedicated YouTube keyword search view with filter controls for upload date, duration, sort order, and video features, letting selected results be added directly to the download queue
+- **Plugin SDK YouTube search bridge** - Exposed app-managed YouTube keyword search to JavaScript plugins through `ctx.youwee.youtube.searchVideos(...)` with typed filters and continuation support
 
 ### Changed
 - **AI generation timeout** - Expanded the AI Generation Timeout options up to 60 minutes and now applies the selected timeout to AI provider HTTP requests for long-video summaries

@@ -139,8 +139,8 @@ export interface YoutubeSearchVideo {
   thumbnail?: string | null;
   duration?: string | null;
   channel?: string | null;
-  view_count_text?: string | null;
-  published_time_text?: string | null;
+  viewCountText?: string | null;
+  publishedTimeText?: string | null;
 }
 
 export interface YoutubeSearchResponse {

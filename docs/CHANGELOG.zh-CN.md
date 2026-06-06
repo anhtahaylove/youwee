@@ -9,6 +9,8 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ### 新增
 - **AI 摘要搜索** - 新增基于 SQLite FTS5 的媒体库搜索，可检索标题、URL、文件路径和已保存的 AI 摘要，并提供全部内容、仅详情或仅 AI 摘要的搜索范围控制
+- **YouTube 关键词搜索** - 新增独立的 YouTube 关键词搜索视图，支持按上传日期、时长、排序方式和视频特性进行筛选，并可将选中的结果直接加入下载队列
+- **Plugin SDK YouTube 搜索桥接** - 通过 `ctx.youwee.youtube.searchVideos(...)` 向 JavaScript 插件开放由应用托管的 YouTube 关键词搜索，并提供强类型筛选和 continuation 支持
 
 ### 变更
 - **AI 生成超时** - 将 AI 生成超时选项扩展到最长 60 分钟，并将所选超时应用到各 AI 提供商的 HTTP 请求，以支持长视频摘要生成

@@ -262,9 +262,9 @@ function SearchResultGridItem({
               </span>
             )}
             <div className="flex items-center gap-1.5 truncate">
-              {video.view_count_text && <span>{video.view_count_text}</span>}
-              {video.view_count_text && video.published_time_text && <span>•</span>}
-              {video.published_time_text && <span>{video.published_time_text}</span>}
+              {video.viewCountText && <span>{video.viewCountText}</span>}
+              {video.viewCountText && video.publishedTimeText && <span>•</span>}
+              {video.publishedTimeText && <span>{video.publishedTimeText}</span>}
             </div>
           </div>
         </div>

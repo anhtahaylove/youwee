@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct YoutubeSearchVideo {
     pub id: String,
     pub url: String,
@@ -8,11 +9,14 @@ pub struct YoutubeSearchVideo {
     pub thumbnail: Option<String>,
     pub duration: Option<String>,
     pub channel: Option<String>,
+    #[serde(alias = "view_count_text")]
     pub view_count_text: Option<String>,
+    #[serde(alias = "published_time_text")]
     pub published_time_text: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct YoutubeSearchResponse {
     pub videos: Vec<YoutubeSearchVideo>,
     pub continuation: Option<String>,
