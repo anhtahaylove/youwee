@@ -1,5 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app';
 import {
+  AlertTriangle,
   Bug,
   Check,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   Settings,
   Share2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -179,6 +181,7 @@ function AboutSettingsContent({
   highlightId: string | null;
 }) {
   const { t } = useTranslation('settings');
+  const { t: tCommon } = useTranslation('common');
   const { settings, updateAutoCheckUpdate } = useDownload();
   const { mode } = useTheme();
   const [copied, setCopied] = useState(false);
@@ -371,6 +374,33 @@ function AboutSettingsContent({
                 <Bug className="w-3.5 h-3.5 text-muted-foreground" />
                 {t('about.reportIssue')}
               </a>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Responsible Use Notice ── */}
+        <div className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/5 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold">{tCommon('legalDisclaimer.title')}</p>
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="h-3 w-3" />
+                  {tCommon('legalDisclaimer.accept')}
+                </span>
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {tCommon('legalDisclaimer.description')}
+              </p>
+              <p className="rounded-md bg-background/60 p-3 text-xs leading-relaxed text-muted-foreground">
+                {tCommon('legalDisclaimer.notice')}
+              </p>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                {tCommon('legalDisclaimer.responsibility')}
+              </p>
             </div>
           </div>
         </div>
