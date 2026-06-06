@@ -50,6 +50,12 @@
   "downloadSettings": "ตั้งค่าการดาวน์โหลด",
   "videoMode": "วิดีโอ",
   "audioMode": "เสียง",
+  "youtubeContentTypes": {
+    "videos": "วิดีโอ",
+    "shorts": "Shorts",
+    "streams": "สตรีม",
+    "videos_shorts": "วิดีโอ + Shorts"
+  },
   "codec": "Codec",
   "audioBitrate": "บิตเรต",
   "save": "บันทึก",

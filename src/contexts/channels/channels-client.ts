@@ -6,6 +6,7 @@ import type {
   DownloadProgress,
   FollowedChannel,
   PlaylistVideoEntry,
+  YoutubeChannelContentType,
 } from '@/lib/types';
 
 type ChannelInfo = {
@@ -57,6 +58,7 @@ export async function followChannelCommand(input: {
   downloadFormat: string;
   downloadVideoCodec: string;
   downloadAudioBitrate: string;
+  youtubeContentType: YoutubeChannelContentType;
 }): Promise<string> {
   return invoke<string>('follow_channel', input);
 }
@@ -83,6 +85,7 @@ export async function updateChannelSettingsCommand(input: {
   filterExcludeKeywords: string | null;
   filterMaxVideos: number | null;
   downloadThreads: number;
+  youtubeContentType: YoutubeChannelContentType;
 }): Promise<void> {
   await invoke('update_channel_settings', input);
 }
@@ -105,6 +108,7 @@ export async function getChannelVideos(input: {
   cookieBrowserProfile?: string | null;
   cookieFilePath?: string | null;
   proxyUrl?: string | null;
+  youtubeContentType?: YoutubeChannelContentType;
 }): Promise<PlaylistVideoEntry[]> {
   return invoke<PlaylistVideoEntry[]>('get_channel_videos', input);
 }
@@ -116,6 +120,7 @@ export async function getChannelInfo(input: {
   cookieBrowserProfile?: string | null;
   cookieFilePath?: string | null;
   proxyUrl?: string | null;
+  youtubeContentType?: YoutubeChannelContentType;
 }): Promise<ChannelInfo> {
   return invoke<ChannelInfo>('get_channel_info', input);
 }

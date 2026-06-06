@@ -13,15 +13,16 @@ pub fn follow_channel_db(
     download_format: String,
     download_video_codec: String,
     download_audio_bitrate: String,
+    youtube_content_type: String,
 ) -> Result<String, String> {
     let conn = get_db()?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
     conn.execute(
-        "INSERT OR IGNORE INTO followed_channels (id, url, name, thumbnail, platform, download_quality, download_format, download_video_codec, download_audio_bitrate, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![id, url, name, thumbnail, platform, download_quality, download_format, download_video_codec, download_audio_bitrate, now],
+        "INSERT OR IGNORE INTO followed_channels (id, url, name, thumbnail, platform, download_quality, download_format, download_video_codec, download_audio_bitrate, youtube_content_type, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        params![id, url, name, thumbnail, platform, download_quality, download_format, download_video_codec, download_audio_bitrate, youtube_content_type, now],
     )
     .map_err(|e| format!("Failed to follow channel: {}", e))?;
 
@@ -51,7 +52,7 @@ pub fn get_followed_channels_db() -> Result<Vec<FollowedChannel>, String> {
                     check_interval, auto_download, download_quality, download_format, created_at,
                     filter_min_duration, filter_max_duration, filter_include_keywords,
                     filter_exclude_keywords, filter_max_videos, download_threads,
-                    download_video_codec, download_audio_bitrate
+                    download_video_codec, download_audio_bitrate, youtube_content_type
              FROM followed_channels ORDER BY created_at DESC",
         )
         .map_err(|e| format!("Failed to prepare query: {}", e))?;
@@ -79,6 +80,7 @@ pub fn get_followed_channels_db() -> Result<Vec<FollowedChannel>, String> {
                 download_threads: row.get(17)?,
                 download_video_codec: row.get(18)?,
                 download_audio_bitrate: row.get(19)?,
+                youtube_content_type: row.get(20)?,
             })
         })
         .map_err(|e| format!("Query failed: {}", e))?
@@ -96,7 +98,7 @@ pub fn get_followed_channel_db(id: String) -> Result<FollowedChannel, String> {
                 check_interval, auto_download, download_quality, download_format, created_at,
                 filter_min_duration, filter_max_duration, filter_include_keywords,
                 filter_exclude_keywords, filter_max_videos, download_threads,
-                download_video_codec, download_audio_bitrate
+                download_video_codec, download_audio_bitrate, youtube_content_type
          FROM followed_channels WHERE id = ?1",
         params![id],
         |row| {
@@ -121,6 +123,7 @@ pub fn get_followed_channel_db(id: String) -> Result<FollowedChannel, String> {
                 download_threads: row.get(17)?,
                 download_video_codec: row.get(18)?,
                 download_audio_bitrate: row.get(19)?,
+                youtube_content_type: row.get(20)?,
             })
         },
     )
@@ -142,6 +145,7 @@ pub fn update_channel_settings_db(
     filter_exclude_keywords: Option<String>,
     filter_max_videos: Option<i64>,
     download_threads: i64,
+    youtube_content_type: String,
 ) -> Result<(), String> {
     let conn = get_db()?;
     conn.execute(
@@ -150,8 +154,8 @@ pub fn update_channel_settings_db(
             download_format = ?4, download_video_codec = ?5, download_audio_bitrate = ?6,
             filter_min_duration = ?7, filter_max_duration = ?8,
             filter_include_keywords = ?9, filter_exclude_keywords = ?10, filter_max_videos = ?11,
-            download_threads = ?12
-         WHERE id = ?13",
+            download_threads = ?12, youtube_content_type = ?13
+         WHERE id = ?14",
         params![
             check_interval,
             auto_download as i64,
@@ -165,6 +169,7 @@ pub fn update_channel_settings_db(
             filter_exclude_keywords,
             filter_max_videos,
             download_threads,
+            youtube_content_type,
             id,
         ],
     )

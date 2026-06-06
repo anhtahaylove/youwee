@@ -684,6 +684,8 @@ export interface PlaylistVideoEntry {
   upload_date?: string;
 }
 
+export type YoutubeChannelContentType = 'videos' | 'shorts' | 'streams' | 'videos_shorts';
+
 export type ExportSource = 'auto' | 'youtube_playlist' | 'youtube_channel' | 'url_list';
 
 export type ExportFormat =
@@ -1165,6 +1167,7 @@ export interface FollowedChannel {
   download_threads: number; // concurrent download threads (default 1)
   download_video_codec: string; // video codec (h264, vp9, av1, auto)
   download_audio_bitrate: string; // audio bitrate (128, 192, 256, 320, auto)
+  youtube_content_type: YoutubeChannelContentType;
 }
 
 export interface ChannelVideo {

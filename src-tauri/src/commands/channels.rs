@@ -12,7 +12,16 @@ use crate::services::{
 use crate::types::DependencySource;
 use crate::types::{BackendError, ChannelInfo, ChannelVideo, FollowedChannel, PlaylistVideoEntry};
 use crate::utils::CommandExt;
-use crate::utils::{normalize_url, validate_url};
+use crate::utils::{normalize_channel_content_urls, normalize_url, validate_url};
+
+fn sanitize_youtube_content_type(value: Option<&str>) -> String {
+    match value {
+        Some("shorts") => "shorts".to_string(),
+        Some("streams") => "streams".to_string(),
+        Some("videos_shorts") => "videos_shorts".to_string(),
+        _ => "videos".to_string(),
+    }
+}
 
 /// Build a fallback video URL based on the channel's platform.
 /// Used when yt-dlp doesn't return a `url` or `webpage_url` field.
@@ -40,11 +49,15 @@ pub async fn get_channel_videos(
     cookie_browser_profile: Option<String>,
     cookie_file_path: Option<String>,
     proxy_url: Option<String>,
+    youtube_content_type: Option<String>,
 ) -> Result<Vec<PlaylistVideoEntry>, String> {
     validate_url(&url)?;
-    let url = normalize_url(&url);
+    let youtube_content_type = sanitize_youtube_content_type(youtube_content_type.as_deref());
+    let urls = normalize_channel_content_urls(&url, Some(&youtube_content_type));
 
-    let is_youtube = url.contains("youtube.com") || url.contains("youtu.be");
+    let is_youtube = urls
+        .iter()
+        .any(|url| url.contains("youtube.com") || url.contains("youtu.be"));
     let max_attempts = if is_youtube { 1 } else { 2 };
 
     let mut last_error = String::new();
@@ -55,29 +68,53 @@ pub async fn get_channel_videos(
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
         }
 
-        match fetch_channel_videos_once(
-            &app,
-            &url,
-            limit,
-            start,
-            request_id,
-            is_youtube,
-            cookie_mode.as_deref(),
-            cookie_browser.as_deref(),
-            cookie_browser_profile.as_deref(),
-            cookie_file_path.as_deref(),
-            proxy_url.as_deref(),
-        )
-        .await
-        {
-            Ok(entries) => return Ok(entries),
-            Err(e) => {
-                last_error = e;
-                // Only retry for non-YouTube (Bilibili rate-limiting)
-                if is_youtube {
-                    break;
+        let mut entries = Vec::new();
+        let mut seen_ids = std::collections::HashSet::new();
+        let mut errors = Vec::new();
+
+        for source_url in &urls {
+            let source_is_youtube =
+                source_url.contains("youtube.com") || source_url.contains("youtu.be");
+
+            match fetch_channel_videos_once(
+                &app,
+                source_url,
+                limit,
+                start,
+                request_id,
+                source_is_youtube,
+                cookie_mode.as_deref(),
+                cookie_browser.as_deref(),
+                cookie_browser_profile.as_deref(),
+                cookie_file_path.as_deref(),
+                proxy_url.as_deref(),
+            )
+            .await
+            {
+                Ok(source_entries) => {
+                    for entry in source_entries {
+                        if seen_ids.insert(entry.id.clone()) {
+                            entries.push(entry);
+                        }
+                    }
                 }
+                Err(e) => errors.push(e),
             }
+        }
+
+        if !entries.is_empty() {
+            return Ok(entries);
+        }
+
+        last_error = if errors.is_empty() {
+            "No videos found in channel".to_string()
+        } else {
+            errors.join("; ")
+        };
+
+        // Only retry for non-YouTube (Bilibili rate-limiting)
+        if is_youtube {
+            break;
         }
     }
 
@@ -414,9 +451,14 @@ pub async fn get_channel_info(
     cookie_browser_profile: Option<String>,
     cookie_file_path: Option<String>,
     proxy_url: Option<String>,
+    youtube_content_type: Option<String>,
 ) -> Result<ChannelInfo, String> {
     validate_url(&url)?;
-    let url = normalize_url(&url);
+    let youtube_content_type = sanitize_youtube_content_type(youtube_content_type.as_deref());
+    let url = normalize_channel_content_urls(&url, Some(&youtube_content_type))
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| normalize_url(&url));
 
     // For Bilibili URLs, try the native API first (accurate name + avatar).
     // This avoids spawning a second yt-dlp process that could trigger rate-limiting.
@@ -613,12 +655,18 @@ pub async fn follow_channel(
     download_format: Option<String>,
     download_video_codec: Option<String>,
     download_audio_bitrate: Option<String>,
+    youtube_content_type: Option<String>,
 ) -> Result<String, String> {
     let platform = platform.unwrap_or_else(|| "youtube".to_string());
     let download_quality = download_quality.unwrap_or_else(|| "best".to_string());
     let download_format = download_format.unwrap_or_else(|| "mp4".to_string());
     let download_video_codec = download_video_codec.unwrap_or_else(|| "h264".to_string());
     let download_audio_bitrate = download_audio_bitrate.unwrap_or_else(|| "192".to_string());
+    let youtube_content_type = if platform == "youtube" {
+        sanitize_youtube_content_type(youtube_content_type.as_deref())
+    } else {
+        "videos".to_string()
+    };
     database::follow_channel_db(
         url,
         name,
@@ -628,6 +676,7 @@ pub async fn follow_channel(
         download_format,
         download_video_codec,
         download_audio_bitrate,
+        youtube_content_type,
     )
 }
 
@@ -659,6 +708,7 @@ pub async fn update_channel_settings(
     filter_exclude_keywords: Option<String>,
     filter_max_videos: Option<i64>,
     download_threads: Option<i64>,
+    youtube_content_type: Option<String>,
 ) -> Result<(), String> {
     database::update_channel_settings_db(
         id,
@@ -674,6 +724,7 @@ pub async fn update_channel_settings(
         filter_exclude_keywords,
         filter_max_videos,
         download_threads.unwrap_or(1),
+        sanitize_youtube_content_type(youtube_content_type.as_deref()),
     )
 }
 

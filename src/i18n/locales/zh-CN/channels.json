@@ -50,6 +50,12 @@
   "downloadSettings": "下载设置",
   "videoMode": "视频",
   "audioMode": "音频",
+  "youtubeContentTypes": {
+    "videos": "视频",
+    "shorts": "Shorts",
+    "streams": "直播",
+    "videos_shorts": "视频 + Shorts"
+  },
   "codec": "编解码器",
   "audioBitrate": "比特率",
   "save": "保存",

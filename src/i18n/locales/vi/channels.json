@@ -50,6 +50,12 @@
   "downloadSettings": "Cài đặt tải xuống",
   "videoMode": "Video",
   "audioMode": "Âm thanh",
+  "youtubeContentTypes": {
+    "videos": "Video",
+    "shorts": "Shorts",
+    "streams": "Livestream",
+    "videos_shorts": "Video + Shorts"
+  },
   "codec": "Codec",
   "audioBitrate": "Bitrate",
   "save": "Lưu",

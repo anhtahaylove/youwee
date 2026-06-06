@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter};
 use crate::database;
 use crate::services::{build_cookie_args, get_deno_path, run_ytdlp_with_stderr};
 use crate::types::{ChannelVideo, FollowedChannel};
+use crate::utils::normalize_channel_content_urls;
 
 /// Cookie/proxy configuration synced from the frontend for background polling.
 #[derive(Clone, Default)]
@@ -218,63 +219,72 @@ async fn check_channel_for_new_videos(
     channel: &FollowedChannel,
 ) -> Result<usize, String> {
     let limit = channel.filter_max_videos.unwrap_or(20) as u32;
-    let is_youtube = channel.url.contains("youtube.com") || channel.url.contains("youtu.be");
-
-    let mut args = vec![
-        "--dump-json".to_string(),
-        "--no-warnings".to_string(),
-        "--socket-timeout".to_string(),
-        "30".to_string(),
-        "--playlist-end".to_string(),
-        limit.to_string(),
-    ];
-
-    // Only use --flat-playlist for YouTube; other platforms (Bilibili, etc.)
-    // return minimal data in flat mode (no title, thumbnail, duration)
-    if is_youtube {
-        args.push("--flat-playlist".to_string());
-    }
-
-    // If we have a last known video, use --break-on-existing for fast incremental check
-    if channel.last_video_id.is_some() {
-        args.push("--break-on-existing".to_string());
-    }
-
-    // Add Deno runtime for YouTube
-    if is_youtube {
-        if let Some(deno_path) = get_deno_path(app).await {
-            args.push("--js-runtimes".to_string());
-            args.push(format!("deno:{}", deno_path.to_string_lossy()));
-        }
-    }
-
-    // Load cookie/proxy settings synced from the frontend
+    let channel_urls =
+        normalize_channel_content_urls(&channel.url, Some(&channel.youtube_content_type));
     let net = get_network_config();
-    let cookie_args = build_cookie_args(
-        net.cookie_mode.as_deref(),
-        net.cookie_browser.as_deref(),
-        net.cookie_browser_profile.as_deref(),
-        net.cookie_file_path.as_deref(),
-    );
-    args.extend(cookie_args);
+    let mut output = String::new();
 
-    if let Some(proxy) = net.proxy_url.as_ref() {
-        if !proxy.is_empty() {
-            args.push("--proxy".to_string());
-            args.push(proxy.clone());
+    for channel_url in channel_urls {
+        let is_youtube = channel_url.contains("youtube.com") || channel_url.contains("youtu.be");
+
+        let mut args = vec![
+            "--dump-json".to_string(),
+            "--no-warnings".to_string(),
+            "--socket-timeout".to_string(),
+            "30".to_string(),
+            "--playlist-end".to_string(),
+            limit.to_string(),
+        ];
+
+        // Only use --flat-playlist for YouTube; other platforms (Bilibili, etc.)
+        // return minimal data in flat mode (no title, thumbnail, duration)
+        if is_youtube {
+            args.push("--flat-playlist".to_string());
+        }
+
+        // If we have a last known video, use --break-on-existing for fast incremental check
+        if channel.last_video_id.is_some() {
+            args.push("--break-on-existing".to_string());
+        }
+
+        // Add Deno runtime for YouTube
+        if is_youtube {
+            if let Some(deno_path) = get_deno_path(app).await {
+                args.push("--js-runtimes".to_string());
+                args.push(format!("deno:{}", deno_path.to_string_lossy()));
+            }
+        }
+
+        // Load cookie/proxy settings synced from the frontend
+        let cookie_args = build_cookie_args(
+            net.cookie_mode.as_deref(),
+            net.cookie_browser.as_deref(),
+            net.cookie_browser_profile.as_deref(),
+            net.cookie_file_path.as_deref(),
+        );
+        args.extend(cookie_args);
+
+        if let Some(proxy) = net.proxy_url.as_ref() {
+            if !proxy.is_empty() {
+                args.push("--proxy".to_string());
+                args.push(proxy.clone());
+            }
+        }
+
+        args.push("--".to_string());
+        args.push(channel_url);
+
+        let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+
+        let output_result = run_ytdlp_with_stderr(app, &args_ref).await?;
+        if !output_result.success && output_result.stdout.is_empty() {
+            return Err("Failed to fetch channel videos".to_string());
+        }
+        output.push_str(&output_result.stdout);
+        if !output.ends_with('\n') {
+            output.push('\n');
         }
     }
-
-    args.push("--".to_string());
-    args.push(channel.url.clone());
-
-    let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-
-    let output_result = run_ytdlp_with_stderr(app, &args_ref).await?;
-    if !output_result.success && output_result.stdout.is_empty() {
-        return Err("Failed to fetch channel videos".to_string());
-    }
-    let output = output_result.stdout;
 
     let mut new_videos: Vec<ChannelVideo> = Vec::new();
     let now = chrono::Utc::now().to_rfc3339();

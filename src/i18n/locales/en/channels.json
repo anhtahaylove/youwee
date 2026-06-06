@@ -50,6 +50,12 @@
   "downloadSettings": "Download Settings",
   "videoMode": "Video",
   "audioMode": "Audio",
+  "youtubeContentTypes": {
+    "videos": "Videos",
+    "shorts": "Shorts",
+    "streams": "Streams",
+    "videos_shorts": "Videos + Shorts"
+  },
   "codec": "Codec",
   "audioBitrate": "Bitrate",
   "save": "Save",

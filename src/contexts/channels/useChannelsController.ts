@@ -14,6 +14,7 @@ import type {
   FollowedChannel,
   PlaylistVideoEntry,
   PostDownloadPluginPayload,
+  YoutubeChannelContentType,
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
 import {
@@ -51,6 +52,7 @@ const SUPPORTED_PLATFORMS = [
 ] as const;
 
 const CHANNEL_BROWSE_BATCH_SIZE = 100;
+const DEFAULT_YOUTUBE_CONTENT_TYPE: YoutubeChannelContentType = 'videos';
 
 export type Platform = (typeof SUPPORTED_PLATFORMS)[number]['platform'] | 'other';
 
@@ -78,6 +80,10 @@ export function detectPlatform(url: string): Platform {
 /** Check if a URL is a supported channel platform */
 export function isSupportedPlatform(url: string): boolean {
   return detectPlatform(url) !== 'other';
+}
+
+function getYoutubeContentTypeSourceCount(contentType: YoutubeChannelContentType): number {
+  return contentType === 'videos_shorts' ? 2 : 1;
 }
 
 /** Extract a readable channel name from a URL */
@@ -192,6 +198,7 @@ export interface ChannelsContextType {
       videoCodec: string;
       audioBitrate: string;
     },
+    youtubeContentType?: YoutubeChannelContentType,
   ) => Promise<string>;
   unfollowChannel: (id: string) => Promise<void>;
   refreshFollowedChannelInfo: () => Promise<void>;
@@ -209,6 +216,7 @@ export interface ChannelsContextType {
     filterExcludeKeywords?: string | null;
     filterMaxVideos?: number | null;
     downloadThreads?: number;
+    youtubeContentType?: YoutubeChannelContentType;
   }) => Promise<void>;
 
   // Channel browsing
@@ -222,7 +230,12 @@ export interface ChannelsContextType {
   browseFetchProgress: ChannelFetchProgress | null;
   browseHasMore: boolean;
   browseLoadingMore: boolean;
-  fetchChannelVideos: (url: string, limit?: number | null) => Promise<void>;
+  browseYoutubeContentType: YoutubeChannelContentType;
+  fetchChannelVideos: (
+    url: string,
+    limit?: number | null,
+    youtubeContentType?: YoutubeChannelContentType,
+  ) => Promise<void>;
   loadMoreChannelVideos: () => Promise<void>;
   clearBrowse: () => void;
 
@@ -272,6 +285,8 @@ export function useChannelsController(): ChannelsContextType {
   const [browseFetchProgress, setBrowseFetchProgress] = useState<ChannelFetchProgress | null>(null);
   const [browseHasMore, setBrowseHasMore] = useState(false);
   const [browseLoadingMore, setBrowseLoadingMore] = useState(false);
+  const [browseYoutubeContentType, setBrowseYoutubeContentType] =
+    useState<YoutubeChannelContentType>(DEFAULT_YOUTUBE_CONTENT_TYPE);
 
   // Selection state
   const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set());
@@ -309,10 +324,17 @@ export function useChannelsController(): ChannelsContextType {
   // Ref for followedChannels to avoid stale closures
   const followedChannelsRef = useRef<FollowedChannel[]>([]);
   const browseVideosRef = useRef<PlaylistVideoEntry[]>([]);
+  const browseYoutubeContentTypeRef = useRef<YoutubeChannelContentType>(
+    DEFAULT_YOUTUBE_CONTENT_TYPE,
+  );
 
   useEffect(() => {
     browseVideosRef.current = browseVideos;
   }, [browseVideos]);
+
+  useEffect(() => {
+    browseYoutubeContentTypeRef.current = browseYoutubeContentType;
+  }, [browseYoutubeContentType]);
 
   // Select output folder
   const selectOutputFolder = useCallback(async () => {
@@ -424,16 +446,22 @@ export function useChannelsController(): ChannelsContextType {
         videoCodec: string;
         audioBitrate: string;
       },
+      youtubeContentType?: YoutubeChannelContentType,
     ) => {
+      const platform = detectPlatform(url);
       const id = await followChannelCommand({
         url,
         name,
         thumbnail: thumbnail || null,
-        platform: detectPlatform(url),
+        platform,
         downloadQuality: downloadSettings?.quality || 'best',
         downloadFormat: downloadSettings?.format || 'mp4',
         downloadVideoCodec: downloadSettings?.videoCodec || 'auto',
         downloadAudioBitrate: downloadSettings?.audioBitrate || '192',
+        youtubeContentType:
+          platform === 'youtube'
+            ? (youtubeContentType ?? browseYoutubeContentTypeRef.current)
+            : DEFAULT_YOUTUBE_CONTENT_TYPE,
       });
       await refreshChannels();
 
@@ -482,6 +510,7 @@ export function useChannelsController(): ChannelsContextType {
       filterExcludeKeywords?: string | null;
       filterMaxVideos?: number | null;
       downloadThreads?: number;
+      youtubeContentType?: YoutubeChannelContentType;
     }) => {
       await updateChannelSettingsCommand({
         id: settings.id,
@@ -497,6 +526,7 @@ export function useChannelsController(): ChannelsContextType {
         filterExcludeKeywords: settings.filterExcludeKeywords ?? null,
         filterMaxVideos: settings.filterMaxVideos ?? null,
         downloadThreads: settings.downloadThreads ?? 1,
+        youtubeContentType: settings.youtubeContentType ?? DEFAULT_YOUTUBE_CONTENT_TYPE,
       });
       await refreshChannels();
     },
@@ -508,17 +538,28 @@ export function useChannelsController(): ChannelsContextType {
   const fetchRequestIdRef = useRef(0);
 
   const fetchChannelVideosBatch = useCallback(
-    async (url: string, options?: { limit?: number | null; append?: boolean }) => {
+    async (
+      url: string,
+      options?: {
+        limit?: number | null;
+        append?: boolean;
+        youtubeContentType?: YoutubeChannelContentType;
+      },
+    ) => {
       const requestId = ++fetchRequestIdRef.current;
       const effectiveLimit = options?.limit ?? CHANNEL_BROWSE_BATCH_SIZE;
       const isLoadMore = options?.append ?? false;
-      const start = isLoadMore ? browseVideosRef.current.length + 1 : 1;
+      const youtubeContentType = options?.youtubeContentType ?? browseYoutubeContentTypeRef.current;
+      const sourceCount = getYoutubeContentTypeSourceCount(youtubeContentType);
+      const start = isLoadMore ? Math.floor(browseVideosRef.current.length / sourceCount) + 1 : 1;
 
       if (isLoadMore) {
         setBrowseLoadingMore(true);
         setBrowseError(null);
       } else {
         setBrowseUrl(url);
+        setBrowseYoutubeContentType(youtubeContentType);
+        browseYoutubeContentTypeRef.current = youtubeContentType;
         setBrowseLoading(true);
         setBrowseError(null);
         setBrowseVideos([]);
@@ -538,12 +579,14 @@ export function useChannelsController(): ChannelsContextType {
           limit: effectiveLimit,
           start,
           requestId: requestId,
+          youtubeContentType,
           ...networkOptions,
         });
         const channelInfoPromise = isLoadMore
           ? Promise.resolve(null)
           : getChannelInfo({
               url,
+              youtubeContentType,
               ...networkOptions,
             }).catch(() => null);
 
@@ -552,7 +595,7 @@ export function useChannelsController(): ChannelsContextType {
         // Discard stale response if a newer fetch was triggered
         if (requestId !== fetchRequestIdRef.current) return;
 
-        setBrowseHasMore(videos.length === effectiveLimit);
+        setBrowseHasMore(videos.length >= effectiveLimit * sourceCount);
         setBrowseVideos((prev) => {
           if (!isLoadMore) return videos;
 
@@ -645,8 +688,8 @@ export function useChannelsController(): ChannelsContextType {
   );
 
   const fetchChannelVideos = useCallback(
-    async (url: string, limit?: number | null) => {
-      await fetchChannelVideosBatch(url, { limit, append: false });
+    async (url: string, limit?: number | null, youtubeContentType?: YoutubeChannelContentType) => {
+      await fetchChannelVideosBatch(url, { limit, append: false, youtubeContentType });
     },
     [fetchChannelVideosBatch],
   );
@@ -656,6 +699,7 @@ export function useChannelsController(): ChannelsContextType {
     await fetchChannelVideosBatch(browseUrl, {
       limit: CHANNEL_BROWSE_BATCH_SIZE,
       append: true,
+      youtubeContentType: browseYoutubeContentTypeRef.current,
     });
   }, [browseHasMore, browseLoading, browseLoadingMore, browseUrl, fetchChannelVideosBatch]);
 
@@ -663,6 +707,7 @@ export function useChannelsController(): ChannelsContextType {
   const clearBrowse = useCallback(() => {
     fetchRequestIdRef.current += 1;
     browseVideosRef.current = [];
+    browseYoutubeContentTypeRef.current = DEFAULT_YOUTUBE_CONTENT_TYPE;
     setBrowseUrl('');
     setBrowseVideos([]);
     setBrowseError(null);
@@ -670,6 +715,7 @@ export function useChannelsController(): ChannelsContextType {
     setBrowseChannelAvatar(null);
     setBrowseHasMore(false);
     setBrowseLoadingMore(false);
+    setBrowseYoutubeContentType(DEFAULT_YOUTUBE_CONTENT_TYPE);
     setBrowseFetchProgress(null);
     setSelectedVideoIds(new Set());
     setVideoStates(new Map());
@@ -1024,6 +1070,7 @@ export function useChannelsController(): ChannelsContextType {
         try {
           const info = await getChannelInfo({
             url: ch.url,
+            youtubeContentType: ch.youtube_content_type ?? DEFAULT_YOUTUBE_CONTENT_TYPE,
             ...networkOptions,
           });
 
@@ -1304,6 +1351,7 @@ export function useChannelsController(): ChannelsContextType {
     browseFetchProgress,
     browseHasMore,
     browseLoadingMore,
+    browseYoutubeContentType,
     fetchChannelVideos,
     loadMoreChannelVideos,
     clearBrowse,

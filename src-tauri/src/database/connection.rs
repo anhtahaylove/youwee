@@ -395,7 +395,8 @@ pub fn init_database(app: &AppHandle) -> Result<(), String> {
             filter_max_videos INTEGER,
             download_threads INTEGER NOT NULL DEFAULT 1,
             download_video_codec TEXT NOT NULL DEFAULT 'h264',
-            download_audio_bitrate TEXT NOT NULL DEFAULT '192'
+            download_audio_bitrate TEXT NOT NULL DEFAULT '192',
+            youtube_content_type TEXT NOT NULL DEFAULT 'videos'
         )",
         [],
     )
@@ -467,6 +468,13 @@ pub fn init_database(app: &AppHandle) -> Result<(), String> {
     // Migration: Add download_audio_bitrate column if it doesn't exist
     conn.execute(
         "ALTER TABLE followed_channels ADD COLUMN download_audio_bitrate TEXT NOT NULL DEFAULT '192'",
+        [],
+    )
+    .ok();
+
+    // Migration: Add YouTube content type column if it doesn't exist
+    conn.execute(
+        "ALTER TABLE followed_channels ADD COLUMN youtube_content_type TEXT NOT NULL DEFAULT 'videos'",
         [],
     )
     .ok();
