@@ -1,6 +1,6 @@
 use crate::database::add_log_internal;
 use crate::services::{
-    build_cookie_args, build_proxy_args, get_deno_path, parse_ytdlp_error,
+    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, parse_ytdlp_error,
     run_ytdlp_json_with_cookies, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
 };
 use crate::types::{
@@ -787,12 +787,13 @@ pub async fn get_video_info(
     args.push("--".to_string());
     args.push(url.clone());
 
-    let mut extra_args = build_cookie_args(
+    let mut extra_args = build_site_header_args(&url);
+    extra_args.extend(build_cookie_args(
         cookie_mode.as_deref(),
         cookie_browser.as_deref(),
         cookie_browser_profile.as_deref(),
         cookie_file_path.as_deref(),
-    );
+    ));
     extra_args.extend(build_proxy_args(proxy_url.as_deref()));
 
     if let Some(separator_index) = args.iter().position(|arg| arg == "--") {
@@ -980,6 +981,8 @@ pub async fn get_playlist_entries(
             args.push(format!("deno:{}", deno_path.to_string_lossy()));
         }
     }
+
+    args.extend(build_site_header_args(&url));
 
     // Add cookie args
     let cookie_args = build_cookie_args(

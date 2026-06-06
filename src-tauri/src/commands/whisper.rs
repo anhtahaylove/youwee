@@ -195,6 +195,7 @@ pub async fn transcribe_url_with_whisper(
         &audio_output_str,
         "--no-playlist",
         "--no-warnings",
+        "--",
         &url,
     ];
 

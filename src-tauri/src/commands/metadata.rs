@@ -12,7 +12,7 @@ use tokio::process::Command;
 
 use crate::database::{add_history_internal, add_log_internal};
 use crate::services::{
-    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source,
+    build_site_header_args, get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source,
     run_ytdlp_with_stderr_and_cookies, system_ytdlp_not_found_message,
 };
 use crate::types::{BackendError, DependencySource};
@@ -689,6 +689,8 @@ pub async fn fetch_metadata(
             args.push(parent.to_string_lossy().to_string());
         }
     }
+
+    args.extend(build_site_header_args(&url));
 
     // Cookie/Authentication settings
     let mode = cookie_mode.as_deref().unwrap_or("off");
