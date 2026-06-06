@@ -20,6 +20,8 @@ const BUNDLED_YTDLP_BINARY_NAME: &str = "youwee-yt-dlp";
 const LEGACY_BUNDLED_YTDLP_BINARY_NAME: &str = "yt-dlp.exe";
 #[cfg(not(windows))]
 const LEGACY_BUNDLED_YTDLP_BINARY_NAME: &str = "yt-dlp";
+const BILIBILI_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
+const BILIBILI_REFERER: &str = "https://www.bilibili.com/";
 
 pub fn system_ytdlp_not_found_message() -> String {
     #[cfg(target_os = "macos")]
@@ -915,6 +917,42 @@ pub fn build_proxy_args(proxy_url: Option<&str>) -> Vec<String> {
     args
 }
 
+/// Build site-specific request header args for yt-dlp.
+///
+/// Bilibili may reject the initial webpage request with HTTP 412 unless the
+/// request looks like it came from a browser.
+pub fn build_site_header_args(url: &str) -> Vec<String> {
+    if is_bilibili_host(url) {
+        return vec![
+            "--user-agent".to_string(),
+            BILIBILI_USER_AGENT.to_string(),
+            "--referer".to_string(),
+            BILIBILI_REFERER.to_string(),
+        ];
+    }
+
+    Vec::new()
+}
+
+fn is_bilibili_host(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+
+    let Some(host) = parsed.host_str().map(|host| host.to_ascii_lowercase()) else {
+        return false;
+    };
+
+    host == "b23.tv" || host == "bilibili.com" || host.ends_with(".bilibili.com")
+}
+
+fn ytdlp_url_arg(args: &[&str]) -> Option<String> {
+    args.iter()
+        .position(|arg| *arg == "--")
+        .and_then(|separator_index| args.get(separator_index + 1))
+        .map(|url| (*url).to_string())
+}
+
 /// Merge extra yt-dlp arguments while preserving `-- <url>` ordering.
 /// If `base_args` contains `--`, all extra options must be inserted before it.
 fn merge_ytdlp_args(base_args: &[&str], extra_args: &[String]) -> Vec<String> {
@@ -942,7 +980,10 @@ pub async fn run_ytdlp_json_with_cookies(
     cookie_file_path: Option<&str>,
     proxy_url: Option<&str>,
 ) -> Result<String, String> {
-    // Build full args with cookies and proxy
+    // Build full args with site headers, cookies and proxy
+    let site_header_args = ytdlp_url_arg(base_args)
+        .map(|url| build_site_header_args(&url))
+        .unwrap_or_default();
     let cookie_args = build_cookie_args(
         cookie_mode,
         cookie_browser,
@@ -951,6 +992,7 @@ pub async fn run_ytdlp_json_with_cookies(
     );
     let proxy_args = build_proxy_args(proxy_url);
     let mut extra_args = Vec::new();
+    extra_args.extend(site_header_args);
     extra_args.extend(cookie_args);
     extra_args.extend(proxy_args);
     let args = merge_ytdlp_args(base_args, &extra_args);
@@ -970,7 +1012,10 @@ pub async fn run_ytdlp_with_stderr_and_cookies(
     cookie_file_path: Option<&str>,
     proxy_url: Option<&str>,
 ) -> Result<YtdlpOutput, String> {
-    // Build full args with cookies and proxy
+    // Build full args with site headers, cookies and proxy
+    let site_header_args = ytdlp_url_arg(base_args)
+        .map(|url| build_site_header_args(&url))
+        .unwrap_or_default();
     let cookie_args = build_cookie_args(
         cookie_mode,
         cookie_browser,
@@ -979,6 +1024,7 @@ pub async fn run_ytdlp_with_stderr_and_cookies(
     );
     let proxy_args = build_proxy_args(proxy_url);
     let mut extra_args = Vec::new();
+    extra_args.extend(site_header_args);
     extra_args.extend(cookie_args);
     extra_args.extend(proxy_args);
     let args = merge_ytdlp_args(base_args, &extra_args);
@@ -986,4 +1032,58 @@ pub async fn run_ytdlp_with_stderr_and_cookies(
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 
     run_ytdlp_with_stderr(app, &args_ref).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_site_header_args_adds_bilibili_headers() {
+        let args = build_site_header_args("https://www.bilibili.com/video/BV1Qo4y1s7XT");
+
+        assert_eq!(
+            args,
+            vec![
+                "--user-agent".to_string(),
+                BILIBILI_USER_AGENT.to_string(),
+                "--referer".to_string(),
+                BILIBILI_REFERER.to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn build_site_header_args_adds_b23_headers() {
+        let args = build_site_header_args("https://b23.tv/abc123");
+
+        assert_eq!(args.len(), 4);
+        assert_eq!(args[0], "--user-agent");
+        assert_eq!(args[2], "--referer");
+    }
+
+    #[test]
+    fn build_site_header_args_ignores_other_sites() {
+        assert!(build_site_header_args("https://www.youtube.com/watch?v=abc").is_empty());
+    }
+
+    #[test]
+    fn build_site_header_args_ignores_bilibili_text_outside_host() {
+        assert!(build_site_header_args("https://example.com/watch?url=bilibili.com").is_empty());
+    }
+
+    #[test]
+    fn merge_ytdlp_args_inserts_extra_args_before_url_separator() {
+        let base_args = ["--dump-json", "--", "https://www.bilibili.com/video/BV"];
+        let extra_args = build_site_header_args("https://www.bilibili.com/video/BV");
+        let merged = merge_ytdlp_args(&base_args, &extra_args);
+
+        let separator_index = merged.iter().position(|arg| arg == "--").unwrap();
+        assert_eq!(
+            merged[separator_index + 1],
+            "https://www.bilibili.com/video/BV"
+        );
+        assert!(merged[..separator_index].contains(&"--user-agent".to_string()));
+        assert!(merged[..separator_index].contains(&"--referer".to_string()));
+    }
 }

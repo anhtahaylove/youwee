@@ -3,7 +3,9 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 
 use crate::database;
-use crate::services::{build_cookie_args, get_deno_path, run_ytdlp_with_stderr};
+use crate::services::{
+    build_cookie_args, build_site_header_args, get_deno_path, run_ytdlp_with_stderr,
+};
 use crate::types::{ChannelVideo, FollowedChannel};
 use crate::utils::normalize_channel_content_urls;
 
@@ -254,6 +256,8 @@ async fn check_channel_for_new_videos(
                 args.push(format!("deno:{}", deno_path.to_string_lossy()));
             }
         }
+
+        args.extend(build_site_header_args(&channel_url));
 
         // Load cookie/proxy settings synced from the frontend
         let cookie_args = build_cookie_args(

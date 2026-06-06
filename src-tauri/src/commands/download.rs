@@ -22,8 +22,9 @@ use crate::database::add_history_internal;
 use crate::database::add_log_internal;
 use crate::database::update_history_download;
 use crate::services::{
-    enqueue_post_download_workflow, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
-    get_ytdlp_source, resolve_download_workflow_snapshot, system_ytdlp_not_found_message,
+    build_site_header_args, enqueue_post_download_workflow, get_deno_path, get_ffmpeg_path,
+    get_ytdlp_path, get_ytdlp_source, resolve_download_workflow_snapshot,
+    system_ytdlp_not_found_message,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -576,6 +577,8 @@ pub async fn download_video(
             args.push("--embed-subs".to_string());
         }
     }
+
+    args.extend(build_site_header_args(&url));
 
     // Cookie/Authentication settings
     let mode = cookie_mode.as_deref().unwrap_or("off");

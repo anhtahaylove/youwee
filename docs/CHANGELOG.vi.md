@@ -17,6 +17,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Tên file database của ứng dụng** - Đổi database SQLite nội bộ từ `logs.db` sang `youwee.db`, tự động migrate từ file cũ và giữ file cũ làm backup
 
 ### Sửa lỗi
+- **Bilibili HTTP 412** - Thêm header giống trình duyệt cho request Bilibili qua yt-dlp để tránh lỗi `HTTP Error 412`
 
 ## [0.16.0] - 2026-06-02
 

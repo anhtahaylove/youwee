@@ -6,8 +6,8 @@ use tokio::process::Command;
 
 use crate::database;
 use crate::services::{
-    build_cookie_args, get_deno_path, get_ytdlp_path, get_ytdlp_source, run_ytdlp_with_stderr,
-    system_ytdlp_not_found_message,
+    build_cookie_args, build_site_header_args, get_deno_path, get_ytdlp_path, get_ytdlp_source,
+    run_ytdlp_with_stderr, system_ytdlp_not_found_message,
 };
 use crate::types::DependencySource;
 use crate::types::{BackendError, ChannelInfo, ChannelVideo, FollowedChannel, PlaylistVideoEntry};
@@ -169,6 +169,8 @@ async fn fetch_channel_videos_once(
             args.push(format!("deno:{}", deno_path.to_string_lossy()));
         }
     }
+
+    args.extend(build_site_header_args(url));
 
     // Add cookie args
     let cookie_args = build_cookie_args(
@@ -412,7 +414,7 @@ async fn fetch_bilibili_channel_info(uid: &str) -> Option<(String, Option<String
     let api_url = format!("https://api.bilibili.com/x/web-interface/card?mid={}", uid);
 
     let client = reqwest::Client::builder()
-        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36")
         .timeout(std::time::Duration::from_secs(10))
         .build()
         .ok()?;
@@ -496,6 +498,8 @@ pub async fn get_channel_info(
             args.push(format!("deno:{}", deno_path.to_string_lossy()));
         }
     }
+
+    args.extend(build_site_header_args(&url));
 
     // Add cookie args
     let cookie_args = build_cookie_args(

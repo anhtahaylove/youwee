@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Application database filename** - Renamed the internal SQLite database from `logs.db` to `youwee.db` with automatic migration from the legacy file while keeping the old file as a backup
 
 ### Fixed
+- **Bilibili HTTP 412** - Added browser-like headers to Bilibili yt-dlp requests to prevent `HTTP Error 412`
 
 ## [0.16.0] - 2026-06-02
 
