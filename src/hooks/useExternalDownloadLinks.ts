@@ -10,6 +10,7 @@ import {
   parseExternalDeepLink,
   resolveExternalRouteTarget,
 } from '@/lib/external-link';
+import { hasAcceptedLegalDisclaimer } from '@/lib/legal-disclaimer';
 
 type StartLockRef = MutableRefObject<{
   youtube: boolean;
@@ -58,7 +59,7 @@ export function useExternalDownloadLinks(
         }
       }
 
-      let allowAutoStart = parsed.action === 'download_now';
+      let allowAutoStart = parsed.action === 'download_now' && hasAcceptedLegalDisclaimer();
       if (allowAutoStart) {
         const host = (() => {
           try {

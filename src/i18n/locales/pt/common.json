@@ -43,6 +43,13 @@
     "dismiss": "Fechar",
     "retry": "Tentar Novamente"
   },
+  "legalDisclaimer": {
+    "title": "Aviso de uso responsável",
+    "description": "Youwee é uma ferramenta local para baixar e processar mídia a partir das URLs que você fornece. Youwee não é afiliado ao YouTube nem a qualquer outra plataforma de mídia.",
+    "notice": "Baixe apenas conteúdo que você possui, tem permissão para usar ou que a lei permite acessar e armazenar.",
+    "responsibility": "Ao continuar, você confirma que é responsável por cumprir as leis aplicáveis, os termos das plataformas, as regras de direitos autorais e quaisquer permissões necessárias para o conteúdo baixado. O projeto Youwee e seus mantenedores não são responsáveis por uso indevido.",
+    "accept": "Eu entendo / Concordo"
+  },
   "backendErrors": {
     "BACKEND_UNKNOWN": "Ocorreu um erro inesperado.",
     "VALIDATION_INVALID_URL": "URL inválido.",

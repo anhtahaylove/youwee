@@ -14,6 +14,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thay đổi
 - **Thời gian chờ AI** - Mở rộng lựa chọn Thời gian chờ khi tạo AI lên tối đa 60 phút và áp dụng timeout đã chọn vào HTTP request của các nhà cung cấp AI để hỗ trợ tóm tắt video dài
+- **Tên file database của ứng dụng** - Đổi database SQLite nội bộ từ `logs.db` sang `youwee.db`, tự động migrate từ file cũ và giữ file cũ làm backup
 
 ### Sửa lỗi
 

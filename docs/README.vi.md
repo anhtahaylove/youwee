@@ -80,6 +80,11 @@
 
 ▶️ [Xem trên YouTube](https://www.youtube.com/watch?v=H7TtVZWxilU)
 
+## Lưu ý pháp lý
+
+Youwee là tiện ích cục bộ để tải và xử lý media từ các URL do người dùng cung cấp. Youwee không liên kết với YouTube hoặc bất kỳ nền tảng media nào khác.
+
+Chỉ sử dụng Youwee với nội dung bạn sở hữu, được phép sử dụng, hoặc được pháp luật cho phép truy cập và lưu trữ. Người dùng chịu trách nhiệm tuân thủ pháp luật hiện hành, điều khoản nền tảng, quy định bản quyền và mọi quyền sử dụng cần thiết. Dự án Youwee và các maintainer không chịu trách nhiệm cho việc sử dụng sai mục đích.
 
 ## Cài đặt
 

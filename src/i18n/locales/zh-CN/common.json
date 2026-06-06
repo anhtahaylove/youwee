@@ -43,6 +43,13 @@
     "dismiss": "忽略",
     "retry": "重试"
   },
+  "legalDisclaimer": {
+    "title": "负责任使用提示",
+    "description": "Youwee 是一个本地工具，用于下载和处理你提供的 URL 中的媒体内容。Youwee 与 YouTube 或任何其他媒体平台均无隶属关系。",
+    "notice": "请仅下载你拥有、已获得许可，或依法可以访问和保存的内容。",
+    "responsibility": "继续使用即表示你确认会自行负责遵守适用法律、平台条款、版权规则以及下载内容所需的任何授权。Youwee 项目及维护者不对滥用行为负责。",
+    "accept": "我理解并同意"
+  },
   "backendErrors": {
     "BACKEND_UNKNOWN": "发生未知错误。",
     "VALIDATION_INVALID_URL": "URL 无效。",

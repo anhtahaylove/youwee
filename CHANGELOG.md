@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **AI generation timeout** - Expanded the AI Generation Timeout options up to 60 minutes and now applies the selected timeout to AI provider HTTP requests for long-video summaries
+- **Application database filename** - Renamed the internal SQLite database from `logs.db` to `youwee.db` with automatic migration from the legacy file while keeping the old file as a backup
 
 ### Fixed
 

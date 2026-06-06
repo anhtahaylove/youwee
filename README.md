@@ -84,6 +84,11 @@
 
 ▶️ [Watch on YouTube](https://www.youtube.com/watch?v=H7TtVZWxilU)
 
+## Legal Notice
+
+Youwee is a local utility for downloading and processing media from URLs provided by the user. It is not affiliated with YouTube or any other media platform.
+
+Use Youwee only with content you own, have permission to use, or are legally allowed to access and store. Users are responsible for complying with applicable laws, platform terms, copyright rules, and any required permissions. The Youwee project and maintainers are not responsible for misuse of the app.
 
 ## Installation
 

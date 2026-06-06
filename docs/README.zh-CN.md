@@ -80,6 +80,11 @@
 
 ▶️ [在 YouTube 观看](https://www.youtube.com/watch?v=H7TtVZWxilU)
 
+## 法律提示
+
+Youwee 是一个本地工具，用于下载和处理用户提供的 URL 中的媒体内容。Youwee 与 YouTube 或任何其他媒体平台均无隶属关系。
+
+请仅将 Youwee 用于你拥有、已获得许可，或依法可以访问和保存的内容。用户应自行负责遵守适用法律、平台条款、版权规则以及所需授权。Youwee 项目及维护者不对应用滥用行为负责。
 
 ## 安装
 
