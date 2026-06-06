@@ -17,6 +17,7 @@ Youwee 的所有重要更改都将记录在此文件中。
 - **应用数据库文件名** - 将内部 SQLite 数据库从 `logs.db` 重命名为 `youwee.db`，并自动从旧文件迁移且保留旧文件作为备份
 
 ### 修复
+- **Bilibili HTTP 412** - 为 Bilibili yt-dlp 请求添加类似浏览器的 header，避免 `HTTP Error 412`
 
 ## [0.16.0] - 2026-06-02
 
