@@ -43,6 +43,7 @@
       "selectedCount": "Đã chọn {{selected}}/{{total}}",
       "selectAll": "Chọn tất cả",
       "clearSelection": "Bỏ chọn",
+      "clearResults": "Xóa kết quả",
       "loadMore": "Tải thêm",
       "addSelected": "Thêm đã chọn",
       "openButton": "Tìm theo từ khóa",
