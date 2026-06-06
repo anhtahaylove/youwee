@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter};
 use crate::database;
 use crate::services::{build_cookie_args, get_deno_path, run_ytdlp_with_stderr};
 use crate::types::{ChannelVideo, FollowedChannel};
+use crate::utils::normalize_url;
 
 /// Cookie/proxy configuration synced from the frontend for background polling.
 #[derive(Clone, Default)]
@@ -218,7 +219,8 @@ async fn check_channel_for_new_videos(
     channel: &FollowedChannel,
 ) -> Result<usize, String> {
     let limit = channel.filter_max_videos.unwrap_or(20) as u32;
-    let is_youtube = channel.url.contains("youtube.com") || channel.url.contains("youtu.be");
+    let channel_url = normalize_url(&channel.url);
+    let is_youtube = channel_url.contains("youtube.com") || channel_url.contains("youtu.be");
 
     let mut args = vec![
         "--dump-json".to_string(),
@@ -266,7 +268,7 @@ async fn check_channel_for_new_videos(
     }
 
     args.push("--".to_string());
-    args.push(channel.url.clone());
+    args.push(channel_url.clone());
 
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
 

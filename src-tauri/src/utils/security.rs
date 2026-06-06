@@ -27,14 +27,58 @@ pub fn validate_url(url: &str) -> Result<(), String> {
 /// - `douyin.com/user/…?modal_id=123` → `douyin.com/video/123`
 /// - `douyin.com/jingxuan?modal_id=123` → `douyin.com/video/123`
 /// - `douyin.com/jingxuan/music?modal_id=123` → `douyin.com/video/123`
+///
+/// ## YouTube
+/// Channel root URLs → videos tab:
+/// - `youtube.com/@handle` → `youtube.com/@handle/videos`
+/// - `youtube.com/channel/UC…` → `youtube.com/channel/UC…/videos`
 pub fn normalize_url(url: &str) -> String {
-    // Fast path: only inspect URLs that mention douyin.com
     let lower = url.to_lowercase();
-    if !lower.contains("douyin.com/") {
-        return url.to_string();
+
+    if lower.contains("youtube.com/") {
+        if let Some(normalized) = normalize_youtube_channel_videos_url(url) {
+            return normalized;
+        }
     }
 
-    normalize_douyin(url).unwrap_or_else(|| url.to_string())
+    if lower.contains("douyin.com/") {
+        if let Some(normalized) = normalize_douyin(url) {
+            return normalized;
+        }
+    }
+
+    url.to_string()
+}
+
+/// Normalize YouTube channel root URLs to their Videos tab.
+/// yt-dlp extracts fewer entries from a channel home tab than from /videos.
+fn normalize_youtube_channel_videos_url(url: &str) -> Option<String> {
+    let mut parsed = reqwest::Url::parse(url).ok()?;
+    let host = parsed.host_str()?.trim_start_matches("www.");
+    if host != "youtube.com" {
+        return None;
+    }
+
+    let segments: Vec<&str> = parsed
+        .path_segments()
+        .map(|segments| segments.filter(|segment| !segment.is_empty()).collect())
+        .unwrap_or_default();
+
+    let is_channel_root = match segments.as_slice() {
+        [handle] if handle.starts_with('@') && handle.len() > 1 => true,
+        ["channel", channel_id] if !channel_id.is_empty() => true,
+        ["c", channel_name] if !channel_name.is_empty() => true,
+        ["user", user_name] if !user_name.is_empty() => true,
+        _ => false,
+    };
+
+    if !is_channel_root {
+        return None;
+    }
+
+    let normalized_path = format!("/{}/videos", segments.join("/"));
+    parsed.set_path(&normalized_path);
+    Some(parsed.to_string())
 }
 
 /// Try to normalize a Douyin modal URL to a direct video URL.
@@ -310,6 +354,57 @@ mod tests {
     fn youtube_url_unchanged() {
         let input = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
         assert_eq!(normalize_url(input), input);
+    }
+
+    #[test]
+    fn youtube_handle_root_normalizes_to_videos_tab() {
+        let input = "https://www.youtube.com/@channelname";
+        assert_eq!(
+            normalize_url(input),
+            "https://www.youtube.com/@channelname/videos"
+        );
+    }
+
+    #[test]
+    fn youtube_handle_root_with_trailing_slash_normalizes_to_videos_tab() {
+        let input = "https://www.youtube.com/@channelname/";
+        assert_eq!(
+            normalize_url(input),
+            "https://www.youtube.com/@channelname/videos"
+        );
+    }
+
+    #[test]
+    fn youtube_channel_id_root_normalizes_to_videos_tab() {
+        let input = "https://www.youtube.com/channel/UCabc123";
+        assert_eq!(
+            normalize_url(input),
+            "https://www.youtube.com/channel/UCabc123/videos"
+        );
+    }
+
+    #[test]
+    fn youtube_named_channel_roots_normalize_to_videos_tab() {
+        assert_eq!(
+            normalize_url("https://www.youtube.com/c/channelname"),
+            "https://www.youtube.com/c/channelname/videos"
+        );
+        assert_eq!(
+            normalize_url("https://www.youtube.com/user/channelname"),
+            "https://www.youtube.com/user/channelname/videos"
+        );
+    }
+
+    #[test]
+    fn youtube_channel_tabs_are_unchanged() {
+        for input in [
+            "https://www.youtube.com/@channelname/videos",
+            "https://www.youtube.com/@channelname/shorts",
+            "https://www.youtube.com/@channelname/streams",
+            "https://www.youtube.com/@channelname/playlists",
+        ] {
+            assert_eq!(normalize_url(input), input);
+        }
     }
 
     #[test]
