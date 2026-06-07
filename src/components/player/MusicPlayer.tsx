@@ -227,234 +227,219 @@ export function MusicPlayer() {
     queue.length > 1 ? t('player.trackCount', { count: queue.length }) : t('player.oneTrack');
 
   return (
-    <div className="flex-shrink-0 px-3 pb-3 bg-background/20 backdrop-blur-xl">
+    <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-fit px-4 pointer-events-none animate-in slide-in-from-bottom-6 fade-in duration-500">
       <div
         className={cn(
-          'relative overflow-hidden rounded-[1.4rem] border border-white/[0.1]',
-          'bg-background/78 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl',
-          'dark:border-white/[0.07] dark:shadow-[0_22px_50px_rgba(0,0,0,0.3)]',
+          'pointer-events-auto flex items-center gap-1.5 sm:gap-2.5 rounded-full p-2 ring-1 ring-white/10 transition-all',
+          'bg-background/85 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/60',
+          'border border-border/50 shadow-[0_16px_40px_rgb(0,0,0,0.15)] dark:shadow-[0_16px_40px_rgb(0,0,0,0.4)]',
         )}
       >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_hsl(var(--primary)/0.14),_transparent_32%),radial-gradient(circle_at_bottom_right,_hsl(var(--gradient-via)/0.16),_transparent_34%)]" />
-
-        <div className="relative flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:gap-4 sm:px-4 sm:py-3.5">
-          {/* Track info */}
-          <div className="flex min-w-0 items-center gap-3 sm:w-64 sm:flex-shrink-0">
-            <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-2xl bg-muted ring-1 ring-white/10">
-              {currentEntry.thumbnail && !thumbError ? (
-                <img
-                  src={currentEntry.thumbnail.replace(/^http:\/\//, 'https://')}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  referrerPolicy="no-referrer"
-                  onError={() => setThumbError(true)}
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center bg-primary/10">
-                  <Volume2 className="h-4 w-4 text-primary/60" />
-                </div>
-              )}
-              {isPlaying && (
-                <span className="absolute bottom-1 right-1 h-2 w-2 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary)/0.8)] animate-pulse" />
-              )}
-            </div>
-
-            <div className="min-w-0">
-              <p
-                className="truncate text-sm font-semibold leading-tight"
-                title={currentEntry.title}
-              >
-                {currentEntry.title}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                {currentEntry.format && (
-                  <span className="rounded bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-primary">
-                    {currentEntry.format}
-                  </span>
-                )}
-                <span className="rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  {queueLabel}
-                </span>
+        {/* Track Info */}
+        <div className="flex items-center gap-3 pl-1 sm:pl-2 pr-1">
+          <div className="relative h-10 w-10 sm:h-11 sm:w-11 flex-shrink-0 overflow-hidden rounded-full bg-muted ring-1 ring-black/10 dark:ring-white/20 shadow-sm">
+            {currentEntry.thumbnail && !thumbError ? (
+              <img
+                src={currentEntry.thumbnail.replace(/^http:\/\//, 'https://')}
+                alt=""
+                className="h-full w-full object-cover transition-all duration-700"
+                style={isPlaying ? { animation: 'spin 30s linear infinite' } : undefined}
+                referrerPolicy="no-referrer"
+                onError={() => setThumbError(true)}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-primary/10">
+                <Volume2 className="h-4 w-4 text-primary/60" />
               </div>
+            )}
+            {/* Vinyl Center Hole */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="h-3 w-3 rounded-full bg-background shadow-sm border border-border/50 backdrop-blur-sm" />
             </div>
           </div>
 
-          {/* Center: controls + progress */}
-          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-            <div className="flex items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={playPrev}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-                title={t('player.prev')}
-              >
-                <SkipBack className="h-4 w-4" />
-              </button>
+          <div className="hidden sm:flex flex-col min-w-[100px] max-w-[150px] md:max-w-[180px]">
+            <p
+              className="truncate text-sm font-bold leading-tight text-foreground"
+              title={currentEntry.title}
+            >
+              {currentEntry.title}
+            </p>
+            <p className="truncate text-[11px] font-medium text-muted-foreground mt-0.5">
+              {queueLabel}
+            </p>
+          </div>
+        </div>
 
-              <button
-                type="button"
-                onClick={togglePlay}
-                className={cn(
-                  'inline-flex h-10 w-10 items-center justify-center rounded-xl transition-all',
-                  'bg-primary text-primary-foreground shadow-[0_10px_24px_hsl(var(--primary)/0.34)] hover:scale-[1.03] hover:opacity-95',
-                )}
-                title={isPlaying ? t('player.pause') : t('player.play')}
-              >
-                {isPlaying ? (
-                  <Pause className="h-4 w-4 fill-current" />
-                ) : (
-                  <Play className="h-4 w-4 translate-x-px fill-current" />
-                )}
-              </button>
+        <div className="hidden sm:block w-px h-6 bg-border/60 mx-1" />
 
-              <button
-                type="button"
-                onClick={playNext}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-                title={t('player.next')}
-              >
-                <SkipForward className="h-4 w-4" />
-              </button>
-            </div>
+        {/* Controls */}
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <button
+            type="button"
+            onClick={playPrev}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-all hover:text-foreground hover:bg-foreground/5 active:scale-95"
+            title={t('player.prev')}
+          >
+            <SkipBack className="h-4 w-4" />
+          </button>
 
-            <div className="flex w-full items-center gap-2.5 sm:max-w-xl sm:self-center lg:max-w-2xl">
-              <span className="w-9 flex-shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
-                {formatTime(displayTime)}
-              </span>
+          <button
+            type="button"
+            onClick={togglePlay}
+            className={cn(
+              'inline-flex h-11 w-11 items-center justify-center rounded-full transition-all duration-300',
+              isPlaying
+                ? 'bg-primary/15 text-primary hover:bg-primary/25'
+                : 'bg-primary text-primary-foreground shadow-md hover:scale-105 active:scale-95 hover:shadow-lg hover:shadow-primary/20',
+            )}
+            title={isPlaying ? t('player.pause') : t('player.play')}
+          >
+            {isPlaying ? (
+              <Pause className="h-5 w-5 fill-current" />
+            ) : (
+              <Play className="h-5 w-5 translate-x-px fill-current" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={playNext}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-all hover:text-foreground hover:bg-foreground/5 active:scale-95"
+            title={t('player.next')}
+          >
+            <SkipForward className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="hidden md:block w-px h-6 bg-border/60 mx-1" />
+
+        {/* Progress Bar */}
+        <div className="hidden md:flex items-center gap-3 w-[200px] lg:w-[280px]">
+          <span className="w-8 flex-shrink-0 text-right text-[11px] font-medium tabular-nums text-muted-foreground">
+            {formatTime(displayTime)}
+          </span>
+          <div
+            ref={progressRef}
+            className="group relative h-6 flex-1 cursor-pointer touch-none select-none flex items-center"
+            onPointerDown={handleProgressPointerDown}
+            onPointerMove={handleProgressPointerMove}
+            onPointerUp={handleProgressPointerEnd}
+            onPointerCancel={handleProgressPointerEnd}
+            onKeyDown={handleProgressKeyDown}
+            role="slider"
+            tabIndex={0}
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration || 0)}
+            aria-valuenow={Math.round(displayTime)}
+            aria-valuetext={`${formatTime(displayTime)} / ${formatTime(duration)}`}
+          >
+            <div className="absolute left-0 right-0 h-1.5 rounded-full bg-muted/80 ring-1 ring-white/[0.05] overflow-hidden">
               <div
-                ref={progressRef}
-                className="group relative h-5 flex-1 cursor-pointer touch-none select-none"
-                onPointerDown={handleProgressPointerDown}
-                onPointerMove={handleProgressPointerMove}
-                onPointerUp={handleProgressPointerEnd}
-                onPointerCancel={handleProgressPointerEnd}
-                onKeyDown={handleProgressKeyDown}
-                role="slider"
-                tabIndex={0}
-                aria-valuemin={0}
-                aria-valuemax={Math.round(duration || 0)}
-                aria-valuenow={Math.round(displayTime)}
-                aria-valuetext={`${formatTime(displayTime)} / ${formatTime(duration)}`}
-              >
-                <div className="absolute top-1/2 h-2 w-full -translate-y-1/2 rounded-full bg-muted/80 ring-1 ring-white/[0.05]" />
+                className={cn('h-full bg-primary', !isSeeking && 'transition-[width] duration-150')}
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div
+              className={cn(
+                'absolute h-3.5 w-3.5 -translate-x-1/2 rounded-full border border-primary/40 bg-background shadow-sm transition-transform',
+                isSeeking
+                  ? 'scale-125 border-primary shadow-md'
+                  : 'scale-0 opacity-0 group-hover:opacity-100 group-hover:scale-125',
+              )}
+              style={{ left: `${progress}%` }}
+            />
+          </div>
+          <span className="w-8 flex-shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground">
+            {formatTime(duration)}
+          </span>
+        </div>
+
+        <div className="hidden sm:block w-px h-6 bg-border/60 mx-1" />
+
+        {/* Right Controls */}
+        <div className="flex items-center gap-1 pr-1">
+          <button
+            type="button"
+            onClick={cycleMode}
+            className={cn(
+              'inline-flex h-9 w-9 items-center justify-center rounded-full transition-all hover:bg-foreground/5',
+              mode === 'sequence'
+                ? 'text-muted-foreground hover:text-foreground'
+                : 'text-primary bg-primary/5',
+            )}
+            title={
+              mode === 'sequence'
+                ? t('player.modeSequence')
+                : mode === 'repeat-one'
+                  ? t('player.modeRepeatOne')
+                  : t('player.modeShuffle')
+            }
+          >
+            {mode === 'shuffle' ? (
+              <Shuffle className="h-4 w-4" />
+            ) : mode === 'repeat-one' ? (
+              <Repeat1 className="h-4 w-4" />
+            ) : (
+              <Repeat className="h-4 w-4" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={cyclePlaybackRate}
+            className={cn(
+              'hidden sm:inline-flex min-w-[36px] h-9 items-center justify-center rounded-full text-[11px] font-bold tabular-nums transition-all hover:bg-foreground/5',
+              playbackRate !== 1
+                ? 'text-primary bg-primary/5'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+            title={t('player.playbackSpeed', { rate: playbackRate })}
+          >
+            {playbackRate}x
+          </button>
+
+          {/* Volume Control */}
+          <div className="hidden sm:flex items-center gap-1 sm:gap-2 pl-1 pr-1 sm:pr-2 group/vol">
+            <button
+              type="button"
+              onClick={() => setVolume(volume > 0 ? 0 : 1)}
+              className="flex-shrink-0 rounded-full p-1.5 text-muted-foreground transition-colors hover:text-foreground hover:bg-foreground/5"
+            >
+              {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
+            <div
+              ref={volumeRef}
+              className="relative h-6 w-12 sm:w-16 cursor-pointer touch-none select-none flex items-center opacity-70 group-hover/vol:opacity-100 transition-opacity"
+              onPointerDown={handleVolumePointerDown}
+              onPointerMove={handleVolumePointerMove}
+              onPointerUp={handleVolumePointerEnd}
+              onPointerCancel={handleVolumePointerEnd}
+              onKeyDown={handleVolumeKeyDown}
+              role="slider"
+              tabIndex={0}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(volumeProgress)}
+              aria-valuetext={`${Math.round(volumeProgress)}%`}
+            >
+              <div className="absolute left-0 right-0 h-1.5 rounded-full bg-muted/80 overflow-hidden">
                 <div
-                  className={cn(
-                    'absolute left-0 top-1/2 h-2 -translate-y-1/2 rounded-full bg-primary',
-                    !isSeeking && 'transition-[width]',
-                  )}
-                  style={{ width: `${progress}%` }}
-                />
-                <div
-                  className={cn(
-                    'absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40 bg-background shadow-[0_2px_10px_rgba(0,0,0,0.18)] transition-transform group-hover:scale-110',
-                    isSeeking && 'scale-110 border-primary/70',
-                  )}
-                  style={{ left: `${progress}%` }}
+                  className={cn('h-full bg-primary', !isVolumeDragging && 'transition-[width]')}
+                  style={{ width: `${volumeProgress}%` }}
                 />
               </div>
-              <span className="w-9 flex-shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                {formatTime(duration)}
-              </span>
             </div>
           </div>
 
-          {/* Right: mode + speed + volume */}
-          <div className="flex items-center justify-between gap-2 sm:flex-shrink-0 sm:justify-end">
-            <div className="flex items-center gap-1.5 rounded-2xl bg-background/60 px-2 py-1.5 ring-1 ring-white/[0.06]">
-              <button
-                type="button"
-                onClick={cycleMode}
-                className={cn(
-                  'inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors',
-                  mode === 'sequence'
-                    ? 'text-muted-foreground hover:text-foreground'
-                    : 'text-primary',
-                )}
-                title={
-                  mode === 'sequence'
-                    ? t('player.modeSequence')
-                    : mode === 'repeat-one'
-                      ? t('player.modeRepeatOne')
-                      : t('player.modeShuffle')
-                }
-              >
-                {mode === 'shuffle' ? (
-                  <Shuffle className="h-3.5 w-3.5" />
-                ) : mode === 'repeat-one' ? (
-                  <Repeat1 className="h-3.5 w-3.5" />
-                ) : (
-                  <Repeat className="h-3.5 w-3.5" />
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={cyclePlaybackRate}
-                className={cn(
-                  'min-w-11 rounded-md border border-dashed px-2 py-1 text-[10px] font-medium tabular-nums transition-colors',
-                  'border-border/60 text-muted-foreground hover:border-primary/40 hover:text-foreground',
-                  playbackRate !== 1 && 'border-primary/45 bg-primary/10 text-primary',
-                )}
-                title={t('player.playbackSpeed', { rate: playbackRate })}
-              >
-                {playbackRate}x
-              </button>
-
-              <div className="flex items-center gap-1.5 rounded-xl bg-muted/50 px-2 py-1">
-                <button
-                  type="button"
-                  onClick={() => setVolume(volume > 0 ? 0 : 1)}
-                  className="flex-shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {volume === 0 ? (
-                    <VolumeX className="h-3.5 w-3.5" />
-                  ) : (
-                    <Volume2 className="h-3.5 w-3.5" />
-                  )}
-                </button>
-                <div
-                  ref={volumeRef}
-                  className="group relative h-5 w-16 cursor-pointer touch-none select-none"
-                  onPointerDown={handleVolumePointerDown}
-                  onPointerMove={handleVolumePointerMove}
-                  onPointerUp={handleVolumePointerEnd}
-                  onPointerCancel={handleVolumePointerEnd}
-                  onKeyDown={handleVolumeKeyDown}
-                  role="slider"
-                  tabIndex={0}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                  aria-valuenow={Math.round(volumeProgress)}
-                  aria-valuetext={`${Math.round(volumeProgress)}%`}
-                >
-                  <div className="absolute top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full bg-background/90" />
-                  <div
-                    className={cn(
-                      'absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-primary',
-                      !isVolumeDragging && 'transition-[width]',
-                    )}
-                    style={{ width: `${volumeProgress}%` }}
-                  />
-                  <div
-                    className={cn(
-                      'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40 bg-background shadow-[0_2px_8px_rgba(0,0,0,0.16)] transition-transform group-hover:scale-110',
-                      isVolumeDragging && 'scale-110 border-primary/70',
-                    )}
-                    style={{ left: `${volumeProgress}%` }}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={close}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
-                title={t('player.close')}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          <button
+            type="button"
+            onClick={close}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-all hover:text-destructive hover:bg-destructive/10 ml-1"
+            title={t('player.close')}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </div>
     </div>
