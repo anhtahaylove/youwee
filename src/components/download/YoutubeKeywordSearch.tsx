@@ -491,7 +491,7 @@ export function YoutubeKeywordSearch({
   const busy = disabled || isSearching || isLoadingMore || isAdding;
 
   return (
-    <div className="flex flex-col h-full bg-background rounded-xl border border-border/50 overflow-hidden shadow-sm relative">
+    <div className="flex flex-col h-full overflow-hidden relative">
       {/* Search Form */}
       <div className="flex-shrink-0 border-b border-border/50 bg-card/20">
         <div className="p-4 sm:p-6 sm:pb-5">
@@ -718,8 +718,21 @@ export function YoutubeKeywordSearch({
           </div>
         ) : !hasResults ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
-            <div className="w-20 h-20 rounded-3xl bg-background flex items-center justify-center mb-5 border border-border/50 shadow-sm">
-              <Video className="w-10 h-10 text-muted-foreground/40" />
+            <div className="relative mb-6 h-28 w-40">
+              <div className="absolute left-2 top-5 h-20 w-28 -rotate-6 rounded-2xl border border-border/60 bg-background/70 shadow-sm backdrop-blur-sm">
+                <div className="absolute left-4 top-4 h-2.5 w-14 rounded-full bg-muted-foreground/10" />
+                <div className="absolute left-4 top-9 h-2 w-20 rounded-full bg-muted-foreground/10" />
+                <div className="absolute bottom-3 left-4 h-2 w-10 rounded-full bg-muted-foreground/10" />
+              </div>
+              <div className="absolute right-2 top-2 h-20 w-32 rotate-3 rounded-2xl border border-primary/20 bg-primary/10 shadow-lg shadow-primary/10 backdrop-blur-sm">
+                <div className="absolute inset-x-3 top-3 aspect-video rounded-xl bg-background/70 shadow-inner" />
+                <div className="absolute right-4 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md shadow-primary/25">
+                  <Search className="h-4 w-4" />
+                </div>
+                <div className="absolute bottom-4 left-4 h-2 w-16 rounded-full bg-primary/20" />
+                <div className="absolute bottom-8 left-4 h-2 w-10 rounded-full bg-primary/15" />
+              </div>
+              <div className="absolute bottom-1 left-1/2 h-3 w-24 -translate-x-1/2 rounded-full bg-primary/10 blur-md" />
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-1.5">
               {t('urlInput.keyword.emptyTitle')}
