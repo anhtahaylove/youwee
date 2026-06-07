@@ -187,6 +187,7 @@
       "downloading": "Đang tải",
       "completed": "Hoàn thành",
       "failed": "Thất bại",
+      "skipped": "Đã bỏ qua",
       "failedHint": "Xem trang Logs để biết chi tiết",
       "retrying": "Thử lại {{current}}/{{total}} sau {{seconds}}s"
     },

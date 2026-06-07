@@ -205,6 +205,45 @@ pub fn run() {
                         if let Some(data) = matches.args.get("queue-only") {
                             cli_args.queue_only = data.value.as_bool().unwrap_or(false);
                         }
+                        if let Some(data) = matches.args.get("skip-live") {
+                            cli_args.skip_live = data.value.as_bool().unwrap_or(false);
+                        }
+                        if let Some(data) = matches.args.get("playlist") {
+                            if data.value.as_bool().unwrap_or(false) {
+                                cli_args.download_playlist = Some(true);
+                            }
+                        }
+                        if let Some(data) = matches.args.get("no-playlist") {
+                            if data.value.as_bool().unwrap_or(false) {
+                                cli_args.download_playlist = Some(false);
+                            }
+                        }
+                        if let Some(data) = matches.args.get("subtitle-mode") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.subtitle_mode = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("subtitle-langs") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.subtitle_langs = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("subtitle-format") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.subtitle_format = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("embed-subs") {
+                            cli_args.subtitle_embed = data.value.as_bool().unwrap_or(false);
+                        }
+                        if let Some(data) = matches.args.get("download-sections") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.download_sections = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("live-from-start") {
+                            cli_args.live_from_start = data.value.as_bool().unwrap_or(false);
+                        }
                         commands::build_cli_download_request(&cli_args)
                     }
                     Err(_) => commands::build_cli_download_request_from_argv(&argv),

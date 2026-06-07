@@ -187,6 +187,7 @@
       "downloading": "下载中",
       "completed": "已完成",
       "failed": "失败",
+      "skipped": "已跳过",
       "failedHint": "查看日志页面了解详情",
       "retrying": "{{seconds}}秒后重试 {{current}}/{{total}}"
     },

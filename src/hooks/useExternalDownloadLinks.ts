@@ -15,7 +15,7 @@ import {
   parseExternalDeepLink,
 } from '@/lib/external-link';
 import { hasAcceptedLegalDisclaimer } from '@/lib/legal-disclaimer';
-import type { ExternalEnqueueOptions, Quality } from '@/lib/types';
+import type { ExternalEnqueueOptions, Quality, SubtitleFormat, SubtitleMode } from '@/lib/types';
 
 type StartLockRef = MutableRefObject<{
   youtube: boolean;
@@ -32,6 +32,14 @@ interface CliDownloadRequestPayload {
   action: string;
   media: string;
   quality: string;
+  skip_live?: boolean;
+  download_playlist?: boolean | null;
+  subtitle_mode?: string;
+  subtitle_langs?: string[];
+  subtitle_embed?: boolean;
+  subtitle_format?: string;
+  download_sections?: string | null;
+  live_from_start?: boolean;
   trusted_local?: boolean;
 }
 
@@ -58,6 +66,20 @@ const ALLOWED_VIDEO_QUALITIES = new Set<Quality>([
   '480',
   '360',
 ]);
+const ALLOWED_SUBTITLE_MODES = new Set<SubtitleMode>(['off', 'auto', 'manual']);
+const ALLOWED_SUBTITLE_FORMATS = new Set<SubtitleFormat>(['srt', 'vtt', 'ass']);
+
+function parseDownloadSections(section: string | null | undefined):
+  | {
+      timeRangeStart: string;
+      timeRangeEnd: string;
+    }
+  | undefined {
+  const normalized = section?.trim().replace(/^\*/, '') ?? '';
+  const [start, end] = normalized.split('-', 2);
+  if (!start || !end) return undefined;
+  return { timeRangeStart: start, timeRangeEnd: end };
+}
 
 function normalizeCliDownloadRequest(
   payload: CliDownloadRequestPayload,
@@ -85,6 +107,32 @@ function normalizeCliDownloadRequest(
             ? (qualityParam as Quality)
             : 'best',
         };
+  const downloadSections = parseDownloadSections(payload.download_sections);
+  if (payload.skip_live === true) {
+    enqueueOptions.skipLive = true;
+  }
+  if (payload.live_from_start === true) {
+    enqueueOptions.liveFromStart = true;
+  }
+  if (typeof payload.download_playlist === 'boolean') {
+    enqueueOptions.downloadPlaylist = payload.download_playlist;
+  }
+  if (downloadSections) {
+    enqueueOptions.timeRangeStart = downloadSections.timeRangeStart;
+    enqueueOptions.timeRangeEnd = downloadSections.timeRangeEnd;
+  }
+  if (ALLOWED_SUBTITLE_MODES.has(payload.subtitle_mode as SubtitleMode)) {
+    enqueueOptions.subtitleMode = payload.subtitle_mode as SubtitleMode;
+  }
+  if (ALLOWED_SUBTITLE_FORMATS.has(payload.subtitle_format as SubtitleFormat)) {
+    enqueueOptions.subtitleFormat = payload.subtitle_format as SubtitleFormat;
+  }
+  if (Array.isArray(payload.subtitle_langs) && payload.subtitle_langs.length > 0) {
+    enqueueOptions.subtitleLangs = payload.subtitle_langs;
+  }
+  if (payload.subtitle_embed === true) {
+    enqueueOptions.subtitleEmbed = true;
+  }
 
   return {
     url: normalizedUrl,
@@ -122,7 +170,12 @@ export function useExternalDownloadLinks(
       }
       externalRequestRateRef.current.push(now);
 
-      const dedupeKey = `${request.action}:${request.target}:${request.url}:${request.enqueueOptions.mediaType ?? 'video'}:${request.enqueueOptions.quality ?? 'best'}:${request.enqueueOptions.audioBitrate ?? 'auto'}`;
+      const dedupeKey = JSON.stringify({
+        action: request.action,
+        target: request.target,
+        url: request.url,
+        ...request.enqueueOptions,
+      });
       const lastSeen = externalDedupRef.current.get(dedupeKey);
       if (lastSeen && now - lastSeen < 1500) {
         return;

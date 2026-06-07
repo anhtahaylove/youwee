@@ -727,14 +727,20 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         quality: mediaType === 'audio' ? 'audio' : videoQuality,
         format: mediaType === 'audio' ? 'mp3' : 'mp4',
         outputPath: currentSettings.outputPath,
+        downloadPlaylist: options?.downloadPlaylist ?? false,
+        playlistLimit: options?.playlistLimit ?? null,
         videoCodec: currentSettings.videoCodec,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
-        subtitleMode: currentSettings.subtitleMode,
-        subtitleLangs: [...currentSettings.subtitleLangs],
-        subtitleEmbed: currentSettings.subtitleEmbed,
-        subtitleFormat: currentSettings.subtitleFormat,
+        subtitleMode: options?.subtitleMode ?? currentSettings.subtitleMode,
+        subtitleLangs: options?.subtitleLangs ?? [...currentSettings.subtitleLangs],
+        subtitleEmbed: options?.subtitleEmbed ?? currentSettings.subtitleEmbed,
+        subtitleFormat: options?.subtitleFormat ?? currentSettings.subtitleFormat,
+        timeRangeStart: options?.timeRangeStart,
+        timeRangeEnd: options?.timeRangeEnd,
+        liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
+        skipLive: options?.skipLive ?? false,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -1069,7 +1075,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
   const clearCompleted = useCallback(() => {
     setItems((items) => {
-      const nextItems = items.filter((item) => item.status !== 'completed');
+      const nextItems = items.filter(
+        (item) => item.status !== 'completed' && item.status !== 'skipped',
+      );
       itemsRef.current = nextItems;
       return nextItems;
     });
@@ -1144,10 +1152,13 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             outputPath: itemSettings?.outputPath ?? settings.outputPath,
             quality: itemSettings?.quality ?? settings.quality,
             format: itemSettings?.format ?? settings.format,
-            downloadPlaylist: false, // Always false - playlist already expanded
+            downloadPlaylist: itemSettings?.downloadPlaylist ?? false,
             videoCodec: itemSettings?.videoCodec ?? settings.videoCodec,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
-            playlistLimit: null, // Not needed
+            playlistLimit:
+              itemSettings?.playlistLimit && itemSettings.playlistLimit > 0
+                ? itemSettings.playlistLimit
+                : null,
             // Subtitle settings
             subtitleMode: itemSettings?.subtitleMode ?? settings.subtitleMode,
             subtitleLangs: (itemSettings?.subtitleLangs ?? settings.subtitleLangs).join(','),
@@ -1164,7 +1175,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             embedMetadata: settings.embedMetadata,
             embedThumbnail: settings.embedThumbnail,
             // Live stream settings
-            liveFromStart: settings.liveFromStart,
+            liveFromStart: itemSettings?.liveFromStart ?? settings.liveFromStart,
+            skipLive: itemSettings?.skipLive ?? false,
             // Speed limit settings
             speedLimit: settings.speedLimitEnabled
               ? `${settings.speedLimitValue}${settings.speedLimitUnit}`
@@ -1207,6 +1219,22 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           const parsedError = extractBackendError(error);
           const errorMessage = localizeBackendError(parsedError);
+          if (parsedError.code === 'YT_SKIPPED_LIVE') {
+            setItems((items) =>
+              items.map((i) =>
+                i.id === item.id
+                  ? {
+                      ...i,
+                      status: 'skipped',
+                      progress: 0,
+                      error: errorMessage,
+                      retryState: undefined,
+                    }
+                  : i,
+              ),
+            );
+            return;
+          }
           const canRetry =
             isDownloadingRef.current &&
             autoRetryEnabled &&

@@ -623,6 +623,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
+        timeRangeStart: options?.timeRangeStart,
+        timeRangeEnd: options?.timeRangeEnd,
+        liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
+        skipLive: options?.skipLive ?? false,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -770,7 +774,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
   const clearCompleted = useCallback(() => {
     setItems((items) => {
-      const nextItems = items.filter((item) => item.status !== 'completed');
+      const nextItems = items.filter(
+        (item) => item.status !== 'completed' && item.status !== 'skipped',
+      );
       itemsRef.current = nextItems;
       return nextItems;
     });
@@ -863,7 +869,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             embedMetadata: embedSettings.embedMetadata,
             embedThumbnail: embedSettings.embedThumbnail,
             // Live stream settings
-            liveFromStart: settings.liveFromStart,
+            liveFromStart: itemSettings?.liveFromStart ?? settings.liveFromStart,
+            skipLive: itemSettings?.skipLive ?? false,
             // Speed limit settings
             speedLimit: settings.speedLimitEnabled
               ? `${settings.speedLimitValue}${settings.speedLimitUnit}`
@@ -904,6 +911,22 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         } catch (error) {
           const parsedError = extractBackendError(error);
           const errorMessage = localizeBackendError(parsedError);
+          if (parsedError.code === 'YT_SKIPPED_LIVE') {
+            setItems((items) =>
+              items.map((i) =>
+                i.id === item.id
+                  ? {
+                      ...i,
+                      status: 'skipped',
+                      progress: 0,
+                      error: errorMessage,
+                      retryState: undefined,
+                    }
+                  : i,
+              ),
+            );
+            return;
+          }
           const canRetry =
             isDownloadingRef.current &&
             autoRetryEnabled &&

@@ -187,6 +187,7 @@
       "downloading": "Downloading",
       "completed": "Completed",
       "failed": "Failed",
+      "skipped": "Skipped",
       "failedHint": "View Logs page for details",
       "retrying": "Retry {{current}}/{{total}} in {{seconds}}s"
     },

@@ -8,6 +8,8 @@ const MAX_CLI_URL_LENGTH: usize = 2048;
 // Allowlist of accepted quality values (mirrors frontend parseEnqueueOptions).
 const ALLOWED_VIDEO_QUALITIES: [&str; 8] = ["best", "8k", "4k", "2k", "1080", "720", "480", "360"];
 const ALLOWED_AUDIO_QUALITIES: [&str; 2] = ["128", "auto"];
+const ALLOWED_SUBTITLE_MODES: [&str; 3] = ["off", "auto", "manual"];
+const ALLOWED_SUBTITLE_FORMATS: [&str; 3] = ["srt", "vtt", "ass"];
 
 #[derive(Clone, serde::Serialize)]
 pub struct CliDownloadRequest {
@@ -16,6 +18,14 @@ pub struct CliDownloadRequest {
     pub action: String,
     pub media: String,
     pub quality: String,
+    pub skip_live: bool,
+    pub download_playlist: Option<bool>,
+    pub subtitle_mode: Option<String>,
+    pub subtitle_langs: Vec<String>,
+    pub subtitle_embed: bool,
+    pub subtitle_format: Option<String>,
+    pub download_sections: Option<String>,
+    pub live_from_start: bool,
     pub trusted_local: bool,
 }
 
@@ -31,6 +41,14 @@ pub struct CliDownloadArgs {
     pub audio: bool,
     pub queue_only: bool,
     pub target: Option<String>,
+    pub skip_live: bool,
+    pub download_playlist: Option<bool>,
+    pub subtitle_mode: Option<String>,
+    pub subtitle_langs: Option<String>,
+    pub subtitle_embed: bool,
+    pub subtitle_format: Option<String>,
+    pub download_sections: Option<String>,
+    pub live_from_start: bool,
 }
 
 pub fn print_cli_usage_and_should_exit(argv: &[String]) -> bool {
@@ -84,6 +102,15 @@ Options:
   -a, --audio           Download audio only
       --queue-only      Only add the URL to the queue without starting the download
   -t, --target <VALUE>  Routing target: auto, youtube, or universal
+      --skip-live       Skip live, scheduled, or was-live videos before downloading
+      --playlist        Allow yt-dlp to download playlist URLs
+      --no-playlist     Force single-video download for playlist URLs
+      --subtitle-mode <VALUE>  Subtitle mode: off, auto, or manual
+      --subtitle-langs <VALUE> Comma-separated subtitle languages, e.g. en,vi,ja
+      --subtitle-format <VALUE> Subtitle format: srt, vtt, or ass
+      --embed-subs      Embed subtitles into the output file
+      --download-sections <VALUE> Time range as START-END, e.g. 00:30-02:10
+      --live-from-start Download livestreams from the beginning
   -h, --help            Print help
   -V, --version         Print version",
         version = env!("CARGO_PKG_VERSION")
@@ -175,6 +202,25 @@ pub fn build_cli_download_request(args: &CliDownloadArgs) -> Option<CliDownloadR
     }
     .to_string();
     let target = normalize_cli_target(args.target.as_deref());
+    let subtitle_format = args
+        .subtitle_format
+        .as_deref()
+        .map(|format| normalize_cli_subtitle_format(Some(format)));
+    let subtitle_langs = normalize_cli_subtitle_langs(args.subtitle_langs.as_deref());
+    let subtitle_mode = args
+        .subtitle_mode
+        .as_deref()
+        .map(|mode| normalize_cli_subtitle_mode(Some(mode)))
+        .or_else(|| {
+            if !subtitle_langs.is_empty() {
+                Some("manual".to_string())
+            } else if args.subtitle_embed || subtitle_format.is_some() {
+                Some("auto".to_string())
+            } else {
+                None
+            }
+        });
+    let download_sections = normalize_cli_download_sections(args.download_sections.as_deref());
 
     Some(CliDownloadRequest {
         url: url.to_string(),
@@ -182,6 +228,14 @@ pub fn build_cli_download_request(args: &CliDownloadArgs) -> Option<CliDownloadR
         action,
         media,
         quality,
+        skip_live: args.skip_live,
+        download_playlist: args.download_playlist,
+        subtitle_mode,
+        subtitle_langs,
+        subtitle_embed: args.subtitle_embed,
+        subtitle_format,
+        download_sections,
+        live_from_start: args.live_from_start,
         trusted_local: true,
     })
 }
@@ -214,6 +268,72 @@ fn normalize_cli_target(value: Option<&str>) -> String {
     }
 }
 
+fn normalize_cli_subtitle_mode(value: Option<&str>) -> String {
+    let Some(mode) = value.map(|m| m.trim().to_ascii_lowercase()) else {
+        return "off".to_string();
+    };
+    if ALLOWED_SUBTITLE_MODES.contains(&mode.as_str()) {
+        mode
+    } else {
+        "off".to_string()
+    }
+}
+
+fn normalize_cli_subtitle_format(value: Option<&str>) -> String {
+    let Some(format) = value.map(|f| f.trim().to_ascii_lowercase()) else {
+        return "srt".to_string();
+    };
+    if ALLOWED_SUBTITLE_FORMATS.contains(&format.as_str()) {
+        format
+    } else {
+        "srt".to_string()
+    }
+}
+
+fn normalize_cli_subtitle_langs(value: Option<&str>) -> Vec<String> {
+    value
+        .unwrap_or("")
+        .split(',')
+        .filter_map(|lang| {
+            let lang = lang.trim();
+            if lang.is_empty()
+                || lang.len() > 16
+                || !lang
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+            {
+                None
+            } else {
+                Some(lang.to_string())
+            }
+        })
+        .take(20)
+        .collect()
+}
+
+fn normalize_cli_download_sections(value: Option<&str>) -> Option<String> {
+    let section = value?.trim().trim_start_matches('*');
+    if section.is_empty() || section.len() > 64 || section.contains(char::is_whitespace) {
+        return None;
+    }
+    let (start, end) = section.split_once('-')?;
+    if is_valid_time_marker(start) && is_valid_time_marker(end) {
+        Some(format!("*{}-{}", start, end))
+    } else {
+        None
+    }
+}
+
+fn is_valid_time_marker(value: &str) -> bool {
+    let parts: Vec<&str> = value.split(':').collect();
+    if parts.len() < 2 || parts.len() > 3 {
+        return false;
+    }
+    parts
+        .iter()
+        .all(|part| !part.is_empty() && part.len() <= 2 && part.chars().all(|c| c.is_ascii_digit()))
+}
+
 /// Best-effort parser for raw argv (used by the single-instance callback where
 /// only the raw process arguments are available). Supports the same flags as
 /// the declared CLI schema. Unknown flags are ignored.
@@ -240,6 +360,31 @@ pub fn parse_cli_args_from_argv(argv: &[String]) -> CliDownloadArgs {
             }
             "--audio" | "-a" => args.audio = true,
             "--queue-only" => args.queue_only = true,
+            "--skip-live" => args.skip_live = true,
+            "--playlist" => args.download_playlist = Some(true),
+            "--no-playlist" => args.download_playlist = Some(false),
+            "--embed-subs" => args.subtitle_embed = true,
+            "--live-from-start" => args.live_from_start = true,
+            "--subtitle-mode" => {
+                if let Some(value) = iter.next() {
+                    args.subtitle_mode = Some(value.clone());
+                }
+            }
+            "--subtitle-langs" => {
+                if let Some(value) = iter.next() {
+                    args.subtitle_langs = Some(value.clone());
+                }
+            }
+            "--subtitle-format" => {
+                if let Some(value) = iter.next() {
+                    args.subtitle_format = Some(value.clone());
+                }
+            }
+            "--download-sections" => {
+                if let Some(value) = iter.next() {
+                    args.download_sections = Some(value.clone());
+                }
+            }
             other => {
                 // Handle --flag=value form.
                 if let Some(rest) = other.strip_prefix("--url=") {
@@ -248,6 +393,14 @@ pub fn parse_cli_args_from_argv(argv: &[String]) -> CliDownloadArgs {
                     args.quality = Some(rest.to_string());
                 } else if let Some(rest) = other.strip_prefix("--target=") {
                     args.target = Some(rest.to_string());
+                } else if let Some(rest) = other.strip_prefix("--subtitle-mode=") {
+                    args.subtitle_mode = Some(rest.to_string());
+                } else if let Some(rest) = other.strip_prefix("--subtitle-langs=") {
+                    args.subtitle_langs = Some(rest.to_string());
+                } else if let Some(rest) = other.strip_prefix("--subtitle-format=") {
+                    args.subtitle_format = Some(rest.to_string());
+                } else if let Some(rest) = other.strip_prefix("--download-sections=") {
+                    args.download_sections = Some(rest.to_string());
                 } else if !other.starts_with('-') && args.url.is_none() {
                     // First positional argument is treated as the URL.
                     args.url = Some(other.to_string());
@@ -280,6 +433,14 @@ pub fn enqueue_cli_download_requests(requests: Vec<CliDownloadRequest>) {
                     && existing.action == request.action
                     && existing.media == request.media
                     && existing.quality == request.quality
+                    && existing.skip_live == request.skip_live
+                    && existing.download_playlist == request.download_playlist
+                    && existing.subtitle_mode == request.subtitle_mode
+                    && existing.subtitle_langs == request.subtitle_langs
+                    && existing.subtitle_embed == request.subtitle_embed
+                    && existing.subtitle_format == request.subtitle_format
+                    && existing.download_sections == request.download_sections
+                    && existing.live_from_start == request.live_from_start
             }) {
                 existing.trusted_local = existing.trusted_local || request.trusted_local;
             } else {
@@ -382,6 +543,73 @@ mod tests {
 
         assert_eq!(request.quality, "best");
         assert_eq!(request.target, "auto");
+    }
+
+    #[test]
+    fn raw_argv_supports_download_option_overrides() {
+        let argv = vec![
+            "youwee".to_string(),
+            "https://example.com/video".to_string(),
+            "--skip-live".to_string(),
+            "--playlist".to_string(),
+            "--subtitle-mode=manual".to_string(),
+            "--subtitle-langs".to_string(),
+            "en,vi".to_string(),
+            "--subtitle-format".to_string(),
+            "vtt".to_string(),
+            "--embed-subs".to_string(),
+            "--download-sections=00:30-02:10".to_string(),
+            "--live-from-start".to_string(),
+        ];
+
+        let request = build_cli_download_request_from_argv(&argv).expect("expected CLI request");
+
+        assert!(request.skip_live);
+        assert_eq!(request.download_playlist, Some(true));
+        assert_eq!(request.subtitle_mode.as_deref(), Some("manual"));
+        assert_eq!(request.subtitle_langs, vec!["en", "vi"]);
+        assert!(request.subtitle_embed);
+        assert_eq!(request.subtitle_format.as_deref(), Some("vtt"));
+        assert_eq!(request.download_sections.as_deref(), Some("*00:30-02:10"));
+        assert!(request.live_from_start);
+    }
+
+    #[test]
+    fn cli_request_sanitizes_download_option_overrides() {
+        let args = CliDownloadArgs {
+            url: Some("https://example.com/video".to_string()),
+            subtitle_mode: Some("invalid".to_string()),
+            subtitle_langs: Some("en,../../secret,vi".to_string()),
+            subtitle_format: Some("txt".to_string()),
+            download_sections: Some("not a range".to_string()),
+            ..Default::default()
+        };
+
+        let request = build_cli_download_request(&args).expect("expected CLI request");
+
+        assert_eq!(request.subtitle_mode.as_deref(), Some("off"));
+        assert_eq!(request.subtitle_langs, vec!["en", "vi"]);
+        assert_eq!(request.subtitle_format.as_deref(), Some("srt"));
+        assert_eq!(request.download_sections, None);
+    }
+
+    #[test]
+    fn subtitle_options_imply_subtitle_mode_when_omitted() {
+        let args = CliDownloadArgs {
+            url: Some("https://example.com/video".to_string()),
+            subtitle_langs: Some("en,vi".to_string()),
+            ..Default::default()
+        };
+        let request = build_cli_download_request(&args).expect("expected CLI request");
+        assert_eq!(request.subtitle_mode.as_deref(), Some("manual"));
+
+        let args = CliDownloadArgs {
+            url: Some("https://example.com/video".to_string()),
+            subtitle_embed: true,
+            ..Default::default()
+        };
+        let request = build_cli_download_request(&args).expect("expected CLI request");
+        assert_eq!(request.subtitle_mode.as_deref(), Some("auto"));
     }
 
     #[test]
