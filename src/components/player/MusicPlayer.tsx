@@ -52,20 +52,15 @@ export function MusicPlayer() {
   const [thumbError, setThumbError] = useState(false);
   const [isSeeking, setIsSeeking] = useState(false);
   const [seekPreviewTime, setSeekPreviewTime] = useState(0);
+  const [isVolumeDragging, setIsVolumeDragging] = useState(false);
   const progressRef = useRef<HTMLDivElement | null>(null);
+  const volumeRef = useRef<HTMLDivElement | null>(null);
 
   // Reset thumbnail error whenever the current track changes
   // biome-ignore lint/correctness/useExhaustiveDependencies: we intentionally depend on the current entry id
   useEffect(() => {
     setThumbError(false);
   }, [currentEntry?.id]);
-
-  const handleVolume = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setVolume(parseFloat(e.target.value));
-    },
-    [setVolume],
-  );
 
   const cycleMode = useCallback(() => {
     const modes: PlayMode[] = ['sequence', 'repeat-one', 'shuffle'];
@@ -152,10 +147,82 @@ export function MusicPlayer() {
     [currentTime, duration, seek],
   );
 
+  const setVolumeFromClientX = useCallback(
+    (clientX: number) => {
+      const rect = volumeRef.current?.getBoundingClientRect();
+      if (!rect || rect.width <= 0) return volume;
+
+      const nextVolume = clamp((clientX - rect.left) / rect.width, 0, 1);
+      setVolume(nextVolume);
+      return nextVolume;
+    },
+    [setVolume, volume],
+  );
+
+  const handleVolumePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setIsVolumeDragging(true);
+      setVolumeFromClientX(event.clientX);
+    },
+    [setVolumeFromClientX],
+  );
+
+  const handleVolumePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!isVolumeDragging) return;
+
+      event.preventDefault();
+      setVolumeFromClientX(event.clientX);
+    },
+    [isVolumeDragging, setVolumeFromClientX],
+  );
+
+  const handleVolumePointerEnd = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!isVolumeDragging) return;
+
+      event.preventDefault();
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      setVolumeFromClientX(event.clientX);
+      setIsVolumeDragging(false);
+    },
+    [isVolumeDragging, setVolumeFromClientX],
+  );
+
+  const handleVolumeKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const smallStep = 0.05;
+      const largeStep = 0.1;
+      let nextVolume: number | null = null;
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+        nextVolume = volume - smallStep;
+      }
+      if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+        nextVolume = volume + smallStep;
+      }
+      if (event.key === 'PageDown') nextVolume = volume - largeStep;
+      if (event.key === 'PageUp') nextVolume = volume + largeStep;
+      if (event.key === 'Home') nextVolume = 0;
+      if (event.key === 'End') nextVolume = 1;
+
+      if (nextVolume === null) return;
+
+      event.preventDefault();
+      setVolume(clamp(nextVolume, 0, 1));
+    },
+    [setVolume, volume],
+  );
+
   if (!currentEntry) return null;
 
   const displayTime = isSeeking ? seekPreviewTime : currentTime;
   const progress = duration > 0 ? (displayTime / duration) * 100 : 0;
+  const volumeProgress = volume * 100;
   const queueLabel =
     queue.length > 1 ? t('player.trackCount', { count: queue.length }) : t('player.oneTrack');
 
@@ -345,20 +412,35 @@ export function MusicPlayer() {
                     <Volume2 className="h-3.5 w-3.5" />
                   )}
                 </button>
-                <div className="group relative h-1.5 w-16">
-                  <div className="absolute inset-y-0 w-full rounded-full bg-background/90" />
+                <div
+                  ref={volumeRef}
+                  className="group relative h-5 w-16 cursor-pointer touch-none select-none"
+                  onPointerDown={handleVolumePointerDown}
+                  onPointerMove={handleVolumePointerMove}
+                  onPointerUp={handleVolumePointerEnd}
+                  onPointerCancel={handleVolumePointerEnd}
+                  onKeyDown={handleVolumeKeyDown}
+                  role="slider"
+                  tabIndex={0}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(volumeProgress)}
+                  aria-valuetext={`${Math.round(volumeProgress)}%`}
+                >
+                  <div className="absolute top-1/2 h-1.5 w-full -translate-y-1/2 rounded-full bg-background/90" />
                   <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-primary"
-                    style={{ width: `${volume * 100}%` }}
+                    className={cn(
+                      'absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-primary',
+                      !isVolumeDragging && 'transition-[width]',
+                    )}
+                    style={{ width: `${volumeProgress}%` }}
                   />
-                  <input
-                    type="range"
-                    min={0}
-                    max={1}
-                    step={0.02}
-                    value={volume}
-                    onChange={handleVolume}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  <div
+                    className={cn(
+                      'absolute top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/40 bg-background shadow-[0_2px_8px_rgba(0,0,0,0.16)] transition-transform group-hover:scale-110',
+                      isVolumeDragging && 'scale-110 border-primary/70',
+                    )}
+                    style={{ left: `${volumeProgress}%` }}
                   />
                 </div>
               </div>
