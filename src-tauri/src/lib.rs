@@ -121,7 +121,8 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             // Protocol-handler style links (youwee://download?...) embedded in argv.
             let links = commands::extract_external_links_from_argv(&argv);
-            if !links.is_empty() {
+            let has_links = !links.is_empty();
+            if has_links {
                 commands::enqueue_external_links(links.clone());
                 let _ = app.emit(
                     "external-open-url",
@@ -138,6 +139,9 @@ pub fn run() {
                     "external-cli-download",
                     commands::ExternalCliDownloadEventPayload { requests },
                 );
+                if !has_links {
+                    return;
+                }
             }
             show_main_window(app);
         }))
@@ -161,13 +165,15 @@ pub fn run() {
             // Queue deep links from cold-start arguments so frontend can consume on mount.
             let argv: Vec<String> = std::env::args().collect();
             let initial_links = commands::extract_external_links_from_argv(&argv);
-            if !initial_links.is_empty() {
+            let has_initial_links = !initial_links.is_empty();
+            if has_initial_links {
                 commands::enqueue_external_links(initial_links);
             }
 
             // CLI invocation (youwee <url> [--quality ...]) on cold start.
             // Use the declared CLI schema when available, falling back to a
             // raw argv parse otherwise.
+            let mut has_cli_request = false;
             {
                 use tauri_plugin_cli::CliExt;
                 let cli_request = match app.cli().matches() {
@@ -204,6 +210,7 @@ pub fn run() {
                     Err(_) => commands::build_cli_download_request_from_argv(&argv),
                 };
                 if let Some(request) = cli_request {
+                    has_cli_request = true;
                     commands::enqueue_cli_download_requests(vec![request]);
                 }
             }
@@ -218,6 +225,10 @@ pub fn run() {
 
             // Setup system tray
             setup_tray(app)?;
+
+            if has_initial_links || !has_cli_request {
+                show_main_window(&app.handle());
+            }
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(

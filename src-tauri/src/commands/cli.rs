@@ -33,6 +33,63 @@ pub struct CliDownloadArgs {
     pub target: Option<String>,
 }
 
+pub fn print_cli_usage_and_should_exit(argv: &[String]) -> bool {
+    if argv
+        .iter()
+        .skip(1)
+        .any(|arg| arg == "--help" || arg == "-h")
+    {
+        println!("{}", cli_help_text(command_name(argv)));
+        return true;
+    }
+
+    if argv
+        .iter()
+        .skip(1)
+        .any(|arg| arg == "--version" || arg == "-V")
+    {
+        println!("Youwee {}", env!("CARGO_PKG_VERSION"));
+        return true;
+    }
+
+    false
+}
+
+fn command_name(argv: &[String]) -> &str {
+    argv.first()
+        .and_then(|arg| {
+            std::path::Path::new(arg)
+                .file_name()
+                .and_then(|name| name.to_str())
+        })
+        .filter(|name| !name.is_empty())
+        .unwrap_or("youwee")
+}
+
+fn cli_help_text(command: &str) -> String {
+    format!(
+        "\
+Youwee {version}
+GUI for yt-dlp. Pass a video URL to queue or download it.
+
+Usage:
+  {command} [URL] [OPTIONS]
+
+Arguments:
+  [URL]                 Video URL to download
+
+Options:
+  -u, --url <URL>       Video URL to download (alternative to positional URL)
+  -q, --quality <VALUE> Video quality: best, 8k, 4k, 2k, 1080, 720, 480, 360. For audio use 128 or auto
+  -a, --audio           Download audio only
+      --queue-only      Only add the URL to the queue without starting the download
+  -t, --target <VALUE>  Routing target: auto, youtube, or universal
+  -h, --help            Print help
+  -V, --version         Print version",
+        version = env!("CARGO_PKG_VERSION")
+    )
+}
+
 fn is_accepted_cli_url(url: &str) -> bool {
     if url.is_empty() || url.len() > MAX_CLI_URL_LENGTH {
         return false;
@@ -325,5 +382,12 @@ mod tests {
 
         assert_eq!(request.quality, "best");
         assert_eq!(request.target, "auto");
+    }
+
+    #[test]
+    fn cli_help_request_exits_before_app_start() {
+        let argv = vec!["youwee".to_string(), "--help".to_string()];
+
+        assert!(print_cli_usage_and_should_exit(&argv));
     }
 }
