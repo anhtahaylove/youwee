@@ -227,6 +227,7 @@ export interface DownloadSettings {
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
   // Live stream settings
   liveFromStart: boolean; // Download live streams from the beginning
+  skipLive: boolean; // Skip live streams instead of downloading them
   // Speed limit settings
   speedLimitEnabled: boolean; // true = limited, false = unlimited
   speedLimitValue: number; // e.g. 10

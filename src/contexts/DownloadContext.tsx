@@ -145,6 +145,7 @@ function saveSettings(settings: DownloadSettings) {
         embedMetadata: settings.embedMetadata,
         embedThumbnail: settings.embedThumbnail,
         liveFromStart: settings.liveFromStart,
+        skipLive: settings.skipLive,
         speedLimitEnabled: settings.speedLimitEnabled,
         speedLimitValue: settings.speedLimitValue,
         speedLimitUnit: settings.speedLimitUnit,
@@ -230,6 +231,7 @@ interface DownloadContextType {
   updateEmbedThumbnail: (enabled: boolean) => void;
   // Live stream settings
   updateLiveFromStart: (enabled: boolean) => void;
+  updateSkipLive: (enabled: boolean) => void;
   // Speed limit settings
   updateSpeedLimit: (enabled: boolean, value: number, unit: 'K' | 'M' | 'G') => void;
   // External downloader settings
@@ -297,6 +299,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       embedThumbnail: saved.embedThumbnail === true, // Default to false (requires FFmpeg)
       // Live stream settings
       liveFromStart: saved.liveFromStart === true, // Default to false
+      skipLive: saved.skipLive === true, // Default to false
       // Speed limit settings
       speedLimitEnabled: saved.speedLimitEnabled === true, // Default to false (unlimited)
       speedLimitValue: saved.speedLimitValue || 10,
@@ -657,6 +660,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         subtitleLangs: [...currentSettings.subtitleLangs],
         subtitleEmbed: currentSettings.subtitleEmbed,
         subtitleFormat: currentSettings.subtitleFormat,
+        liveFromStart: currentSettings.liveFromStart,
+        skipLive: currentSettings.skipLive,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -740,7 +745,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         timeRangeStart: options?.timeRangeStart,
         timeRangeEnd: options?.timeRangeEnd,
         liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
-        skipLive: options?.skipLive ?? false,
+        skipLive: options?.skipLive ?? currentSettings.skipLive,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -788,6 +793,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         subtitleLangs: [...currentSettings.subtitleLangs],
         subtitleEmbed: currentSettings.subtitleEmbed,
         subtitleFormat: currentSettings.subtitleFormat,
+        liveFromStart: currentSettings.liveFromStart,
+        skipLive: currentSettings.skipLive,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -873,6 +880,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           subtitleLangs: [...settingsRef.current.subtitleLangs],
           subtitleEmbed: settingsRef.current.subtitleEmbed,
           subtitleFormat: settingsRef.current.subtitleFormat,
+          liveFromStart: settingsRef.current.liveFromStart,
+          skipLive: settingsRef.current.skipLive,
           pluginWorkflowSnapshots: workflowSnapshots,
           postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
           autoRetryEnabled: settingsRef.current.autoRetryEnabled,
@@ -1550,6 +1559,14 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateSkipLive = useCallback((skipLive: boolean) => {
+    setSettings((s) => {
+      const newSettings = { ...s, skipLive };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
   const updateSpeedLimit = useCallback(
     (speedLimitEnabled: boolean, speedLimitValue: number, speedLimitUnit: 'K' | 'M' | 'G') => {
       setSettings((s) => {
@@ -1711,6 +1728,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     updateEmbedMetadata,
     updateEmbedThumbnail,
     updateLiveFromStart,
+    updateSkipLive,
     updateSpeedLimit,
     updateUseAria2,
     updateAria2Args,
