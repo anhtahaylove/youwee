@@ -90,7 +90,7 @@ export function getQueueStatusCounts(items: DownloadItem[]): QueueStatusCounts {
 export function QueueStatusFilter({ value, counts, labels, onChange }: QueueStatusFilterProps) {
   return (
     <div className="overflow-x-auto">
-      <div className="inline-flex w-max items-center rounded-lg bg-muted/50 p-1">
+      <div className="inline-flex w-max items-center gap-0.5 rounded-lg bg-muted/50 p-1">
         {FILTERS.map((filter) => {
           const active = value === filter;
           const count = counts[filter];
@@ -103,16 +103,18 @@ export function QueueStatusFilter({ value, counts, labels, onChange }: QueueStat
               className={cn(
                 'group flex h-7 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-all',
                 active
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? 'bg-background text-foreground shadow-sm ring-1 ring-border/50'
+                  : 'text-muted-foreground hover:bg-muted-foreground/10 hover:text-foreground',
               )}
             >
-              <span>{labels[filter]}</span>
+              <span className="leading-none">{labels[filter]}</span>
               <span
                 className={cn(
-                  'tabular-nums text-[10px] font-semibold leading-none transition-colors',
-                  active ? 'text-primary' : 'text-muted-foreground/70 group-hover:text-foreground',
-                  count === 0 && 'opacity-45',
+                  'inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 tabular-nums text-[10px] font-bold leading-none transition-all duration-200',
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'bg-muted-foreground/15 text-muted-foreground group-hover:bg-muted-foreground/25 group-hover:text-foreground',
+                  count === 0 && 'opacity-50 font-medium',
                 )}
               >
                 {count}

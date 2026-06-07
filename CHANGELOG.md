@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Skip live streams** - Added a download setting to skip currently live videos from the YouTube and Universal interfaces
 - **AI summary search** - Added SQLite FTS5-powered Library search across titles, URLs, file paths, and saved AI summaries, with search scope controls for all content, details only, or AI summaries only
 - **YouTube keyword search** - Added a dedicated YouTube keyword search view with filter controls for upload date, duration, sort order, and video features, letting selected results be added directly to the download queue
+- **Queue status tabs** - Added compact status tabs to the YouTube and Universal queues for filtering videos by download state
 - **Plugin SDK YouTube search bridge** - Exposed app-managed YouTube keyword search to JavaScript plugins through `ctx.youwee.youtube.searchVideos(...)` with typed filters and continuation support
 
 ### Changed
