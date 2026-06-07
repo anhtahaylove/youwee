@@ -1,17 +1,21 @@
 import { invoke } from '@tauri-apps/api/core';
 import {
   Check,
+  CheckCircle2,
   ChevronDown,
   Database,
   ExternalLink,
   Film,
+  Loader2,
   Monitor,
   Moon,
   Palette,
   Sun,
+  Terminal,
 } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -22,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/components/ui/toast';
 import { useHistory } from '@/contexts/HistoryContext';
 import { useProcessing } from '@/contexts/ProcessingContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -32,6 +37,18 @@ import { SettingsCard, SettingsDivider, SettingsRow, SettingsSection } from '../
 
 const isMacOS = navigator.platform.includes('Mac');
 const LANGUAGE_REQUEST_DISCUSSION_URL = 'https://github.com/vanloctech/youwee/discussions/18';
+const CLI_GUIDE_URL = 'https://github.com/vanloctech/youwee/blob/develop/docs/CLI.md';
+
+interface CliShortcutStatus {
+  platform: 'macos' | 'windows' | 'linux' | 'unknown';
+  installed: boolean;
+  target_path: string | null;
+  exe_path: string | null;
+  can_auto_install: boolean;
+  note: string | null;
+  note_key: 'path_not_in_path' | 'linux_system_installed' | 'unsupported' | null;
+  note_path: string | null;
+}
 
 // Gradient backgrounds for theme preview
 const themeGradients: Record<ThemeName, string> = {
@@ -50,11 +67,15 @@ interface GeneralSectionProps {
 export function GeneralSection({ highlightId }: GeneralSectionProps) {
   const { t: tCommon, i18n } = useTranslation('common');
   const { t } = useTranslation('settings');
+  const toast = useToast();
   const { theme, setTheme, mode, setMode } = useTheme();
   const { maxEntries, setMaxEntries, totalCount } = useHistory();
   const { previewSizeThreshold, setPreviewSizeThreshold } = useProcessing();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [languageQuery, setLanguageQuery] = useState('');
+  const [cliStatus, setCliStatus] = useState<CliShortcutStatus | null>(null);
+  const [cliLoading, setCliLoading] = useState(true);
+  const [cliInstalling, setCliInstalling] = useState(false);
 
   const [hideDockOnClose, setHideDockOnClose] = useState(() => {
     return localStorage.getItem('youwee_hide_dock_on_close') === 'true';
@@ -65,6 +86,65 @@ export function GeneralSection({ highlightId }: GeneralSectionProps) {
     localStorage.setItem('youwee_hide_dock_on_close', String(checked));
     invoke('set_hide_dock_on_close', { hide: checked }).catch(() => {});
   }, []);
+
+  const refreshCliStatus = useCallback(async () => {
+    setCliLoading(true);
+    try {
+      const status = await invoke<CliShortcutStatus>('get_cli_shortcut_status');
+      setCliStatus(status);
+    } catch (error) {
+      setCliStatus(null);
+      console.error('Failed to inspect CLI shortcut status:', error);
+    } finally {
+      setCliLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshCliStatus();
+  }, [refreshCliStatus]);
+
+  const handleInstallCliShortcut = useCallback(async () => {
+    setCliInstalling(true);
+    try {
+      const path = await invoke<string>('install_cli_shortcut');
+      setCliStatus((current) =>
+        current
+          ? {
+              ...current,
+              installed: true,
+              target_path: path,
+            }
+          : current,
+      );
+      toast.success({
+        title: t('extension.cliInstallSuccess'),
+        message: t('extension.cliInstallSuccessDesc', { path }),
+      });
+      void refreshCliStatus();
+    } catch (error) {
+      toast.error({
+        title: t('extension.cliInstallError'),
+        message: String(error),
+      });
+    } finally {
+      setCliInstalling(false);
+    }
+  }, [refreshCliStatus, t, toast]);
+
+  const cliStatusNote = useMemo(() => {
+    if (!cliStatus) return null;
+    if (cliStatus.note_key === 'path_not_in_path') {
+      return t('extension.cliNotePathNotInPath', { path: cliStatus.note_path });
+    }
+    if (cliStatus.note_key === 'linux_system_installed') {
+      return t('extension.cliNoteLinuxSystemInstalled', { path: cliStatus.note_path });
+    }
+    if (cliStatus.note_key === 'unsupported') {
+      return t('extension.cliNoteUnsupported');
+    }
+    return cliStatus.note;
+  }, [cliStatus, t]);
 
   const supportedLanguages = useMemo(() => {
     const resources = i18n.options.resources ?? {};
@@ -271,6 +351,73 @@ export function GeneralSection({ highlightId }: GeneralSectionProps) {
               ))}
             </div>
           </div>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsDivider />
+
+      {/* Command Line */}
+      <SettingsSection
+        title={t('extension.cliTitle')}
+        description={t('extension.cliDesc')}
+        icon={<Terminal className="w-5 h-5 text-white" />}
+        iconClassName="bg-gradient-to-br from-emerald-500 to-cyan-600 shadow-emerald-500/20"
+      >
+        <SettingsCard>
+          <SettingsRow
+            id="cli-shortcut"
+            label={t('extension.cliInstall')}
+            description={t('extension.cliInstallDesc')}
+            highlight={highlightId === 'cli-shortcut'}
+            controlClassName="md:min-w-[280px]"
+          >
+            <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end">
+              <div className="flex min-h-9 items-center gap-2 rounded bg-emerald-500/10 px-3 text-sm text-emerald-700 dark:text-emerald-300">
+                {cliLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : cliStatus?.installed ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <Terminal className="h-4 w-4" />
+                )}
+                <span className="truncate">
+                  {cliLoading
+                    ? t('extension.cliChecking')
+                    : cliStatus?.installed
+                      ? t('extension.cliInstalled')
+                      : t('extension.cliNotInstalled')}
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleInstallCliShortcut}
+                disabled={cliLoading || cliInstalling || cliStatus?.can_auto_install === false}
+                className="border-dashed"
+              >
+                {cliInstalling && <Loader2 className="h-4 w-4 animate-spin" />}
+                {cliInstalling
+                  ? t('extension.cliInstalling')
+                  : cliStatus?.installed
+                    ? t('extension.cliReinstall')
+                    : t('extension.cliInstallButton')}
+              </Button>
+              <Button type="button" variant="ghost" asChild>
+                <a href={CLI_GUIDE_URL} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                  {t('extension.cliOpenGuide')}
+                </a>
+              </Button>
+            </div>
+            {cliStatus && (cliStatus.target_path || cliStatusNote) && (
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground md:text-right">
+                {cliStatus.target_path && (
+                  <p>{t('extension.cliInstalledAt', { path: cliStatus.target_path })}</p>
+                )}
+                {cliStatusNote && <p>{cliStatusNote}</p>}
+              </div>
+            )}
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 

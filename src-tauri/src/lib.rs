@@ -119,6 +119,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            // Protocol-handler style links (youwee://download?...) embedded in argv.
             let links = commands::extract_external_links_from_argv(&argv);
             if !links.is_empty() {
                 commands::enqueue_external_links(links.clone());
@@ -127,9 +128,21 @@ pub fn run() {
                     commands::ExternalOpenUrlEventPayload { urls: links },
                 );
             }
+
+            // CLI style invocation (youwee <url> [--quality ...]) while the app
+            // is already running.
+            if let Some(cli_request) = commands::build_cli_download_request_from_argv(&argv) {
+                let requests = vec![cli_request];
+                commands::enqueue_cli_download_requests(requests.clone());
+                let _ = app.emit(
+                    "external-cli-download",
+                    commands::ExternalCliDownloadEventPayload { requests },
+                );
+            }
             show_main_window(app);
         }))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_cli::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
@@ -150,6 +163,49 @@ pub fn run() {
             let initial_links = commands::extract_external_links_from_argv(&argv);
             if !initial_links.is_empty() {
                 commands::enqueue_external_links(initial_links);
+            }
+
+            // CLI invocation (youwee <url> [--quality ...]) on cold start.
+            // Use the declared CLI schema when available, falling back to a
+            // raw argv parse otherwise.
+            {
+                use tauri_plugin_cli::CliExt;
+                let cli_request = match app.cli().matches() {
+                    Ok(matches) => {
+                        let mut cli_args = commands::CliDownloadArgs::default();
+                        if let Some(data) = matches.args.get("source") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.url = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("url") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.url = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("quality") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.quality = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("target") {
+                            if let Some(value) = data.value.as_str() {
+                                cli_args.target = Some(value.to_string());
+                            }
+                        }
+                        if let Some(data) = matches.args.get("audio") {
+                            cli_args.audio = data.value.as_bool().unwrap_or(false);
+                        }
+                        if let Some(data) = matches.args.get("queue-only") {
+                            cli_args.queue_only = data.value.as_bool().unwrap_or(false);
+                        }
+                        commands::build_cli_download_request(&cli_args)
+                    }
+                    Err(_) => commands::build_cli_download_request_from_argv(&argv),
+                };
+                if let Some(request) = cli_request {
+                    commands::enqueue_cli_download_requests(vec![request]);
+                }
             }
 
             // Initialize the database
@@ -344,6 +400,10 @@ pub fn run() {
             commands::clear_download_queue,
             // External deep-link commands
             commands::consume_pending_external_links,
+            commands::consume_pending_cli_download_requests,
+            // CLI shortcut commands
+            commands::get_cli_shortcut_status,
+            commands::install_cli_shortcut,
             // System commands
             set_hide_dock_on_close,
             rebuild_tray_menu_cmd,
