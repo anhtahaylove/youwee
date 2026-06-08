@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **Scheduled livestream errors** - Show clear upcoming livestream messages instead of grouping scheduled YouTube lives into generic skipped or unspecified errors
 - **Windows CLI output** - Fixed `youwee -V` and `youwee --help` not printing output in Windows terminals
 
 ## [0.17.0] - 2026-06-07
