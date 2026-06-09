@@ -331,13 +331,14 @@ pub async fn get_ytdlp_path(app: &AppHandle) -> Option<(PathBuf, bool)> {
 
     match channel {
         YtdlpChannel::Bundled => {
-            // Prefer user-updated legacy binary so bundled update actually takes effect.
-            if let Some(legacy_binary) = get_legacy_ytdlp_path(app) {
-                return Some((legacy_binary, false));
-            }
-            // Use bundled version
+            // Bundled must mean the sidecar shipped with the current app build.
+            // Keep the old app-data binary only as a compatibility fallback for
+            // installs that predate the Youwee-specific sidecar name.
             if let Some(bundled) = get_bundled_ytdlp_path() {
                 return Some((bundled, true));
+            }
+            if let Some(legacy_binary) = get_legacy_ytdlp_path(app) {
+                return Some((legacy_binary, false));
             }
         }
         YtdlpChannel::Stable | YtdlpChannel::Nightly => {

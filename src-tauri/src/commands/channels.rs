@@ -1,16 +1,13 @@
 use std::process::Stdio;
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::process::CommandEvent;
-use tauri_plugin_shell::ShellExt;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::database;
 use crate::services::{
-    build_cookie_args, build_site_header_args, get_deno_path, get_ytdlp_path, get_ytdlp_source,
-    run_ytdlp_with_stderr, system_ytdlp_not_found_message,
+    build_cookie_args, build_site_header_args, get_deno_path, get_ytdlp_path, run_ytdlp_with_stderr,
 };
-use crate::types::DependencySource;
-use crate::types::{BackendError, ChannelInfo, ChannelVideo, FollowedChannel, PlaylistVideoEntry};
+use crate::types::{ChannelInfo, ChannelVideo, FollowedChannel, PlaylistVideoEntry};
 use crate::utils::CommandExt;
 use crate::utils::{normalize_channel_content_urls, normalize_url, validate_url};
 
@@ -34,6 +31,106 @@ fn build_fallback_video_url(channel_url: &str, video_id: &str) -> String {
         // Default to YouTube
         format!("https://www.youtube.com/watch?v={}", video_id)
     }
+}
+
+async fn run_channel_ytdlp_with_progress(
+    app: &AppHandle,
+    args: &[&str],
+    request_id: Option<u32>,
+    limit: Option<u32>,
+) -> Result<String, String> {
+    if let Some((binary_path, _)) = get_ytdlp_path(app).await {
+        let mut cmd = Command::new(binary_path);
+        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.hide_window();
+
+        let mut child = cmd
+            .spawn()
+            .map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
+
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| "Failed to capture yt-dlp stdout".to_string())?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| "Failed to capture yt-dlp stderr".to_string())?;
+
+        let app_for_progress = app.clone();
+        let stdout_task = tokio::spawn(async move {
+            let mut reader = BufReader::new(stdout).lines();
+            let mut output = String::new();
+            let mut fetched_count = 0_u32;
+
+            while let Some(line) = reader.next_line().await? {
+                if !line.trim().is_empty() {
+                    fetched_count = fetched_count.saturating_add(1);
+                    let _ = app_for_progress.emit(
+                        "channel-fetch-progress",
+                        serde_json::json!({
+                            "requestId": request_id,
+                            "fetched": fetched_count,
+                            "limit": limit
+                        }),
+                    );
+                }
+                output.push_str(&line);
+                output.push('\n');
+            }
+
+            Ok::<String, std::io::Error>(output)
+        });
+
+        let stderr_task = tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            let mut output = String::new();
+
+            while let Some(line) = reader.next_line().await? {
+                output.push_str(&line);
+                output.push('\n');
+            }
+
+            Ok::<String, std::io::Error>(output)
+        });
+
+        let status = child
+            .wait()
+            .await
+            .map_err(|e| format!("Failed to wait for yt-dlp: {}", e))?;
+        let stdout = stdout_task
+            .await
+            .map_err(|e| format!("Failed to read yt-dlp stdout: {}", e))?
+            .map_err(|e| format!("Failed to read yt-dlp stdout: {}", e))?;
+        let stderr = stderr_task
+            .await
+            .map_err(|e| format!("Failed to read yt-dlp stderr: {}", e))?
+            .map_err(|e| format!("Failed to read yt-dlp stderr: {}", e))?;
+
+        if !status.success() && stdout.is_empty() {
+            let detail = stderr
+                .lines()
+                .rev()
+                .find(|l| !l.trim().is_empty())
+                .unwrap_or("yt-dlp exited with error");
+            return Err(format!("Failed to fetch channel videos: {}", detail));
+        }
+
+        return Ok(stdout);
+    }
+
+    let output_result = run_ytdlp_with_stderr(app, args).await?;
+    if !output_result.success && output_result.stdout.is_empty() {
+        let detail = output_result
+            .stderr
+            .lines()
+            .rev()
+            .find(|l| !l.trim().is_empty())
+            .unwrap_or("yt-dlp exited with error");
+        return Err(format!("Failed to fetch channel videos: {}", detail));
+    }
+
+    Ok(output_result.stdout)
 }
 
 /// Get videos from a channel URL (uses yt-dlp, supports YouTube/Bilibili/etc.)
@@ -193,110 +290,7 @@ async fn fetch_channel_videos_once(
     args.push(url.to_string());
 
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let source = get_ytdlp_source(app).await;
-    let output = if source != DependencySource::System {
-        match app.shell().sidecar("yt-dlp") {
-            Ok(sidecar) => {
-                let (mut rx, _child) = sidecar
-                    .args(&args_ref)
-                    .spawn()
-                    .map_err(|e| format!("Failed to start yt-dlp: {}", e))?;
-
-                let mut output = String::new();
-                let mut stderr_output = String::new();
-                let mut fetched_count: u32 = 0;
-
-                while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(bytes) => {
-                            output.push_str(&String::from_utf8_lossy(&bytes));
-
-                            let new_count = output.matches('\n').count() as u32;
-                            if new_count > fetched_count {
-                                fetched_count = new_count;
-                                let _ = app.emit(
-                                    "channel-fetch-progress",
-                                    serde_json::json!({
-                                        "requestId": request_id,
-                                        "fetched": fetched_count,
-                                        "limit": limit
-                                    }),
-                                );
-                            }
-                        }
-                        CommandEvent::Stderr(bytes) => {
-                            stderr_output.push_str(&String::from_utf8_lossy(&bytes));
-                        }
-                        CommandEvent::Error(err) => {
-                            return Err(format!("Process error: {}", err));
-                        }
-                        CommandEvent::Terminated(status) => {
-                            if status.code != Some(0) && output.is_empty() {
-                                let detail = if stderr_output.is_empty() {
-                                    "yt-dlp exited with error".to_string()
-                                } else {
-                                    stderr_output
-                                        .lines()
-                                        .rev()
-                                        .find(|l| !l.trim().is_empty())
-                                        .unwrap_or("yt-dlp exited with error")
-                                        .to_string()
-                                };
-                                return Err(format!("Failed to fetch channel videos: {}", detail));
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                output
-            }
-            Err(_) => {
-                let output_result = run_ytdlp_with_stderr(app, &args_ref).await?;
-
-                if !output_result.success && output_result.stdout.is_empty() {
-                    let detail = output_result
-                        .stderr
-                        .lines()
-                        .rev()
-                        .find(|l| !l.trim().is_empty())
-                        .unwrap_or("yt-dlp exited with error");
-                    return Err(format!("Failed to fetch channel videos: {}", detail));
-                }
-
-                output_result.stdout
-            }
-        }
-    } else if let Some((binary_path, _)) = get_ytdlp_path(app).await {
-        let mut cmd = Command::new(binary_path);
-        cmd.args(&args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        cmd.hide_window();
-
-        let output_result = cmd
-            .output()
-            .await
-            .map_err(|e| format!("Failed to run yt-dlp: {}", e))?;
-
-        if !output_result.status.success() && output_result.stdout.is_empty() {
-            let stderr = String::from_utf8_lossy(&output_result.stderr);
-            let detail = stderr
-                .lines()
-                .rev()
-                .find(|l| !l.trim().is_empty())
-                .unwrap_or("yt-dlp exited with error");
-            return Err(format!("Failed to fetch channel videos: {}", detail));
-        }
-
-        String::from_utf8_lossy(&output_result.stdout).to_string()
-    } else {
-        return Err(BackendError::new(
-            crate::types::code::YTDLP_SYSTEM_NOT_FOUND,
-            system_ytdlp_not_found_message(),
-        )
-        .to_wire_string());
-    };
+    let output = run_channel_ytdlp_with_progress(app, &args_ref, request_id, limit).await?;
 
     let fetched_count = output
         .lines()
@@ -804,7 +798,7 @@ pub async fn set_polling_network_config(
     cookie_file_path: Option<String>,
     proxy_url: Option<String>,
 ) -> Result<(), String> {
-    use crate::services::polling::{set_network_config, PollingNetworkConfig};
+    use crate::services::polling::{PollingNetworkConfig, set_network_config};
 
     set_network_config(PollingNetworkConfig {
         cookie_mode,
