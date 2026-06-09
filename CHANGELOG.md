@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
+- **yt-dlp bundled version** - Prefer the sidecar shipped with the current app build so old app-managed binaries no longer mask newer bundled releases
+- **Channel yt-dlp source** - Fixed Channel browsing to respect the selected yt-dlp source/channel, including Stable and System
 - **Escaped pasted URLs** - Normalize shell-escaped URL punctuation in Download, Universal, and Gallery inputs so pasted links like `watch\?v\=...` enqueue the intended video
 - **CLI escaped URLs** - Normalize shell-escaped URL punctuation so quoted YouTube URLs like `watch\?v\=...` download the intended video
 - **Scheduled livestream errors** - Show clear upcoming livestream messages instead of grouping scheduled YouTube lives into generic skipped or unspecified errors

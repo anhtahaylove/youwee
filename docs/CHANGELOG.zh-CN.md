@@ -15,6 +15,8 @@ Youwee 的所有重要更改都将记录在此文件中。
 - **CLI 设置与文档** - 优化 General 设置中的 CLI 卡片，补齐所有支持语言的 CLI 本地化，并扩展 CLI 指南中的 macOS、Windows 和 Linux 安装说明
 
 ### 修复
+- **yt-dlp 内置版本** - 优先使用当前应用构建随附的 sidecar，避免旧的应用管理二进制遮蔽更新的内置版本
+- **频道 yt-dlp 来源** - 修复频道浏览未正确使用所选 yt-dlp 来源/通道的问题，包括 Stable 和 System
 - **粘贴转义 URL** - 在 Download、Universal 和 Gallery 输入框中规范化被 shell 转义的 URL 标点，使 `watch\?v\=...` 形式的链接仍能加入目标视频
 - **CLI 转义 URL** - 规范化被 shell 转义的 URL 标点，使 `watch\?v\=...` 形式的 YouTube URL 仍能下载目标视频
 - **已排期直播错误** - 为即将开始的 YouTube 直播显示更明确的提示，不再归入通用的 skipped 或 unspecified 错误
