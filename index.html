@@ -11,6 +11,37 @@
     <!-- Font Awesome v4 for brand icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" integrity="sha512-SfTiTlX6kk+qitfevl/7LibUOeJWlt9rbyDn92a1DqWOw9vWG2MFoays0sgObmWazO5BQPiFucnnEAjpAB+/Sw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <title>Youwee</title>
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+        margin: 0;
+        background: #ffffff;
+      }
+
+      html.dark,
+      html.dark body,
+      html.dark #root {
+        background: #09090b;
+      }
+    </style>
+    <script>
+      (() => {
+        try {
+          const savedMode = localStorage.getItem("youwee-mode");
+          const mode =
+            savedMode ||
+            (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+          const theme = localStorage.getItem("youwee-theme") || "ocean";
+          document.documentElement.classList.toggle("dark", mode === "dark");
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch {
+          document.documentElement.classList.add("dark");
+          document.documentElement.setAttribute("data-theme", "ocean");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
