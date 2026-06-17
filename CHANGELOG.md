@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Channel Load More** - Changed Channel browse and followed-channel detail pages to use the floating Load More button style from YouTube keyword search
 
 ### Fixed
+- **Music player visibility** - Fixed the collapsed music player leaving an invisible overlay that could block buttons and restart playback when users clicked controls underneath
 - **Channel completion state** - Fixed followed channel videos losing their completed state after reopening the app by persisting manual channel completions and restoring status from exact video IDs and existing history files
 - **Duplicate channel follows** - Return the existing followed channel record when following the same URL again so video sync does not target a non-existent channel id
 
