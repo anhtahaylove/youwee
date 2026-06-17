@@ -8,6 +8,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thay đổi
+- **Bố cục chi tiết plugin** - Đổi phần chi tiết plugin đã import trong Cài đặt sang dạng tab cho Thông tin, Quyền được yêu cầu, và Runtime & tương thích
 - **Nút tải thêm trong Kênh** - Đổi nút Tải thêm ở màn hình duyệt Kênh và chi tiết kênh đã theo dõi sang kiểu floating giống Tìm YouTube theo từ khóa
 
 ### Sửa lỗi

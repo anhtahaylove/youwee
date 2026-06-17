@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Plugin details layout** - Changed imported plugin details in Settings to use tabs for Information, Requested Permissions, and Runtime & Compatibility
 - **Channel Load More** - Changed Channel browse and followed-channel detail pages to use the floating Load More button style from YouTube keyword search
 
 ### Fixed
