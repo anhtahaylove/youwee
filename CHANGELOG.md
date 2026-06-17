@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Channel Load More** - Changed Channel browse and followed-channel detail pages to use the floating Load More button style from YouTube keyword search
+
+### Fixed
+- **Channel completion state** - Fixed followed channel videos losing their completed state after reopening the app by persisting manual channel completions and restoring status from exact video IDs and existing history files
+- **Duplicate channel follows** - Return the existing followed channel record when following the same URL again so video sync does not target a non-existent channel id
+
 ## [0.17.1] - 2026-06-11
 
 ### Added

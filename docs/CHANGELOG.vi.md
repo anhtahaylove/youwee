@@ -7,6 +7,13 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Thay đổi
+- **Nút tải thêm trong Kênh** - Đổi nút Tải thêm ở màn hình duyệt Kênh và chi tiết kênh đã theo dõi sang kiểu floating giống Tìm YouTube theo từ khóa
+
+### Sửa lỗi
+- **Trạng thái hoàn tất của Kênh** - Sửa lỗi video trong kênh đã theo dõi bị mất trạng thái hoàn tất sau khi mở lại app bằng cách lưu chắc trạng thái tải thủ công và khôi phục theo đúng video ID cùng file lịch sử còn tồn tại
+- **Theo dõi trùng kênh** - Trả về record kênh đã theo dõi hiện có khi follow lại cùng URL để tránh đồng bộ video vào channel id không tồn tại
+
 ## [0.17.1] - 2026-06-11
 
 ### Thêm mới
