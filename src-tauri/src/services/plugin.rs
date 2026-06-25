@@ -1434,6 +1434,8 @@ async fn execute_plugin_workflow_run(
             PluginExecutionStatusEvent {
                 plugin_id: plugin.manifest.plugin_id.clone(),
                 run_id: Some(workflow_run.run_id.clone()),
+                trigger: Some(workflow_run.trigger.clone()),
+                job_id: Some(chain_state.job_id.clone()),
                 plugin_name: Some(plugin.manifest.name.clone()),
                 runtime: Some(plugin.manifest.runtime.language.as_str().to_string()),
                 provider: Some(selected_provider.as_str().to_string()),
@@ -1453,6 +1455,7 @@ async fn execute_plugin_workflow_run(
                 media_title: step_payload.title.clone(),
                 filename: Some(step_payload.filename.clone()),
                 media_url: Some(step_payload.url.clone()),
+                metadata_patch: None,
             },
         )
         .ok();
@@ -1492,12 +1495,22 @@ async fn execute_plugin_workflow_run(
                         merge_chain_mutation(&mut chain_state, mutation);
                     }
                 }
+                let metadata_patch = if result.success {
+                    result
+                        .mutations
+                        .as_ref()
+                        .and_then(|mutation| mutation.metadata_patch.clone())
+                } else {
+                    None
+                };
 
                 app.emit(
                     "plugin-execution-status",
                     PluginExecutionStatusEvent {
                         plugin_id: plugin.manifest.plugin_id.clone(),
                         run_id: Some(workflow_run.run_id.clone()),
+                        trigger: Some(workflow_run.trigger.clone()),
+                        job_id: Some(chain_state.job_id.clone()),
                         plugin_name: Some(plugin.manifest.name.clone()),
                         runtime: Some(plugin.manifest.runtime.language.as_str().to_string()),
                         provider: Some(selected_provider.as_str().to_string()),
@@ -1523,6 +1536,7 @@ async fn execute_plugin_workflow_run(
                         media_title: step_payload.title.clone(),
                         filename: Some(step_payload.filename.clone()),
                         media_url: Some(step_payload.url.clone()),
+                        metadata_patch,
                     },
                 )
                 .ok();
@@ -1560,6 +1574,8 @@ async fn execute_plugin_workflow_run(
                     PluginExecutionStatusEvent {
                         plugin_id: plugin.manifest.plugin_id.clone(),
                         run_id: Some(workflow_run.run_id.clone()),
+                        trigger: Some(workflow_run.trigger.clone()),
+                        job_id: Some(chain_state.job_id.clone()),
                         plugin_name: Some(plugin.manifest.name.clone()),
                         runtime: Some(plugin.manifest.runtime.language.as_str().to_string()),
                         provider: Some(selected_provider.as_str().to_string()),
@@ -1573,6 +1589,7 @@ async fn execute_plugin_workflow_run(
                         media_title: step_payload.title.clone(),
                         filename: Some(step_payload.filename.clone()),
                         media_url: Some(step_payload.url.clone()),
+                        metadata_patch: None,
                     },
                 )
                 .ok();

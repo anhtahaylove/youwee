@@ -47,6 +47,7 @@ import type {
   ExternalEnqueueResult,
   Format,
   ItemUniversalSettings,
+  PluginExecutionStatusEvent,
   PostDownloadPluginPayload,
   Quality,
   VideoInfoResponse,
@@ -410,6 +411,41 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                       completedHistoryId: progress.history_id,
                     }
                   : {}),
+              }
+            : item,
+        ),
+      );
+    });
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen<PluginExecutionStatusEvent>('plugin-execution-status', (event) => {
+      const status = event.payload;
+      if (status.status !== 'success' || !status.jobId) return;
+      if (!status.metadataPatch || typeof status.metadataPatch !== 'object') return;
+
+      const patch = status.metadataPatch as Record<string, unknown>;
+      const title = typeof patch.title === 'string' ? patch.title.trim() : '';
+      const rawThumbnail =
+        typeof patch.thumbnail === 'string'
+          ? patch.thumbnail.trim()
+          : typeof patch.thumbnailUrl === 'string'
+            ? patch.thumbnailUrl.trim()
+            : '';
+      const thumbnail = rawThumbnail.replace(/^http:\/\//, 'https://');
+      if (!title && !thumbnail) return;
+
+      setItems((current) =>
+        current.map((item) =>
+          item.id === status.jobId
+            ? {
+                ...item,
+                title: title || item.title,
+                thumbnail: thumbnail || item.thumbnail,
               }
             : item,
         ),

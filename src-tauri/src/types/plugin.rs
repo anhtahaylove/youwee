@@ -569,6 +569,10 @@ pub struct PluginExecutionStatusEvent {
     pub plugin_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub run_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trigger: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub job_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin_name: Option<String>,
     pub status: String,
@@ -594,6 +598,8 @@ pub struct PluginExecutionStatusEvent {
     pub filename: Option<String>,
     #[serde(default)]
     pub media_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata_patch: Option<Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

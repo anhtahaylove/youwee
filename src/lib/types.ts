@@ -587,6 +587,8 @@ export interface PluginWorkflowRun {
 export interface PluginExecutionStatusEvent {
   pluginId: string;
   runId?: string | null;
+  trigger?: string | null;
+  jobId?: string | null;
   pluginName?: string | null;
   runtime?: string | null;
   provider?: string | null;
@@ -600,6 +602,7 @@ export interface PluginExecutionStatusEvent {
   mediaTitle?: string | null;
   filename?: string | null;
   mediaUrl?: string | null;
+  metadataPatch?: unknown;
 }
 
 export interface PluginExecutionOutputEvent {
