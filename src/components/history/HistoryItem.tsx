@@ -354,7 +354,10 @@ export function HistoryItem({ entry }: HistoryItemProps) {
       <div className="flex-1 min-w-0 flex flex-col justify-between">
         {/* Title */}
         <div>
-          <h3 className="font-medium text-sm line-clamp-2 leading-snug mb-1.5" title={entry.title}>
+          <h3
+            className="mb-1.5 max-w-full break-words text-sm font-medium leading-snug line-clamp-2 [overflow-wrap:anywhere]"
+            title={entry.title}
+          >
             {entry.title}
           </h3>
 

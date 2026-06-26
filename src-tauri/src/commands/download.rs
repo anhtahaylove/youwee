@@ -489,6 +489,16 @@ fn is_facebook_reel_fallback_stem(value: &str) -> bool {
     value.starts_with("facebook-com-reel-")
 }
 
+fn title_from_download_filename(current_title: Option<String>, filename: &str) -> Option<String> {
+    let filename = filename.trim_end_matches(" has already been downloaded");
+    let stem = filename.rfind('.').map(|end| &filename[..end])?;
+    if current_title.is_some() && is_facebook_reel_fallback_stem(stem) {
+        current_title
+    } else {
+        Some(stem.to_string())
+    }
+}
+
 fn replace_output_template(args: &mut [String], output_template: String) {
     if let Some(index) = args.iter().position(|arg| arg == "-o") {
         if let Some(value) = args.get_mut(index + 1) {
@@ -1985,14 +1995,7 @@ async fn handle_tokio_download(
             let path_sep = if line.contains('\\') { '\\' } else { '/' };
             if let Some(start) = line.rfind(path_sep) {
                 let filename = &line[start + 1..];
-                // Remove suffix if present
-                let filename = filename.trim_end_matches(" has already been downloaded");
-                if let Some(end) = filename.rfind('.') {
-                    let stem = &filename[..end];
-                    if current_title.is_none() || !is_facebook_reel_fallback_stem(stem) {
-                        current_title = Some(stem.to_string());
-                    }
-                }
+                current_title = title_from_download_filename(current_title, filename);
             }
         }
 
@@ -2504,5 +2507,22 @@ mod tests {
             "facebook-com-reel-1889836315019111.f1428297389333728a"
         ));
         assert!(!is_facebook_reel_fallback_stem("Video"));
+    }
+
+    #[test]
+    fn download_filename_does_not_overwrite_recovered_facebook_reel_title() {
+        let title = title_from_download_filename(
+            Some("Recovered Facebook title".to_string()),
+            "facebook-com-reel-1889836315019111.f1428297389333728a.mp4",
+        );
+
+        assert_eq!(title.as_deref(), Some("Recovered Facebook title"));
+    }
+
+    #[test]
+    fn download_filename_still_sets_normal_titles() {
+        let title = title_from_download_filename(None, "Video.mp4");
+
+        assert_eq!(title.as_deref(), Some("Video"));
     }
 }
