@@ -1312,12 +1312,8 @@ pub async fn download_video(
                             let path_sep = if line.contains('\\') { '\\' } else { '/' };
                             if let Some(start) = line.rfind(path_sep) {
                                 let filename = &line[start + 1..];
-                                // Remove suffix if present
-                                let filename =
-                                    filename.trim_end_matches(" has already been downloaded");
-                                if let Some(end) = filename.rfind('.') {
-                                    current_title = Some(filename[..end].to_string());
-                                }
+                                current_title =
+                                    title_from_download_filename(current_title, filename);
                             }
                         }
 
@@ -1548,6 +1544,8 @@ pub async fn download_video(
                                         quality_display.clone(),
                                         Some(format.clone()),
                                         time_range,
+                                        display_title.clone(),
+                                        thumbnail.clone(),
                                     )
                                     .ok();
                                     Some(hist_id.clone())
@@ -2161,6 +2159,8 @@ async fn handle_tokio_download(
                     quality_display.clone(),
                     Some(format.clone()),
                     time_range,
+                    display_title.clone(),
+                    thumbnail.clone(),
                 )
                 .ok();
                 Some(hist_id.clone())

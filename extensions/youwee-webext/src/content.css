@@ -191,6 +191,11 @@
   box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.14);
 }
 
+.youwee-floating__select option {
+  background: #ffffff;
+  color: #0f172a;
+}
+
 .youwee-floating__toggle {
   display: inline-flex;
   width: 100%;

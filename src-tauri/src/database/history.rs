@@ -525,12 +525,22 @@ pub fn update_history_download(
     quality: Option<String>,
     format: Option<String>,
     time_range: Option<String>,
+    title: Option<String>,
+    thumbnail: Option<String>,
 ) -> Result<(), String> {
     let conn = get_db()?;
     let now = Utc::now().timestamp();
+    let title = title.and_then(|value| {
+        let value = value.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    });
+    let thumbnail = thumbnail.and_then(|value| {
+        let value = value.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    });
     conn.execute(
-        "UPDATE history SET filepath = ?1, filesize = ?2, quality = ?3, format = ?4, downloaded_at = ?5, time_range = ?6 WHERE id = ?7",
-        params![filepath, filesize, quality, format, now, time_range, id],
+        "UPDATE history SET filepath = ?1, filesize = ?2, quality = ?3, format = ?4, downloaded_at = ?5, time_range = ?6, title = COALESCE(?7, title), thumbnail = COALESCE(?8, thumbnail) WHERE id = ?9",
+        params![filepath, filesize, quality, format, now, time_range, title, thumbnail, id],
     )
     .map_err(|e| format!("Failed to update history: {}", e))?;
     Ok(())
@@ -1131,6 +1141,86 @@ mod tests {
     fn build_normalized_tag_name_strips_hash_and_underscores() {
         assert_eq!(normalize_tag_name("#Hoc_tap"), "hoc tap");
         assert_eq!(normalize_tag_name("  #Giải_trí  "), "giải trí");
+    }
+
+    #[test]
+    fn update_history_download_refreshes_metadata_when_provided() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        let history_id = uuid::Uuid::new_v4().to_string();
+        insert_history_row(&history_id, "");
+
+        update_history_download(
+            history_id.clone(),
+            "C:/Downloads/first.mp4".to_string(),
+            Some(1),
+            Some("720p".to_string()),
+            Some("mp4".to_string()),
+            None,
+            None,
+            None,
+        )
+        .expect("update without metadata");
+
+        let (title, thumbnail): (String, Option<String>) = {
+            let conn = get_db().expect("get db");
+            conn.query_row(
+                "SELECT title, thumbnail FROM history WHERE id = ?1",
+                params![history_id.clone()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read history metadata")
+        };
+        assert_eq!(title, "video");
+        assert_eq!(thumbnail, None);
+
+        update_history_download(
+            history_id.clone(),
+            "C:/Downloads/second.mp4".to_string(),
+            Some(2),
+            Some("1080p".to_string()),
+            Some("mp4".to_string()),
+            None,
+            Some("Recovered Facebook title".to_string()),
+            Some("https://example.com/thumb.jpg".to_string()),
+        )
+        .expect("update with metadata");
+
+        let (title, thumbnail): (String, Option<String>) = {
+            let conn = get_db().expect("get db");
+            conn.query_row(
+                "SELECT title, thumbnail FROM history WHERE id = ?1",
+                params![history_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read refreshed history metadata")
+        };
+        assert_eq!(title, "Recovered Facebook title");
+        assert_eq!(thumbnail.as_deref(), Some("https://example.com/thumb.jpg"));
+
+        update_history_download(
+            history_id.clone(),
+            "C:/Downloads/third.mp4".to_string(),
+            Some(3),
+            Some("1080p".to_string()),
+            Some("mp4".to_string()),
+            None,
+            Some("  ".to_string()),
+            Some("  ".to_string()),
+        )
+        .expect("update with blank metadata");
+
+        let (title, thumbnail): (String, Option<String>) = {
+            let conn = get_db().expect("get db");
+            conn.query_row(
+                "SELECT title, thumbnail FROM history WHERE id = ?1",
+                params![history_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read metadata after blank update")
+        };
+        assert_eq!(title, "Recovered Facebook title");
+        assert_eq!(thumbnail.as_deref(), Some("https://example.com/thumb.jpg"));
     }
 
     #[test]
