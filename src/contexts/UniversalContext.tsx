@@ -36,6 +36,7 @@ import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
   loadPostDownloadWorkflowSteps,
+  refreshPluginWorkflowSnapshots,
   refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
 import { parseUniversalUrls } from '@/lib/sources';
@@ -594,7 +595,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const currentItems = itemsRef.current;
       const currentSettings = settingsRef.current;
       const aria2Settings = loadAria2Settings();
-      const workflowSnapshots = loadPluginWorkflowSnapshots();
+      const workflowSnapshots = await refreshPluginWorkflowSnapshots();
 
       // Snapshot current settings for these items
       const settingsSnapshot: ItemUniversalSettings = {
@@ -681,7 +682,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         options?.quality && options.quality !== 'audio' ? options.quality : 'best';
       const audioBitrate = options?.audioBitrate === '128' ? '128' : 'auto';
       const aria2Settings = loadAria2Settings();
-      const workflowSnapshots = loadPluginWorkflowSnapshots();
+      const workflowSnapshots = await refreshPluginWorkflowSnapshots();
 
       const settingsSnapshot: ItemUniversalSettings = {
         quality: mediaType === 'audio' ? 'audio' : videoQuality,

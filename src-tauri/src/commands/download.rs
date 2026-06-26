@@ -7,6 +7,8 @@
 //! - Subtitle handling
 
 use std::collections::{BTreeMap, VecDeque};
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -37,6 +39,15 @@ use crate::utils::{
 pub static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
 
 const RECENT_OUTPUT_LIMIT: usize = 30;
+
+#[derive(Clone)]
+struct CoreDownloadFallback {
+    binary_path: PathBuf,
+    binary_label: String,
+    args: Vec<String>,
+    home_dir: String,
+    path: OsString,
+}
 
 fn extract_time_range(download_sections: &Option<String>) -> Option<String> {
     download_sections.as_ref().and_then(|s| {
@@ -422,6 +433,100 @@ fn recent_output_snapshot(buffer: &Arc<Mutex<VecDeque<String>>>) -> Vec<String> 
         .lock()
         .map(|guard| guard.iter().cloned().collect())
         .unwrap_or_default()
+}
+
+fn is_facebook_reel_url(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str().map(|host| host.to_ascii_lowercase()) else {
+        return false;
+    };
+    let is_facebook = host == "facebook.com" || host.ends_with(".facebook.com");
+    let path = parsed.path();
+    is_facebook && (path == "/reel" || path.starts_with("/reel/"))
+}
+
+fn is_facebook_parse_failure(recent_lines: &[String]) -> bool {
+    recent_lines.iter().any(|line| {
+        let lower = line.to_ascii_lowercase();
+        lower.contains("[facebook]") && lower.contains("cannot parse data")
+    })
+}
+
+fn should_core_fallback_facebook_reel(url: &str, recent_lines: &[String]) -> bool {
+    is_facebook_reel_url(url) && is_facebook_parse_failure(recent_lines)
+}
+
+fn push_arg_before_url(args: &mut Vec<String>, name: &str, value: &str) {
+    if args.iter().any(|arg| arg == name) {
+        return;
+    }
+    let insert_at = args.iter().position(|arg| arg == "--").unwrap_or(args.len());
+    args.splice(insert_at..insert_at, [name.to_string(), value.to_string()]);
+}
+
+fn facebook_reel_fallback_basename(url: &str) -> String {
+    reqwest::Url::parse(url)
+        .ok()
+        .and_then(|parsed| {
+            parsed
+                .path_segments()
+                .and_then(|mut segments| segments.next_back().map(str::to_string))
+        })
+        .filter(|id| id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_'))
+        .map(|id| format!("facebook-com-reel-{}", id))
+        .unwrap_or_else(|| "facebook-com-reel".to_string())
+}
+
+fn replace_output_template(args: &mut [String], output_template: String) {
+    if let Some(index) = args.iter().position(|arg| arg == "-o") {
+        if let Some(value) = args.get_mut(index + 1) {
+            *value = output_template;
+        }
+    }
+}
+
+fn facebook_reel_core_fallback_args(args: &[String], url: &str, output_directory: &str) -> Vec<String> {
+    let mut fallback_args = Vec::with_capacity(args.len() + 4);
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--cookies" | "--cookies-from-browser" | "--downloader" | "--downloader-args" => {
+                index += 2;
+            }
+            _ => {
+                fallback_args.push(args[index].clone());
+                index += 1;
+            }
+        }
+    }
+    push_arg_before_url(&mut fallback_args, "--downloader", "native");
+    push_arg_before_url(&mut fallback_args, "--impersonate", "chrome");
+    replace_output_template(
+        &mut fallback_args,
+        format!(
+            "{}/{}.%(ext)s",
+            output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
+            facebook_reel_fallback_basename(url)
+        ),
+    );
+    fallback_args
+}
+
+fn spawn_core_download(
+    fallback: &CoreDownloadFallback,
+    args: &[String],
+) -> Result<tokio::process::Child, String> {
+    let mut cmd = Command::new(&fallback.binary_path);
+    cmd.args(args)
+        .env("HOME", &fallback.home_dir)
+        .env("PATH", &fallback.path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    cmd.hide_window();
+    cmd.spawn()
+        .map_err(|error| format!("Failed to start core fallback yt-dlp: {}", error))
 }
 
 fn is_aria2_not_found_line(line: &str) -> bool {
@@ -907,6 +1012,14 @@ pub async fn download_video(
             &download_kind,
         );
 
+        let core_fallback = CoreDownloadFallback {
+            binary_path,
+            binary_label: binary_path_str.clone(),
+            args: args.clone(),
+            home_dir,
+            path: extended_path,
+        };
+
         return handle_tokio_download(
             app,
             id,
@@ -926,6 +1039,7 @@ pub async fn download_video(
             failed_workflow_steps.clone(),
             emit_failed_workflow,
             download_kind.clone(),
+            Some(core_fallback),
         )
         .await;
     }
@@ -1525,6 +1639,7 @@ pub async fn download_video(
                 failed_workflow_steps,
                 emit_failed_workflow,
                 download_kind,
+                None,
             )
             .await
         }
@@ -1550,6 +1665,7 @@ async fn handle_tokio_download(
     failed_workflow_steps: Vec<PluginWorkflowStepSnapshot>,
     emit_failed_workflow: bool,
     download_kind: String,
+    core_fallback: Option<CoreDownloadFallback>,
 ) -> Result<(), String> {
     let stdout = process
         .stdout
@@ -1984,6 +2100,62 @@ async fn handle_tokio_download(
         Ok(())
     } else {
         let recent_lines = recent_output_snapshot(&recent_output);
+        if let Some(fallback) = core_fallback.as_ref() {
+            if should_core_fallback_facebook_reel(&url, &recent_lines) {
+                let fallback_args =
+                    facebook_reel_core_fallback_args(&fallback.args, &url, &output_directory);
+                add_log_internal(
+                    "info",
+                    "Retrying Facebook Reel in core without cookies",
+                    None,
+                    Some(&url),
+                )
+                .ok();
+                add_log_internal(
+                    "command",
+                    &format!(
+                        "[{}] yt-dlp {}",
+                        fallback.binary_label,
+                        fallback_args.join(" ")
+                    ),
+                    None,
+                    Some(&url),
+                )
+                .ok();
+                std::fs::remove_file(&filepath_tmp).ok();
+
+                match spawn_core_download(fallback, &fallback_args) {
+                    Ok(process) => {
+                        return Box::pin(handle_tokio_download(
+                            app,
+                            id,
+                            process,
+                            quality,
+                            format,
+                            url,
+                            should_log_stderr,
+                            current_title.clone(),
+                            thumbnail,
+                            source,
+                            download_sections,
+                            history_id,
+                            filepath_tmp,
+                            output_directory,
+                            completed_workflow_steps,
+                            failed_workflow_steps,
+                            emit_failed_workflow,
+                            download_kind,
+                            None,
+                        ))
+                        .await;
+                    }
+                    Err(error) => {
+                        add_log_internal("error", &error, None, Some(&url)).ok();
+                    }
+                }
+            }
+        }
+
         let error = build_download_error_message(status.code(), &recent_lines);
         add_log_internal("error", error.message(), None, Some(&url)).ok();
 
@@ -2076,5 +2248,90 @@ fn generate_thumbnail_url(url: &str) -> Option<String> {
         video_id.map(|id| format!("https://i.ytimg.com/vi/{}/mqdefault.jpg", id))
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn facebook_reel_core_fallback_is_scoped_to_parse_failures() {
+        let lines = vec![
+            "ERROR: [facebook] 1889836315019111: Cannot parse data".to_string(),
+        ];
+
+        assert!(should_core_fallback_facebook_reel(
+            "https://www.facebook.com/reel/1889836315019111",
+            &lines
+        ));
+        assert!(!should_core_fallback_facebook_reel(
+            "https://www.facebook.com/watch?v=1889836315019111",
+            &lines
+        ));
+        assert!(!should_core_fallback_facebook_reel(
+            "https://www.facebook.com/reelsomething/1889836315019111",
+            &lines
+        ));
+        assert!(!should_core_fallback_facebook_reel(
+            "https://www.youtube.com/watch?v=abc",
+            &lines
+        ));
+    }
+
+    #[test]
+    fn facebook_reel_core_fallback_args_remove_cookies_and_aria2() {
+        let args = vec![
+            "--newline",
+            "--cookies-from-browser",
+            "firefox",
+            "--downloader",
+            "aria2c",
+            "--downloader-args",
+            "aria2c:-x 16",
+            "-o",
+            "C:/Downloads/%(title)s.%(ext)s",
+            "--",
+            "https://www.facebook.com/reel/1889836315019111",
+        ]
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+
+        let fallback_args = facebook_reel_core_fallback_args(
+            &args,
+            "https://www.facebook.com/reel/1889836315019111",
+            "C:/Downloads",
+        );
+
+        assert!(!fallback_args.iter().any(|arg| arg == "--cookies-from-browser"));
+        assert!(!fallback_args.iter().any(|arg| arg == "firefox"));
+        assert!(!fallback_args.iter().any(|arg| arg == "aria2c:-x 16"));
+        assert_eq!(
+            fallback_args
+                .windows(2)
+                .filter(|pair| pair[0] == "--downloader" && pair[1] == "native")
+                .count(),
+            1
+        );
+        assert_eq!(
+            fallback_args
+                .windows(2)
+                .filter(|pair| pair[0] == "--impersonate" && pair[1] == "chrome")
+                .count(),
+            1
+        );
+        let separator = fallback_args.iter().position(|arg| arg == "--").unwrap();
+        let impersonate = fallback_args
+            .iter()
+            .position(|arg| arg == "--impersonate")
+            .unwrap();
+        assert!(impersonate < separator);
+        let output = fallback_args
+            .windows(2)
+            .find(|pair| pair[0] == "-o")
+            .map(|pair| pair[1].as_str())
+            .unwrap();
+        assert_eq!(output, "C:/Downloads/facebook-com-reel-1889836315019111.%(ext)s");
     }
 }
