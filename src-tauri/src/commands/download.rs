@@ -49,6 +49,12 @@ struct CoreDownloadFallback {
     path: OsString,
 }
 
+#[derive(Clone, Default)]
+struct CoreFallbackMetadata {
+    title: Option<String>,
+    thumbnail: Option<String>,
+}
+
 fn extract_time_range(download_sections: &Option<String>) -> Option<String> {
     download_sections.as_ref().and_then(|s| {
         let stripped = s.strip_prefix('*').unwrap_or(s);
@@ -479,6 +485,10 @@ fn facebook_reel_fallback_basename(url: &str) -> String {
         .unwrap_or_else(|| "facebook-com-reel".to_string())
 }
 
+fn is_facebook_reel_fallback_stem(value: &str) -> bool {
+    value.starts_with("facebook-com-reel-")
+}
+
 fn replace_output_template(args: &mut [String], output_template: String) {
     if let Some(index) = args.iter().position(|arg| arg == "-o") {
         if let Some(value) = args.get_mut(index + 1) {
@@ -527,6 +537,121 @@ fn spawn_core_download(
     cmd.hide_window();
     cmd.spawn()
         .map_err(|error| format!("Failed to start core fallback yt-dlp: {}", error))
+}
+
+fn json_string_field(json: &serde_json::Value, key: &str) -> Option<String> {
+    json.get(key)
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn thumbnail_from_info_json(json: &serde_json::Value) -> Option<String> {
+    json_string_field(json, "thumbnail").or_else(|| {
+        json.get("thumbnails")
+            .and_then(|value| value.as_array())
+            .and_then(|items| {
+                items
+                    .iter()
+                    .rev()
+                    .filter_map(|item| json_string_field(item, "url"))
+                    .next()
+            })
+    })
+}
+
+fn metadata_from_info_json(json: &serde_json::Value) -> CoreFallbackMetadata {
+    CoreFallbackMetadata {
+        title: json_string_field(json, "title"),
+        thumbnail: thumbnail_from_info_json(json).map(|value| {
+            if let Some(rest) = value.strip_prefix("http://") {
+                format!("https://{}", rest)
+            } else {
+                value
+            }
+        }),
+    }
+}
+
+async fn probe_core_facebook_reel_metadata(
+    fallback: &CoreDownloadFallback,
+    url: &str,
+) -> Option<CoreFallbackMetadata> {
+    let args = vec![
+        "--dump-single-json",
+        "--skip-download",
+        "--no-warnings",
+        "--no-playlist",
+        "--socket-timeout",
+        "15",
+        "--impersonate",
+        "chrome",
+        "--",
+        url,
+    ];
+
+    let mut cmd = Command::new(&fallback.binary_path);
+    cmd.args(&args)
+        .env("HOME", &fallback.home_dir)
+        .env("PATH", &fallback.path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    cmd.hide_window();
+
+    let output = match cmd.output().await {
+        Ok(output) => output,
+        Err(error) => {
+            add_log_internal(
+                "warning",
+                &format!("Facebook Reel metadata probe could not start: {}", error),
+                None,
+                Some(url),
+            )
+            .ok();
+            return None;
+        }
+    };
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        add_log_internal(
+            "warning",
+            &format!("Facebook Reel metadata probe failed: {}", stderr),
+            None,
+            Some(url),
+        )
+        .ok();
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = match serde_json::from_str(&stdout) {
+        Ok(json) => json,
+        Err(error) => {
+            add_log_internal(
+                "warning",
+                &format!("Facebook Reel metadata probe returned invalid JSON: {}", error),
+                None,
+                Some(url),
+            )
+            .ok();
+            return None;
+        }
+    };
+    let metadata = metadata_from_info_json(&json);
+    if metadata.title.is_some() || metadata.thumbnail.is_some() {
+        add_log_internal(
+            "info",
+            "Facebook Reel metadata recovered in core fallback",
+            metadata.title.as_deref(),
+            Some(url),
+        )
+        .ok();
+        Some(metadata)
+    } else {
+        None
+    }
 }
 
 fn is_aria2_not_found_line(line: &str) -> bool {
@@ -1863,7 +1988,10 @@ async fn handle_tokio_download(
                 // Remove suffix if present
                 let filename = filename.trim_end_matches(" has already been downloaded");
                 if let Some(end) = filename.rfind('.') {
-                    current_title = Some(filename[..end].to_string());
+                    let stem = &filename[..end];
+                    if current_title.is_none() || !is_facebook_reel_fallback_stem(stem) {
+                        current_title = Some(stem.to_string());
+                    }
                 }
             }
         }
@@ -2123,6 +2251,10 @@ async fn handle_tokio_download(
                 )
                 .ok();
                 std::fs::remove_file(&filepath_tmp).ok();
+                let fallback_metadata =
+                    probe_core_facebook_reel_metadata(fallback, &url).await.unwrap_or_default();
+                let fallback_title = fallback_metadata.title.or_else(|| current_title.clone());
+                let fallback_thumbnail = fallback_metadata.thumbnail.or_else(|| thumbnail.clone());
 
                 match spawn_core_download(fallback, &fallback_args) {
                     Ok(process) => {
@@ -2134,8 +2266,8 @@ async fn handle_tokio_download(
                             format,
                             url,
                             should_log_stderr,
-                            current_title.clone(),
-                            thumbnail,
+                            fallback_title,
+                            fallback_thumbnail,
                             source,
                             download_sections,
                             history_id,
@@ -2333,5 +2465,44 @@ mod tests {
             .map(|pair| pair[1].as_str())
             .unwrap();
         assert_eq!(output, "C:/Downloads/facebook-com-reel-1889836315019111.%(ext)s");
+    }
+
+    #[test]
+    fn core_fallback_metadata_prefers_title_and_best_thumbnail() {
+        let json = serde_json::json!({
+            "title": "Public Reel Title",
+            "thumbnails": [
+                { "url": "http://example.com/small.jpg" },
+                { "url": "https://example.com/large.jpg" }
+            ]
+        });
+
+        let metadata = metadata_from_info_json(&json);
+
+        assert_eq!(metadata.title.as_deref(), Some("Public Reel Title"));
+        assert_eq!(
+            metadata.thumbnail.as_deref(),
+            Some("https://example.com/large.jpg")
+        );
+    }
+
+    #[test]
+    fn core_fallback_metadata_normalizes_top_level_thumbnail() {
+        let json = serde_json::json!({
+            "title": "Public Reel Title",
+            "thumbnail": "http://example.com/thumb.jpg"
+        });
+
+        let metadata = metadata_from_info_json(&json);
+
+        assert_eq!(metadata.thumbnail.as_deref(), Some("https://example.com/thumb.jpg"));
+    }
+
+    #[test]
+    fn detects_facebook_reel_fallback_stem() {
+        assert!(is_facebook_reel_fallback_stem(
+            "facebook-com-reel-1889836315019111.f1428297389333728a"
+        ));
+        assert!(!is_facebook_reel_fallback_stem("Video"));
     }
 }
