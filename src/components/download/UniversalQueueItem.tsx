@@ -18,7 +18,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
-import { type ChangeEvent, useCallback, useMemo, useState } from 'react';
+import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { SchedulePopover } from '@/components/download/SchedulePopover';
 import { SimpleMarkdown } from '@/components/ui/simple-markdown';
@@ -120,6 +120,8 @@ export function UniversalQueueItem({
   const ai = useAI();
   const [showFullSummary, setShowFullSummary] = useState(false);
   const [thumbError, setThumbError] = useState(false);
+  const [previewReady, setPreviewReady] = useState(false);
+  const previousThumbnail = useRef(item.thumbnail);
   const [showTimeRange, setShowTimeRange] = useState(false);
   const [timeStart, setTimeStart] = useState('');
   const [timeEnd, setTimeEnd] = useState('');
@@ -130,6 +132,16 @@ export function UniversalQueueItem({
   const handleThumbError = useCallback(() => {
     setThumbError(true);
   }, []);
+  const handleThumbLoad = useCallback(() => {
+    setPreviewReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (previousThumbnail.current === item.thumbnail) return;
+    previousThumbnail.current = item.thumbnail;
+    setThumbError(false);
+    setPreviewReady(false);
+  }, [item.thumbnail]);
 
   // Use background task for summary
   const taskId = `queue-${item.id}`;
@@ -151,7 +163,8 @@ export function UniversalQueueItem({
   const isPending = item.status === 'pending';
   const isSkipped = item.status === 'skipped';
   const retryState = item.retryState;
-  const isFetchingMeta = isPending && !item.thumbnail && item.title === item.url && !item.extractor;
+  const isFetchingMeta = isPending && item.metadataStage === 'fetching';
+  const isPreparingPreview = isPending && !!item.thumbnail && !thumbError && !previewReady;
   const isUpcomingLiveError = item.errorCode === 'YT_UPCOMING_LIVE';
 
   // Get saved settings for pending items
@@ -284,13 +297,10 @@ export function UniversalQueueItem({
               isCompleted && 'brightness-90 saturate-95',
             )}
             loading="lazy"
+            onLoad={handleThumbLoad}
             onError={handleThumbError}
             referrerPolicy="no-referrer"
           />
-        ) : isFetchingMeta ? (
-          <div className="w-full h-full flex items-center justify-center bg-muted">
-            <Globe className="w-8 h-8 text-muted-foreground/30" />
-          </div>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-muted">
             <Globe className="w-8 h-8 text-muted-foreground/30" />
@@ -370,7 +380,7 @@ export function UniversalQueueItem({
       {/* Content */}
       <div className="flex-1 min-w-0 flex flex-col justify-center py-0.5">
         {/* Title */}
-        {isFetchingMeta ? (
+        {isFetchingMeta || isPreparingPreview ? (
           <div className="space-y-1">
             <p
               className="text-sm font-medium leading-snug line-clamp-2 text-muted-foreground"
@@ -380,7 +390,9 @@ export function UniversalQueueItem({
             </p>
             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground/70">
               <Loader2 className="w-3 h-3 animate-spin" />
-              {t('universal:queue.loadingInfo')}
+              {isFetchingMeta
+                ? t('universal:queue.fetchingMetadata')
+                : t('universal:queue.preparingPreview')}
             </span>
           </div>
         ) : (

@@ -73,6 +73,8 @@
     "pending": "{{count}} pendentes",
     "clearDone": "Limpar concluídos",
     "loadingInfo": "Carregando informações...",
+    "fetchingMetadata": "Buscando metadados...",
+    "preparingPreview": "Preparando visualização...",
     "remove": "Remover da fila",
     "timeRange": {
       "title": "Intervalo de tempo de download",

@@ -125,6 +125,7 @@ export interface DownloadItem {
   duration?: string;
   channel?: string;
   filesize?: number; // File size in bytes from video info
+  metadataStage?: 'fetching';
   // Completed download info
   completedFilesize?: number; // Actual file size after download
   completedResolution?: string; // e.g. "1920x1080"
@@ -266,6 +267,8 @@ export interface DownloadProgress {
   eta: string;
   status: string;
   title?: string;
+  thumbnail?: string;
+  source?: string;
   playlist_index?: number;
   playlist_count?: number;
   // Additional info for completed downloads

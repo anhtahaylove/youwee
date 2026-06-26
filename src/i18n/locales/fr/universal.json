@@ -73,6 +73,8 @@
     "pending": "{{count}} en attente",
     "clearDone": "Effacer les terminés",
     "loadingInfo": "Chargement des infos...",
+    "fetchingMetadata": "Récupération des métadonnées...",
+    "preparingPreview": "Préparation de l’aperçu...",
     "remove": "Retirer de la file",
     "timeRange": {
       "title": "Plage de téléchargement",

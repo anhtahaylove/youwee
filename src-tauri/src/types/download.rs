@@ -9,6 +9,8 @@ pub struct DownloadProgress {
     pub eta: String,
     pub status: String,
     pub title: Option<String>,
+    pub thumbnail: Option<String>,
+    pub source: Option<String>,
     pub playlist_index: Option<u32>,
     pub playlist_count: Option<u32>,
     pub filesize: Option<u64>,

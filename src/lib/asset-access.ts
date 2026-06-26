@@ -3,6 +3,19 @@ import { collectAssetScopeCandidates, normalizeAssetPath } from '@/lib/asset-pat
 
 const allowedAssetPaths = new Set<string>();
 
+export function normalizeThumbnailUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === 'http:' && parsed.hostname !== 'asset.localhost') {
+      return `https://${parsed.host}${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    return url;
+  }
+  return url;
+}
+
 export async function ensureAssetPathAccess(path: string): Promise<string> {
   const normalized = normalizeAssetPath(path);
   if (!normalized) {

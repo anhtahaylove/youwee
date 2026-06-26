@@ -30,6 +30,7 @@ import { SimpleMarkdown } from '@/components/ui/simple-markdown';
 import { useAI } from '@/contexts/AIContext';
 import { useHistory } from '@/contexts/HistoryContext';
 import { usePlayer } from '@/contexts/PlayerContext';
+import { normalizeThumbnailUrl } from '@/lib/asset-access';
 import { buildPlayableAudioQueue, isPlayableAudioEntry } from '@/lib/player-queue';
 import { detectSource } from '@/lib/sources';
 import type { HistoryEntry } from '@/lib/types';
@@ -117,7 +118,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const canPlayAudio = isPlayableAudioEntry(entry);
   const isCurrentAudio = currentEntry?.id === entry.id;
   const isActivePlayback = isCurrentAudio && isPlaying;
-  const thumbnailUrl = entry.thumbnail ? entry.thumbnail.replace(/^http:\/\//, 'https://') : null;
+  const thumbnailUrl = normalizeThumbnailUrl(entry.thumbnail);
   const shouldDeferSummaryMarkdown = localSummary
     ? !showFullSummary && localSummary.length > 200
     : false;

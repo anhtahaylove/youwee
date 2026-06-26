@@ -73,6 +73,8 @@
     "pending": "{{count}} بانتظار التنفيذ",
     "clearDone": "مسح المنتهي",
     "loadingInfo": "جارٍ تحميل المعلومات...",
+    "fetchingMetadata": "جارٍ جلب البيانات الوصفية...",
+    "preparingPreview": "جارٍ إعداد المعاينة...",
     "remove": "إزالة من الطابور",
     "timeRange": {
       "title": "نطاق وقت التنزيل",

@@ -180,6 +180,23 @@ export function detectSource(extractor?: string): SourceInfo {
   };
 }
 
+export function detectExtractorFromUrl(url: string): string | undefined {
+  try {
+    const hostname = new URL(normalizeShellEscapedUrl(url)).hostname.toLowerCase();
+    if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) return 'youtube';
+    if (hostname.includes('tiktok.com')) return 'tiktok';
+    if (hostname.includes('instagram.com')) return 'instagram';
+    if (hostname.includes('facebook.com') || hostname.includes('fb.watch')) return 'facebook';
+    if (hostname.includes('twitter.com') || hostname.includes('x.com')) return 'twitter';
+    if (hostname.includes('bilibili.com') || hostname.includes('b23.tv')) return 'bilibili';
+    if (hostname.includes('vimeo.com')) return 'vimeo';
+    if (hostname.includes('twitch.tv')) return 'twitch';
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 /**
  * Check if URL looks like a valid HTTP/HTTPS URL
  */

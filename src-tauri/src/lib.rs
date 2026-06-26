@@ -323,6 +323,7 @@ pub fn run() {
             // Download commands
             commands::download_video,
             commands::stop_download,
+            commands::cache_remote_thumbnail,
             commands::download_gallery,
             commands::stop_gallery_download,
             // Video info commands

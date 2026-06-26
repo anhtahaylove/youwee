@@ -73,6 +73,8 @@
     "pending": "รออยู่ {{count}}",
     "clearDone": "ล้างที่เสร็จแล้ว",
     "loadingInfo": "กำลังโหลดข้อมูล...",
+    "fetchingMetadata": "กำลังดึงข้อมูลเมตา...",
+    "preparingPreview": "กำลังเตรียมตัวอย่าง...",
     "remove": "ลบออกจากคิว",
     "timeRange": {
       "title": "ช่วงเวลาที่จะดาวน์โหลด",

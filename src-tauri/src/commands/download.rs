@@ -8,13 +8,15 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::ffi::OsString;
+use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::utils::{normalize_url, validate_url};
-use tauri::{AppHandle, Emitter};
+use futures_util::StreamExt;
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -39,6 +41,7 @@ use crate::utils::{
 pub static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
 
 const RECENT_OUTPUT_LIMIT: usize = 30;
+const REMOTE_THUMBNAIL_MAX_BYTES: usize = 5 * 1024 * 1024;
 
 #[derive(Clone)]
 struct CoreDownloadFallback {
@@ -1070,7 +1073,7 @@ pub async fn download_video(
     let command_str = format!("[{}] yt-dlp {}", binary_path_str, args.join(" "));
     add_log_internal("command", &command_str, None, Some(&url)).ok();
 
-    let trigger_source = source.clone().or_else(|| detect_source(&url));
+    let trigger_source = effective_source(&source, &url);
     let trigger_time_range = extract_time_range(&download_sections);
     let before_start_steps =
         workflow_steps_for_trigger(&app, "download.beforeStart", &plugin_workflow_snapshots);
@@ -1384,6 +1387,8 @@ pub async fn download_video(
                                 eta,
                                 status: "downloading".to_string(),
                                 title: current_title.clone(),
+                                thumbnail: thumbnail.clone(),
+                                source: effective_source(&source, &url),
                                 playlist_index: current_index,
                                 playlist_count: total_count,
                                 filesize: None,
@@ -1422,6 +1427,8 @@ pub async fn download_video(
                                 eta,
                                 status: "downloading".to_string(),
                                 title: current_title.clone(),
+                                thumbnail: thumbnail.clone(),
+                                source: effective_source(&source, &url),
                                 playlist_index: current_index,
                                 playlist_count: total_count,
                                 filesize: None,
@@ -1450,7 +1457,7 @@ pub async fn download_video(
                                 &app,
                                 &failed_workflow_steps,
                                 &id,
-                                source.clone().or_else(|| detect_source(&url)),
+                                effective_source(&source, &url),
                                 &sanitized_path,
                                 Some(format.clone()),
                                 quality_display.clone().or_else(|| Some(quality.clone())),
@@ -1551,7 +1558,7 @@ pub async fn download_video(
                                     Some(hist_id.clone())
                                 } else {
                                     // Create new history entry
-                                    let src = source.clone().or_else(|| detect_source(&url));
+                                    let src = effective_source(&source, &url);
                                     let thumb =
                                         thumbnail.clone().or_else(|| generate_thumbnail_url(&url));
 
@@ -1582,6 +1589,10 @@ pub async fn download_video(
                                 eta: String::new(),
                                 status: "finished".to_string(),
                                 title: display_title.clone(),
+                                thumbnail: thumbnail
+                                    .clone()
+                                    .or_else(|| generate_thumbnail_url(&url)),
+                                source: effective_source(&source, &url),
                                 playlist_index: current_index,
                                 playlist_count: total_count,
                                 filesize: reported_filesize,
@@ -1601,7 +1612,7 @@ pub async fn download_video(
                                     &app,
                                     &completed_workflow_steps,
                                     &id,
-                                    source.clone().or_else(|| detect_source(&url)),
+                                    effective_source(&source, &url),
                                     filepath,
                                     reported_filesize,
                                     Some(format.clone()),
@@ -1629,6 +1640,8 @@ pub async fn download_video(
                                 eta: String::new(),
                                 status: "error".to_string(),
                                 title: current_title.clone(),
+                                thumbnail: thumbnail.clone(),
+                                source: effective_source(&source, &url),
                                 playlist_index: current_index,
                                 playlist_count: total_count,
                                 filesize: None,
@@ -1647,7 +1660,7 @@ pub async fn download_video(
                             if emit_failed_workflow && !failed_workflow_steps.is_empty() {
                                 let payload = build_trigger_payload(
                                     &id,
-                                    source.clone().or_else(|| detect_source(&url)),
+                                    effective_source(&source, &url),
                                     "download.failed",
                                     &sanitized_path,
                                     None,
@@ -1741,7 +1754,7 @@ pub async fn download_video(
                 &app,
                 &before_start_steps,
                 &id,
-                source.clone().or_else(|| detect_source(&url)),
+                effective_source(&source, &url),
                 &sanitized_path,
                 Some(format.clone()),
                 Some(quality.clone()),
@@ -1834,6 +1847,8 @@ async fn handle_tokio_download(
     let stderr_app = app.clone();
     let stderr_id = id.clone();
     let stderr_url = url.clone();
+    let stderr_thumbnail = thumbnail.clone();
+    let stderr_source = effective_source(&source, &url);
     let stderr_recent_output = recent_output.clone();
     let stderr_fp_clone = stderr_filepath.clone();
     let stderr_task = if let Some(stderr_handle) = stderr {
@@ -1900,6 +1915,8 @@ async fn handle_tokio_download(
                         eta,
                         status: "downloading".to_string(),
                         title: None,
+                        thumbnail: stderr_thumbnail.clone(),
+                        source: stderr_source.clone(),
                         playlist_index: pi,
                         playlist_count: pc,
                         filesize: None,
@@ -1969,6 +1986,8 @@ async fn handle_tokio_download(
                 eta,
                 status: "downloading".to_string(),
                 title: current_title.clone(),
+                thumbnail: thumbnail.clone(),
+                source: effective_source(&source, &url),
                 playlist_index: current_index,
                 playlist_count: total_count,
                 filesize: None,
@@ -2065,7 +2084,7 @@ async fn handle_tokio_download(
                     &app,
                     &failed_workflow_steps,
                     &id,
-                    source.clone().or_else(|| detect_source(&url)),
+                    effective_source(&source, &url),
                     &output_directory,
                     Some(format.clone()),
                     quality_display.clone().or_else(|| Some(quality.clone())),
@@ -2165,7 +2184,7 @@ async fn handle_tokio_download(
                 .ok();
                 Some(hist_id.clone())
             } else {
-                let src = source.clone().or_else(|| detect_source(&url));
+                let src = effective_source(&source, &url);
                 let thumb = thumbnail.clone().or_else(|| generate_thumbnail_url(&url));
 
                 add_history_internal(
@@ -2195,6 +2214,8 @@ async fn handle_tokio_download(
             eta: String::new(),
             status: "finished".to_string(),
             title: display_title.clone(),
+            thumbnail: thumbnail.clone().or_else(|| generate_thumbnail_url(&url)),
+            source: effective_source(&source, &url),
             playlist_index: current_index,
             playlist_count: total_count,
             filesize: reported_filesize,
@@ -2214,7 +2235,7 @@ async fn handle_tokio_download(
                 &app,
                 &completed_workflow_steps,
                 &id,
-                source.clone().or_else(|| detect_source(&url)),
+                effective_source(&source, &url),
                 filepath,
                 reported_filesize,
                 Some(format.clone()),
@@ -2302,6 +2323,8 @@ async fn handle_tokio_download(
             eta: String::new(),
             status: "error".to_string(),
             title: current_title.clone(),
+            thumbnail: thumbnail.clone(),
+            source: effective_source(&source, &url),
             playlist_index: current_index,
             playlist_count: total_count,
             filesize: None,
@@ -2320,7 +2343,7 @@ async fn handle_tokio_download(
         if emit_failed_workflow && !failed_workflow_steps.is_empty() {
             let payload = build_trigger_payload(
                 &id,
-                source.clone().or_else(|| detect_source(&url)),
+                effective_source(&source, &url),
                 "download.failed",
                 &output_directory,
                 None,
@@ -2369,6 +2392,19 @@ fn detect_source(url: &str) -> Option<String> {
     }
 }
 
+fn effective_source(source: &Option<String>, url: &str) -> Option<String> {
+    source
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| {
+            !value.is_empty()
+                && !value.eq_ignore_ascii_case("direct")
+                && !value.eq_ignore_ascii_case("other")
+        })
+        .map(str::to_string)
+        .or_else(|| detect_source(url))
+}
+
 fn generate_thumbnail_url(url: &str) -> Option<String> {
     if url.contains("youtube.com") || url.contains("youtu.be") {
         let video_id = if url.contains("v=") {
@@ -2384,6 +2420,90 @@ fn generate_thumbnail_url(url: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+fn thumbnail_file_extension(content_type: &str) -> Option<&'static str> {
+    match content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "image/jpeg" | "image/jpg" => Some("jpg"),
+        "image/png" => Some("png"),
+        "image/webp" => Some("webp"),
+        "image/gif" => Some("gif"),
+        "image/avif" => Some("avif"),
+        _ => None,
+    }
+}
+
+#[tauri::command]
+pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<String, String> {
+    let parsed_url = reqwest::Url::parse(&url).map_err(|_| "Invalid thumbnail URL".to_string())?;
+    if !matches!(parsed_url.scheme(), "http" | "https") {
+        return Err("Thumbnail URL must use HTTP or HTTPS".to_string());
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("Youwee/0.17.2")
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("Failed to create thumbnail client: {e}"))?;
+    let response = client
+        .get(parsed_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download thumbnail: {e}"))?
+        .error_for_status()
+        .map_err(|e| format!("Thumbnail request failed: {e}"))?;
+
+    if response
+        .content_length()
+        .is_some_and(|length| length > REMOTE_THUMBNAIL_MAX_BYTES as u64)
+    {
+        return Err("Thumbnail is too large".to_string());
+    }
+
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    let extension = thumbnail_file_extension(content_type)
+        .ok_or_else(|| "Thumbnail response is not a supported image".to_string())?;
+
+    let mut bytes = Vec::new();
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| format!("Failed to read thumbnail: {e}"))?;
+        if bytes.len() + chunk.len() > REMOTE_THUMBNAIL_MAX_BYTES {
+            return Err("Thumbnail is too large".to_string());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Failed to get app data directory: {e}"))?;
+    let thumbnail_dir = app_data_dir.join("thumbnails");
+    tokio::fs::create_dir_all(&thumbnail_dir)
+        .await
+        .map_err(|e| format!("Failed to create thumbnail cache: {e}"))?;
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    url.hash(&mut hasher);
+    let cache_path = thumbnail_dir.join(format!("{:016x}.{extension}", hasher.finish()));
+    if !cache_path.exists() {
+        tokio::fs::write(&cache_path, bytes)
+            .await
+            .map_err(|e| format!("Failed to cache thumbnail: {e}"))?;
+    }
+
+    Ok(cache_path.to_string_lossy().to_string())
 }
 
 #[cfg(test)]
@@ -2410,6 +2530,14 @@ mod tests {
         ));
         assert!(!should_core_fallback_facebook_reel(
             "https://www.youtube.com/watch?v=abc",
+            &lines
+        ));
+        assert!(!should_core_fallback_facebook_reel(
+            "https://www.tiktok.com/@sample/video/123",
+            &lines
+        ));
+        assert!(!should_core_fallback_facebook_reel(
+            "https://www.instagram.com/reel/ABC123/",
             &lines
         ));
     }
@@ -2499,6 +2627,30 @@ mod tests {
         let metadata = metadata_from_info_json(&json);
 
         assert_eq!(metadata.thumbnail.as_deref(), Some("https://example.com/thumb.jpg"));
+    }
+
+    #[test]
+    fn effective_source_normalizes_placeholder_sources_for_known_platforms() {
+        for (url, source) in [
+            ("https://www.facebook.com/reel/1889836315019111", "facebook"),
+            ("https://www.tiktok.com/@sample/video/123", "tiktok"),
+            ("https://www.instagram.com/reel/ABC123/", "instagram"),
+        ] {
+            for placeholder in ["direct", "other"] {
+                assert_eq!(
+                    effective_source(&Some(placeholder.to_string()), url).as_deref(),
+                    Some(source),
+                    "{placeholder} should normalize {url}",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn recognizes_supported_thumbnail_content_types() {
+        assert_eq!(thumbnail_file_extension("image/jpeg"), Some("jpg"));
+        assert_eq!(thumbnail_file_extension("image/webp; charset=binary"), Some("webp"));
+        assert_eq!(thumbnail_file_extension("text/html"), None);
     }
 
     #[test]

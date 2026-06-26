@@ -14,6 +14,7 @@ import {
   useState,
 } from 'react';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
+import { normalizeThumbnailUrl, toAssetUrl } from '@/lib/asset-access';
 import {
   extractBackendError,
   localizeBackendError,
@@ -39,7 +40,7 @@ import {
   refreshPluginWorkflowSnapshots,
   refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
-import { parseUniversalUrls } from '@/lib/sources';
+import { detectExtractorFromUrl, parseUniversalUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
   DownloadItem,
@@ -58,6 +59,18 @@ import { useDownload } from './DownloadContext';
 const STORAGE_KEY = 'youwee-universal-settings';
 const DOWNLOAD_STORAGE_KEY = 'youwee-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
+
+async function cacheThumbnailUrl(url: string | null | undefined): Promise<string | null> {
+  const thumbnail = normalizeThumbnailUrl(url);
+  if (!thumbnail || !/^https?:\/\//.test(thumbnail)) return thumbnail;
+
+  try {
+    const path = await invoke<string>('cache_remote_thumbnail', { url: thumbnail });
+    return await toAssetUrl(path);
+  } catch {
+    return thumbnail;
+  }
+}
 
 // Format duration in seconds to HH:MM:SS or MM:SS
 function formatDuration(seconds: number): string {
@@ -385,6 +398,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                 speed: progress.speed,
                 eta: progress.eta,
                 title: progress.title || item.title,
+                thumbnail: normalizeThumbnailUrl(progress.thumbnail) || item.thumbnail,
+                extractor: progress.source || item.extractor,
+                metadataStage: undefined,
                 status:
                   progress.status === 'finished'
                     ? 'completed'
@@ -439,7 +455,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
           : typeof patch.thumbnailUrl === 'string'
             ? patch.thumbnailUrl.trim()
             : '';
-      const thumbnail = rawThumbnail.replace(/^http:\/\//, 'https://');
+      const thumbnail = normalizeThumbnailUrl(rawThumbnail) || '';
       const recoveredFilepath =
         status.trigger === 'download.failed' && typeof status.activeFilepath === 'string'
           ? status.activeFilepath.trim()
@@ -486,9 +502,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         url: item.url,
         ...networkOptions,
       })
-        .then((response) => {
+        .then(async (response) => {
           const info = response.info;
-          const thumb = info.thumbnail?.replace(/^http:\/\//, 'https://') || null;
+          const thumb = await cacheThumbnailUrl(info.thumbnail);
           setItems((current) =>
             current.map((i) =>
               i.id === item.id
@@ -499,6 +515,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                     duration: info.duration ? formatDuration(info.duration) : i.duration,
                     extractor: info.extractor || i.extractor,
                     channel: info.channel || i.channel,
+                    metadataStage: undefined,
                   }
                 : i,
             ),
@@ -507,7 +524,15 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         .catch(() => {
           // Mark extractor so isFetchingMeta becomes false and item exits loading state
           setItems((current) =>
-            current.map((i) => (i.id === item.id ? { ...i, extractor: 'direct' } : i)),
+            current.map((i) =>
+              i.id === item.id
+                ? {
+                    ...i,
+                    extractor: detectExtractorFromUrl(item.url) || 'direct',
+                    metadataStage: undefined,
+                  }
+                : i,
+            ),
           );
         });
     }
@@ -523,7 +548,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
           : null;
       const payload: PostDownloadPluginPayload = {
         jobId: item.id,
-        source: item.extractor || null,
+        source:
+          item.extractor === 'direct'
+            ? detectExtractorFromUrl(item.url) || null
+            : item.extractor || null,
         trigger: 'download.queued',
         filepath: '',
         filename: item.title || item.url,
@@ -559,7 +587,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
           : null;
       const payload: PostDownloadPluginPayload = {
         jobId: item.id,
-        source: item.extractor || null,
+        source:
+          item.extractor === 'direct'
+            ? detectExtractorFromUrl(item.url) || null
+            : item.extractor || null,
         trigger: 'download.failed',
         filepath: '',
         filename: item.title || item.url,
@@ -624,6 +655,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
           progress: 0,
           speed: '',
           eta: '',
+          metadataStage: 'fetching',
           // Store settings snapshot
           settings: settingsSnapshot,
         }));
@@ -710,6 +742,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         progress: 0,
         speed: '',
         eta: '',
+        metadataStage: 'fetching',
         settings: settingsSnapshot,
       };
 
@@ -963,7 +996,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             // Thumbnail from video info fetch (for non-YouTube sites)
             thumbnail: item.thumbnail || null,
             // Source/extractor from video info fetch (e.g. "BiliBili", "TikTok")
-            source: item.extractor || null,
+            source:
+              item.extractor === 'direct'
+                ? detectExtractorFromUrl(item.url) || null
+                : item.extractor || null,
             pluginWorkflowSnapshots:
               itemSettings?.pluginWorkflowSnapshots ?? loadPluginWorkflowSnapshots(),
             postDownloadWorkflowSteps:

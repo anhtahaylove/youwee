@@ -75,6 +75,8 @@
     "pending": "{{count}} đang chờ",
     "clearDone": "Xóa đã xong",
     "loadingInfo": "Đang tải thông tin...",
+    "fetchingMetadata": "Đang lấy siêu dữ liệu...",
+    "preparingPreview": "Đang chuẩn bị xem trước...",
     "remove": "Xóa khỏi hàng đợi",
     "timeRange": {
       "title": "Tải theo phân đoạn",

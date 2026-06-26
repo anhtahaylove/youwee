@@ -75,6 +75,8 @@
     "pending": "{{count}} 个待处理",
     "clearDone": "清除已完成",
     "loadingInfo": "正在加载信息...",
+    "fetchingMetadata": "正在获取元数据...",
+    "preparingPreview": "正在准备预览...",
     "remove": "从队列移除",
     "timeRange": {
       "title": "下载时间范围",

@@ -75,6 +75,8 @@
     "pending": "{{count}} pending",
     "clearDone": "Clear done",
     "loadingInfo": "Loading info...",
+    "fetchingMetadata": "Fetching metadata...",
+    "preparingPreview": "Preparing preview...",
     "remove": "Remove from queue",
     "timeRange": {
       "title": "Download time range",
