@@ -603,6 +603,8 @@ export interface PluginExecutionStatusEvent {
   filename?: string | null;
   mediaUrl?: string | null;
   metadataPatch?: unknown;
+  activeFilepath?: string | null;
+  activeFilename?: string | null;
 }
 
 export interface PluginExecutionOutputEvent {

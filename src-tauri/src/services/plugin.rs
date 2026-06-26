@@ -1456,6 +1456,8 @@ async fn execute_plugin_workflow_run(
                 filename: Some(step_payload.filename.clone()),
                 media_url: Some(step_payload.url.clone()),
                 metadata_patch: None,
+                active_filepath: None,
+                active_filename: None,
             },
         )
         .ok();
@@ -1503,6 +1505,14 @@ async fn execute_plugin_workflow_run(
                 } else {
                     None
                 };
+                let (active_filepath, active_filename) = if result.success {
+                    (
+                        Some(chain_state.active_filepath.clone()),
+                        Some(chain_state.active_filename.clone()),
+                    )
+                } else {
+                    (None, None)
+                };
 
                 app.emit(
                     "plugin-execution-status",
@@ -1537,6 +1547,8 @@ async fn execute_plugin_workflow_run(
                         filename: Some(step_payload.filename.clone()),
                         media_url: Some(step_payload.url.clone()),
                         metadata_patch,
+                        active_filepath,
+                        active_filename,
                     },
                 )
                 .ok();
@@ -1590,6 +1602,8 @@ async fn execute_plugin_workflow_run(
                         filename: Some(step_payload.filename.clone()),
                         media_url: Some(step_payload.url.clone()),
                         metadata_patch: None,
+                        active_filepath: None,
+                        active_filename: None,
                     },
                 )
                 .ok();

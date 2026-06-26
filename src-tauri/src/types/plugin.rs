@@ -600,6 +600,10 @@ pub struct PluginExecutionStatusEvent {
     pub media_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata_patch: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_filepath: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_filename: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

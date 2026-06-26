@@ -426,9 +426,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     const unlisten = listen<PluginExecutionStatusEvent>('plugin-execution-status', (event) => {
       const status = event.payload;
       if (status.status !== 'success' || !status.jobId) return;
-      if (!status.metadataPatch || typeof status.metadataPatch !== 'object') return;
 
-      const patch = status.metadataPatch as Record<string, unknown>;
+      const patch =
+        status.metadataPatch && typeof status.metadataPatch === 'object'
+          ? (status.metadataPatch as Record<string, unknown>)
+          : {};
       const title = typeof patch.title === 'string' ? patch.title.trim() : '';
       const rawThumbnail =
         typeof patch.thumbnail === 'string'
@@ -437,7 +439,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             ? patch.thumbnailUrl.trim()
             : '';
       const thumbnail = rawThumbnail.replace(/^http:\/\//, 'https://');
-      if (!title && !thumbnail) return;
+      const recoveredFilepath =
+        status.trigger === 'download.failed' && typeof status.activeFilepath === 'string'
+          ? status.activeFilepath.trim()
+          : '';
+      if (!title && !thumbnail && !recoveredFilepath) return;
 
       setItems((current) =>
         current.map((item) =>
@@ -446,6 +452,17 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                 ...item,
                 title: title || item.title,
                 thumbnail: thumbnail || item.thumbnail,
+                ...(recoveredFilepath
+                  ? {
+                      status: 'completed' as const,
+                      progress: 100,
+                      error: undefined,
+                      errorCode: undefined,
+                      retryState: undefined,
+                      completedFilepath: recoveredFilepath,
+                      completedFormat: item.settings?.format ?? settingsRef.current.format,
+                    }
+                  : {}),
               }
             : item,
         ),
