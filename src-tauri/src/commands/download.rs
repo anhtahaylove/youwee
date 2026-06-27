@@ -6,13 +6,14 @@
 //! - Progress tracking
 //! - Subtitle handling
 
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 use std::ffi::OsString;
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::utils::{normalize_url, validate_url};
 use futures_util::StreamExt;
@@ -42,6 +43,7 @@ pub static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
 
 const RECENT_OUTPUT_LIMIT: usize = 30;
 const REMOTE_THUMBNAIL_MAX_BYTES: usize = 5 * 1024 * 1024;
+const REMOTE_THUMBNAIL_CACHE_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 
 #[derive(Clone)]
 struct CoreDownloadFallback {
@@ -2440,6 +2442,111 @@ fn thumbnail_file_extension(content_type: &str) -> Option<&'static str> {
     }
 }
 
+fn is_thumbnail_cache_file_name(file_name: &str) -> bool {
+    let Some((stem, extension)) = file_name.rsplit_once('.') else {
+        return false;
+    };
+    stem.len() == 16
+        && stem.chars().all(|c| c.is_ascii_hexdigit())
+        && matches!(
+            extension.to_ascii_lowercase().as_str(),
+            "jpg" | "png" | "webp" | "gif" | "avif"
+        )
+}
+
+fn should_delete_thumbnail_cache_file(
+    file_name: &str,
+    modified_at: SystemTime,
+    now: SystemTime,
+    referenced_files: &HashSet<String>,
+) -> bool {
+    is_thumbnail_cache_file_name(file_name)
+        && !referenced_files.contains(file_name)
+        && matches!(
+            now.duration_since(modified_at),
+            Ok(age) if age >= REMOTE_THUMBNAIL_CACHE_MAX_AGE
+        )
+}
+
+fn collect_thumbnail_reference_values() -> Result<Vec<String>, String> {
+    let conn = crate::database::get_db()?;
+    let mut values = Vec::new();
+    for sql in [
+        "SELECT thumbnail FROM history WHERE thumbnail IS NOT NULL",
+        "SELECT thumbnail FROM followed_channels WHERE thumbnail IS NOT NULL",
+        "SELECT thumbnail FROM channel_videos WHERE thumbnail IS NOT NULL",
+        "SELECT items_json FROM download_queues WHERE items_json IS NOT NULL",
+    ] {
+        let mut stmt = conn
+            .prepare(sql)
+            .map_err(|e| format!("Failed to read thumbnail references: {e}"))?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| format!("Failed to read thumbnail references: {e}"))?;
+        for row in rows {
+            values.push(row.map_err(|e| format!("Failed to read thumbnail reference: {e}"))?);
+        }
+    }
+    Ok(values)
+}
+
+fn referenced_thumbnail_cache_files(file_names: &[String]) -> Result<HashSet<String>, String> {
+    let reference_values = collect_thumbnail_reference_values()?;
+    Ok(file_names
+        .iter()
+        .filter(|file_name| reference_values.iter().any(|value| value.contains(*file_name)))
+        .cloned()
+        .collect())
+}
+
+fn cleanup_stale_thumbnail_cache(
+    thumbnail_dir: &Path,
+    now: SystemTime,
+    protected_files: &[String],
+) -> Result<usize, String> {
+    if !thumbnail_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut cache_files = Vec::new();
+    for entry in std::fs::read_dir(thumbnail_dir)
+        .map_err(|e| format!("Failed to read thumbnail cache: {e}"))?
+    {
+        let entry = entry.map_err(|e| format!("Failed to read thumbnail cache entry: {e}"))?;
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        if !is_thumbnail_cache_file_name(&file_name) {
+            continue;
+        }
+        let metadata = entry
+            .metadata()
+            .map_err(|e| format!("Failed to read thumbnail cache metadata: {e}"))?;
+        if !metadata.is_file() {
+            continue;
+        }
+        let modified_at = metadata.modified().unwrap_or(UNIX_EPOCH);
+        cache_files.push((entry.path(), file_name, modified_at));
+    }
+
+    let file_names: Vec<_> = cache_files
+        .iter()
+        .map(|(_, file_name, _)| file_name.clone())
+        .collect();
+    let mut referenced_files = referenced_thumbnail_cache_files(&file_names)?;
+    referenced_files.extend(protected_files.iter().cloned());
+    let mut removed = 0;
+    for (path, file_name, modified_at) in cache_files {
+        if !should_delete_thumbnail_cache_file(&file_name, modified_at, now, &referenced_files) {
+            continue;
+        }
+        match std::fs::remove_file(&path) {
+            Ok(()) => removed += 1,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("Failed to remove stale thumbnail cache: {e}")),
+        }
+    }
+    Ok(removed)
+}
+
 #[tauri::command]
 pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<String, String> {
     let parsed_url = reqwest::Url::parse(&url).map_err(|_| "Invalid thumbnail URL".to_string())?;
@@ -2501,6 +2608,17 @@ pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<Strin
         tokio::fs::write(&cache_path, bytes)
             .await
             .map_err(|e| format!("Failed to cache thumbnail: {e}"))?;
+    }
+
+    let protected_file = cache_path
+        .file_name()
+        .map(|value| value.to_string_lossy().to_string())
+        .into_iter()
+        .collect::<Vec<_>>();
+    match cleanup_stale_thumbnail_cache(&thumbnail_dir, SystemTime::now(), &protected_file) {
+        Ok(removed) if removed > 0 => log::info!("Removed {removed} stale thumbnail cache files"),
+        Ok(_) => {}
+        Err(e) => log::warn!("Failed to clean thumbnail cache: {e}"),
     }
 
     Ok(cache_path.to_string_lossy().to_string())
@@ -2651,6 +2769,39 @@ mod tests {
         assert_eq!(thumbnail_file_extension("image/jpeg"), Some("jpg"));
         assert_eq!(thumbnail_file_extension("image/webp; charset=binary"), Some("webp"));
         assert_eq!(thumbnail_file_extension("text/html"), None);
+    }
+
+    #[test]
+    fn stale_thumbnail_cleanup_only_targets_old_unreferenced_cache_files() {
+        let now = UNIX_EPOCH + REMOTE_THUMBNAIL_CACHE_MAX_AGE + Duration::from_secs(1);
+        let old = UNIX_EPOCH;
+        let recent = now - Duration::from_secs(60);
+        let referenced_files = HashSet::from(["1111111111111111.jpg".to_string()]);
+
+        assert!(!should_delete_thumbnail_cache_file(
+            "1111111111111111.jpg",
+            old,
+            now,
+            &referenced_files
+        ));
+        assert!(!should_delete_thumbnail_cache_file(
+            "2222222222222222.jpg",
+            recent,
+            now,
+            &referenced_files
+        ));
+        assert!(should_delete_thumbnail_cache_file(
+            "2222222222222222.jpg",
+            old,
+            now,
+            &referenced_files
+        ));
+        assert!(!should_delete_thumbnail_cache_file(
+            "notes.txt",
+            old,
+            now,
+            &referenced_files
+        ));
     }
 
     #[test]
