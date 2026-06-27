@@ -39,6 +39,14 @@
     "previewAlways": "Always"
   },
   "download": {
+    "outputNaming": "Output Naming",
+    "outputNamingDesc": "Customize downloaded filenames and overwrite behavior",
+    "filenameTemplate": "Filename Template",
+    "filenameTemplateDesc": "yt-dlp output name template. Leave default for title plus extension.",
+    "organizeBySource": "Organize by Source",
+    "organizeBySourceDesc": "Save downloads into platform folders like youtube, tiktok, or facebook",
+    "skipExisting": "Skip Existing Files",
+    "skipExistingDesc": "Do not overwrite a completed file with the same name",
     "postProcessing": "Post-processing",
     "postProcessingDesc": "Embed metadata and thumbnails into downloaded files",
     "embedMetadata": "Embed Metadata",

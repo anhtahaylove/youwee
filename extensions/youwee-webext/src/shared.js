@@ -66,7 +66,7 @@
     'youtu.be',
   ]);
 
-  const RELEASE_URL = 'https://github.com/vanloctech/youwee/releases/latest';
+  const RELEASE_URL = 'https://github.com/anhtahaylove/youwee/releases/latest';
 
   function normalizeHost(hostname) {
     return String(hostname || '')

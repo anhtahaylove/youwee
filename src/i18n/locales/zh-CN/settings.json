@@ -39,6 +39,14 @@
     "previewAlways": "始终生成"
   },
   "download": {
+    "outputNaming": "输出命名",
+    "outputNamingDesc": "自定义下载文件名和覆盖行为",
+    "filenameTemplate": "文件名模板",
+    "filenameTemplateDesc": "yt-dlp 输出文件名模板。保留默认值会使用标题和扩展名。",
+    "organizeBySource": "按来源整理",
+    "organizeBySourceDesc": "将下载内容保存到 youtube、tiktok 或 facebook 等平台文件夹",
+    "skipExisting": "跳过已存在文件",
+    "skipExistingDesc": "不要覆盖同名的已完成文件",
     "postProcessing": "后处理",
     "postProcessingDesc": "将元数据和缩略图嵌入已下载的文件",
     "embedMetadata": "嵌入元数据",

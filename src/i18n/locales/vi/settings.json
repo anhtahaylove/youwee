@@ -39,6 +39,14 @@
     "previewAlways": "Luôn tạo"
   },
   "download": {
+    "outputNaming": "Đặt tên file tải về",
+    "outputNamingDesc": "Tùy chỉnh tên file đã tải và hành vi ghi đè",
+    "filenameTemplate": "Mẫu tên file",
+    "filenameTemplateDesc": "Mẫu tên file của yt-dlp. Giữ mặc định để dùng tiêu đề và phần mở rộng.",
+    "organizeBySource": "Sắp xếp theo nguồn",
+    "organizeBySourceDesc": "Lưu file tải về vào thư mục nền tảng như youtube, tiktok hoặc facebook",
+    "skipExisting": "Bỏ qua file đã có",
+    "skipExistingDesc": "Không ghi đè file hoàn chỉnh đã có cùng tên",
     "postProcessing": "Hậu xử lý",
     "postProcessingDesc": "Nhúng metadata và thumbnail vào file đã tải",
     "embedMetadata": "Nhúng Metadata",

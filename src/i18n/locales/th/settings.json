@@ -38,6 +38,14 @@
     "previewAlways": "เสมอ"
   },
   "download": {
+    "outputNaming": "การตั้งชื่อไฟล์",
+    "outputNamingDesc": "ปรับแต่งชื่อไฟล์ที่ดาวน์โหลดและการเขียนทับ",
+    "filenameTemplate": "เทมเพลตชื่อไฟล์",
+    "filenameTemplateDesc": "เทมเพลตชื่อไฟล์ของ yt-dlp ใช้ค่าเริ่มต้นสำหรับชื่อและนามสกุล",
+    "organizeBySource": "จัดเรียงตามแหล่งที่มา",
+    "organizeBySourceDesc": "บันทึกไฟล์ที่ดาวน์โหลดลงในโฟลเดอร์แพลตฟอร์ม เช่น youtube, tiktok หรือ facebook",
+    "skipExisting": "ข้ามไฟล์ที่มีอยู่",
+    "skipExistingDesc": "ไม่เขียนทับไฟล์ที่เสร็จแล้วซึ่งมีชื่อเดียวกัน",
     "postProcessing": "หลังการประมวลผล",
     "postProcessingDesc": "ฝัง metadata และภาพปกลงในไฟล์ที่ดาวน์โหลด",
     "embedMetadata": "ฝัง Metadata",

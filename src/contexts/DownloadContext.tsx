@@ -71,6 +71,7 @@ import { extractYouTubeVideoId } from '@/lib/youtube-url';
 
 const STORAGE_KEY = 'youwee-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
+const DEFAULT_FILENAME_TEMPLATE = '%(title)s.%(ext)s';
 
 // Check if path is absolute (cross-platform)
 const isAbsolutePath = (path: string): boolean => {
@@ -154,6 +155,9 @@ function saveSettings(settings: DownloadSettings) {
       STORAGE_KEY,
       JSON.stringify({
         outputPath: settings.outputPath,
+        filenameTemplate: settings.filenameTemplate,
+        skipExisting: settings.skipExisting,
+        organizeBySource: settings.organizeBySource,
         quality: settings.quality,
         format: settings.format,
         downloadPlaylist: settings.downloadPlaylist,
@@ -306,6 +310,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       quality: saved.quality || 'best',
       format: saved.format || 'mp4',
       outputPath: saved.outputPath || '',
+      filenameTemplate: saved.filenameTemplate || DEFAULT_FILENAME_TEMPLATE,
+      skipExisting: saved.skipExisting === true,
+      organizeBySource: saved.organizeBySource === true,
       downloadPlaylist: saved.downloadPlaylist || false,
       videoCodec: saved.videoCodec || 'auto',
       audioBitrate: saved.audioBitrate || 'auto',
@@ -649,6 +656,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         quality: currentSettings.quality,
         format: currentSettings.format,
         outputPath: currentSettings.outputPath,
+        filenameTemplate: currentSettings.filenameTemplate,
+        skipExisting: currentSettings.skipExisting,
+        organizeBySource: currentSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
         audioBitrate: currentSettings.audioBitrate,
         useAria2: currentSettings.useAria2,
@@ -741,6 +751,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         quality: mediaType === 'audio' ? 'audio' : videoQuality,
         format: mediaType === 'audio' ? 'mp3' : 'mp4',
         outputPath,
+        filenameTemplate: currentSettings.filenameTemplate,
+        skipExisting: currentSettings.skipExisting,
+        organizeBySource: currentSettings.organizeBySource,
         downloadPlaylist: options?.downloadPlaylist ?? false,
         playlistLimit: options?.playlistLimit ?? null,
         videoCodec: currentSettings.videoCodec,
@@ -794,6 +807,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         quality: currentSettings.quality,
         format: currentSettings.format,
         outputPath: currentSettings.outputPath,
+        filenameTemplate: currentSettings.filenameTemplate,
+        skipExisting: currentSettings.skipExisting,
+        organizeBySource: currentSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
         audioBitrate: currentSettings.audioBitrate,
         useAria2: currentSettings.useAria2,
@@ -881,6 +897,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           quality: settingsRef.current.quality,
           format: settingsRef.current.format,
           outputPath: settingsRef.current.outputPath,
+          filenameTemplate: settingsRef.current.filenameTemplate,
+          skipExisting: settingsRef.current.skipExisting,
+          organizeBySource: settingsRef.current.organizeBySource,
           videoCodec: settingsRef.current.videoCodec,
           audioBitrate: settingsRef.current.audioBitrate,
           useAria2: settingsRef.current.useAria2,
@@ -1172,6 +1191,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             id: item.id,
             url: item.url,
             outputPath: itemSettings?.outputPath || settings.outputPath,
+            filenameTemplate: itemSettings?.filenameTemplate ?? settings.filenameTemplate,
+            skipExisting: itemSettings?.skipExisting ?? settings.skipExisting,
+            organizeBySource: itemSettings?.organizeBySource ?? settings.organizeBySource,
             quality: itemSettings?.quality ?? settings.quality,
             format: itemSettings?.format ?? settings.format,
             downloadPlaylist: itemSettings?.downloadPlaylist ?? false,

@@ -58,6 +58,9 @@ export interface ItemDownloadSettings {
   quality: Quality;
   format: Format;
   outputPath: string;
+  filenameTemplate: string;
+  skipExisting: boolean;
+  organizeBySource: boolean;
   downloadPlaylist?: boolean;
   playlistLimit?: number | null;
   videoCodec: VideoCodec;
@@ -84,6 +87,9 @@ export interface ItemUniversalSettings {
   quality: Quality;
   format: Format;
   outputPath: string;
+  filenameTemplate?: string;
+  skipExisting?: boolean;
+  organizeBySource?: boolean;
   audioBitrate: AudioBitrate;
   useAria2: boolean;
   aria2Args: string;
@@ -211,6 +217,9 @@ export interface DownloadSettings {
   quality: Quality;
   format: Format;
   outputPath: string;
+  filenameTemplate: string;
+  skipExisting: boolean;
+  organizeBySource: boolean;
   downloadPlaylist: boolean;
   videoCodec: VideoCodec;
   audioBitrate: AudioBitrate;

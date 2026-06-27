@@ -633,6 +633,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         quality: currentSettings.quality,
         format: currentSettings.format,
         outputPath: currentSettings.outputPath,
+        filenameTemplate: downloadSettings.filenameTemplate,
+        skipExisting: downloadSettings.skipExisting,
+        organizeBySource: downloadSettings.organizeBySource,
         audioBitrate: currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
@@ -669,7 +672,13 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
       return newItems.length;
     },
-    [enqueueQueuedWorkflowForItems, fetchMetadataForItems],
+    [
+      downloadSettings.filenameTemplate,
+      downloadSettings.organizeBySource,
+      downloadSettings.skipExisting,
+      enqueueQueuedWorkflowForItems,
+      fetchMetadataForItems,
+    ],
   );
 
   const focusItem = useCallback((itemId: string) => {
@@ -720,6 +729,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         quality: mediaType === 'audio' ? 'audio' : videoQuality,
         format: mediaType === 'audio' ? 'mp3' : 'mp4',
         outputPath,
+        filenameTemplate: downloadSettings.filenameTemplate,
+        skipExisting: downloadSettings.skipExisting,
+        organizeBySource: downloadSettings.organizeBySource,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
@@ -754,7 +766,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       enqueueQueuedWorkflowForItems([newItem]);
       return { added: true, itemId: newItem.id };
     },
-    [enqueueQueuedWorkflowForItems, fetchMetadataForItems, focusItem],
+    [
+      downloadSettings.filenameTemplate,
+      downloadSettings.organizeBySource,
+      downloadSettings.skipExisting,
+      enqueueQueuedWorkflowForItems,
+      fetchMetadataForItems,
+      focusItem,
+    ],
   );
 
   const importFromFile = useCallback(async (): Promise<number> => {
@@ -956,6 +975,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             id: item.id,
             url: item.url,
             outputPath: itemSettings?.outputPath || settings.outputPath,
+            filenameTemplate: itemSettings?.filenameTemplate ?? downloadSettings.filenameTemplate,
+            skipExisting: itemSettings?.skipExisting ?? downloadSettings.skipExisting,
+            organizeBySource: itemSettings?.organizeBySource ?? downloadSettings.organizeBySource,
             quality: itemSettings?.quality ?? settings.quality,
             format: itemSettings?.format ?? settings.format,
             downloadPlaylist: false,
@@ -1169,7 +1191,13 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       setIsDownloading(false);
       isDownloadingRef.current = false;
     }
-  }, [enqueueFailedWorkflowForItem, settings]);
+  }, [
+    downloadSettings.filenameTemplate,
+    downloadSettings.organizeBySource,
+    downloadSettings.skipExisting,
+    enqueueFailedWorkflowForItem,
+    settings,
+  ]);
 
   const stopDownload = useCallback(async () => {
     try {

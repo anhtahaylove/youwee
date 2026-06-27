@@ -392,6 +392,14 @@
         background: rgba(168, 85, 247, 0.18);
       }
 
+      .actions[data-summary-available='false'] .secondary {
+        grid-column: 1 / -1;
+      }
+
+      .actions[data-summary-available='false'] .summary {
+        display: none;
+      }
+
       .status {
         margin-top: 10px;
         border-radius: 14px;
@@ -454,7 +462,7 @@
         <a
           id="versionLink"
           class="version"
-          href="https://github.com/vanloctech/youwee/releases/latest"
+          href="https://github.com/anhtahaylove/youwee/releases/latest"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -507,7 +515,7 @@
         </div>
       </div>
 
-      <div class="actions">
+      <div class="actions" data-summary-available="false">
         <button id="downloadBtn" type="button" class="primary"></button>
         <button id="queueBtn" type="button" class="secondary"></button>
         <button id="summaryBtn" type="button" class="summary"></button>
@@ -519,14 +527,14 @@
         <a
           id="madeWithLink"
           class="made-with"
-          href="https://github.com/vanloctech"
+          href="https://github.com/anhtahaylove"
           target="_blank"
           rel="noopener noreferrer"
         >
           <span id="madeWithPrefix">Made with</span>
           <span class="heart">❤</span>
           <span id="madeWithBy">by</span>
-          <span class="author">vanloctech</span>
+          <span class="author">anhtahaylove</span>
         </a>
       </footer>
     </main>

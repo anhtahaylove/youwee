@@ -38,6 +38,14 @@
     "previewAlways": "دائمًا"
   },
   "download": {
+    "outputNaming": "تسمية المخرجات",
+    "outputNamingDesc": "تخصيص أسماء الملفات التي تم تنزيلها وسلوك الاستبدال",
+    "filenameTemplate": "قالب اسم الملف",
+    "filenameTemplateDesc": "قالب اسم yt-dlp. اترك الافتراضي للعنوان والامتداد.",
+    "organizeBySource": "التنظيم حسب المصدر",
+    "organizeBySourceDesc": "حفظ التنزيلات في مجلدات المنصات مثل youtube أو tiktok أو facebook",
+    "skipExisting": "تخطي الملفات الموجودة",
+    "skipExistingDesc": "عدم استبدال ملف مكتمل يحمل الاسم نفسه",
     "postProcessing": "ما بعد المعالجة",
     "postProcessingDesc": "تضمين البيانات الوصفية والصور المصغرة داخل الملفات التي تم تنزيلها",
     "embedMetadata": "تضمين Metadata",

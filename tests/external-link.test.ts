@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseExternalSummaryDeepLink } from '../src/lib/external-link';
+import { parseExternalDeepLink, parseExternalSummaryDeepLink } from '../src/lib/external-link';
 
 describe('parseExternalSummaryDeepLink', () => {
   test('accepts YouTube summary deep links', () => {
@@ -9,6 +9,14 @@ describe('parseExternalSummaryDeepLink', () => {
 
     expect(parsed?.url).toBe('https://www.youtube.com/watch?v=abc123');
     expect(parsed?.source).toBe('ext-chromium');
+  });
+
+  test('does not parse summary links as download requests', () => {
+    expect(
+      parseExternalDeepLink(
+        'youwee://summary?v=1&url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3Dabc123&source=ext-chromium',
+      ),
+    ).toBeNull();
   });
 
   test('rejects private HTTP URLs', () => {

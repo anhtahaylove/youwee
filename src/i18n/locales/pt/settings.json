@@ -38,6 +38,14 @@
     "previewAlways": "Sempre"
   },
   "download": {
+    "outputNaming": "Nome de saída",
+    "outputNamingDesc": "Personalizar nomes de arquivos baixados e comportamento de sobrescrita",
+    "filenameTemplate": "Modelo de nome de arquivo",
+    "filenameTemplateDesc": "Modelo de saída do yt-dlp. Mantenha o padrão para título e extensão.",
+    "organizeBySource": "Organizar por fonte",
+    "organizeBySourceDesc": "Salvar downloads em pastas de plataforma como youtube, tiktok ou facebook",
+    "skipExisting": "Ignorar arquivos existentes",
+    "skipExistingDesc": "Não sobrescrever um arquivo concluído com o mesmo nome",
     "postProcessing": "Pós-processamento",
     "postProcessingDesc": "Embutir metadados e miniaturas nos arquivos baixados",
     "embedMetadata": "Embutir Metadados",

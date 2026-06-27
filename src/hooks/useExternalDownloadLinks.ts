@@ -280,12 +280,14 @@ export function useExternalDownloadLinks(
 
   const handleExternalLink = useCallback(
     async (rawLink: string) => {
+      const summary = parseExternalSummaryDeepLink(rawLink);
+      if (summary) {
+        handleExternalSummaryUrl?.(summary.url);
+        return;
+      }
+
       const parsed = parseExternalDeepLink(rawLink);
       if (!parsed) {
-        const summary = parseExternalSummaryDeepLink(rawLink);
-        if (summary) {
-          handleExternalSummaryUrl?.(summary.url);
-        }
         return;
       }
 

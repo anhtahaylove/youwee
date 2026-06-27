@@ -40,6 +40,7 @@ use crate::utils::{
 };
 
 pub static CANCEL_FLAG: AtomicBool = AtomicBool::new(false);
+const DEFAULT_FILENAME_TEMPLATE: &str = "%(title)s.%(ext)s";
 
 const RECENT_OUTPUT_LIMIT: usize = 30;
 const REMOTE_THUMBNAIL_MAX_BYTES: usize = 5 * 1024 * 1024;
@@ -473,7 +474,10 @@ fn push_arg_before_url(args: &mut Vec<String>, name: &str, value: &str) {
     if args.iter().any(|arg| arg == name) {
         return;
     }
-    let insert_at = args.iter().position(|arg| arg == "--").unwrap_or(args.len());
+    let insert_at = args
+        .iter()
+        .position(|arg| arg == "--")
+        .unwrap_or(args.len());
     args.splice(insert_at..insert_at, [name.to_string(), value.to_string()]);
 }
 
@@ -485,7 +489,10 @@ fn facebook_reel_fallback_basename(url: &str) -> String {
                 .path_segments()
                 .and_then(|mut segments| segments.next_back().map(str::to_string))
         })
-        .filter(|id| id.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_'))
+        .filter(|id| {
+            id.chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+        })
         .map(|id| format!("facebook-com-reel-{}", id))
         .unwrap_or_else(|| "facebook-com-reel".to_string())
 }
@@ -512,7 +519,113 @@ fn replace_output_template(args: &mut [String], output_template: String) {
     }
 }
 
-fn facebook_reel_core_fallback_args(args: &[String], url: &str, output_directory: &str) -> Vec<String> {
+fn normalize_filename_template(filename_template: Option<String>) -> String {
+    let candidate = filename_template.unwrap_or_default();
+    let trimmed = candidate.trim();
+    if trimmed.is_empty() || trimmed.contains('\0') || trimmed.chars().any(char::is_control) {
+        return DEFAULT_FILENAME_TEMPLATE.to_string();
+    }
+
+    let leaf = trimmed
+        .replace('\\', "/")
+        .rsplit('/')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if leaf.is_empty() || leaf == "." || leaf == ".." {
+        return DEFAULT_FILENAME_TEMPLATE.to_string();
+    }
+    if leaf.contains("%(ext") {
+        leaf
+    } else {
+        format!("{leaf}.%(ext)s")
+    }
+}
+
+fn host_matches(host: &str, domain: &str) -> bool {
+    host == domain || host.ends_with(&format!(".{domain}"))
+}
+
+fn source_directory_name(url: &str) -> &'static str {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return "other";
+    };
+    let Some(host) = parsed.host_str().map(str::to_ascii_lowercase) else {
+        return "other";
+    };
+
+    if host_matches(&host, "youtube.com")
+        || host == "youtu.be"
+        || host_matches(&host, "youtube-nocookie.com")
+    {
+        "youtube"
+    } else if host_matches(&host, "tiktok.com") {
+        "tiktok"
+    } else if host_matches(&host, "instagram.com") {
+        "instagram"
+    } else if host_matches(&host, "facebook.com") || host == "fb.watch" {
+        "facebook"
+    } else if host_matches(&host, "twitter.com") || host == "x.com" {
+        "twitter"
+    } else if host_matches(&host, "bilibili.com") || host == "b23.tv" {
+        "bilibili"
+    } else if host_matches(&host, "vimeo.com") {
+        "vimeo"
+    } else if host_matches(&host, "twitch.tv") {
+        "twitch"
+    } else if host_matches(&host, "soundcloud.com") {
+        "soundcloud"
+    } else if host_matches(&host, "dailymotion.com") {
+        "dailymotion"
+    } else {
+        "other"
+    }
+}
+
+fn build_output_directory(
+    output_directory: &str,
+    url: &str,
+    organize_by_source: Option<bool>,
+) -> String {
+    let base = output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\');
+    if organize_by_source.unwrap_or(false) {
+        format!("{}/{}", base, source_directory_name(url))
+    } else {
+        base.to_string()
+    }
+}
+
+fn build_output_template(output_directory: &str, filename_template: Option<String>) -> String {
+    format!(
+        "{}/{}",
+        output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
+        normalize_filename_template(filename_template)
+    )
+}
+
+fn push_overwrite_args(args: &mut Vec<String>, skip_existing: Option<bool>) {
+    if skip_existing.unwrap_or(false) {
+        args.push("--no-overwrites".to_string());
+    } else {
+        // Force overwrite to avoid HTTP 416 errors from stale .part files.
+        args.push("--force-overwrites".to_string());
+    }
+}
+
+fn push_filename_safety_args(args: &mut Vec<String>) {
+    if cfg!(target_os = "windows") {
+        args.push("--windows-filenames".to_string());
+        args.push("--trim-filenames".to_string());
+        args.push("180".to_string());
+    }
+}
+
+fn facebook_reel_core_fallback_args(
+    args: &[String],
+    url: &str,
+    output_directory: &str,
+) -> Vec<String> {
     let mut fallback_args = Vec::with_capacity(args.len() + 4);
     let mut index = 0;
     while index < args.len() {
@@ -646,7 +759,10 @@ async fn probe_core_facebook_reel_metadata(
         Err(error) => {
             add_log_internal(
                 "warning",
-                &format!("Facebook Reel metadata probe returned invalid JSON: {}", error),
+                &format!(
+                    "Facebook Reel metadata probe returned invalid JSON: {}",
+                    error
+                ),
                 None,
                 Some(url),
             )
@@ -746,6 +862,9 @@ pub async fn download_video(
     id: String,
     url: String,
     output_path: String,
+    filename_template: Option<String>,
+    skip_existing: Option<bool>,
+    organize_by_source: Option<bool>,
     quality: String,
     format: String,
     download_playlist: bool,
@@ -853,7 +972,16 @@ pub async fn download_video(
     let sanitized_path = sanitize_output_path(&output_path)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
     let format_string = build_format_string(&quality, &format, &video_codec);
-    let output_template = format!("{}/%(title)s.%(ext)s", sanitized_path);
+    let output_directory = build_output_directory(&sanitized_path, &url, organize_by_source);
+    if !output_directory.is_empty() {
+        tokio::fs::create_dir_all(&output_directory)
+            .await
+            .map_err(|e| {
+                BackendError::from_message(format!("Failed to create output directory: {}", e))
+                    .to_wire_string()
+            })?;
+    }
+    let output_template = build_output_template(&output_directory, filename_template);
 
     // Use a temp file to capture the final filepath from yt-dlp.
     // On Windows with non-UTF-8 locales (e.g. Chinese/GBK), stdout is encoded
@@ -992,8 +1120,8 @@ pub async fn download_video(
         }
     }
 
-    // Force overwrite to avoid HTTP 416 errors from stale .part files
-    args.push("--force-overwrites".to_string());
+    push_overwrite_args(&mut args, skip_existing);
+    push_filename_safety_args(&mut args);
 
     // Playlist handling
     if !download_playlist {
@@ -2277,8 +2405,9 @@ async fn handle_tokio_download(
                 )
                 .ok();
                 std::fs::remove_file(&filepath_tmp).ok();
-                let fallback_metadata =
-                    probe_core_facebook_reel_metadata(fallback, &url).await.unwrap_or_default();
+                let fallback_metadata = probe_core_facebook_reel_metadata(fallback, &url)
+                    .await
+                    .unwrap_or_default();
                 let fallback_title = fallback_metadata.title.or_else(|| current_title.clone());
                 let fallback_thumbnail = fallback_metadata.thumbnail.or_else(|| thumbnail.clone());
 
@@ -2494,7 +2623,11 @@ fn referenced_thumbnail_cache_files(file_names: &[String]) -> Result<HashSet<Str
     let reference_values = collect_thumbnail_reference_values()?;
     Ok(file_names
         .iter()
-        .filter(|file_name| reference_values.iter().any(|value| value.contains(*file_name)))
+        .filter(|file_name| {
+            reference_values
+                .iter()
+                .any(|value| value.contains(*file_name))
+        })
         .cloned()
         .collect())
 }
@@ -2629,10 +2762,77 @@ mod tests {
     use super::*;
 
     #[test]
+    fn output_template_uses_safe_custom_filename_template() {
+        assert_eq!(
+            build_output_template(
+                "C:/Downloads/",
+                Some("%(uploader)s - %(title)s".to_string())
+            ),
+            "C:/Downloads/%(uploader)s - %(title)s.%(ext)s"
+        );
+        assert_eq!(
+            build_output_template(
+                "C:/Downloads",
+                Some("../escape/%(title)s.%(ext)s".to_string())
+            ),
+            "C:/Downloads/%(title)s.%(ext)s"
+        );
+        assert_eq!(
+            build_output_template("C:/Downloads", Some("  ".to_string())),
+            "C:/Downloads/%(title)s.%(ext)s"
+        );
+    }
+
+    #[test]
+    fn output_directory_can_be_grouped_by_source() {
+        assert_eq!(
+            build_output_directory(
+                "C:/Downloads",
+                "https://www.youtube.com/watch?v=abc",
+                Some(true)
+            ),
+            "C:/Downloads/youtube"
+        );
+        assert_eq!(
+            build_output_directory("C:/Downloads/", "https://fb.watch/demo", Some(true)),
+            "C:/Downloads/facebook"
+        );
+        assert_eq!(
+            build_output_directory("C:/Downloads", "https://example.com/video", Some(true)),
+            "C:/Downloads/other"
+        );
+        assert_eq!(
+            build_output_directory("C:/Downloads", "https://www.youtube.com/watch?v=abc", None),
+            "C:/Downloads"
+        );
+    }
+
+    #[test]
+    fn overwrite_args_preserve_default_and_allow_skip_existing() {
+        let mut default_args = Vec::new();
+        push_overwrite_args(&mut default_args, None);
+        assert_eq!(default_args, vec!["--force-overwrites"]);
+
+        let mut skip_args = Vec::new();
+        push_overwrite_args(&mut skip_args, Some(true));
+        assert_eq!(skip_args, vec!["--no-overwrites"]);
+    }
+
+    #[test]
+    fn filename_safety_args_follow_platform() {
+        let mut args = Vec::new();
+        push_filename_safety_args(&mut args);
+
+        if cfg!(target_os = "windows") {
+            assert_eq!(args, vec!["--windows-filenames", "--trim-filenames", "180"]);
+        } else {
+            assert!(args.is_empty());
+        }
+    }
+
+    #[test]
     fn facebook_reel_core_fallback_is_scoped_to_parse_failures() {
-        let lines = vec![
-            "ERROR: [facebook] 1889836315019111: Cannot parse data".to_string(),
-        ];
+        let lines = vec!["ERROR: [facebook] 1889836315019111: Cannot parse data".to_string()];
 
         assert!(should_core_fallback_facebook_reel(
             "https://www.facebook.com/reel/1889836315019111",
@@ -2685,7 +2885,9 @@ mod tests {
             "C:/Downloads",
         );
 
-        assert!(!fallback_args.iter().any(|arg| arg == "--cookies-from-browser"));
+        assert!(!fallback_args
+            .iter()
+            .any(|arg| arg == "--cookies-from-browser"));
         assert!(!fallback_args.iter().any(|arg| arg == "firefox"));
         assert!(!fallback_args.iter().any(|arg| arg == "aria2c:-x 16"));
         assert_eq!(
@@ -2713,7 +2915,10 @@ mod tests {
             .find(|pair| pair[0] == "-o")
             .map(|pair| pair[1].as_str())
             .unwrap();
-        assert_eq!(output, "C:/Downloads/facebook-com-reel-1889836315019111.%(ext)s");
+        assert_eq!(
+            output,
+            "C:/Downloads/facebook-com-reel-1889836315019111.%(ext)s"
+        );
     }
 
     #[test]
@@ -2744,7 +2949,10 @@ mod tests {
 
         let metadata = metadata_from_info_json(&json);
 
-        assert_eq!(metadata.thumbnail.as_deref(), Some("https://example.com/thumb.jpg"));
+        assert_eq!(
+            metadata.thumbnail.as_deref(),
+            Some("https://example.com/thumb.jpg")
+        );
     }
 
     #[test]
@@ -2767,7 +2975,10 @@ mod tests {
     #[test]
     fn recognizes_supported_thumbnail_content_types() {
         assert_eq!(thumbnail_file_extension("image/jpeg"), Some("jpg"));
-        assert_eq!(thumbnail_file_extension("image/webp; charset=binary"), Some("webp"));
+        assert_eq!(
+            thumbnail_file_extension("image/webp; charset=binary"),
+            Some("webp")
+        );
         assert_eq!(thumbnail_file_extension("text/html"), None);
     }
 

@@ -762,6 +762,9 @@ export function useChannelsController(): ChannelsContextType {
       let useActualPlayerJs = false;
       let useAria2 = false;
       let aria2Args = '';
+      let filenameTemplate = '%(title)s.%(ext)s';
+      let skipExisting = false;
+      let organizeBySource = false;
       let embedMetadata = false;
       let embedThumbnail = false;
       let liveFromStart = false;
@@ -785,6 +788,9 @@ export function useChannelsController(): ChannelsContextType {
           useActualPlayerJs = parsed.useActualPlayerJs || false;
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
+          filenameTemplate = parsed.filenameTemplate || filenameTemplate;
+          skipExisting = parsed.skipExisting === true;
+          organizeBySource = parsed.organizeBySource === true;
           embedMetadata = parsed.embedMetadata || false;
           embedThumbnail = parsed.embedThumbnail || false;
           liveFromStart = parsed.liveFromStart || false;
@@ -888,6 +894,9 @@ export function useChannelsController(): ChannelsContextType {
                 id: downloadId,
                 url: video.url,
                 outputPath: currentOutputPath,
+                filenameTemplate,
+                skipExisting,
+                organizeBySource,
                 quality,
                 format,
                 downloadPlaylist: false,
@@ -1201,6 +1210,9 @@ export function useChannelsController(): ChannelsContextType {
         let useActualPlayerJs = false;
         let useAria2 = false;
         let aria2Args = '';
+        let filenameTemplate = '%(title)s.%(ext)s';
+        let skipExisting = false;
+        let organizeBySource = false;
 
         try {
           const saved = localStorage.getItem('youwee-settings');
@@ -1211,6 +1223,9 @@ export function useChannelsController(): ChannelsContextType {
             useActualPlayerJs = parsed.useActualPlayerJs || false;
             useAria2 = parsed.useAria2 === true;
             aria2Args = parsed.aria2Args || '';
+            filenameTemplate = parsed.filenameTemplate || filenameTemplate;
+            skipExisting = parsed.skipExisting === true;
+            organizeBySource = parsed.organizeBySource === true;
           }
           logStderr = localStorage.getItem('youwee_log_stderr') !== 'false';
         } catch (_e) {
@@ -1275,6 +1290,9 @@ export function useChannelsController(): ChannelsContextType {
               id: downloadId,
               url: video.url,
               outputPath: autoOutputPath,
+              filenameTemplate,
+              skipExisting,
+              organizeBySource,
               quality,
               format,
               downloadPlaylist: false,

@@ -1,4 +1,13 @@
-import { Database, Film, Gauge, Radio, Rocket, RotateCcw, ShieldCheck } from 'lucide-react';
+import {
+  Database,
+  FileText,
+  Film,
+  Gauge,
+  Radio,
+  Rocket,
+  RotateCcw,
+  ShieldCheck,
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import {
@@ -43,6 +52,56 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
 
   return (
     <div className="space-y-8">
+      <SettingsSection
+        title={t('download.outputNaming')}
+        description={t('download.outputNamingDesc')}
+        icon={<FileText className="w-5 h-5 text-white" />}
+        iconClassName="bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-violet-500/20"
+      >
+        <SettingsCard>
+          <SettingsRow
+            id="filename-template"
+            label={t('download.filenameTemplate')}
+            description={t('download.filenameTemplateDesc')}
+            highlight={highlightId === 'filename-template'}
+          >
+            <Input
+              value={settings.filenameTemplate}
+              onChange={(e) => updateSettings({ filenameTemplate: e.target.value })}
+              placeholder="%(title)s.%(ext)s"
+              spellCheck={false}
+              className="h-9 w-full bg-background md:w-[340px]"
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            id="organize-by-source"
+            label={t('download.organizeBySource')}
+            description={t('download.organizeBySourceDesc')}
+            highlight={highlightId === 'organize-by-source'}
+          >
+            <Switch
+              checked={settings.organizeBySource}
+              onCheckedChange={(organizeBySource) => updateSettings({ organizeBySource })}
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            id="skip-existing"
+            label={t('download.skipExisting')}
+            description={t('download.skipExistingDesc')}
+            highlight={highlightId === 'skip-existing'}
+          >
+            <Switch
+              checked={settings.skipExisting}
+              onCheckedChange={(skipExisting) => updateSettings({ skipExisting })}
+            />
+          </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsDivider />
+
       <SettingsSection
         title={t('download.queuePersistence')}
         description={t('download.queuePersistenceDesc')}

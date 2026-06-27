@@ -102,6 +102,27 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
 
   // Download Section
   {
+    id: 'filename-template',
+    labelKey: 'download.filenameTemplate',
+    descriptionKey: 'download.filenameTemplateDesc',
+    keywords: ['filename', 'template', 'name', 'output', 'yt-dlp'],
+    section: 'download',
+  },
+  {
+    id: 'organize-by-source',
+    labelKey: 'download.organizeBySource',
+    descriptionKey: 'download.organizeBySourceDesc',
+    keywords: ['source', 'platform', 'folder', 'organize', 'directory'],
+    section: 'download',
+  },
+  {
+    id: 'skip-existing',
+    labelKey: 'download.skipExisting',
+    descriptionKey: 'download.skipExistingDesc',
+    keywords: ['skip', 'existing', 'overwrite', 'duplicate', 'file'],
+    section: 'download',
+  },
+  {
     id: 'persist-download-queue',
     labelKey: 'download.persistDownloadQueue',
     descriptionKey: 'download.persistDownloadQueueDesc',

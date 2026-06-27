@@ -543,6 +543,9 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
       let useActualPlayerJs = false;
       let useAria2 = false;
       let aria2Args = '';
+      let filenameTemplate = '%(title)s.%(ext)s';
+      let skipExisting = false;
+      let organizeBySource = false;
       let savedOutputPath = '';
       try {
         const savedSettings = localStorage.getItem('youwee-settings');
@@ -552,6 +555,9 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useActualPlayerJs = parsed.useActualPlayerJs || false;
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
+          filenameTemplate = parsed.filenameTemplate || filenameTemplate;
+          skipExisting = parsed.skipExisting === true;
+          organizeBySource = parsed.organizeBySource === true;
           savedOutputPath = parsed.outputPath || '';
         }
       } catch (e) {
@@ -607,6 +613,9 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           id: downloadId,
           url: entry.url,
           outputPath,
+          filenameTemplate,
+          skipExisting,
+          organizeBySource,
           quality,
           format,
           downloadPlaylist: false,

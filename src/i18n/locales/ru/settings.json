@@ -38,6 +38,14 @@
     "previewAlways": "Всегда"
   },
   "download": {
+    "outputNaming": "Имена файлов",
+    "outputNamingDesc": "Настройте имена загружаемых файлов и перезапись",
+    "filenameTemplate": "Шаблон имени файла",
+    "filenameTemplateDesc": "Шаблон имени yt-dlp. Оставьте значение по умолчанию для названия и расширения.",
+    "organizeBySource": "Сортировать по источнику",
+    "organizeBySourceDesc": "Сохранять загрузки в папки платформ, например youtube, tiktok или facebook",
+    "skipExisting": "Пропускать существующие файлы",
+    "skipExistingDesc": "Не перезаписывать готовый файл с тем же именем",
     "postProcessing": "Постобработка",
     "postProcessingDesc": "Встраивать метаданные и превью в загруженные файлы",
     "embedMetadata": "Встроить метаданные",

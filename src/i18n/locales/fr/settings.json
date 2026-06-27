@@ -38,6 +38,14 @@
     "previewAlways": "Toujours"
   },
   "download": {
+    "outputNaming": "Nommage de sortie",
+    "outputNamingDesc": "Personnaliser les noms de fichiers téléchargés et l'écrasement",
+    "filenameTemplate": "Modèle de nom de fichier",
+    "filenameTemplateDesc": "Modèle de nom yt-dlp. Gardez la valeur par défaut pour le titre et l'extension.",
+    "organizeBySource": "Organiser par source",
+    "organizeBySourceDesc": "Enregistrer les téléchargements dans des dossiers de plateforme comme youtube, tiktok ou facebook",
+    "skipExisting": "Ignorer les fichiers existants",
+    "skipExistingDesc": "Ne pas écraser un fichier terminé portant le même nom",
     "postProcessing": "Post-traitement",
     "postProcessingDesc": "Intégrer les métadonnées et miniatures dans les fichiers téléchargés",
     "embedMetadata": "Intégrer les métadonnées",
