@@ -536,7 +536,7 @@ export function QueueItem({
 
         {/* Actions Row — interactive buttons, visually distinct */}
         {!isActive && (
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             {itemSettings && (isPending || isError) && (
               <button
                 type="button"
@@ -580,10 +580,10 @@ export function QueueItem({
               <button
                 type="button"
                 onClick={handleGenerateSummary}
-                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-purple-500/30 text-purple-600 dark:text-purple-400 hover:border-purple-500/50 hover:bg-purple-500/10 transition-colors font-medium"
+                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-[hsl(var(--gradient-via)/0.35)] bg-[linear-gradient(135deg,hsl(var(--gradient-from)/0.08),hsl(var(--gradient-via)/0.08),hsl(var(--gradient-to)/0.08))] hover:border-[hsl(var(--gradient-via)/0.55)] hover:bg-[linear-gradient(135deg,hsl(var(--gradient-from)/0.13),hsl(var(--gradient-via)/0.13),hsl(var(--gradient-to)/0.13))] transition-colors font-medium"
               >
-                <Sparkles className="w-3 h-3" />
-                {t('queue.summarize')}
+                <Sparkles className="w-3 h-3 text-[hsl(var(--gradient-via))]" />
+                <span className="gradient-text">{t('queue.summarize')}</span>
               </button>
             )}
 
