@@ -181,7 +181,7 @@ At minimum, your workspace should depend on:
 ```json
 {
   "dependencies": {
-    "youwee-sdk": "^2.2.0"
+    "youwee-sdk": "^2.3.0"
   }
 }
 ```
@@ -384,7 +384,7 @@ Example:
   },
   "compatibility": {
     "appVersion": ">=0.15.0 <0.16.0",
-    "sdkVersion": ">=2.2.0 <3.0.0"
+    "sdkVersion": ">=2.3.0 <3.0.0"
   },
   "triggers": [
     "download.completed"
