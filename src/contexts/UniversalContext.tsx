@@ -391,6 +391,22 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       }
 
       setItems((currentItems) => {
+        if (progress.status === 'error' && progress.error_code === 'DOWNLOAD_CANCELLED') {
+          return currentItems.map((item) =>
+            item.id === progress.id
+              ? {
+                  ...item,
+                  status: 'pending',
+                  speed: '',
+                  eta: '',
+                  error: undefined,
+                  errorCode: undefined,
+                  retryState: undefined,
+                }
+              : item,
+          );
+        }
+
         const status: DownloadItem['status'] =
           progress.status === 'finished'
             ? 'completed'
@@ -980,6 +996,25 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
           const parsedError = extractBackendError(error);
           const errorMessage = localizeBackendError(parsedError);
+          if (parsedError.code === 'DOWNLOAD_CANCELLED') {
+            setItems((items) =>
+              items.map((i) =>
+                i.id === item.id
+                  ? {
+                      ...i,
+                      status: 'pending',
+                      speed: '',
+                      eta: '',
+                      error: undefined,
+                      errorCode: undefined,
+                      retryState: undefined,
+                    }
+                  : i,
+              ),
+            );
+            return;
+          }
+
           if (parsedError.code === 'YT_SKIPPED_LIVE' || parsedError.code === 'YT_SKIPPED_FILTER') {
             setItems((items) =>
               items.map((i) =>

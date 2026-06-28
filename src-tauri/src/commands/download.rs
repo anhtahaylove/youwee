@@ -178,6 +178,28 @@ mod playlist_chapter_tests {
             ]
         );
     }
+
+    #[test]
+    fn process_exit_errors_include_exit_code_param() {
+        let error = build_download_error_message(Some(15), &["ERROR: interrupted".to_string()]);
+        let wire = error.to_wire();
+
+        assert_eq!(wire.code, crate::types::code::PROCESS_EXIT_NON_ZERO);
+        assert_eq!(
+            wire.params
+                .and_then(|params| params.get("exitCode").cloned()),
+            Some(serde_json::Value::from(15))
+        );
+    }
+
+    #[test]
+    fn cancelled_download_error_is_non_retryable() {
+        let wire = download_cancelled_error().to_wire();
+
+        assert_eq!(wire.code, crate::types::code::DOWNLOAD_CANCELLED);
+        assert_eq!(wire.message, "Download cancelled");
+        assert_eq!(wire.retryable, Some(false));
+    }
 }
 
 async fn skipped_live_status(
@@ -564,6 +586,11 @@ fn is_aria2_not_found_line(line: &str) -> bool {
         && (lower.contains("not found")
             || lower.contains("no such file")
             || lower.contains("is not recognized"))
+}
+
+fn download_cancelled_error() -> BackendError {
+    BackendError::new(crate::types::code::DOWNLOAD_CANCELLED, "Download cancelled")
+        .with_retryable(false)
 }
 
 fn normalize_aria2_args(raw_args: &str) -> Option<String> {
@@ -1592,6 +1619,12 @@ pub async fn download_video(
                             }
                             return Ok(());
                         } else {
+                            if CANCEL_FLAG.load(Ordering::SeqCst) {
+                                let error = download_cancelled_error();
+                                add_log_internal("info", error.message(), None, Some(&url)).ok();
+                                return Err(error.to_wire_string());
+                            }
+
                             let recent_lines: Vec<String> = recent_output.iter().cloned().collect();
                             let error = build_download_error_message(status.code, &recent_lines);
                             add_log_internal("error", error.message(), None, Some(&url)).ok();
@@ -2228,6 +2261,12 @@ async fn handle_tokio_download(
         }
         Ok(())
     } else {
+        if CANCEL_FLAG.load(Ordering::SeqCst) {
+            let error = download_cancelled_error();
+            add_log_internal("info", error.message(), None, Some(&url)).ok();
+            return Err(error.to_wire_string());
+        }
+
         let recent_lines = recent_output_snapshot(&recent_output);
         let error = build_download_error_message(status.code(), &recent_lines);
         add_log_internal("error", error.message(), None, Some(&url)).ok();

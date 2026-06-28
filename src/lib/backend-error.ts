@@ -29,6 +29,7 @@ const NON_RETRYABLE_CODES = new Set([
   'YT_MEMBERS_ONLY',
   'YT_SIGNIN_REQUIRED',
   'YT_GEO_RESTRICTED',
+  'DOWNLOAD_CANCELLED',
   'VALIDATION_INVALID_URL',
   'VALIDATION_INVALID_INPUT',
   'ARIA2_NOT_FOUND',
@@ -168,6 +169,10 @@ export function extractBackendError(error: unknown): BackendErrorPayload {
 }
 
 export function localizeBackendError(payload: BackendErrorPayload): string {
+  if (payload.code === 'PROCESS_EXIT_NON_ZERO' && payload.params?.exitCode == null) {
+    return payload.message;
+  }
+
   if (
     payload.source === 'ai' &&
     ['AI_API_ERROR', 'NETWORK_REQUEST_FAILED', 'PARSE_FAILED', 'AI_NO_API_KEY'].includes(
