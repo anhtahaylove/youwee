@@ -243,12 +243,15 @@ fn parse_view_count_text(value: Option<&str>) -> Option<i64> {
 }
 
 fn row_from_youtube_search_video(video: YoutubeSearchVideo) -> ExportRow {
-    let metadata_text = [video.view_count_text.clone(), video.published_time_text.clone()]
-        .into_iter()
-        .flatten()
-        .filter(|value| !value.is_empty())
-        .collect::<Vec<_>>()
-        .join(" • ");
+    let metadata_text = [
+        video.view_count_text.clone(),
+        video.published_time_text.clone(),
+    ]
+    .into_iter()
+    .flatten()
+    .filter(|value| !value.is_empty())
+    .collect::<Vec<_>>()
+    .join(" • ");
 
     ExportRow {
         id: video.id,

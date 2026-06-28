@@ -15,12 +15,12 @@ use crate::database::{
 };
 use crate::types::{
     DownloadProgress, PluginChainState, PluginConfigField, PluginExecutionResult,
-    PluginExecutionStatusEvent,
-    PluginFilesystemPermission, PluginManifest, PluginPackageInspection, PluginPackageSource,
-    PluginPackageSourceKind, PluginPermissionApproval, PluginPermissionRequest, PluginProvider,
-    PluginRuntimeLanguage, PluginSummary, PluginToolPermission, PluginTriggerWorkflow,
-    PluginWorkflowFailurePolicy, PluginWorkflowRun, PluginWorkflowRunStatus,
-    PluginWorkflowStepSnapshot, PostDownloadPluginPayload,
+    PluginExecutionStatusEvent, PluginFilesystemPermission, PluginManifest,
+    PluginPackageInspection, PluginPackageSource, PluginPackageSourceKind,
+    PluginPermissionApproval, PluginPermissionRequest, PluginProvider, PluginRuntimeLanguage,
+    PluginSummary, PluginToolPermission, PluginTriggerWorkflow, PluginWorkflowFailurePolicy,
+    PluginWorkflowRun, PluginWorkflowRunStatus, PluginWorkflowStepSnapshot,
+    PostDownloadPluginPayload,
 };
 use crate::utils::CommandExt;
 
