@@ -23,9 +23,10 @@ use crate::database::add_log_internal;
 use crate::database::update_history_download;
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
-    enqueue_post_download_workflow, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
-    get_ytdlp_source, is_upcoming_live_error, resolve_download_workflow_snapshot,
-    run_ytdlp_with_stderr, system_ytdlp_not_found_message,
+    build_youtube_extractor_args, build_ytdlp_advanced_args, enqueue_post_download_workflow,
+    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
+    redact_ytdlp_advanced_args, resolve_download_workflow_snapshot, run_ytdlp_with_stderr,
+    system_ytdlp_not_found_message, YtdlpAdvancedOption,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -176,6 +177,28 @@ mod playlist_chapter_tests {
                 "/tmp/02 - End.mp4".to_string(),
             ]
         );
+    }
+
+    #[test]
+    fn process_exit_errors_include_exit_code_param() {
+        let error = build_download_error_message(Some(15), &["ERROR: interrupted".to_string()]);
+        let wire = error.to_wire();
+
+        assert_eq!(wire.code, crate::types::code::PROCESS_EXIT_NON_ZERO);
+        assert_eq!(
+            wire.params
+                .and_then(|params| params.get("exitCode").cloned()),
+            Some(serde_json::Value::from(15))
+        );
+    }
+
+    #[test]
+    fn cancelled_download_error_is_non_retryable() {
+        let wire = download_cancelled_error().to_wire();
+
+        assert_eq!(wire.code, crate::types::code::DOWNLOAD_CANCELLED);
+        assert_eq!(wire.message, "Download cancelled");
+        assert_eq!(wire.retryable, Some(false));
     }
 }
 
@@ -565,6 +588,11 @@ fn is_aria2_not_found_line(line: &str) -> bool {
             || lower.contains("is not recognized"))
 }
 
+fn download_cancelled_error() -> BackendError {
+    BackendError::new(crate::types::code::DOWNLOAD_CANCELLED, "Download cancelled")
+        .with_retryable(false)
+}
+
 fn normalize_aria2_args(raw_args: &str) -> Option<String> {
     let trimmed = raw_args.trim();
     if trimmed.is_empty() {
@@ -598,6 +626,17 @@ fn build_download_error_message(exit_code: Option<i32>, recent_lines: &[String])
         return BackendError::new(
             crate::types::code::ARIA2_NOT_FOUND,
             "aria2c not found. Install aria2 and ensure aria2c is available in PATH.",
+        )
+        .with_retryable(false);
+    }
+
+    if recent_lines.iter().any(|line| {
+        let lower = line.to_lowercase();
+        lower.contains("does not pass filter") || lower.contains("skipped by filter")
+    }) {
+        return BackendError::new(
+            crate::types::code::YT_SKIPPED_FILTER,
+            "Skipped by yt-dlp match filter.",
         )
         .with_retryable(false);
     }
@@ -672,6 +711,9 @@ pub async fn download_video(
     // External downloader settings
     use_aria2: Option<bool>,
     aria2_args: Option<String>,
+    // Vetted yt-dlp advanced options
+    ytdlp_advanced_options_enabled: Option<bool>,
+    ytdlp_advanced_options: Option<Vec<YtdlpAdvancedOption>>,
     // SponsorBlock settings
     sponsorblock_remove: Option<String>, // comma-separated categories to remove
     sponsorblock_mark: Option<String>,   // comma-separated categories to mark as chapters
@@ -813,15 +855,6 @@ pub async fn download_video(
         }
     }
 
-    // Add actual player.js version if enabled (fixes some YouTube download issues)
-    // See: https://github.com/yt-dlp/yt-dlp/issues/14680
-    if use_actual_player_js.unwrap_or(false)
-        && (url.contains("youtube.com") || url.contains("youtu.be"))
-    {
-        args.push("--extractor-args".to_string());
-        args.push("youtube:player_js_version=actual".to_string());
-    }
-
     // Add FFmpeg location if available
     if let Some(ffmpeg_path) = get_ffmpeg_path(&app).await {
         if let Some(parent) = ffmpeg_path.parent() {
@@ -865,6 +898,48 @@ pub async fn download_video(
             args.push("--proxy".to_string());
             args.push(proxy.clone());
         }
+    }
+
+    let ytdlp_advanced_options = ytdlp_advanced_options.unwrap_or_default();
+    let advanced_args = build_ytdlp_advanced_args(
+        &url,
+        ytdlp_advanced_options_enabled.unwrap_or(false),
+        &ytdlp_advanced_options,
+    )
+    .map_err(|e| e.to_wire_string())?;
+    if !advanced_args.skipped_options.is_empty() {
+        add_log_internal(
+            "info",
+            &format!(
+                "Skipped yt-dlp advanced option(s) for Bilibili because Youwee uses app-managed headers: {}",
+                advanced_args.skipped_options.join(", ")
+            ),
+            None,
+            Some(&url),
+        )
+        .ok();
+    }
+    args.extend(advanced_args.args);
+
+    // Merge YouTube extractor settings into a single --extractor-args value.
+    // See: https://github.com/yt-dlp/yt-dlp/issues/14680
+    let is_youtube_url = url.contains("youtube.com") || url.contains("youtu.be");
+    if is_youtube_url {
+        if let Some(extractor_args) = build_youtube_extractor_args(
+            use_actual_player_js.unwrap_or(false),
+            advanced_args.youtube_player_client.as_deref(),
+        ) {
+            args.push("--extractor-args".to_string());
+            args.push(extractor_args);
+        }
+    } else if advanced_args.youtube_player_client.is_some() {
+        add_log_internal(
+            "info",
+            "Skipped YouTube player client preset because the download URL is not YouTube.",
+            None,
+            Some(&url),
+        )
+        .ok();
     }
 
     // Live stream settings
@@ -973,7 +1048,12 @@ pub async fn download_video(
         .unwrap_or_else(|| "sidecar".to_string());
 
     // Log command with binary path
-    let command_str = format!("[{}] yt-dlp {}", binary_path_str, args.join(" "));
+    let command_args_for_log = redact_ytdlp_advanced_args(&args);
+    let command_str = format!(
+        "[{}] yt-dlp {}",
+        binary_path_str,
+        command_args_for_log.join(" ")
+    );
     add_log_internal("command", &command_str, None, Some(&url)).ok();
 
     let trigger_source = source.clone().or_else(|| detect_source(&url));
@@ -1539,6 +1619,12 @@ pub async fn download_video(
                             }
                             return Ok(());
                         } else {
+                            if CANCEL_FLAG.load(Ordering::SeqCst) {
+                                let error = download_cancelled_error();
+                                add_log_internal("info", error.message(), None, Some(&url)).ok();
+                                return Err(error.to_wire_string());
+                            }
+
                             let recent_lines: Vec<String> = recent_output.iter().cloned().collect();
                             let error = build_download_error_message(status.code, &recent_lines);
                             add_log_internal("error", error.message(), None, Some(&url)).ok();
@@ -2175,6 +2261,12 @@ async fn handle_tokio_download(
         }
         Ok(())
     } else {
+        if CANCEL_FLAG.load(Ordering::SeqCst) {
+            let error = download_cancelled_error();
+            add_log_internal("info", error.message(), None, Some(&url)).ok();
+            return Err(error.to_wire_string());
+        }
+
         let recent_lines = recent_output_snapshot(&recent_output);
         let error = build_download_error_message(status.code(), &recent_lines);
         add_log_internal("error", error.message(), None, Some(&url)).ok();

@@ -957,7 +957,11 @@ fn parse_cookie_skip_rule(rule: &str) -> Option<(String, String)> {
     }
 
     let path = parsed.path().trim_end_matches('/').to_string();
-    let path = if path.is_empty() { "/".to_string() } else { path };
+    let path = if path.is_empty() {
+        "/".to_string()
+    } else {
+        path
+    };
 
     Some((host, path))
 }

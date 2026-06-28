@@ -248,6 +248,7 @@ interface DownloadContextType {
   retryFailedDownload: (itemId: string) => void;
   // Per-item time range
   updateItemTimeRange: (id: string, start?: string, end?: string) => void;
+  selectItemOutputFolder: (id: string) => Promise<void>;
   // Rename completed file
   renameCompletedItem: (id: string, newName: string) => Promise<void>;
 }
@@ -399,6 +400,22 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       }
 
       setItems((currentItems) => {
+        if (progress.status === 'error' && progress.error_code === 'DOWNLOAD_CANCELLED') {
+          return currentItems.map((item) =>
+            item.id === progress.id
+              ? {
+                  ...item,
+                  status: 'pending',
+                  speed: '',
+                  eta: '',
+                  error: undefined,
+                  errorCode: undefined,
+                  retryState: undefined,
+                }
+              : item,
+          );
+        }
+
         const status: DownloadItem['status'] =
           progress.status === 'finished'
             ? 'completed'
@@ -909,17 +926,64 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateItemTimeRange = useCallback((id: string, start?: string, end?: string) => {
-    setItems((items) =>
-      items.map((item) => {
+    setItems((items) => {
+      const nextItems = items.map((item) => {
         if (item.id !== id || !item.settings) return item;
         const settings = item.settings as ItemDownloadSettings;
         return {
           ...item,
           settings: { ...settings, timeRangeStart: start, timeRangeEnd: end },
         };
-      }),
-    );
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
   }, []);
+
+  const updateItemOutputPath = useCallback((id: string, outputPath: string) => {
+    setItems((items) => {
+      const nextItems = items.map((item) => {
+        if (item.id !== id || !item.settings) return item;
+        const settings = item.settings as ItemDownloadSettings;
+        return {
+          ...item,
+          settings: { ...settings, outputPath },
+        };
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+  }, []);
+
+  const selectItemOutputFolder = useCallback(
+    async (id: string) => {
+      if (isDownloadingRef.current) return;
+
+      const item = itemsRef.current.find((i) => i.id === id);
+      if (!item || (item.status !== 'pending' && item.status !== 'error')) {
+        return;
+      }
+
+      const itemSettings = item.settings as ItemDownloadSettings | undefined;
+      const defaultPath = itemSettings?.outputPath || settingsRef.current.outputPath || undefined;
+
+      try {
+        const folder = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Download Folder',
+          defaultPath,
+        });
+
+        if (typeof folder === 'string' && folder) {
+          updateItemOutputPath(id, folder);
+        }
+      } catch (error) {
+        console.error('Failed to select item folder:', error);
+      }
+    },
+    [updateItemOutputPath],
+  );
 
   const renameCompletedItem = useCallback(async (id: string, newName: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
@@ -1088,6 +1152,11 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             // External downloader settings
             useAria2: itemSettings?.useAria2 ?? settings.useAria2,
             aria2Args: itemSettings?.aria2Args ?? settings.aria2Args,
+            // yt-dlp advanced options
+            ytdlpAdvancedOptionsEnabled:
+              itemSettings?.ytdlpAdvancedOptionsEnabled ?? settings.ytdlpAdvancedOptionsEnabled,
+            ytdlpAdvancedOptions:
+              itemSettings?.ytdlpAdvancedOptions ?? settings.ytdlpAdvancedOptions,
             // SponsorBlock settings
             sponsorblockRemove: sponsorBlockArgs.remove,
             sponsorblockMark: sponsorBlockArgs.mark,
@@ -1127,7 +1196,26 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
           const parsedError = extractBackendError(error);
           const errorMessage = localizeBackendError(parsedError);
-          if (parsedError.code === 'YT_SKIPPED_LIVE') {
+          if (parsedError.code === 'DOWNLOAD_CANCELLED') {
+            setItems((items) =>
+              items.map((i) =>
+                i.id === item.id
+                  ? {
+                      ...i,
+                      status: 'pending',
+                      speed: '',
+                      eta: '',
+                      error: undefined,
+                      errorCode: undefined,
+                      retryState: undefined,
+                    }
+                  : i,
+              ),
+            );
+            return;
+          }
+
+          if (parsedError.code === 'YT_SKIPPED_LIVE' || parsedError.code === 'YT_SKIPPED_FILTER') {
             setItems((items) =>
               items.map((i) =>
                 i.id === item.id
@@ -1667,6 +1755,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       retryFailedDownload,
       // Per-item time range
       updateItemTimeRange,
+      selectItemOutputFolder,
       renameCompletedItem,
     }),
     [
@@ -1725,6 +1814,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       clearCookieError,
       retryFailedDownload,
       updateItemTimeRange,
+      selectItemOutputFolder,
       renameCompletedItem,
     ],
   );
