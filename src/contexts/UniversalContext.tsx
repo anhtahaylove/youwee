@@ -376,8 +376,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         setCookieError({ show: true, itemId: progress.id, kind: 'db_locked' });
       }
 
-      setItems((currentItems) =>
-        currentItems.map((item) =>
+      setItems((currentItems) => {
+        const status: DownloadItem['status'] =
+          progress.status === 'finished'
+            ? 'completed'
+            : progress.status === 'error'
+              ? 'error'
+              : 'downloading';
+        const nextItems = currentItems.map((item) =>
           item.id === progress.id
             ? {
                 ...item,
@@ -385,12 +391,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                 speed: progress.speed,
                 eta: progress.eta,
                 title: progress.title || item.title,
-                status:
-                  progress.status === 'finished'
-                    ? 'completed'
-                    : progress.status === 'error'
-                      ? 'error'
-                      : 'downloading',
+                status,
                 error: localizeProgressError(
                   progress.error_code,
                   progress.error_message,
@@ -414,8 +415,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                   : {}),
               }
             : item,
-        ),
-      );
+        );
+        itemsRef.current = nextItems;
+        return nextItems;
+      });
     });
 
     return () => {
@@ -948,6 +951,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
           );
           return;
         } catch (error) {
+          if (itemsRef.current.some((i) => i.id === item.id && i.status === 'completed')) {
+            return;
+          }
+
           const parsedError = extractBackendError(error);
           const errorMessage = localizeBackendError(parsedError);
           if (parsedError.code === 'YT_SKIPPED_LIVE') {
