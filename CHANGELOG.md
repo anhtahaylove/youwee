@@ -7,9 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-29
+
 ### Added
 - **Extension AI Summary** - Added a Summary button in the browser extension to open YouTube videos directly in AI Summary
 - **AI summary token limit** - Added an optional Settings field to set maximum output tokens for generated summaries
+- **Cookie skip rules** - Added site pattern rules to skip cookie authentication for matching URLs, with Facebook Reels included by default
+- **YouTube player client** - Added a yt-dlp player client setting for YouTube 403 and format selection issues
 
 ### Changed
 - **Extension interface** - Refined the browser extension popup and floating menu with a cleaner style that matches the music player

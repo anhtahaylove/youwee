@@ -7,9 +7,13 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-29
+
 ### Thêm mới
 - **AI Summary trong extension** - Thêm nút Tóm tắt trong browser extension để mở video YouTube trực tiếp ở màn AI Summary
 - **Giới hạn token cho AI Summary** - Thêm ô tùy chọn trong Cài đặt để chỉnh số token đầu ra tối đa khi tạo bản tóm tắt
+- **Quy tắc bỏ qua cookie** - Thêm quy tắc theo site để bỏ qua xác thực cookie cho URL khớp, mặc định gồm Facebook Reels
+- **YouTube player client** - Thêm cài đặt player client của yt-dlp để xử lý lỗi YouTube 403 và lỗi chọn định dạng
 
 ### Thay đổi
 - **Giao diện extension** - Làm mới popup và menu nút nổi của browser extension theo phong cách gọn, hiện đại và đồng bộ hơn với trình phát nhạc

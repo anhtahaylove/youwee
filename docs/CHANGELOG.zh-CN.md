@@ -7,9 +7,13 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-29
+
 ### 新增
 - **扩展 AI 摘要** - 在浏览器扩展中新增摘要按钮，可将 YouTube 视频直接打开到 AI Summary
 - **AI 摘要 Token 上限** - 在设置中新增可选输入框，用于自定义生成摘要时的最大输出 Token 数
+- **Cookie 跳过规则** - 新增按站点匹配的规则，可对匹配 URL 跳过 Cookie 认证，默认包含 Facebook Reels
+- **YouTube player client** - 新增 yt-dlp player client 设置，用于处理 YouTube 403 和格式选择问题
 
 ### 变更
 - **扩展界面** - 优化浏览器扩展弹窗和悬浮菜单，使其更简洁现代，并与音乐播放器风格更一致
