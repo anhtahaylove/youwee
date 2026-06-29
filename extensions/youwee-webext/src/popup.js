@@ -478,10 +478,23 @@
     if (!currentUrl) return;
 
     try {
-      ext.openSummaryDeepLink(currentUrl);
+      if (Number.isInteger(activeTabId)) {
+        await sendMessageToTab(activeTabId, {
+          type: 'youwee:open-deep-link',
+          url: currentUrl,
+          action: 'summary',
+        });
+      } else {
+        ext.openSummaryDeepLink(currentUrl);
+      }
       setStatus(t('popupStatusSummaryOpening', 'Opening AI Summary in Youwee...'), 'ok');
     } catch {
-      setStatus(t('popupStatusOpenFailed', 'Failed to open Youwee.'), 'error');
+      try {
+        ext.openSummaryDeepLink(currentUrl);
+        setStatus(t('popupStatusSummaryOpening', 'Opening AI Summary in Youwee...'), 'ok');
+      } catch {
+        setStatus(t('popupStatusOpenFailed', 'Failed to open Youwee.'), 'error');
+      }
     }
   }
 

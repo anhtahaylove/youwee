@@ -14,6 +14,7 @@ Youwee 的所有重要更改都将记录在此文件中。
 ### 修复
 - **Firefox 认证配置文件** - 将检测到的配置文件传给 yt-dlp 时使用实际的 Firefox 配置目录
 - **yt-dlp 匹配过滤器** - 将被 yt-dlp match filter 跳过的下载视为不可重试的 skipped 错误
+- **扩展 AI Summary 弹窗** - 优先通过当前标签页的 content script 打开 Summary，并保留直接 deep link 回退
 
 ## [0.18.0] - 2026-06-29
 
