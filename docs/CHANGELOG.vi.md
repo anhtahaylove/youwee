@@ -7,7 +7,10 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-06-29
+
 ### Thêm mới
+- **Đánh số file trong hàng đợi** - Thêm tùy chọn thêm số thứ tự hàng đợi vào đầu tên file khi tải nhiều video thường
 - **Folder tải trong hàng đợi** - Thêm nút đổi folder tải xuống riêng cho từng item trong hàng đợi
 - **Tùy chọn yt-dlp nâng cao** - Thêm tùy chọn nâng cao đã kiểm soát cho người dùng cần tinh chỉnh lệnh tải yt-dlp
 - **Đánh số file playlist** - Thêm cài đặt Tải xuống để thêm số thứ tự playlist vào đầu tên file khi tải playlist
