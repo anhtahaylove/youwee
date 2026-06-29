@@ -13,12 +13,14 @@ type MarkdownListItem = {
 type MarkdownListNode = {
   kind: 'ul' | 'ol';
   items: MarkdownListItem[];
+  start?: number;
 };
 
 type MarkdownListToken = {
   indent: number;
   kind: 'ul' | 'ol';
   text: string;
+  start?: number;
 };
 
 /**
@@ -240,6 +242,7 @@ function parseListToken(line: string): MarkdownListToken | null {
     indent: match[1].length,
     kind: /^\d+\.$/.test(match[2]) ? 'ol' : 'ul',
     text: match[3].trim(),
+    start: /^\d+\.$/.test(match[2]) ? Number.parseInt(match[2], 10) : undefined,
   };
 }
 
@@ -251,6 +254,9 @@ function consumeListNode(
 ): [MarkdownListNode, number] {
   const node: MarkdownListNode = { kind, items: [] };
   let index = startIndex;
+  if (kind === 'ol') {
+    node.start = tokens[startIndex]?.start;
+  }
 
   while (index < tokens.length) {
     const token = tokens[index];
@@ -293,7 +299,11 @@ function renderListNodes(nodes: MarkdownListNode[]): React.ReactNode {
       node.kind === 'ol' ? 'list-decimal space-y-1 pl-5' : 'list-disc space-y-1 pl-5';
 
     return (
-      <ListTag key={`markdown-list-${node.kind}-${nodeIndex}`} className={listClassName}>
+      <ListTag
+        key={`markdown-list-${node.kind}-${nodeIndex}`}
+        className={listClassName}
+        start={node.kind === 'ol' && node.start && node.start > 1 ? node.start : undefined}
+      >
         {node.items.map((item, itemIndex) => (
           <li
             key={`markdown-list-item-${node.kind}-${item.text}-${itemIndex}`}

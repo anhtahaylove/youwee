@@ -9,6 +9,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Sửa lỗi
 - **Link extension khi app chưa mở** - Sửa lỗi link tải từ browser extension chỉ mở Youwee nhưng không thêm video khi app đang đóng
+- **Đánh số trong AI Summary** - Sửa lỗi danh sách chủ đề trên giao diện luôn bắt đầu lại từ 1 khi có dòng trống giữa các mục
 
 ## [0.18.0] - 2026-06-29
 
