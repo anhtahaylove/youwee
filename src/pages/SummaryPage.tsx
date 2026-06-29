@@ -7,7 +7,6 @@ import {
   ChevronUp,
   Copy,
   Link,
-  Loader2,
   Plus,
   Save,
   Settings2,
@@ -48,6 +47,38 @@ function isYouTubeUrl(url: string) {
 
 function providerRequiresApiKey(provider: string) {
   return provider !== 'ollama' && provider !== 'lmstudio';
+}
+
+function SummaryLoadingState({ loadingText }: { loadingText: string }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center text-center py-12">
+      <EmptyStateIllustration className="mb-5" icon={Sparkles} isActive />
+      <div className="w-full max-w-sm rounded-xl border border-primary/15 bg-primary/5 p-3 text-left shadow-sm">
+        <div className="flex items-center gap-2 text-xs font-medium text-primary">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+          {loadingText}
+        </div>
+        <div className="mt-3 space-y-2">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary/50" />
+              <span
+                className={cn(
+                  'h-2 rounded-full bg-[linear-gradient(90deg,hsl(var(--muted)),hsl(var(--primary)/0.28),hsl(var(--muted)))] bg-[length:200%_100%] animate-shimmer',
+                  index === 0 && 'w-11/12',
+                  index === 1 && 'w-8/12',
+                  index === 2 && 'w-10/12',
+                )}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function SummaryPage({
@@ -301,14 +332,6 @@ export function SummaryPage({
             </button>
           )}
         </div>
-
-        {/* Loading Status */}
-        {isLoading && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span>{getLoadingText(loadingStatus) || t('summary.processing')}</span>
-          </div>
-        )}
 
         {/* Settings Toggle */}
         <div className="flex items-center gap-3">
@@ -579,6 +602,13 @@ export function SummaryPage({
               )}
             </div>
           </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <SummaryLoadingState
+            loadingText={getLoadingText(loadingStatus) || t('summary.processing')}
+          />
         )}
 
         {/* Empty State */}
