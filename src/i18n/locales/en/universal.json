@@ -46,6 +46,10 @@
     "liveFromStart": "Live from start",
     "skipLive": "Skip live streams",
     "skipLiveDesc": "Skip currently live videos instead of downloading them",
+    "preferredFps": "Frame rate",
+    "preferredFpsHint": "30 FPS may use lower quality",
+    "preferredFpsOriginal": "Original",
+    "preferredFps30": "Up to 30 FPS",
     "autoRetry": "Auto Retry",
     "retryAttempts": "Attempts",
     "retryDelaySeconds": "Delay (s)"

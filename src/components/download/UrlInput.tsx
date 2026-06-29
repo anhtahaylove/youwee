@@ -477,6 +477,14 @@ export function UrlInput({
               <p className="text-sm font-medium">{t('urlInput.guideFfmpegTitle')}</p>
               <p className="text-sm text-muted-foreground mt-1">{t('urlInput.guideFfmpegText')}</p>
             </div>
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2.5">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                {t('urlInput.guidePreferredFpsTitle')}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t('urlInput.guidePreferredFpsText')}
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

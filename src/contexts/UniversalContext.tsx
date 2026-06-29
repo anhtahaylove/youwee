@@ -41,6 +41,7 @@ import type {
   Format,
   ItemUniversalSettings,
   PostDownloadPluginPayload,
+  PreferredFps,
   Quality,
   VideoInfoResponse,
   YtdlpAdvancedOption,
@@ -103,6 +104,7 @@ export interface UniversalSettings {
   format: Format;
   outputPath: string;
   audioBitrate: AudioBitrate;
+  preferredFps: PreferredFps;
   concurrentDownloads: number;
   // Live stream settings
   liveFromStart: boolean;
@@ -215,6 +217,7 @@ function saveSettings(settings: UniversalSettings) {
         quality: settings.quality,
         format: settings.format,
         audioBitrate: settings.audioBitrate,
+        preferredFps: settings.preferredFps,
         concurrentDownloads: settings.concurrentDownloads,
         liveFromStart: settings.liveFromStart,
         skipLive: settings.skipLive,
@@ -253,6 +256,7 @@ export interface UniversalContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
+  updatePreferredFps: (fps: PreferredFps) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
   updateLiveFromStart: (enabled: boolean) => void;
   updateSkipLive: (enabled: boolean) => void;
@@ -291,6 +295,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       format: saved.format || 'mp4',
       outputPath: saved.outputPath || '',
       audioBitrate: saved.audioBitrate || 'auto',
+      preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
       concurrentDownloads: saved.concurrentDownloads || 1,
       // Live stream settings
       liveFromStart: saved.liveFromStart === true, // Default to false
@@ -575,6 +580,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         format: currentSettings.format,
         outputPath: currentSettings.outputPath,
         audioBitrate: currentSettings.audioBitrate,
+        preferredFps: currentSettings.preferredFps,
         useAria2: advancedSettings.useAria2,
         aria2Args: advancedSettings.aria2Args,
         ytdlpAdvancedOptionsEnabled: advancedSettings.ytdlpAdvancedOptionsEnabled,
@@ -676,6 +682,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         format: mediaType === 'audio' ? 'mp3' : 'mp4',
         outputPath,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
+        preferredFps: currentSettings.preferredFps,
         useAria2: advancedSettings.useAria2,
         aria2Args: advancedSettings.aria2Args,
         ytdlpAdvancedOptionsEnabled: advancedSettings.ytdlpAdvancedOptionsEnabled,
@@ -983,6 +990,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
               itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
             playlistCollectionName: null,
             videoCodec: 'auto', // Use auto for universal downloads
+            preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit: null,
             subtitleMode: 'off',
@@ -1264,6 +1272,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updatePreferredFps = useCallback((preferredFps: PreferredFps) => {
+    setSettings((s) => {
+      const newSettings = { ...s, preferredFps };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
   const updateConcurrentDownloads = useCallback((concurrentDownloads: number) => {
     const value = Math.max(1, Math.min(5, concurrentDownloads));
     setSettings((s) => {
@@ -1365,6 +1381,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateAudioBitrate,
+      updatePreferredFps,
       updateConcurrentDownloads,
       updateLiveFromStart,
       updateSkipLive,
@@ -1397,6 +1414,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateAudioBitrate,
+      updatePreferredFps,
       updateConcurrentDownloads,
       updateLiveFromStart,
       updateSkipLive,

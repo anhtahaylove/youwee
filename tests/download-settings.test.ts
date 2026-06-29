@@ -126,3 +126,39 @@ describe('download settings yt-dlp advanced options', () => {
     expect(snapshot.ytdlpAdvancedOptions).not.toBe(settings.ytdlpAdvancedOptions);
   });
 });
+
+describe('download settings preferred fps', () => {
+  test('defaults preferred fps to original', () => {
+    const settings = createDefaultDownloadSettings({});
+
+    expect(settings.preferredFps).toBe('original');
+  });
+
+  test('normalizes unsupported preferred fps to original', () => {
+    const settings = createDefaultDownloadSettings({
+      preferredFps: '60',
+    } as unknown as Parameters<typeof createDefaultDownloadSettings>[0]);
+
+    expect(settings.preferredFps).toBe('original');
+  });
+
+  test('persists preferred fps', () => {
+    const saved = serializeDownloadSettings(
+      createDefaultDownloadSettings({
+        preferredFps: '30',
+      }),
+    );
+
+    expect(saved.preferredFps).toBe('30');
+  });
+
+  test('snapshots preferred fps into queued items', () => {
+    const settings = createDefaultDownloadSettings({
+      preferredFps: '30',
+    });
+
+    const snapshot = buildItemDownloadSettingsSnapshot(settings);
+
+    expect(snapshot.preferredFps).toBe('30');
+  });
+});

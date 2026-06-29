@@ -51,6 +51,7 @@ import type {
   ItemDownloadSettings,
   PlaylistVideoEntry,
   PostDownloadPluginPayload,
+  PreferredFps,
   ProxySettings,
   Quality,
   SponsorBlockAction,
@@ -192,6 +193,7 @@ export interface DownloadContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateVideoCodec: (codec: VideoCodec) => void;
+  updatePreferredFps: (fps: PreferredFps) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
   updatePlaylistLimit: (limit: number) => void;
@@ -1130,6 +1132,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,
             playlistCollectionName: itemSettings?.playlistCollectionName ?? null,
             videoCodec: itemSettings?.videoCodec ?? settings.videoCodec,
+            preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit:
               itemSettings?.playlistLimit && itemSettings.playlistLimit > 0
@@ -1415,6 +1418,14 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   const updateVideoCodec = useCallback((videoCodec: VideoCodec) => {
     setSettings((s) => {
       const newSettings = { ...s, videoCodec };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
+  const updatePreferredFps = useCallback((preferredFps: PreferredFps) => {
+    setSettings((s) => {
+      const newSettings = { ...s, preferredFps };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -1729,6 +1740,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updatePreferredFps,
       updateAudioBitrate,
       updateConcurrentDownloads,
       updatePlaylistLimit,
@@ -1791,6 +1803,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updatePreferredFps,
       updateAudioBitrate,
       updateConcurrentDownloads,
       updatePlaylistLimit,

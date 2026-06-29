@@ -3,6 +3,7 @@ import {
   FileVideo,
   FolderOpen,
   HardDrive,
+  Info,
   Music,
   Radio,
   Settings2,
@@ -20,8 +21,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { UniversalSettings } from '@/contexts/UniversalContext';
-import type { AudioBitrate, Format, Quality } from '@/lib/types';
+import type { AudioBitrate, Format, PreferredFps, Quality } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function formatFileSize(bytes: number): string {
@@ -65,6 +67,7 @@ interface UniversalSettingsPanelProps {
   onQualityChange: (quality: Quality) => void;
   onFormatChange: (format: Format) => void;
   onAudioBitrateChange: (bitrate: AudioBitrate) => void;
+  onPreferredFpsChange: (fps: PreferredFps) => void;
   onConcurrentChange: (concurrent: number) => void;
   onSelectFolder: () => void;
   onLiveFromStartChange: (enabled: boolean) => void;
@@ -78,6 +81,7 @@ export function UniversalSettingsPanel({
   onQualityChange,
   onFormatChange,
   onAudioBitrateChange,
+  onPreferredFpsChange,
   onConcurrentChange,
   onSelectFolder,
   onLiveFromStartChange,
@@ -304,6 +308,50 @@ export function UniversalSettingsPanel({
                   disabled={disabled}
                   className="scale-90"
                 />
+              </div>
+
+              {/* Preferred FPS */}
+              <div className="rounded-md bg-muted/50 px-2.5 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-medium">{t('settings.preferredFps')}</span>
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              aria-label={t('settings.preferredFpsHint')}
+                              className="inline-flex text-muted-foreground hover:text-foreground"
+                            >
+                              <Info className="h-3 w-3" aria-hidden="true" />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-56">
+                            {t('settings.preferredFpsHint')}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                  </div>
+                  <Select
+                    value={settings.preferredFps}
+                    onValueChange={(value) => onPreferredFpsChange(value as PreferredFps)}
+                    disabled={disabled || isAudioOnly}
+                  >
+                    <SelectTrigger className="h-7 w-24 shrink-0 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="original" className="text-xs">
+                        {t('settings.preferredFpsOriginal')}
+                      </SelectItem>
+                      <SelectItem value="30" className="text-xs">
+                        {t('settings.preferredFps30')}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 

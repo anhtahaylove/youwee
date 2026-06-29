@@ -44,6 +44,12 @@
     "advanced": "Configurações Avançadas",
     "more": "Mais",
     "liveFromStart": "Transmissão ao vivo desde o início",
+    "skipLive": "Ignorar lives",
+    "skipLiveDesc": "Ignorar vídeos transmitidos ao vivo em vez de baixá-los",
+    "preferredFps": "Taxa de quadros",
+    "preferredFpsHint": "30 FPS pode usar qualidade menor",
+    "preferredFpsOriginal": "Original",
+    "preferredFps30": "Até 30 FPS",
     "autoRetry": "Tentar Novamente",
     "retryAttempts": "Tentativas",
     "retryDelaySeconds": "Atraso (s)"

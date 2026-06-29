@@ -44,6 +44,12 @@
     "advanced": "ตั้งค่าขั้นสูง",
     "more": "เพิ่มเติม",
     "liveFromStart": "ไลฟ์ตั้งแต่ต้น",
+    "skipLive": "ข้ามไลฟ์สตรีม",
+    "skipLiveDesc": "ข้ามวิดีโอที่กำลังไลฟ์แทนการดาวน์โหลด",
+    "preferredFps": "อัตราเฟรม",
+    "preferredFpsHint": "30 FPS อาจใช้คุณภาพต่ำลง",
+    "preferredFpsOriginal": "ต้นฉบับ",
+    "preferredFps30": "สูงสุด 30 FPS",
     "autoRetry": "ลองใหม่อัตโนมัติ",
     "retryAttempts": "จำนวนครั้ง",
     "retryDelaySeconds": "หน่วงเวลา (วินาที)"

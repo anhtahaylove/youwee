@@ -818,6 +818,7 @@ pub async fn download_video(
     auto_organize_collections: Option<bool>,
     playlist_collection_name: Option<String>,
     video_codec: String,
+    preferred_fps: Option<String>,
     audio_bitrate: String,
     playlist_limit: Option<u32>,
     subtitle_mode: String,
@@ -925,7 +926,8 @@ pub async fn download_video(
     let should_log_stderr = log_stderr.unwrap_or(true);
     let sanitized_path = sanitize_output_path(&output_path)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
-    let format_string = build_format_string(&quality, &format, &video_codec);
+    let format_string =
+        build_format_string(&quality, &format, &video_codec, preferred_fps.as_deref());
     let number_playlist_items = number_playlist_items.unwrap_or(false);
     let number_queue_items = number_queue_items.unwrap_or(false);
     let split_embedded_chapters = split_embedded_chapters.unwrap_or(false);
