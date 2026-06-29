@@ -9,6 +9,10 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 - **Folder lưu từng item trong hàng đợi** - Thêm action trên item để chọn folder tải riêng cho từng lượt tải
+- **Đánh số hàng đợi và playlist** - Thêm tùy chọn prefix tên file theo thứ tự hàng đợi hoặc playlist
+
+### Sửa lỗi
+- **Profile xác thực Firefox** - Dùng đúng thư mục profile Firefox thực tế khi truyền profile đã phát hiện cho yt-dlp
 
 ## [0.18.0] - 2026-06-29
 

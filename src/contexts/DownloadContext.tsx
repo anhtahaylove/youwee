@@ -175,6 +175,8 @@ function saveSettings(settings: DownloadSettings) {
         youtubePlayerClient: settings.youtubePlayerClient,
         embedMetadata: settings.embedMetadata,
         embedThumbnail: settings.embedThumbnail,
+        numberPlaylistItems: settings.numberPlaylistItems,
+        numberQueueItems: settings.numberQueueItems,
         liveFromStart: settings.liveFromStart,
         skipLive: settings.skipLive,
         speedLimitEnabled: settings.speedLimitEnabled,
@@ -333,6 +335,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       // Post-processing settings
       embedMetadata: saved.embedMetadata !== false, // Default to true
       embedThumbnail: saved.embedThumbnail === true, // Default to false (requires FFmpeg)
+      numberPlaylistItems: saved.numberPlaylistItems === true,
+      numberQueueItems: saved.numberQueueItems === true,
       // Live stream settings
       liveFromStart: saved.liveFromStart === true, // Default to false
       skipLive: saved.skipLive === true, // Default to false
@@ -692,6 +696,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         subtitleFormat: currentSettings.subtitleFormat,
         liveFromStart: currentSettings.liveFromStart,
         skipLive: currentSettings.skipLive,
+        numberPlaylistItems: currentSettings.numberPlaylistItems,
+        numberQueueItems: currentSettings.numberQueueItems,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -699,23 +705,25 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
-      const newItems: DownloadItem[] = urls
-        .filter((url) => !currentItems.some((item) => item.url === url))
-        .map((url, index) => ({
-          id: crypto.randomUUID(),
-          url,
-          title: url,
-          status: 'pending' as const,
-          progress: 0,
-          speed: '',
-          eta: '',
-          isPlaylist: false,
-          // Store playlist context for display
-          playlistIndex: playlistId ? index + 1 : undefined,
-          playlistTotal: playlistId ? urls.length : undefined,
-          // Store settings snapshot
-          settings: settingsSnapshot,
-        }));
+      const nextUrls = urls.filter((url) => !currentItems.some((item) => item.url === url));
+      const queueTotal = currentItems.length + nextUrls.length;
+      const newItems: DownloadItem[] = nextUrls.map((url, index) => ({
+        id: crypto.randomUUID(),
+        url,
+        title: url,
+        status: 'pending' as const,
+        progress: 0,
+        speed: '',
+        eta: '',
+        isPlaylist: false,
+        // Store playlist context for display
+        playlistIndex: playlistId ? index + 1 : undefined,
+        playlistTotal: playlistId ? urls.length : undefined,
+        queueIndex: playlistId ? undefined : currentItems.length + index + 1,
+        queueTotal: playlistId ? undefined : queueTotal,
+        // Store settings snapshot
+        settings: settingsSnapshot,
+      }));
 
       if (newItems.length > 0) {
         setItems((prev) => [...prev, ...newItems]);
@@ -792,6 +800,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         timeRangeEnd: options?.timeRangeEnd,
         liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
         skipLive: options?.skipLive ?? currentSettings.skipLive,
+        numberPlaylistItems: currentSettings.numberPlaylistItems,
+        numberQueueItems: currentSettings.numberQueueItems,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -808,6 +818,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         speed: '',
         eta: '',
         isPlaylist: false,
+        queueIndex: itemsRef.current.length + 1,
+        queueTotal: itemsRef.current.length + 1,
         settings: settingsSnapshot,
       };
 
@@ -845,6 +857,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         subtitleFormat: currentSettings.subtitleFormat,
         liveFromStart: currentSettings.liveFromStart,
         skipLive: currentSettings.skipLive,
+        numberPlaylistItems: currentSettings.numberPlaylistItems,
+        numberQueueItems: currentSettings.numberQueueItems,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -861,6 +875,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       );
       const newItems: DownloadItem[] = [];
       const queuedIds: string[] = [];
+      let nextQueueIndex = currentItems.length + 1;
 
       for (const result of results) {
         const url = result.url.trim();
@@ -889,11 +904,17 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           duration: result.duration || undefined,
           channel: result.channel || undefined,
           extractor: 'youtube',
+          queueIndex: nextQueueIndex,
           settings: settingsSnapshot,
         });
+        nextQueueIndex += 1;
       }
 
       if (newItems.length === 0) return { added: 0, queuedIds };
+      const queueTotal = currentItems.length + newItems.length;
+      for (const item of newItems) {
+        item.queueTotal = queueTotal;
+      }
 
       const nextItems = [...itemsRef.current, ...newItems];
       itemsRef.current = nextItems;
@@ -936,6 +957,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           subtitleFormat: settingsRef.current.subtitleFormat,
           liveFromStart: settingsRef.current.liveFromStart,
           skipLive: settingsRef.current.skipLive,
+          numberPlaylistItems: settingsRef.current.numberPlaylistItems,
+          numberQueueItems: settingsRef.current.numberQueueItems,
           pluginWorkflowSnapshots: workflowSnapshots,
           postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
           autoRetryEnabled: settingsRef.current.autoRetryEnabled,
@@ -1270,6 +1293,12 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             quality: itemSettings?.quality ?? settings.quality,
             format: itemSettings?.format ?? settings.format,
             downloadPlaylist: itemSettings?.downloadPlaylist ?? false,
+            playlistIndex: item.playlistIndex ?? null,
+            playlistTotal: item.playlistTotal ?? null,
+            numberPlaylistItems: itemSettings?.numberPlaylistItems ?? false,
+            queueIndex: item.queueIndex ?? null,
+            queueTotal: item.queueTotal ?? null,
+            numberQueueItems: itemSettings?.numberQueueItems ?? false,
             videoCodec: itemSettings?.videoCodec ?? settings.videoCodec,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit:

@@ -97,6 +97,30 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
               onCheckedChange={(skipExisting) => updateSettings({ skipExisting })}
             />
           </SettingsRow>
+
+          <SettingsRow
+            id="number-playlist-items"
+            label={t('download.numberPlaylistItems')}
+            description={t('download.numberPlaylistItemsDesc')}
+            highlight={highlightId === 'number-playlist-items'}
+          >
+            <Switch
+              checked={settings.numberPlaylistItems}
+              onCheckedChange={(numberPlaylistItems) => updateSettings({ numberPlaylistItems })}
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            id="number-queue-items"
+            label={t('download.numberQueueItems')}
+            description={t('download.numberQueueItemsDesc')}
+            highlight={highlightId === 'number-queue-items'}
+          >
+            <Switch
+              checked={settings.numberQueueItems}
+              onCheckedChange={(numberQueueItems) => updateSettings({ numberQueueItems })}
+            />
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 

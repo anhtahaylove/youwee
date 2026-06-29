@@ -662,6 +662,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         aria2Args: aria2Settings.aria2Args,
         liveFromStart: currentSettings.liveFromStart,
         skipLive: currentSettings.skipLive,
+        numberQueueItems: downloadSettings.numberQueueItems,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -669,20 +670,22 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
-      const newItems: DownloadItem[] = urls
-        .filter((url) => !currentItems.some((item) => item.url === url))
-        .map((url) => ({
-          id: crypto.randomUUID(),
-          url,
-          title: url,
-          status: 'pending' as const,
-          progress: 0,
-          speed: '',
-          eta: '',
-          metadataStage: 'fetching',
-          // Store settings snapshot
-          settings: settingsSnapshot,
-        }));
+      const nextUrls = urls.filter((url) => !currentItems.some((item) => item.url === url));
+      const queueTotal = currentItems.length + nextUrls.length;
+      const newItems: DownloadItem[] = nextUrls.map((url, index) => ({
+        id: crypto.randomUUID(),
+        url,
+        title: url,
+        status: 'pending' as const,
+        progress: 0,
+        speed: '',
+        eta: '',
+        metadataStage: 'fetching',
+        queueIndex: currentItems.length + index + 1,
+        queueTotal,
+        // Store settings snapshot
+        settings: settingsSnapshot,
+      }));
 
       if (newItems.length > 0) {
         setItems((prev) => [...prev, ...newItems]);
@@ -695,6 +698,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     },
     [
       downloadSettings.filenameTemplate,
+      downloadSettings.numberQueueItems,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
       downloadSettings.youtubePlayerClient,
@@ -762,6 +766,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         timeRangeEnd: options?.timeRangeEnd,
         liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
         skipLive: options?.skipLive ?? currentSettings.skipLive,
+        numberQueueItems: downloadSettings.numberQueueItems,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -778,6 +783,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         speed: '',
         eta: '',
         metadataStage: 'fetching',
+        queueIndex: itemsRef.current.length + 1,
+        queueTotal: itemsRef.current.length + 1,
         settings: settingsSnapshot,
       };
 
@@ -791,6 +798,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     },
     [
       downloadSettings.filenameTemplate,
+      downloadSettings.numberQueueItems,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
       downloadSettings.youtubePlayerClient,
@@ -1052,6 +1060,12 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             quality: itemSettings?.quality ?? settings.quality,
             format: itemSettings?.format ?? settings.format,
             downloadPlaylist: false,
+            playlistIndex: null,
+            playlistTotal: null,
+            numberPlaylistItems: false,
+            queueIndex: item.queueIndex ?? null,
+            queueTotal: item.queueTotal ?? null,
+            numberQueueItems: itemSettings?.numberQueueItems ?? false,
             videoCodec: 'auto', // Use auto for universal downloads
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             youtubePlayerClient:

@@ -46,6 +46,13 @@ pub struct BrowserProfile {
     pub display_name: String, // Shown to user: "Loc Nguyen" or fallback to folder_name
 }
 
+fn firefox_profile_folder_name(path: &str) -> Option<String> {
+    path.replace('\\', "/")
+        .rsplit('/')
+        .find(|segment| !segment.is_empty())
+        .map(str::to_string)
+}
+
 #[tauri::command]
 pub async fn get_ytdlp_version(app: AppHandle) -> Result<YtdlpVersionInfo, String> {
     get_ytdlp_version_internal(&app).await
@@ -1240,9 +1247,14 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
         entries
             .into_iter()
             .filter_map(|entry| {
-                entry.name.map(|name| BrowserProfile {
-                    folder_name: name.clone(),
-                    display_name: name,
+                let display_name = entry.name?;
+                let folder_name = entry
+                    .path
+                    .as_deref()
+                    .and_then(firefox_profile_folder_name)?;
+                Some(BrowserProfile {
+                    folder_name,
+                    display_name,
                 })
             })
             .collect()
@@ -1265,7 +1277,7 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
                 home
             ),
             "firefox" => {
-                // Firefox uses profiles.ini - display name is the same as folder name
+                // Firefox uses profiles.ini to map display names to profile directories.
                 let profiles_ini =
                     format!("{}/Library/Application Support/Firefox/profiles.ini", home);
                 if let Ok(content) = std::fs::read_to_string(&profiles_ini) {
@@ -1433,4 +1445,21 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
     }
 
     Ok(profiles)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::firefox_profile_folder_name;
+
+    #[test]
+    fn firefox_profile_uses_the_real_directory_name() {
+        assert_eq!(
+            firefox_profile_folder_name("Profiles/i879pxds.default-release"),
+            Some("i879pxds.default-release".to_string())
+        );
+        assert_eq!(
+            firefox_profile_folder_name(r"Profiles\i879pxds.default-release"),
+            Some("i879pxds.default-release".to_string())
+        );
+    }
 }

@@ -77,6 +77,8 @@ export interface ItemDownloadSettings {
   timeRangeEnd?: string;
   liveFromStart?: boolean;
   skipLive?: boolean;
+  numberPlaylistItems?: boolean;
+  numberQueueItems?: boolean;
   pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
   postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
   autoRetryEnabled: boolean;
@@ -100,6 +102,7 @@ export interface ItemUniversalSettings {
   timeRangeEnd?: string;
   liveFromStart?: boolean;
   skipLive?: boolean;
+  numberQueueItems?: boolean;
   pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
   postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
   autoRetryEnabled: boolean;
@@ -130,6 +133,8 @@ export interface DownloadItem {
   elapsedTime?: string; // For live streams: "00:00:07"
   playlistIndex?: number;
   playlistTotal?: number;
+  queueIndex?: number;
+  queueTotal?: number;
   thumbnail?: string;
   duration?: string;
   channel?: string;
@@ -241,6 +246,8 @@ export interface DownloadSettings {
   // Post-processing settings
   embedMetadata: boolean; // Embed metadata (title, artist, description) into downloaded files
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
+  numberPlaylistItems: boolean; // Prefix playlist downloads with their playlist order
+  numberQueueItems: boolean; // Prefix regular queued items with their queue order
   // Live stream settings
   liveFromStart: boolean; // Download live streams from the beginning
   skipLive: boolean; // Skip live streams instead of downloading them

@@ -600,10 +600,51 @@ fn build_output_directory(
     }
 }
 
-fn build_output_template(output_directory: &str, filename_template: Option<String>) -> String {
+fn number_width(total: Option<u32>) -> usize {
+    total
+        .filter(|value| *value >= 100)
+        .map(|value| value.to_string().len())
+        .unwrap_or(2)
+}
+
+fn build_item_prefix(
+    number_playlist_items: bool,
+    download_playlist: bool,
+    playlist_index: Option<u32>,
+    playlist_total: Option<u32>,
+    number_queue_items: bool,
+    queue_index: Option<u32>,
+    queue_total: Option<u32>,
+) -> String {
+    if number_playlist_items {
+        let width = number_width(playlist_total);
+        if let Some(index) = playlist_index {
+            return format!("{index:0width$} - ");
+        }
+        if download_playlist {
+            return format!("%(playlist_index)0{width}d - ");
+        }
+    }
+
+    if number_queue_items && !download_playlist {
+        if let Some(index) = queue_index {
+            let width = number_width(queue_total);
+            return format!("{index:0width$} - ");
+        }
+    }
+
+    String::new()
+}
+
+fn build_output_template(
+    output_directory: &str,
+    filename_template: Option<String>,
+    item_prefix: &str,
+) -> String {
     format!(
-        "{}/{}",
+        "{}/{}{}",
         output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
+        item_prefix,
         normalize_filename_template(filename_template)
     )
 }
@@ -628,6 +669,7 @@ fn facebook_reel_core_fallback_args(
     args: &[String],
     url: &str,
     output_directory: &str,
+    item_prefix: &str,
 ) -> Vec<String> {
     let mut fallback_args = Vec::with_capacity(args.len() + 4);
     let mut index = 0;
@@ -647,8 +689,9 @@ fn facebook_reel_core_fallback_args(
     replace_output_template(
         &mut fallback_args,
         format!(
-            "{}/{}.%(ext)s",
+            "{}/{}{}.%(ext)s",
             output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
+            item_prefix,
             facebook_reel_fallback_basename(url)
         ),
     );
@@ -912,6 +955,12 @@ pub async fn download_video(
     quality: String,
     format: String,
     download_playlist: bool,
+    playlist_index: Option<u32>,
+    playlist_total: Option<u32>,
+    number_playlist_items: Option<bool>,
+    queue_index: Option<u32>,
+    queue_total: Option<u32>,
+    number_queue_items: Option<bool>,
     video_codec: String,
     audio_bitrate: String,
     playlist_limit: Option<u32>,
@@ -1028,7 +1077,16 @@ pub async fn download_video(
                     .to_wire_string()
             })?;
     }
-    let output_template = build_output_template(&output_directory, filename_template);
+    let item_prefix = build_item_prefix(
+        number_playlist_items.unwrap_or(false),
+        download_playlist,
+        playlist_index,
+        playlist_total,
+        number_queue_items.unwrap_or(false),
+        queue_index,
+        queue_total,
+    );
+    let output_template = build_output_template(&output_directory, filename_template, &item_prefix);
 
     // Use a temp file to capture the final filepath from yt-dlp.
     // On Windows with non-UTF-8 locales (e.g. Chinese/GBK), stdout is encoded
@@ -1339,6 +1397,7 @@ pub async fn download_video(
             failed_workflow_steps.clone(),
             emit_failed_workflow,
             download_kind.clone(),
+            item_prefix.clone(),
             Some(core_fallback),
         )
         .await;
@@ -1953,6 +2012,7 @@ pub async fn download_video(
                 failed_workflow_steps,
                 emit_failed_workflow,
                 download_kind,
+                item_prefix,
                 None,
             )
             .await
@@ -1979,6 +2039,7 @@ async fn handle_tokio_download(
     failed_workflow_steps: Vec<PluginWorkflowStepSnapshot>,
     emit_failed_workflow: bool,
     download_kind: String,
+    item_prefix: String,
     core_fallback: Option<CoreDownloadFallback>,
 ) -> Result<(), String> {
     let stdout = process
@@ -2422,8 +2483,12 @@ async fn handle_tokio_download(
         let recent_lines = recent_output_snapshot(&recent_output);
         if let Some(fallback) = core_fallback.as_ref() {
             if should_core_fallback_facebook_reel(&url, &recent_lines) {
-                let fallback_args =
-                    facebook_reel_core_fallback_args(&fallback.args, &url, &output_directory);
+                let fallback_args = facebook_reel_core_fallback_args(
+                    &fallback.args,
+                    &url,
+                    &output_directory,
+                    &item_prefix,
+                );
                 add_log_internal(
                     "info",
                     "Retrying Facebook Reel in core without cookies",
@@ -2470,6 +2535,7 @@ async fn handle_tokio_download(
                             failed_workflow_steps,
                             emit_failed_workflow,
                             download_kind,
+                            item_prefix,
                             None,
                         ))
                         .await;
@@ -2810,20 +2876,45 @@ mod tests {
         assert_eq!(
             build_output_template(
                 "C:/Downloads/",
-                Some("%(uploader)s - %(title)s".to_string())
+                Some("%(uploader)s - %(title)s".to_string()),
+                ""
             ),
             "C:/Downloads/%(uploader)s - %(title)s.%(ext)s"
         );
         assert_eq!(
             build_output_template(
                 "C:/Downloads",
-                Some("../escape/%(title)s.%(ext)s".to_string())
+                Some("../escape/%(title)s.%(ext)s".to_string()),
+                ""
             ),
             "C:/Downloads/%(title)s.%(ext)s"
         );
         assert_eq!(
-            build_output_template("C:/Downloads", Some("  ".to_string())),
+            build_output_template("C:/Downloads", Some("  ".to_string()), ""),
             "C:/Downloads/%(title)s.%(ext)s"
+        );
+    }
+
+    #[test]
+    fn output_template_numbers_playlist_and_regular_queue_items() {
+        let expanded_playlist_prefix =
+            build_item_prefix(true, false, Some(3), Some(120), true, Some(7), Some(42));
+        assert_eq!(expanded_playlist_prefix, "003 - ");
+
+        let direct_playlist_prefix =
+            build_item_prefix(true, true, None, Some(120), true, Some(7), Some(42));
+        assert_eq!(direct_playlist_prefix, "%(playlist_index)03d - ");
+
+        let regular_queue_prefix =
+            build_item_prefix(true, false, None, None, true, Some(7), Some(42));
+        assert_eq!(regular_queue_prefix, "07 - ");
+        assert_eq!(
+            build_output_template(
+                "C:/Downloads",
+                Some("%(title)s.%(ext)s".to_string()),
+                &regular_queue_prefix,
+            ),
+            "C:/Downloads/07 - %(title)s.%(ext)s"
         );
     }
 
@@ -2966,6 +3057,7 @@ mod tests {
             &args,
             "https://www.facebook.com/reel/1889836315019111",
             "C:/Downloads",
+            "02 - ",
         );
 
         assert!(!fallback_args
@@ -3000,7 +3092,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             output,
-            "C:/Downloads/facebook-com-reel-1889836315019111.%(ext)s"
+            "C:/Downloads/02 - facebook-com-reel-1889836315019111.%(ext)s"
         );
     }
 

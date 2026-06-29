@@ -123,6 +123,20 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     section: 'download',
   },
   {
+    id: 'number-playlist-items',
+    labelKey: 'download.numberPlaylistItems',
+    descriptionKey: 'download.numberPlaylistItemsDesc',
+    keywords: ['playlist', 'number', 'prefix', 'filename', 'order'],
+    section: 'download',
+  },
+  {
+    id: 'number-queue-items',
+    labelKey: 'download.numberQueueItems',
+    descriptionKey: 'download.numberQueueItemsDesc',
+    keywords: ['queue', 'number', 'prefix', 'filename', 'order'],
+    section: 'download',
+  },
+  {
     id: 'persist-download-queue',
     labelKey: 'download.persistDownloadQueue',
     descriptionKey: 'download.persistDownloadQueueDesc',

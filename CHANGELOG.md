@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Queue output folder** - Added a queue item action to choose a download folder for individual downloads
+- **Queue and playlist numbering** - Added optional queue-order and playlist-order filename prefixes
+
+### Fixed
+- **Firefox authentication profiles** - Use the real Firefox profile directory when passing a detected profile to yt-dlp
 
 ## [0.18.0] - 2026-06-29
 
