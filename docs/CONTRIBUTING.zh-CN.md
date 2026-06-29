@@ -5,7 +5,7 @@
 ## 开始
 
 1. Fork 仓库
-2. 创建功能分支：`git checkout -b feature/新功能`
+2. 从 `main` 创建功能分支：`git checkout main && git pull origin main && git checkout -b feature/新功能`
 3. 安装 pre-commit hook（推荐）：
    ```bash
    cp scripts/pre-commit .git/hooks/ && chmod +x .git/hooks/pre-commit
@@ -19,7 +19,15 @@
    ```
 6. 提交更改：`git commit -m 'feat: 添加新功能'`
 7. 推送到分支：`git push origin feature/新功能`
-8. 创建 Pull Request
+8. 创建以 `main` 为 base branch 的 Pull Request
+
+## 分支和 Pull Request 流程
+
+- 开始工作前，请始终从最新的 `main` 创建分支。
+- 使用清晰且聚焦的分支名称，例如 `feature/browser-extension-docs` 或 `fix/download-path`。
+- 如果 Pull Request 变得 stale，请在开发过程中将你的分支与 `main` 保持同步。
+- 创建 Pull Request 时，选择 `main` 作为 base branch，选择你的 feature/fix 分支作为 compare branch。
+- 不要直接 merge 到 `main`；请通过 Pull Request 进行 review 后再合并。
 
 ## 提交规范
 
