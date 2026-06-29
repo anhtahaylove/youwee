@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Firefox authentication profiles** - Use the real Firefox profile directory when passing a detected profile to yt-dlp
+- **yt-dlp match filters** - Treat downloads skipped by yt-dlp match filters as non-retryable skipped errors
 
 ## [0.18.0] - 2026-06-29
 

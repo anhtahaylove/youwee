@@ -18,6 +18,7 @@ pub mod code {
     pub const YT_VIDEO_UNAVAILABLE: &str = "YT_VIDEO_UNAVAILABLE";
     pub const YT_NO_SUBTITLES: &str = "YT_NO_SUBTITLES";
     pub const YT_SKIPPED_LIVE: &str = "YT_SKIPPED_LIVE";
+    pub const YT_SKIPPED_FILTER: &str = "YT_SKIPPED_FILTER";
     pub const YT_UPCOMING_LIVE: &str = "YT_UPCOMING_LIVE";
     pub const YT_COOKIE_DB_LOCKED: &str = "YT_COOKIE_DB_LOCKED";
     pub const YT_FRESH_COOKIES_REQUIRED: &str = "YT_FRESH_COOKIES_REQUIRED";
@@ -199,6 +200,9 @@ pub fn infer_error_code(message: &str) -> &'static str {
     {
         return code::YT_UPCOMING_LIVE;
     }
+    if m.contains("does not pass filter") || m.contains("skipped by filter") {
+        return code::YT_SKIPPED_FILTER;
+    }
     if m.contains("no subtitles") || m.contains("subtitles are disabled") {
         return code::YT_NO_SUBTITLES;
     }
@@ -311,4 +315,17 @@ fn escape_json_string(input: &str) -> String {
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{code, default_retryable, infer_error_code};
+
+    #[test]
+    fn yt_dlp_match_filter_skips_are_not_retryable() {
+        let code = infer_error_code("[download] abc123 does not pass filter: title check");
+
+        assert_eq!(code, code::YT_SKIPPED_FILTER);
+        assert!(!default_retryable(code));
+    }
 }

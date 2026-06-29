@@ -64,6 +64,7 @@
     "YT_GEO_RESTRICTED": "Cette vidéo n'est pas disponible dans votre région.",
     "YT_VIDEO_UNAVAILABLE": "Cette vidéo est indisponible.",
     "YT_SKIPPED_LIVE": "Vidéo live ignorée (statut : {{liveStatus}}).",
+    "YT_SKIPPED_FILTER": "Skipped by yt-dlp match filter.",
     "YT_SKIPPED_UPCOMING_LIVE": "Live à venir ignoré, car Ignorer les lives est activé.",
     "YT_UPCOMING_LIVE": "Cet événement live n'a pas encore commencé. Réessayez après son démarrage ou activez Ignorer les lives.",
     "YT_NO_SUBTITLES": "Aucun sous-titre n'est disponible pour cette vidéo.",

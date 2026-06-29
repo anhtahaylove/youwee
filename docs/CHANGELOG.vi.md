@@ -13,6 +13,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Sửa lỗi
 - **Profile xác thực Firefox** - Dùng đúng thư mục profile Firefox thực tế khi truyền profile đã phát hiện cho yt-dlp
+- **Bộ lọc match của yt-dlp** - Xem lượt tải bị yt-dlp match filter bỏ qua là lỗi skipped không cần retry
 
 ## [0.18.0] - 2026-06-29
 

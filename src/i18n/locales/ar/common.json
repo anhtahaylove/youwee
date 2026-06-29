@@ -64,6 +64,7 @@
     "YT_GEO_RESTRICTED": "هذا الفيديو غير متاح في منطقتك.",
     "YT_VIDEO_UNAVAILABLE": "هذا الفيديو غير متاح.",
     "YT_SKIPPED_LIVE": "تم تخطي فيديو البث المباشر (الحالة: {{liveStatus}}).",
+    "YT_SKIPPED_FILTER": "Skipped by yt-dlp match filter.",
     "YT_SKIPPED_UPCOMING_LIVE": "تم تخطي بث مباشر قادم لأن خيار تخطي البث المباشر مفعّل.",
     "YT_UPCOMING_LIVE": "لم يبدأ هذا البث المباشر بعد. أعد المحاولة بعد أن يبدأ، أو فعّل تخطي البث المباشر.",
     "YT_NO_SUBTITLES": "لا توجد ترجمات متاحة لهذا الفيديو.",

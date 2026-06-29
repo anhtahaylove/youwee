@@ -64,6 +64,7 @@
     "YT_GEO_RESTRICTED": "Это видео недоступно в вашем регионе.",
     "YT_VIDEO_UNAVAILABLE": "Это видео недоступно.",
     "YT_SKIPPED_LIVE": "Прямая трансляция пропущена (статус: {{liveStatus}}).",
+    "YT_SKIPPED_FILTER": "Skipped by yt-dlp match filter.",
     "YT_SKIPPED_UPCOMING_LIVE": "Будущая трансляция пропущена, потому что включен пропуск live-трансляций.",
     "YT_UPCOMING_LIVE": "Эта прямая трансляция еще не началась. Попробуйте после начала или включите пропуск live-трансляций.",
     "YT_NO_SUBTITLES": "Для этого видео нет субтитров.",
