@@ -30,6 +30,9 @@
     "label": "语言",
     "select": "选择语言"
   },
+  "actions": {
+    "cancel": "取消"
+  },
   "update": {
     "available": "有新版本可用",
     "error": "更新出错",

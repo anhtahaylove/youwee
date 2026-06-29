@@ -14,6 +14,16 @@ import {
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CollectionManagerDialog } from '@/components/history/CollectionManagerDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -32,7 +42,7 @@ import type {
 import { cn } from '@/lib/utils';
 
 export function HistoryToolbar() {
-  const { t } = useTranslation('pages');
+  const { t } = useTranslation(['pages', 'common']);
   const {
     filter,
     search,
@@ -52,6 +62,7 @@ export function HistoryToolbar() {
   } = useHistory();
 
   const [clearing, setClearing] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [collectionsManagerOpen, setCollectionsManagerOpen] = useState(false);
 
@@ -167,15 +178,19 @@ export function HistoryToolbar() {
     [advancedFilters.collectionIds, setAdvancedFilters],
   );
 
-  const handleClear = useCallback(async () => {
-    if (!confirm(t('library.toolbar.clearConfirm'))) return;
+  const handleClear = useCallback(() => {
+    setClearConfirmOpen(true);
+  }, []);
+
+  const handleConfirmClear = useCallback(async () => {
     setClearing(true);
     try {
       await clearHistory();
+      setClearConfirmOpen(false);
     } finally {
       setClearing(false);
     }
-  }, [clearHistory, t]);
+  }, [clearHistory]);
 
   return (
     <div className="space-y-3">
@@ -548,6 +563,36 @@ export function HistoryToolbar() {
         open={collectionsManagerOpen}
         onOpenChange={setCollectionsManagerOpen}
       />
+      <AlertDialog
+        open={clearConfirmOpen}
+        onOpenChange={(open) => {
+          if (!clearing) {
+            setClearConfirmOpen(open);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('library.toolbar.clear')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('library.toolbar.clearConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearing}>
+              {t('actions.cancel', { ns: 'common' })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={clearing}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmClear();
+              }}
+              className="bg-red-500 text-white hover:bg-red-600"
+            >
+              {t('library.toolbar.clear')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

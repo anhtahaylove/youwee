@@ -30,6 +30,9 @@
     "label": "Language",
     "select": "Select language"
   },
+  "actions": {
+    "cancel": "Cancel"
+  },
   "update": {
     "available": "Update Available",
     "error": "Update Error",

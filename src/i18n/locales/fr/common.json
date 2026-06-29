@@ -30,6 +30,9 @@
     "label": "Langue",
     "select": "Choisir la langue"
   },
+  "actions": {
+    "cancel": "Annuler"
+  },
   "update": {
     "available": "Mise à jour disponible",
     "error": "Erreur de mise à jour",
