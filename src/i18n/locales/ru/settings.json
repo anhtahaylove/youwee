@@ -492,7 +492,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Загруженные видео",
+    "duplicateDownloadsDesc": "Использовать историю библиотеки для поиска уже загруженных видео",
+    "rememberDownloadedVideos": "Запоминать загруженные видео",
+    "rememberDownloadedVideosDesc": "Проверять библиотеку перед добавлением YouTube видео в очередь Download",
+    "duplicateHandling": "Обработка дублей",
+    "duplicateHandlingDesc": "Выберите действие, если видео уже есть в библиотеке",
+    "duplicateHandlingAsk": "Спрашивать перед добавлением",
+    "duplicateHandlingSkip": "Автоматически пропускать",
+    "duplicateHandlingAllow": "Разрешить дубли"
   },
   "dependencies": {
     "title": "Зависимости",

@@ -1,3 +1,4 @@
+export { DuplicateDownloadDialog } from './DuplicateDownloadDialog';
 export { GalleryQueueItem } from './GalleryQueueItem';
 export { GalleryQueueList } from './GalleryQueueList';
 export { GallerySettingsPanel } from './GallerySettingsPanel';

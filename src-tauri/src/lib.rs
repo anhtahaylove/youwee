@@ -370,6 +370,7 @@ pub fn run() {
             commands::add_history,
             commands::get_history,
             commands::get_history_entries_by_ids,
+            commands::find_duplicate_downloads,
             commands::delete_history,
             commands::clear_history,
             commands::get_history_count,

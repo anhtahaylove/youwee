@@ -267,5 +267,19 @@
     "de": "Немецкий",
     "pt": "Португальский",
     "ru": "Русский"
+  },
+  "duplicates": {
+    "title": "Already downloaded videos",
+    "description": "{{count}} video(s) already exist in Library. {{newCount}} new video(s) can still be added.",
+    "downloadedAt": "Downloaded {{date}}",
+    "fileExists": "File available",
+    "fileMissing": "File missing",
+    "moreItems": "{{count}} more duplicate(s)",
+    "applyToAll": "Apply this choice to all duplicates in this add",
+    "skip": "Skip duplicates",
+    "addAgain": "Add again",
+    "cancel": "Cancel",
+    "skippedToastTitle": "Already downloaded videos skipped",
+    "skippedToastMessage": "Skipped {{count}} video(s) already found in Library."
   }
 }

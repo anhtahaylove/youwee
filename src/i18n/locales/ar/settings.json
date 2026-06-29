@@ -492,7 +492,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "الفيديوهات التي تم تنزيلها",
+    "duplicateDownloadsDesc": "استخدم سجل المكتبة لاكتشاف الفيديوهات التي تم تنزيلها من قبل",
+    "rememberDownloadedVideos": "تذكر الفيديوهات التي تم تنزيلها",
+    "rememberDownloadedVideosDesc": "تحقق من المكتبة قبل إضافة فيديوهات YouTube إلى قائمة Download",
+    "duplicateHandling": "التعامل مع التكرارات",
+    "duplicateHandlingDesc": "اختر ما يفعله Youwee عندما يكون الفيديو موجودا في المكتبة",
+    "duplicateHandlingAsk": "اسأل قبل الإضافة",
+    "duplicateHandlingSkip": "تخط تلقائيا",
+    "duplicateHandlingAllow": "السماح بالتكرارات"
   },
   "dependencies": {
     "title": "Dependencies",

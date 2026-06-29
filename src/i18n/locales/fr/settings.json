@@ -492,7 +492,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Vidéos téléchargées",
+    "duplicateDownloadsDesc": "Utiliser l historique de la bibliothèque pour détecter les vidéos déjà téléchargées",
+    "rememberDownloadedVideos": "Mémoriser les vidéos téléchargées",
+    "rememberDownloadedVideosDesc": "Vérifier la bibliothèque avant d ajouter des vidéos YouTube à la file Download",
+    "duplicateHandling": "Gestion des doublons",
+    "duplicateHandlingDesc": "Choisissez quoi faire quand une vidéo existe déjà dans la bibliothèque",
+    "duplicateHandlingAsk": "Demander avant d ajouter",
+    "duplicateHandlingSkip": "Ignorer automatiquement",
+    "duplicateHandlingAllow": "Autoriser les doublons"
   },
   "dependencies": {
     "title": "Dépendances",

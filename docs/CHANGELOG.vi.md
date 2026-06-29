@@ -10,6 +10,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Thêm mới
 - **Collection trong Thư viện** - Thêm tùy chọn tự tạo collection cho playlist đã tách, lượt tải từ channel và file chapter
 - **Tốc độ khung hình** - Thêm tùy chọn ưu tiên tải 30 FPS trong Tải xuống, Universal và Kênh, kèm cảnh báo rõ về chất lượng
+- **Ghi nhớ video đã tải** - Thêm tùy chọn trong Tải xuống để phát hiện video đã có trong Thư viện và hỏi, bỏ qua hoặc cho phép tải trùng trước khi thêm lại
 
 ### Thay đổi
 - **Tóm tắt trong Thư viện** - Tinh chỉnh action của item và chuyển bản tóm tắt AI đầy đủ sang dialog đọc riêng có chỉnh cỡ chữ
@@ -18,6 +19,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Link extension khi app chưa mở** - Sửa lỗi link tải từ browser extension chỉ mở Youwee nhưng không thêm video khi app đang đóng
 - **Đánh số trong AI Summary** - Sửa lỗi danh sách chủ đề trên giao diện luôn bắt đầu lại từ 1 khi có dòng trống giữa các mục
 - **Điều khiển lấy video Kênh** - Thêm nút dừng khi đang lấy video kênh và tránh tải lại danh sách khi mở kênh vừa duyệt xong
+- **Thumbnail trong dialog trùng lặp** - Sửa lỗi dialog video đã tải hiển thị placeholder dù mục trong Thư viện đã có thumbnail
 
 ## [0.18.0] - 2026-06-29
 

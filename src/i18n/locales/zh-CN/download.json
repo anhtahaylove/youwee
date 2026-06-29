@@ -267,5 +267,19 @@
     "de": "德语",
     "pt": "葡萄牙语",
     "ru": "俄语"
+  },
+  "duplicates": {
+    "title": "已下载过的视频",
+    "description": "{{count}} 个视频已存在于 Library。仍可添加 {{newCount}} 个新视频。",
+    "downloadedAt": "下载于 {{date}}",
+    "fileExists": "文件可用",
+    "fileMissing": "文件缺失",
+    "moreItems": "还有 {{count}} 个重复项",
+    "applyToAll": "将此选择应用到本次添加的所有重复项",
+    "skip": "跳过重复项",
+    "addAgain": "再次添加",
+    "cancel": "取消",
+    "skippedToastTitle": "已跳过下载过的视频",
+    "skippedToastMessage": "已跳过 Library 中已有的 {{count}} 个视频。"
   }
 }

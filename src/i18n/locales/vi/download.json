@@ -267,5 +267,19 @@
     "de": "Tiếng Đức",
     "pt": "Tiếng Bồ Đào Nha",
     "ru": "Tiếng Nga"
+  },
+  "duplicates": {
+    "title": "Video đã từng tải",
+    "description": "Có {{count}} video đã tồn tại trong Library. Vẫn có thể thêm {{newCount}} video mới.",
+    "downloadedAt": "Đã tải {{date}}",
+    "fileExists": "Còn file",
+    "fileMissing": "Mất file",
+    "moreItems": "Còn {{count}} video trùng lặp",
+    "applyToAll": "Áp dụng lựa chọn này cho toàn bộ video trùng trong lần thêm này",
+    "skip": "Bỏ qua video trùng",
+    "addAgain": "Thêm lại",
+    "cancel": "Hủy",
+    "skippedToastTitle": "Đã bỏ qua video từng tải",
+    "skippedToastMessage": "Đã bỏ qua {{count}} video có trong Library."
   }
 }

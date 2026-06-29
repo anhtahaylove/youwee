@@ -3,14 +3,15 @@ use std::path::{Path, PathBuf};
 use crate::database::{
     add_history_internal, add_history_with_summary, assign_history_collections_in_db,
     assign_history_tags_in_db, clear_history_from_db, create_collection_in_db,
-    delete_collection_from_db, delete_history_from_db, get_collections_from_db,
-    get_history_count_from_db, get_history_entries_by_ids_from_db, get_history_from_db,
-    get_tags_from_db, remove_history_from_collection_in_db, remove_history_tag_from_db,
-    rename_collection_in_db, update_history_filepath_and_title,
+    delete_collection_from_db, delete_history_from_db, find_duplicate_downloads_in_history_db,
+    get_collections_from_db, get_history_count_from_db, get_history_entries_by_ids_from_db,
+    get_history_from_db, get_tags_from_db, remove_history_from_collection_in_db,
+    remove_history_tag_from_db, rename_collection_in_db, update_history_filepath_and_title,
     update_history_filepath_and_title_by_id, update_history_summary,
 };
 use crate::types::{
-    HistoryAdvancedFilters, HistoryCollection, HistoryEntry, HistorySort, HistoryTag,
+    DownloadDuplicateIdentity, DownloadDuplicateMatch, HistoryAdvancedFilters, HistoryCollection,
+    HistoryEntry, HistorySort, HistoryTag,
 };
 
 #[tauri::command]
@@ -63,6 +64,13 @@ pub fn get_history(
 #[tauri::command]
 pub fn get_history_entries_by_ids(ids: Vec<String>) -> Result<Vec<HistoryEntry>, String> {
     get_history_entries_by_ids_from_db(ids)
+}
+
+#[tauri::command]
+pub fn find_duplicate_downloads(
+    identities: Vec<DownloadDuplicateIdentity>,
+) -> Result<Vec<DownloadDuplicateMatch>, String> {
+    find_duplicate_downloads_in_history_db(identities)
 }
 
 #[tauri::command]

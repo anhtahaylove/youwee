@@ -220,7 +220,9 @@ pub fn init_database(app: &AppHandle) -> Result<(), String> {
             format TEXT,
             source TEXT,
             downloaded_at INTEGER NOT NULL,
-            summary TEXT
+            summary TEXT,
+            media_id TEXT,
+            canonical_url TEXT
         )",
         [],
     )
@@ -233,6 +235,22 @@ pub fn init_database(app: &AppHandle) -> Result<(), String> {
     // Migration: Add time_range column if it doesn't exist
     conn.execute("ALTER TABLE history ADD COLUMN time_range TEXT", [])
         .ok(); // Ignore error if column already exists
+
+    // Migration: Add duplicate detection identity columns if they don't exist
+    conn.execute("ALTER TABLE history ADD COLUMN media_id TEXT", [])
+        .ok(); // Ignore error if column already exists
+    conn.execute("ALTER TABLE history ADD COLUMN canonical_url TEXT", [])
+        .ok(); // Ignore error if column already exists
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_history_media_id ON history(media_id)",
+        [],
+    )
+    .ok();
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_history_canonical_url ON history(canonical_url)",
+        [],
+    )
+    .ok();
 
     conn.execute(
         "CREATE TABLE IF NOT EXISTS tags (

@@ -497,7 +497,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Downloaded videos",
+    "duplicateDownloadsDesc": "Use Library history to detect videos you already downloaded",
+    "rememberDownloadedVideos": "Remember downloaded videos",
+    "rememberDownloadedVideosDesc": "Check Library before adding YouTube videos to the Download queue",
+    "duplicateHandling": "Duplicate handling",
+    "duplicateHandlingDesc": "Choose what Youwee should do when a video already exists in Library",
+    "duplicateHandlingAsk": "Ask before adding",
+    "duplicateHandlingSkip": "Skip automatically",
+    "duplicateHandlingAllow": "Allow duplicates"
   },
   "remoteDownload": {
     "telegramRemote": "Telegram Remote",

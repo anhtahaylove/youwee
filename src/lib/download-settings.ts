@@ -44,6 +44,11 @@ export function createDefaultDownloadSettings(saved: Partial<DownloadSettings>):
     splitEmbeddedChapters: saved.splitEmbeddedChapters === true,
     numberChapterFiles: saved.numberChapterFiles !== false,
     autoOrganizeCollections: saved.autoOrganizeCollections === true,
+    rememberDownloadedVideos: saved.rememberDownloadedVideos === true,
+    duplicateDownloadHandling:
+      saved.duplicateDownloadHandling === 'skip' || saved.duplicateDownloadHandling === 'allow'
+        ? saved.duplicateDownloadHandling
+        : 'ask',
     liveFromStart: saved.liveFromStart === true,
     skipLive: saved.skipLive === true,
     speedLimitEnabled: saved.speedLimitEnabled === true,
@@ -98,6 +103,8 @@ export function serializeDownloadSettings(settings: DownloadSettings): Partial<D
     splitEmbeddedChapters: settings.splitEmbeddedChapters,
     numberChapterFiles: settings.numberChapterFiles,
     autoOrganizeCollections: settings.autoOrganizeCollections,
+    rememberDownloadedVideos: settings.rememberDownloadedVideos,
+    duplicateDownloadHandling: settings.duplicateDownloadHandling,
     liveFromStart: settings.liveFromStart,
     skipLive: settings.skipLive,
     speedLimitEnabled: settings.speedLimitEnabled,

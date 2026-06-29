@@ -497,7 +497,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Video đã tải",
+    "duplicateDownloadsDesc": "Dùng lịch sử Library để phát hiện video đã từng tải",
+    "rememberDownloadedVideos": "Ghi nhớ video đã tải",
+    "rememberDownloadedVideosDesc": "Kiểm tra Library trước khi thêm video YouTube vào hàng đợi Download",
+    "duplicateHandling": "Cách xử lý trùng lặp",
+    "duplicateHandlingDesc": "Chọn cách Youwee xử lý khi video đã có trong Library",
+    "duplicateHandlingAsk": "Hỏi trước khi thêm",
+    "duplicateHandlingSkip": "Tự động bỏ qua",
+    "duplicateHandlingAllow": "Cho phép trùng lặp"
   },
   "remoteDownload": {
     "telegramRemote": "Điều khiển qua Telegram",

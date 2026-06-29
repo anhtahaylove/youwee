@@ -492,7 +492,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "วิดีโอที่ดาวน์โหลดแล้ว",
+    "duplicateDownloadsDesc": "ใช้ประวัติ Library เพื่อตรวจหาวิดีโอที่เคยดาวน์โหลด",
+    "rememberDownloadedVideos": "จดจำวิดีโอที่ดาวน์โหลดแล้ว",
+    "rememberDownloadedVideosDesc": "ตรวจสอบ Library ก่อนเพิ่มวิดีโอ YouTube เข้าคิว Download",
+    "duplicateHandling": "การจัดการวิดีโอซ้ำ",
+    "duplicateHandlingDesc": "เลือกสิ่งที่ Youwee ควรทำเมื่อวิดีโอมีอยู่ใน Library แล้ว",
+    "duplicateHandlingAsk": "ถามก่อนเพิ่ม",
+    "duplicateHandlingSkip": "ข้ามอัตโนมัติ",
+    "duplicateHandlingAllow": "อนุญาตรายการซ้ำ"
   },
   "dependencies": {
     "title": "Dependencies",

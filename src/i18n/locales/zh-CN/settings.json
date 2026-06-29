@@ -497,7 +497,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "已下载视频",
+    "duplicateDownloadsDesc": "使用 Library 历史记录检测已经下载过的视频",
+    "rememberDownloadedVideos": "记住已下载视频",
+    "rememberDownloadedVideosDesc": "添加 YouTube 视频到下载队列前先检查 Library",
+    "duplicateHandling": "重复项处理",
+    "duplicateHandlingDesc": "选择当视频已存在于 Library 时 Youwee 的处理方式",
+    "duplicateHandlingAsk": "添加前询问",
+    "duplicateHandlingSkip": "自动跳过",
+    "duplicateHandlingAllow": "允许重复"
   },
   "remoteDownload": {
     "telegramRemote": "Telegram 远程控制",

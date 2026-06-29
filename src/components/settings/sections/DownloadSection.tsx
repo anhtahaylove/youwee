@@ -2,6 +2,7 @@ import {
   Database,
   Film,
   Gauge,
+  History,
   Plus,
   Radio,
   Rocket,
@@ -392,6 +393,59 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
           >
             <Switch checked={settings.liveFromStart} onCheckedChange={updateLiveFromStart} />
           </SettingsRow>
+        </SettingsCard>
+      </SettingsSection>
+
+      <SettingsDivider />
+
+      <SettingsSection
+        title={t('download.duplicateDownloads')}
+        description={t('download.duplicateDownloadsDesc')}
+        icon={<History className="w-5 h-5 text-white" />}
+        iconClassName="bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/20"
+      >
+        <SettingsCard>
+          <SettingsRow
+            id="remember-downloaded-videos"
+            label={t('download.rememberDownloadedVideos')}
+            description={t('download.rememberDownloadedVideosDesc')}
+            highlight={highlightId === 'remember-downloaded-videos'}
+          >
+            <Switch
+              checked={settings.rememberDownloadedVideos}
+              onCheckedChange={(rememberDownloadedVideos) =>
+                updateSettings({ rememberDownloadedVideos })
+              }
+            />
+          </SettingsRow>
+
+          {settings.rememberDownloadedVideos && (
+            <SettingsRow
+              id="duplicate-download-handling"
+              label={t('download.duplicateHandling')}
+              description={t('download.duplicateHandlingDesc')}
+              highlight={highlightId === 'duplicate-download-handling'}
+            >
+              <Select
+                value={settings.duplicateDownloadHandling}
+                onValueChange={(value) =>
+                  updateSettings({
+                    duplicateDownloadHandling:
+                      value === 'skip' || value === 'allow' ? value : 'ask',
+                  })
+                }
+              >
+                <SelectTrigger className="h-9 w-[190px] bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ask">{t('download.duplicateHandlingAsk')}</SelectItem>
+                  <SelectItem value="skip">{t('download.duplicateHandlingSkip')}</SelectItem>
+                  <SelectItem value="allow">{t('download.duplicateHandlingAllow')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </SettingsRow>
+          )}
         </SettingsCard>
       </SettingsSection>
 

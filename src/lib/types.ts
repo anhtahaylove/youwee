@@ -228,6 +228,38 @@ export interface YoutubeSearchQueueResult {
   queuedIds: string[];
 }
 
+export type DuplicateDownloadHandling = 'ask' | 'skip' | 'allow';
+
+export type DownloadDuplicateReviewAction = 'skip' | 'add' | 'cancel';
+
+export interface DownloadDuplicateIdentity {
+  mediaId?: string | null;
+  canonicalUrl?: string | null;
+}
+
+export interface DownloadDuplicateMatch {
+  mediaId?: string | null;
+  canonicalUrl?: string | null;
+  historyId: string;
+  title: string;
+  thumbnail?: string | null;
+  filepath: string;
+  downloadedAt: string;
+  fileExists: boolean;
+}
+
+export interface DownloadDuplicateReviewItem {
+  url: string;
+  title: string;
+  thumbnail?: string;
+  duplicate: DownloadDuplicateMatch;
+}
+
+export interface DownloadDuplicateReview {
+  duplicates: DownloadDuplicateReviewItem[];
+  newCount: number;
+}
+
 export interface ExternalEnqueueResult {
   added: boolean;
   itemId: string | null;
@@ -277,6 +309,9 @@ export interface DownloadSettings {
   splitEmbeddedChapters: boolean; // Split downloaded media into embedded chapter files
   numberChapterFiles: boolean; // Prefix chapter files with chapter numbers when splitting
   autoOrganizeCollections: boolean; // Create library collections for expanded playlists, channel downloads, and split chapters
+  // Download duplicate detection
+  rememberDownloadedVideos: boolean; // Check Library/history before adding duplicate downloads
+  duplicateDownloadHandling: DuplicateDownloadHandling; // Ask or skip when downloaded videos are detected
   // Live stream settings
   liveFromStart: boolean; // Download live streams from the beginning
   skipLive: boolean; // Skip live streams instead of downloading them

@@ -492,7 +492,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Vídeos baixados",
+    "duplicateDownloadsDesc": "Use o histórico da Biblioteca para detectar vídeos já baixados",
+    "rememberDownloadedVideos": "Lembrar vídeos baixados",
+    "rememberDownloadedVideosDesc": "Verificar a Biblioteca antes de adicionar vídeos do YouTube à fila de Download",
+    "duplicateHandling": "Tratamento de duplicados",
+    "duplicateHandlingDesc": "Escolha o que o Youwee deve fazer quando um vídeo já existe na Biblioteca",
+    "duplicateHandlingAsk": "Perguntar antes de adicionar",
+    "duplicateHandlingSkip": "Pular automaticamente",
+    "duplicateHandlingAllow": "Permitir duplicados"
   },
   "dependencies": {
     "title": "Dependências",
