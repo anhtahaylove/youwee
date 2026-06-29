@@ -287,6 +287,7 @@ interface DownloadContextType {
   retryFailedDownload: (itemId: string) => void;
   // Per-item time range
   updateItemTimeRange: (id: string, start?: string, end?: string) => void;
+  selectItemOutputFolder: (id: string) => Promise<void>;
   // Rename completed file
   renameCompletedItem: (id: string, newName: string) => Promise<void>;
 }
@@ -1076,17 +1077,64 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const updateItemTimeRange = useCallback((id: string, start?: string, end?: string) => {
-    setItems((items) =>
-      items.map((item) => {
+    setItems((items) => {
+      const nextItems = items.map((item) => {
         if (item.id !== id || !item.settings) return item;
         const settings = item.settings as ItemDownloadSettings;
         return {
           ...item,
           settings: { ...settings, timeRangeStart: start, timeRangeEnd: end },
         };
-      }),
-    );
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
   }, []);
+
+  const updateItemOutputPath = useCallback((id: string, outputPath: string) => {
+    setItems((items) => {
+      const nextItems = items.map((item) => {
+        if (item.id !== id || !item.settings) return item;
+        const settings = item.settings as ItemDownloadSettings;
+        return {
+          ...item,
+          settings: { ...settings, outputPath },
+        };
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+  }, []);
+
+  const selectItemOutputFolder = useCallback(
+    async (id: string) => {
+      if (isDownloadingRef.current) return;
+
+      const item = itemsRef.current.find((i) => i.id === id);
+      if (!item || (item.status !== 'pending' && item.status !== 'error')) {
+        return;
+      }
+
+      const itemSettings = item.settings as ItemDownloadSettings | undefined;
+      const defaultPath = itemSettings?.outputPath || settingsRef.current.outputPath || undefined;
+
+      try {
+        const folder = await open({
+          directory: true,
+          multiple: false,
+          title: 'Select Download Folder',
+          defaultPath,
+        });
+
+        if (typeof folder === 'string' && folder) {
+          updateItemOutputPath(id, folder);
+        }
+      } catch (error) {
+        console.error('Failed to select item folder:', error);
+      }
+    },
+    [updateItemOutputPath],
+  );
 
   const renameCompletedItem = useCallback(async (id: string, newName: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
@@ -1841,6 +1889,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       retryFailedDownload,
       // Per-item time range
       updateItemTimeRange,
+      selectItemOutputFolder,
       renameCompletedItem,
     }),
     [
@@ -1899,6 +1948,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       clearCookieError,
       retryFailedDownload,
       updateItemTimeRange,
+      selectItemOutputFolder,
       renameCompletedItem,
     ],
   );

@@ -7,6 +7,9 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Thêm mới
+- **Folder lưu từng item trong hàng đợi** - Thêm action trên item để chọn folder tải riêng cho từng lượt tải
+
 ## [0.18.0] - 2026-06-29
 
 ### Thêm mới

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Queue output folder** - Added a queue item action to choose a download folder for individual downloads
+
 ## [0.18.0] - 2026-06-29
 
 ### Added

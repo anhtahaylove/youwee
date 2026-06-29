@@ -97,12 +97,18 @@ function formatQuality(quality: string): string {
   return qualityMap[quality] || quality;
 }
 
+function getFolderName(path: string): string {
+  const segments = path.split(/[\\/]/).filter(Boolean);
+  return segments.at(-1) || path;
+}
+
 interface UniversalQueueItemProps {
   item: DownloadItem;
   isFocused?: boolean;
   disabled?: boolean;
   onRemove: (id: string) => void;
   onUpdateTimeRange: (id: string, start?: string, end?: string) => void;
+  onSelectOutputFolder: (id: string) => Promise<void>;
   onRename: (id: string, newName: string) => Promise<void>;
   onScheduleUpcomingLive?: (config: ScheduleConfig) => void;
 }
@@ -113,6 +119,7 @@ export function UniversalQueueItem({
   disabled,
   onRemove,
   onUpdateTimeRange,
+  onSelectOutputFolder,
   onRename,
   onScheduleUpcomingLive,
 }: UniversalQueueItemProps) {
@@ -171,6 +178,8 @@ export function UniversalQueueItem({
   const itemSettings = item.settings as ItemUniversalSettings | undefined;
 
   const hasTimeRange = !!(itemSettings?.timeRangeStart && itemSettings?.timeRangeEnd);
+  const outputPath = itemSettings?.outputPath ?? '';
+  const outputFolderName = outputPath ? getFolderName(outputPath) : '';
 
   const handleApplyTimeRange = useCallback(() => {
     if (timeStart && timeEnd) {
@@ -196,6 +205,10 @@ export function UniversalQueueItem({
       return !v;
     });
   }, [itemSettings?.timeRangeStart, itemSettings?.timeRangeEnd]);
+
+  const handleSelectOutputFolder = useCallback(() => {
+    void onSelectOutputFolder(item.id);
+  }, [item.id, onSelectOutputFolder]);
 
   const handleTimeStartChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
     setTimeStart(autoFormatTimeInput(e.target.value));
@@ -532,8 +545,27 @@ export function UniversalQueueItem({
         </div>
 
         {/* Actions Row — interactive buttons, visually distinct */}
-        {!isActive && !isError && (
+        {!isActive && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            {itemSettings && (isPending || isError) && (
+              <button
+                type="button"
+                onClick={handleSelectOutputFolder}
+                disabled={disabled}
+                title={
+                  outputPath
+                    ? t('queue.outputFolder', { path: outputPath })
+                    : t('queue.changeOutputFolder')
+                }
+                className="inline-flex max-w-[180px] items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-blue-500/30 text-blue-600 dark:text-blue-400 hover:border-blue-500/50 hover:bg-blue-500/10 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FolderOpen className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">
+                  {outputFolderName || t('queue.changeOutputFolder')}
+                </span>
+              </button>
+            )}
+
             {/* Time Range button (only when pending) */}
             {isPending && itemSettings && (
               <button
@@ -554,7 +586,7 @@ export function UniversalQueueItem({
             )}
 
             {/* AI Summarize Button */}
-            {aiEnabled && !summary && !isGenerating && !summaryError && (
+            {aiEnabled && !isError && !summary && !isGenerating && !summaryError && (
               <button
                 type="button"
                 onClick={handleGenerateSummary}
