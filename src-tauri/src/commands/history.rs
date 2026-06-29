@@ -74,8 +74,36 @@ pub fn find_duplicate_downloads(
 }
 
 #[tauri::command]
-pub fn delete_history(id: String) -> Result<(), String> {
+pub fn delete_history(id: String, delete_file: Option<bool>) -> Result<(), String> {
+    if delete_file.unwrap_or(false) {
+        let entry = get_history_entries_by_ids_from_db(vec![id.clone()])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| "History entry not found".to_string())?;
+        delete_history_media_file(&entry.filepath)?;
+    }
+
     delete_history_from_db(id)
+}
+
+fn delete_history_media_file(filepath: &str) -> Result<(), String> {
+    let trimmed = filepath.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let path = Path::new(trimmed);
+    if !path.exists() {
+        return Ok(());
+    }
+
+    let metadata = std::fs::symlink_metadata(path)
+        .map_err(|e| format!("Failed to inspect media file before deleting: {}", e))?;
+    if metadata.is_dir() {
+        return Err("Refusing to delete a directory from Library item deletion".to_string());
+    }
+
+    std::fs::remove_file(path).map_err(|e| format!("Failed to delete media file: {}", e))
 }
 
 #[tauri::command]
@@ -395,6 +423,38 @@ mod tests {
             std::env::temp_dir().join(format!("youwee-missing-{}.mp4", uuid::Uuid::new_v4()));
         let err = build_renamed_path(&missing, "new").expect_err("expected missing file error");
         assert!(err.contains("File not found"));
+    }
+
+    #[test]
+    fn delete_history_media_file_removes_regular_file() {
+        let file = make_temp_file("video.mp4");
+
+        delete_history_media_file(file.to_str().expect("utf8 path")).expect("delete media file");
+
+        assert!(!file.exists());
+        let _ = fs::remove_dir_all(file.parent().unwrap_or_else(|| Path::new("/")));
+    }
+
+    #[test]
+    fn delete_history_media_file_ignores_missing_file() {
+        let missing =
+            std::env::temp_dir().join(format!("youwee-missing-{}.mp4", uuid::Uuid::new_v4()));
+
+        delete_history_media_file(missing.to_str().expect("utf8 path"))
+            .expect("missing media file should not fail");
+    }
+
+    #[test]
+    fn delete_history_media_file_rejects_directory() {
+        let dir =
+            std::env::temp_dir().join(format!("youwee-history-test-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&dir).expect("create temp dir");
+
+        let error =
+            delete_history_media_file(dir.to_str().expect("utf8 path")).expect_err("reject dir");
+
+        assert!(error.contains("Refusing to delete a directory"));
+        let _ = fs::remove_dir_all(&dir);
     }
 
     fn ensure_test_history_table() {

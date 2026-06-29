@@ -288,7 +288,7 @@
       "copy": "Копировать",
       "copied": "Скопировано",
       "delete": "Удалить",
-      "deleteConfirm": "Удалить \"{{title}}\" из истории?",
+      "deleteConfirm": "Удалить \"{{title}}\" из библиотеки? Медиафайл останется на устройстве.",
       "failedToRedownload": "Не удалось загрузить повторно",
       "sources": {
         "youtube": "YouTube",
@@ -298,7 +298,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "Другое"
-      }
+      },
+      "deleteTitle": "Удалить из библиотеки?",
+      "deleteWithFileTitle": "Также удалить медиафайл?",
+      "deleteWithFileConfirm": "Удалить \"{{title}}\" из библиотеки и удалить медиафайл с устройства? Это действие нельзя отменить.",
+      "deleteLibraryOnly": "Удалить из библиотеки",
+      "deleteWithFile": "Также удалить медиафайл",
+      "deleteCancel": "Отмена"
     },
     "collections": {
       "title": "Коллекции",

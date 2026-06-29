@@ -26,10 +26,24 @@ import { CollectionManagerDialog } from '@/components/history/CollectionManagerD
 import { HistorySummaryDialog } from '@/components/history/HistorySummaryDialog';
 import { HistoryTagsCollectionsDialog } from '@/components/history/HistoryTagsCollectionsDialog';
 import { FaIcon } from '@/components/shared/FaIcon';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAI } from '@/contexts/AIContext';
 import { useHistory } from '@/contexts/HistoryContext';
 import { usePlayer } from '@/contexts/PlayerContext';
+import {
+  type LibraryDeleteFileBehavior,
+  loadLibraryDeleteFileBehavior,
+} from '@/lib/library-delete-behavior';
 import { buildPlayableAudioQueue, isPlayableAudioEntry } from '@/lib/player-queue';
 import { detectSource } from '@/lib/sources';
 import type { HistoryEntry } from '@/lib/types';
@@ -104,6 +118,8 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const [isCollectionsManagerOpen, setIsCollectionsManagerOpen] = useState(false);
   const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false);
   const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteFileBehavior, setDeleteFileBehavior] = useState<LibraryDeleteFileBehavior>('ask');
   const [renameName, setRenameName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
 
@@ -155,6 +171,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
       }),
     [aiEnabled, entry.file_exists, isDataExport],
   );
+  const canDeleteMediaFile = Boolean(entry.file_exists && entry.filepath.trim());
 
   // Update local summary when task completes
   useEffect(() => {
@@ -174,17 +191,25 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   }, [openFileLocation, entry.filepath]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm(t('library.item.deleteConfirm', { title: entry.title }))) return;
+    setDeleteFileBehavior(loadLibraryDeleteFileBehavior());
     setIsActionsPopoverOpen(false);
-    setIsDeleting(true);
-    try {
-      await deleteEntry(entry.id);
-    } catch (error) {
-      console.error('Failed to delete:', error);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [deleteEntry, entry.id, entry.title, t]);
+    setIsDeleteDialogOpen(true);
+  }, []);
+
+  const confirmDelete = useCallback(
+    async (deleteFile: boolean) => {
+      setIsDeleteDialogOpen(false);
+      setIsDeleting(true);
+      try {
+        await deleteEntry(entry.id, deleteFile && canDeleteMediaFile);
+      } catch (error) {
+        console.error('Failed to delete:', error);
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [canDeleteMediaFile, deleteEntry, entry.id],
+  );
 
   const handleRedownload = useCallback(async () => {
     setRedownloadError(null);
@@ -730,6 +755,51 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           open={isCollectionsManagerOpen}
           onOpenChange={setIsCollectionsManagerOpen}
         />
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                  ? t('library.item.deleteWithFileTitle')
+                  : t('library.item.deleteTitle')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                  ? t('library.item.deleteWithFileConfirm', { title: entry.title })
+                  : t('library.item.deleteConfirm', { title: entry.title })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2 sm:space-x-0">
+              <AlertDialogCancel disabled={isDeleting}>
+                {t('library.item.deleteCancel')}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeleting}
+                onClick={() =>
+                  void confirmDelete(deleteFileBehavior === 'delete-file' && canDeleteMediaFile)
+                }
+                className={
+                  deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                    : undefined
+                }
+              >
+                {deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                  ? t('library.item.deleteWithFile')
+                  : t('library.item.deleteLibraryOnly')}
+              </AlertDialogAction>
+              {deleteFileBehavior === 'ask' && canDeleteMediaFile && (
+                <AlertDialogAction
+                  disabled={isDeleting}
+                  onClick={() => void confirmDelete(true)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {t('library.item.deleteWithFile')}
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {localSummary && (
           <HistorySummaryDialog
             entry={entry}

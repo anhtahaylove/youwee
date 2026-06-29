@@ -77,10 +77,10 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     section: 'general',
   },
   {
-    id: 'max-history',
-    labelKey: 'general.maxHistory',
-    descriptionKey: 'general.storageDesc',
-    keywords: ['history', 'storage', 'limit', 'entries', 'database'],
+    id: 'library-delete-file-behavior',
+    labelKey: 'general.libraryDeleteFileBehavior',
+    descriptionKey: 'general.libraryDeleteFileBehaviorDesc',
+    keywords: ['library', 'delete', 'media', 'file', 'history', 'remove', 'storage'],
     section: 'general',
   },
   {

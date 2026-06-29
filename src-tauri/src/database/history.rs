@@ -883,8 +883,8 @@ pub fn get_history_from_db(
 ) -> Result<Vec<HistoryEntry>, String> {
     let conn = get_db()?;
 
-    let limit = limit.unwrap_or(50).min(500);
-    let offset = offset.unwrap_or(0);
+    let limit = limit.filter(|value| *value > 0);
+    let offset = offset.unwrap_or(0).max(0);
     let trimmed_search = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let search_scope = filters
         .as_ref()
@@ -933,9 +933,11 @@ pub fn get_history_from_db(
         HistorySort::Title => query.push_str(" ORDER BY LOWER(h.title) ASC"),
         HistorySort::Size => query.push_str(" ORDER BY h.filesize IS NULL ASC, h.filesize DESC"),
     }
-    query.push_str(" LIMIT ? OFFSET ?");
-    query_params.push(Value::from(limit));
-    query_params.push(Value::from(offset));
+    if let Some(limit) = limit {
+        query.push_str(" LIMIT ? OFFSET ?");
+        query_params.push(Value::from(limit));
+        query_params.push(Value::from(offset));
+    }
 
     let mut stmt = conn
         .prepare(&query)

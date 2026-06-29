@@ -36,7 +36,14 @@
     "processingDesc": "Cài đặt xử lý video và xem trước",
     "previewThreshold": "Ngưỡng kích thước xem trước",
     "previewThresholdDesc": "Hỏi trước khi tạo xem trước cho file lớn hơn kích thước này",
-    "previewAlways": "Luôn tạo"
+    "previewAlways": "Luôn tạo",
+    "library": "Thư viện",
+    "libraryDesc": "Kiểm soát cách Thư viện xóa file đã tải",
+    "libraryDeleteFileBehavior": "Khi xóa mục trong Thư viện",
+    "libraryDeleteFileBehaviorDesc": "Chọn việc xóa một mục có xóa luôn file media trên máy hay không",
+    "libraryDeleteAsk": "Hỏi mỗi lần",
+    "libraryDeleteWithFile": "Luôn xóa file media",
+    "libraryDeleteKeepFile": "Không xóa file media"
   },
   "download": {
     "postProcessing": "Hậu xử lý",

@@ -35,7 +35,14 @@
     "processingDesc": "Paramètres de traitement vidéo et d'aperçu",
     "previewThreshold": "Seuil de taille de l'aperçu",
     "previewThresholdDesc": "Demander confirmation avant de générer un aperçu vidéo pour les fichiers plus volumineux que cette taille",
-    "previewAlways": "Toujours"
+    "previewAlways": "Toujours",
+    "library": "Bibliothèque",
+    "libraryDesc": "Contrôlez la suppression des fichiers téléchargés",
+    "libraryDeleteFileBehavior": "Lors de la suppression dans la bibliothèque",
+    "libraryDeleteFileBehaviorDesc": "Choisissez si la suppression retire aussi le fichier multimédia de votre appareil",
+    "libraryDeleteAsk": "Demander à chaque fois",
+    "libraryDeleteWithFile": "Toujours supprimer le fichier média",
+    "libraryDeleteKeepFile": "Ne jamais supprimer le fichier média"
   },
   "download": {
     "postProcessing": "Post-traitement",

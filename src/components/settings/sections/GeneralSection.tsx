@@ -3,7 +3,6 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  Database,
   ExternalLink,
   Film,
   Loader2,
@@ -12,6 +11,7 @@ import {
   Palette,
   Sun,
   Terminal,
+  Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -27,9 +27,13 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
-import { useHistory } from '@/contexts/HistoryContext';
 import { useProcessing } from '@/contexts/ProcessingContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  type LibraryDeleteFileBehavior,
+  loadLibraryDeleteFileBehavior,
+  saveLibraryDeleteFileBehavior,
+} from '@/lib/library-delete-behavior';
 import type { ThemeName } from '@/lib/themes';
 import { themes } from '@/lib/themes';
 import { cn } from '@/lib/utils';
@@ -69,13 +73,14 @@ export function GeneralSection({ highlightId }: GeneralSectionProps) {
   const { t } = useTranslation('settings');
   const toast = useToast();
   const { theme, setTheme, mode, setMode } = useTheme();
-  const { maxEntries, setMaxEntries, totalCount } = useHistory();
   const { previewSizeThreshold, setPreviewSizeThreshold } = useProcessing();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [languageQuery, setLanguageQuery] = useState('');
   const [cliStatus, setCliStatus] = useState<CliShortcutStatus | null>(null);
   const [cliLoading, setCliLoading] = useState(true);
   const [cliInstalling, setCliInstalling] = useState(false);
+  const [libraryDeleteFileBehavior, setLibraryDeleteFileBehavior] =
+    useState<LibraryDeleteFileBehavior>(() => loadLibraryDeleteFileBehavior());
 
   const [hideDockOnClose, setHideDockOnClose] = useState(() => {
     return localStorage.getItem('youwee_hide_dock_on_close') === 'true';
@@ -86,6 +91,14 @@ export function GeneralSection({ highlightId }: GeneralSectionProps) {
     localStorage.setItem('youwee_hide_dock_on_close', String(checked));
     invoke('set_hide_dock_on_close', { hide: checked }).catch(() => {});
   }, []);
+
+  const handleLibraryDeleteFileBehaviorChange = useCallback(
+    (behavior: LibraryDeleteFileBehavior) => {
+      setLibraryDeleteFileBehavior(behavior);
+      saveLibraryDeleteFileBehavior(behavior);
+    },
+    [],
+  );
 
   const refreshCliStatus = useCallback(async () => {
     setCliLoading(true);
@@ -356,33 +369,33 @@ export function GeneralSection({ highlightId }: GeneralSectionProps) {
 
       <SettingsDivider />
 
-      {/* Storage */}
+      {/* Library */}
       <SettingsSection
-        title={t('general.storage')}
-        description={t('general.storageDesc')}
-        icon={<Database className="w-5 h-5 text-white" />}
-        iconClassName="bg-gradient-to-br from-cyan-500 to-teal-600 shadow-cyan-500/20"
+        title={t('general.library')}
+        description={t('general.libraryDesc')}
+        icon={<Trash2 className="w-5 h-5 text-white" />}
+        iconClassName="bg-gradient-to-br from-rose-500 to-pink-600 shadow-rose-500/20"
       >
         <SettingsCard>
           <SettingsRow
-            id="max-history"
-            label={t('general.maxHistory')}
-            description={t('general.currentlyStoring', { count: totalCount })}
-            highlight={highlightId === 'max-history'}
+            id="library-delete-file-behavior"
+            label={t('general.libraryDeleteFileBehavior')}
+            description={t('general.libraryDeleteFileBehaviorDesc')}
+            highlight={highlightId === 'library-delete-file-behavior'}
           >
             <Select
-              value={String(maxEntries)}
-              onValueChange={(v) => setMaxEntries(Number.parseInt(v, 10))}
+              value={libraryDeleteFileBehavior}
+              onValueChange={(value) =>
+                handleLibraryDeleteFileBehaviorChange(value as LibraryDeleteFileBehavior)
+              }
             >
-              <SelectTrigger className="h-9 w-full bg-background sm:w-[120px]">
+              <SelectTrigger className="h-9 w-full bg-background sm:w-[220px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="100">100</SelectItem>
-                <SelectItem value="250">250</SelectItem>
-                <SelectItem value="500">500</SelectItem>
-                <SelectItem value="1000">1,000</SelectItem>
-                <SelectItem value="2000">2,000</SelectItem>
+                <SelectItem value="ask">{t('general.libraryDeleteAsk')}</SelectItem>
+                <SelectItem value="delete-file">{t('general.libraryDeleteWithFile')}</SelectItem>
+                <SelectItem value="keep-file">{t('general.libraryDeleteKeepFile')}</SelectItem>
               </SelectContent>
             </Select>
           </SettingsRow>

@@ -51,17 +51,15 @@ interface HistoryContextType {
   collections: HistoryCollection[];
   loading: boolean;
   totalCount: number;
-  maxEntries: number;
   redownloadTasks: Map<string, RedownloadTask>;
   setFilter: (filter: HistoryFilter) => void;
   setSearch: (search: string) => void;
   setAdvancedFilters: (updates: Partial<HistoryAdvancedFilters>) => void;
   clearAdvancedFilters: () => void;
   setSort: (sort: HistorySort) => void;
-  setMaxEntries: (max: number) => void;
   refreshHistory: () => Promise<void>;
   refreshTaxonomy: () => Promise<void>;
-  deleteEntry: (id: string) => Promise<void>;
+  deleteEntry: (id: string, deleteFile?: boolean) => Promise<void>;
   clearHistory: () => Promise<void>;
   openFileLocation: (filepath: string) => Promise<void>;
   checkFileExists: (filepath: string) => Promise<boolean>;
@@ -79,7 +77,6 @@ interface HistoryContextType {
 
 const HistoryContext = createContext<HistoryContextType | null>(null);
 
-const MAX_HISTORY_KEY = 'youwee_max_history';
 const HISTORY_SORT_KEY = 'youwee_history_sort';
 
 const DEFAULT_ADVANCED_FILTERS: HistoryAdvancedFilters = {
@@ -239,10 +236,6 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   const [collections, setCollections] = useState<HistoryCollection[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalCount, setTotalCount] = useState(0);
-  const [maxEntries, setMaxEntriesState] = useState(() => {
-    const saved = localStorage.getItem(MAX_HISTORY_KEY);
-    return saved ? parseInt(saved, 10) : 500;
-  });
   const [redownloadTasks, setRedownloadTasks] = useState<Map<string, RedownloadTask>>(new Map());
   const lastAssetScopeKeyRef = useRef('');
 
@@ -288,11 +281,6 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const setMaxEntries = useCallback((max: number) => {
-    setMaxEntriesState(max);
-    localStorage.setItem(MAX_HISTORY_KEY, String(max));
-  }, []);
-
   const setAdvancedFilters = useCallback((updates: Partial<HistoryAdvancedFilters>) => {
     setAdvancedFiltersState((current) => ({ ...current, ...updates }));
   }, []);
@@ -328,8 +316,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
 
       const [result, count] = await Promise.all([
         invoke<HistoryEntry[]>('get_history', {
-          limit: 500,
-          offset: 0,
+          limit: null,
+          offset: null,
           source: sourceFilter,
           search: searchParam,
           filters: resolvedFilters,
@@ -380,9 +368,9 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   }, [filter, search, advancedFilters, sort]);
 
   const deleteEntry = useCallback(
-    async (id: string) => {
+    async (id: string, deleteFile = false) => {
       try {
-        await invoke('delete_history', { id });
+        await invoke('delete_history', { id, deleteFile });
         setEntries((prev) => prev.filter((e) => e.id !== id));
         setTotalCount((prev) => Math.max(0, prev - 1));
         setHistoryVersion((prev) => prev + 1);
@@ -726,14 +714,12 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
         collections,
         loading,
         totalCount,
-        maxEntries,
         redownloadTasks,
         setFilter,
         setSearch,
         setAdvancedFilters,
         clearAdvancedFilters,
         setSort,
-        setMaxEntries,
         refreshHistory,
         refreshTaxonomy,
         deleteEntry,

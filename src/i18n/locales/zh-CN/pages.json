@@ -291,7 +291,7 @@
       "copy": "复制",
       "copied": "已复制",
       "delete": "删除",
-      "deleteConfirm": "从历史记录中移除「{{title}}」？",
+      "deleteConfirm": "从资料库移除“{{title}}”？媒体文件会保留在设备上。",
       "failedToRedownload": "重新下载失败",
       "sources": {
         "youtube": "YouTube",
@@ -301,7 +301,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "其他"
-      }
+      },
+      "deleteTitle": "从资料库移除？",
+      "deleteWithFileTitle": "同时删除媒体文件？",
+      "deleteWithFileConfirm": "从资料库移除“{{title}}”并删除设备上的媒体文件？此操作无法撤销。",
+      "deleteLibraryOnly": "仅从资料库移除",
+      "deleteWithFile": "同时删除媒体文件",
+      "deleteCancel": "取消"
     },
     "collections": {
       "title": "合集",

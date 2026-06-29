@@ -35,7 +35,14 @@
     "processingDesc": "Настройки обработки и предпросмотра видео",
     "previewThreshold": "Порог размера предпросмотра",
     "previewThresholdDesc": "Запрашивать подтверждение перед генерацией предпросмотра для файлов крупнее",
-    "previewAlways": "Всегда"
+    "previewAlways": "Всегда",
+    "library": "Библиотека",
+    "libraryDesc": "Управляйте удалением загруженных файлов из библиотеки",
+    "libraryDeleteFileBehavior": "При удалении элементов библиотеки",
+    "libraryDeleteFileBehaviorDesc": "Выберите, удалять ли вместе с записью медиафайл с устройства",
+    "libraryDeleteAsk": "Спрашивать каждый раз",
+    "libraryDeleteWithFile": "Всегда удалять медиафайл",
+    "libraryDeleteKeepFile": "Никогда не удалять медиафайл"
   },
   "download": {
     "postProcessing": "Постобработка",

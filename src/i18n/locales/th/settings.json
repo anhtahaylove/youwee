@@ -35,7 +35,14 @@
     "processingDesc": "การตั้งค่าการประมวลผลวิดีโอและพรีวิว",
     "previewThreshold": "เกณฑ์ขนาดพรีวิว",
     "previewThresholdDesc": "ถามก่อนสร้างพรีวิววิดีโอสำหรับไฟล์ที่มีขนาดใหญ่กว่าค่านี้",
-    "previewAlways": "เสมอ"
+    "previewAlways": "เสมอ",
+    "library": "คลังรายการ",
+    "libraryDesc": "ควบคุมวิธีที่คลังรายการลบไฟล์ที่ดาวน์โหลด",
+    "libraryDeleteFileBehavior": "เมื่อลบรายการในคลัง",
+    "libraryDeleteFileBehaviorDesc": "เลือกว่าจะลบไฟล์สื่อออกจากเครื่องพร้อมกับรายการหรือไม่",
+    "libraryDeleteAsk": "ถามทุกครั้ง",
+    "libraryDeleteWithFile": "ลบไฟล์สื่อเสมอ",
+    "libraryDeleteKeepFile": "ไม่ลบไฟล์สื่อ"
   },
   "download": {
     "postProcessing": "หลังการประมวลผล",

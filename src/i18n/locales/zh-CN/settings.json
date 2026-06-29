@@ -36,7 +36,14 @@
     "processingDesc": "视频处理和预览设置",
     "previewThreshold": "预览大小阈值",
     "previewThresholdDesc": "对大于此大小的文件生成预览前进行确认",
-    "previewAlways": "始终生成"
+    "previewAlways": "始终生成",
+    "library": "资料库",
+    "libraryDesc": "控制资料库如何删除已下载文件",
+    "libraryDeleteFileBehavior": "删除资料库项目时",
+    "libraryDeleteFileBehaviorDesc": "选择移除项目时是否同时删除设备上的媒体文件",
+    "libraryDeleteAsk": "每次询问",
+    "libraryDeleteWithFile": "始终删除媒体文件",
+    "libraryDeleteKeepFile": "永不删除媒体文件"
   },
   "download": {
     "postProcessing": "后处理",

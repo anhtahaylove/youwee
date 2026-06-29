@@ -35,7 +35,14 @@
     "processingDesc": "Configurações de processamento e visualização de vídeo",
     "previewThreshold": "Limite de tamanho para visualização",
     "previewThresholdDesc": "Perguntar antes de gerar prévia de vídeo para arquivos maiores que este tamanho",
-    "previewAlways": "Sempre"
+    "previewAlways": "Sempre",
+    "library": "Biblioteca",
+    "libraryDesc": "Controle como a Biblioteca exclui arquivos baixados",
+    "libraryDeleteFileBehavior": "Ao excluir itens da Biblioteca",
+    "libraryDeleteFileBehaviorDesc": "Escolha se remover um item também exclui o arquivo de mídia do dispositivo",
+    "libraryDeleteAsk": "Perguntar sempre",
+    "libraryDeleteWithFile": "Sempre excluir arquivo de mídia",
+    "libraryDeleteKeepFile": "Nunca excluir arquivo de mídia"
   },
   "download": {
     "postProcessing": "Pós-processamento",

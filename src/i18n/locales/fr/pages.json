@@ -288,7 +288,7 @@
       "copy": "Copier",
       "copied": "Copié",
       "delete": "Supprimer",
-      "deleteConfirm": "Supprimer \"{{title}}\" de l'historique ?",
+      "deleteConfirm": "Retirer \"{{title}}\" de la bibliothèque ? Le fichier média restera sur votre appareil.",
       "failedToRedownload": "Échec du retéléchargement",
       "sources": {
         "youtube": "YouTube",
@@ -298,7 +298,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "Autre"
-      }
+      },
+      "deleteTitle": "Retirer de la bibliothèque ?",
+      "deleteWithFileTitle": "Supprimer aussi le fichier média ?",
+      "deleteWithFileConfirm": "Retirer \"{{title}}\" de la bibliothèque et supprimer le fichier média de votre appareil ? Cette action est irréversible.",
+      "deleteLibraryOnly": "Retirer de la bibliothèque",
+      "deleteWithFile": "Supprimer aussi le fichier média",
+      "deleteCancel": "Annuler"
     },
     "collections": {
       "title": "Collections",

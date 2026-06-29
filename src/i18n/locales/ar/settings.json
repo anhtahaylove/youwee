@@ -35,7 +35,14 @@
     "processingDesc": "إعدادات معالجة الفيديو والمعاينة",
     "previewThreshold": "عتبة حجم المعاينة",
     "previewThresholdDesc": "اسأل قبل إنشاء معاينة فيديو للملفات الأكبر من هذا الحجم",
-    "previewAlways": "دائمًا"
+    "previewAlways": "دائمًا",
+    "library": "المكتبة",
+    "libraryDesc": "تحكم في طريقة حذف الملفات التي تم تنزيلها من المكتبة",
+    "libraryDeleteFileBehavior": "عند حذف عناصر المكتبة",
+    "libraryDeleteFileBehaviorDesc": "اختر ما إذا كان حذف العنصر سيحذف ملف الوسائط من جهازك أيضًا",
+    "libraryDeleteAsk": "اسأل كل مرة",
+    "libraryDeleteWithFile": "حذف ملف الوسائط دائمًا",
+    "libraryDeleteKeepFile": "عدم حذف ملف الوسائط أبدًا"
   },
   "download": {
     "postProcessing": "ما بعد المعالجة",
