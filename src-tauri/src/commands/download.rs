@@ -27,9 +27,10 @@ use crate::database::add_history_internal;
 use crate::database::add_log_internal;
 use crate::database::update_history_download;
 use crate::services::{
-    build_cookie_args, build_proxy_args, build_site_header_args, enqueue_post_download_workflow,
-    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
-    resolve_download_workflow_snapshot, run_ytdlp_with_stderr, system_ytdlp_not_found_message,
+    add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
+    enqueue_post_download_workflow, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
+    get_ytdlp_source, is_upcoming_live_error, resolve_download_workflow_snapshot,
+    run_ytdlp_with_stderr, system_ytdlp_not_found_message,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -619,9 +620,8 @@ fn push_overwrite_args(args: &mut Vec<String>, skip_existing: Option<bool>) {
 fn push_filename_safety_args(args: &mut Vec<String>) {
     if cfg!(target_os = "windows") {
         args.push("--windows-filenames".to_string());
-        args.push("--trim-filenames".to_string());
-        args.push("180".to_string());
     }
+    add_safe_filename_args(args);
 }
 
 fn facebook_reel_core_fallback_args(
@@ -857,6 +857,11 @@ fn build_download_error_message(exit_code: Option<i32>, recent_lines: &[String])
         }
         None => BackendError::from_message(format!("Download failed: {}", reason)),
     }
+}
+
+fn download_cancelled_error() -> BackendError {
+    BackendError::new(crate::types::code::DOWNLOAD_CANCELLED, "Download cancelled")
+        .with_retryable(false)
 }
 
 fn is_youtube_url(url: &str) -> bool {
@@ -1785,6 +1790,12 @@ pub async fn download_video(
                             }
                             return Ok(());
                         } else {
+                            if CANCEL_FLAG.load(Ordering::SeqCst) {
+                                let error = download_cancelled_error();
+                                add_log_internal("info", error.message(), None, Some(&url)).ok();
+                                return Err(error.to_wire_string());
+                            }
+
                             let recent_lines: Vec<String> = recent_output.iter().cloned().collect();
                             let error = build_download_error_message(status.code, &recent_lines);
                             add_log_internal("error", error.message(), None, Some(&url)).ok();
@@ -2470,6 +2481,12 @@ async fn handle_tokio_download(
             }
         }
 
+        if CANCEL_FLAG.load(Ordering::SeqCst) {
+            let error = download_cancelled_error();
+            add_log_internal("info", error.message(), None, Some(&url)).ok();
+            return Err(error.to_wire_string());
+        }
+
         let error = build_download_error_message(status.code(), &recent_lines);
         add_log_internal("error", error.message(), None, Some(&url)).ok();
 
@@ -2846,6 +2863,28 @@ mod tests {
     }
 
     #[test]
+    fn process_exit_errors_include_exit_code_param() {
+        let error = build_download_error_message(Some(15), &["ERROR: interrupted".to_string()]);
+        let wire = error.to_wire();
+
+        assert_eq!(wire.code, crate::types::code::PROCESS_EXIT_NON_ZERO);
+        assert_eq!(
+            wire.params
+                .and_then(|params| params.get("exitCode").cloned()),
+            Some(serde_json::Value::from(15))
+        );
+    }
+
+    #[test]
+    fn cancelled_download_error_is_non_retryable() {
+        let wire = download_cancelled_error().to_wire();
+
+        assert_eq!(wire.code, crate::types::code::DOWNLOAD_CANCELLED);
+        assert_eq!(wire.message, "Download cancelled");
+        assert_eq!(wire.retryable, Some(false));
+    }
+
+    #[test]
     fn filename_safety_args_follow_platform() {
         let mut args = Vec::new();
         push_filename_safety_args(&mut args);
@@ -2853,7 +2892,7 @@ mod tests {
         if cfg!(target_os = "windows") {
             assert_eq!(args, vec!["--windows-filenames", "--trim-filenames", "180"]);
         } else {
-            assert!(args.is_empty());
+            assert_eq!(args, vec!["--trim-filenames", "180"]);
         }
     }
 

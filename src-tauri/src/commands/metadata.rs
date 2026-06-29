@@ -12,9 +12,9 @@ use tokio::process::Command;
 
 use crate::database::{add_history_internal, add_log_internal};
 use crate::services::{
-    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ffmpeg_path,
-    get_ytdlp_path, get_ytdlp_source, run_ytdlp_with_stderr_and_cookies,
-    search_youtube_videos_internal,
+    add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
+    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source,
+    run_ytdlp_with_stderr_and_cookies, search_youtube_videos_internal,
     system_ytdlp_not_found_message,
 };
 use crate::types::{BackendError, DependencySource, YoutubeSearchVideo};
@@ -748,6 +748,7 @@ pub async fn fetch_metadata(
         "-o".to_string(),
         output_template.clone(),
     ];
+    add_safe_filename_args(&mut args);
 
     // Description output template - yt-dlp adds .description automatically
     if write_description {

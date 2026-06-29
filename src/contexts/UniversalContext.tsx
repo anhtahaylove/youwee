@@ -389,6 +389,25 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         setCookieError({ show: true, itemId: progress.id, kind: 'db_locked' });
       }
 
+      if (progress.status === 'error' && progress.error_code === 'DOWNLOAD_CANCELLED') {
+        setItems((currentItems) =>
+          currentItems.map((item) =>
+            item.id === progress.id
+              ? {
+                  ...item,
+                  status: 'pending',
+                  speed: '',
+                  eta: '',
+                  error: undefined,
+                  errorCode: undefined,
+                  retryState: undefined,
+                }
+              : item,
+          ),
+        );
+        return;
+      }
+
       setItems((currentItems) =>
         currentItems.map((item) =>
           item.id === progress.id
@@ -1046,6 +1065,25 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
           return;
         } catch (error) {
           const parsedError = extractBackendError(error);
+          if (parsedError.code === 'DOWNLOAD_CANCELLED') {
+            setItems((items) =>
+              items.map((i) =>
+                i.id === item.id
+                  ? {
+                      ...i,
+                      status: 'pending',
+                      speed: '',
+                      eta: '',
+                      error: undefined,
+                      errorCode: undefined,
+                      retryState: undefined,
+                    }
+                  : i,
+              ),
+            );
+            return;
+          }
+
           const errorMessage = localizeBackendError(parsedError);
           if (parsedError.code === 'YT_SKIPPED_LIVE') {
             setItems((items) =>
