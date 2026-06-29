@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URLs",
     "dropHint": "ลาก URL หรือไฟล์ .txt มาวางที่นี่",
-    "detectedMultiple": "ตรวจพบ URL {{count}} รายการ"
+    "detectedMultiple": "ตรวจพบ URL {{count}} รายการ",
+    "clearInput": "ล้าง"
   },
   "page": {
     "quickSettings": "การตั้งค่าด่วน",

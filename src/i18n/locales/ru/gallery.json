@@ -57,6 +57,7 @@
     "placeholderMultiple": "One URL per line. Lines starting with # are ignored.",
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URLs",
+    "clearInput": "Очистить",
     "addToQueue": "Добавить"
   }
 }

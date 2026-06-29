@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Déposez des URL ou un fichier .txt ici",
-    "detectedMultiple": "{{count}} URL détectées"
+    "detectedMultiple": "{{count}} URL détectées",
+    "clearInput": "Effacer"
   },
   "page": {
     "quickSettings": "Paramètres rapides",

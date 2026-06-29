@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URLs",
     "dropHint": "Drop URLs or .txt file here",
-    "detectedMultiple": "{{count}} URLs detected"
+    "detectedMultiple": "{{count}} URLs detected",
+    "clearInput": "Clear"
   },
   "page": {
     "quickSettings": "Quick settings",

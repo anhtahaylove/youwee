@@ -57,6 +57,7 @@
     "placeholderMultiple": "หนึ่ง URL ต่อหนึ่งบรรทัด บรรทัดที่ขึ้นต้นด้วย # จะถูกละเว้น",
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URLs",
+    "clearInput": "ล้าง",
     "addToQueue": "เพิ่ม"
   }
 }

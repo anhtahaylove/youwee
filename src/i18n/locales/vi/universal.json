@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Thả URL hoặc file .txt vào đây",
-    "detectedMultiple": "Đã nhận diện {{count}} URL"
+    "detectedMultiple": "Đã nhận diện {{count}} URL",
+    "clearInput": "Xóa"
   },
   "page": {
     "quickSettings": "Cài đặt nhanh",

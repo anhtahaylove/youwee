@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Перетащите URL или .txt файл сюда",
-    "detectedMultiple": "Обнаружено {{count}} URL"
+    "detectedMultiple": "Обнаружено {{count}} URL",
+    "clearInput": "Очистить"
   },
   "page": {
     "quickSettings": "Быстрые настройки",
