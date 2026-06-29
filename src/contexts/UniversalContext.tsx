@@ -637,6 +637,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         skipExisting: downloadSettings.skipExisting,
         organizeBySource: downloadSettings.organizeBySource,
         audioBitrate: currentSettings.audioBitrate,
+        youtubePlayerClient: downloadSettings.youtubePlayerClient,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
         liveFromStart: currentSettings.liveFromStart,
@@ -676,6 +677,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       downloadSettings.filenameTemplate,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
+      downloadSettings.youtubePlayerClient,
       enqueueQueuedWorkflowForItems,
       fetchMetadataForItems,
     ],
@@ -733,6 +735,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         skipExisting: downloadSettings.skipExisting,
         organizeBySource: downloadSettings.organizeBySource,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
+        youtubePlayerClient: downloadSettings.youtubePlayerClient,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
         timeRangeStart: options?.timeRangeStart,
@@ -770,6 +773,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       downloadSettings.filenameTemplate,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
+      downloadSettings.youtubePlayerClient,
       enqueueQueuedWorkflowForItems,
       fetchMetadataForItems,
       focusItem,
@@ -983,6 +987,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             downloadPlaylist: false,
             videoCodec: 'auto', // Use auto for universal downloads
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
+            youtubePlayerClient:
+              itemSettings?.youtubePlayerClient ?? downloadSettings.youtubePlayerClient,
             playlistLimit: null,
             subtitleMode: 'off',
             subtitleLangs: '',
@@ -1195,6 +1201,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     downloadSettings.filenameTemplate,
     downloadSettings.organizeBySource,
     downloadSettings.skipExisting,
+    downloadSettings.youtubePlayerClient,
     enqueueFailedWorkflowForItem,
     settings,
   ]);

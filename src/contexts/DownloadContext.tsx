@@ -172,6 +172,7 @@ function saveSettings(settings: DownloadSettings) {
         subtitleFormat: settings.subtitleFormat,
         useBunRuntime: settings.useBunRuntime,
         useActualPlayerJs: settings.useActualPlayerJs,
+        youtubePlayerClient: settings.youtubePlayerClient,
         embedMetadata: settings.embedMetadata,
         embedThumbnail: settings.embedThumbnail,
         liveFromStart: settings.liveFromStart,
@@ -327,6 +328,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       // YouTube specific settings
       useBunRuntime: saved.useBunRuntime || false,
       useActualPlayerJs: saved.useActualPlayerJs || false,
+      youtubePlayerClient: saved.youtubePlayerClient || 'auto',
       // Post-processing settings
       embedMetadata: saved.embedMetadata !== false, // Default to true
       embedThumbnail: saved.embedThumbnail === true, // Default to false (requires FFmpeg)
@@ -661,6 +663,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         organizeBySource: currentSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
         audioBitrate: currentSettings.audioBitrate,
+        youtubePlayerClient: currentSettings.youtubePlayerClient,
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
         subtitleMode: currentSettings.subtitleMode,
@@ -758,6 +761,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         playlistLimit: options?.playlistLimit ?? null,
         videoCodec: currentSettings.videoCodec,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
+        youtubePlayerClient: currentSettings.youtubePlayerClient,
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
         subtitleMode: options?.subtitleMode ?? currentSettings.subtitleMode,
@@ -812,6 +816,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         organizeBySource: currentSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
         audioBitrate: currentSettings.audioBitrate,
+        youtubePlayerClient: currentSettings.youtubePlayerClient,
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
         subtitleMode: currentSettings.subtitleMode,
@@ -902,6 +907,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           organizeBySource: settingsRef.current.organizeBySource,
           videoCodec: settingsRef.current.videoCodec,
           audioBitrate: settingsRef.current.audioBitrate,
+          youtubePlayerClient: settingsRef.current.youtubePlayerClient,
           useAria2: settingsRef.current.useAria2,
           aria2Args: settingsRef.current.aria2Args,
           subtitleMode: settingsRef.current.subtitleMode,
@@ -1213,6 +1219,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             // YouTube specific settings
             useBunRuntime: settings.useBunRuntime,
             useActualPlayerJs: settings.useActualPlayerJs,
+            youtubePlayerClient: itemSettings?.youtubePlayerClient ?? settings.youtubePlayerClient,
             // Network settings
             ...buildCookieProxyInvokeOptions(cookieSettings, proxySettings),
             // Post-processing settings

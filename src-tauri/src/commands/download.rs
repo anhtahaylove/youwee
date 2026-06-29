@@ -79,6 +79,7 @@ async fn skipped_live_status(
     cookie_browser: Option<&str>,
     cookie_browser_profile: Option<&str>,
     cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
     proxy_url: Option<&str>,
 ) -> Result<Option<String>, String> {
     let mut args = vec![
@@ -104,10 +105,12 @@ async fn skipped_live_status(
 
     let mut extra_args = build_site_header_args(url);
     extra_args.extend(build_cookie_args(
+        url,
         cookie_mode,
         cookie_browser,
         cookie_browser_profile,
         cookie_file_path,
+        cookie_skip_patterns,
     ));
     extra_args.extend(build_proxy_args(proxy_url));
     if let Some(separator_index) = args.iter().position(|arg| arg == "--") {
@@ -856,6 +859,42 @@ fn build_download_error_message(exit_code: Option<i32>, recent_lines: &[String])
     }
 }
 
+fn is_youtube_url(url: &str) -> bool {
+    url.contains("youtube.com") || url.contains("youtu.be")
+}
+
+fn normalize_youtube_player_client(value: Option<&str>) -> Option<&'static str> {
+    match value.unwrap_or("auto") {
+        "web" => Some("web"),
+        "mweb" => Some("mweb"),
+        "tv" => Some("tv"),
+        "ios" => Some("ios"),
+        "android" => Some("android"),
+        "web_safari" => Some("web_safari"),
+        _ => None,
+    }
+}
+
+fn build_youtube_extractor_args(
+    use_actual_player_js: bool,
+    youtube_player_client: Option<&str>,
+) -> Option<String> {
+    let mut values = Vec::new();
+
+    if let Some(client) = normalize_youtube_player_client(youtube_player_client) {
+        values.push(format!("player_client={client}"));
+    }
+    if use_actual_player_js {
+        values.push("player_js_version=actual".to_string());
+    }
+
+    if values.is_empty() {
+        None
+    } else {
+        Some(format!("youtube:{}", values.join(",")))
+    }
+}
+
 #[tauri::command]
 pub async fn download_video(
     app: AppHandle,
@@ -878,12 +917,14 @@ pub async fn download_video(
     log_stderr: Option<bool>,
     _use_bun_runtime: Option<bool>, // Deprecated - now auto uses deno
     use_actual_player_js: Option<bool>,
+    youtube_player_client: Option<String>,
     history_id: Option<String>,
     // Cookie settings
     cookie_mode: Option<String>,
     cookie_browser: Option<String>,
     cookie_browser_profile: Option<String>,
     cookie_file_path: Option<String>,
+    cookie_skip_patterns: Option<Vec<String>>,
     // Embed settings
     embed_metadata: Option<bool>,
     embed_thumbnail: Option<bool>,
@@ -944,6 +985,7 @@ pub async fn download_video(
             cookie_browser.as_deref(),
             cookie_browser_profile.as_deref(),
             cookie_file_path.as_deref(),
+            cookie_skip_patterns.as_deref(),
             proxy_url.as_deref(),
         )
         .await?
@@ -1015,20 +1057,23 @@ pub async fn download_video(
 
     // Auto use Deno runtime for YouTube (required for JS extractor)
     // Use --js-runtimes instead of --extractor-args (handles spaces in path correctly)
-    if url.contains("youtube.com") || url.contains("youtu.be") {
+    if is_youtube_url(&url) {
         if let Some(deno_path) = get_deno_path(&app).await {
             args.push("--js-runtimes".to_string());
             args.push(format!("deno:{}", deno_path.to_string_lossy()));
         }
     }
 
-    // Add actual player.js version if enabled (fixes some YouTube download issues)
+    // Add YouTube extractor args if enabled (fixes some YouTube download issues)
     // See: https://github.com/yt-dlp/yt-dlp/issues/14680
-    if use_actual_player_js.unwrap_or(false)
-        && (url.contains("youtube.com") || url.contains("youtu.be"))
-    {
-        args.push("--extractor-args".to_string());
-        args.push("youtube:player_js_version=actual".to_string());
+    if is_youtube_url(&url) {
+        if let Some(extractor_args) = build_youtube_extractor_args(
+            use_actual_player_js.unwrap_or(false),
+            youtube_player_client.as_deref(),
+        ) {
+            args.push("--extractor-args".to_string());
+            args.push(extractor_args);
+        }
     }
 
     // Add FFmpeg location if available
@@ -1059,32 +1104,14 @@ pub async fn download_video(
 
     args.extend(build_site_header_args(&url));
 
-    // Cookie/Authentication settings
-    let mode = cookie_mode.as_deref().unwrap_or("off");
-    match mode {
-        "browser" => {
-            if let Some(browser) = cookie_browser.as_ref() {
-                let mut cookie_arg = browser.clone();
-                // Add profile if specified
-                if let Some(profile) = cookie_browser_profile.as_ref() {
-                    if !profile.is_empty() {
-                        cookie_arg = format!("{}:{}", browser, profile);
-                    }
-                }
-                args.push("--cookies-from-browser".to_string());
-                args.push(cookie_arg);
-            }
-        }
-        "file" => {
-            if let Some(file_path) = cookie_file_path.as_ref() {
-                if !file_path.is_empty() {
-                    args.push("--cookies".to_string());
-                    args.push(file_path.clone());
-                }
-            }
-        }
-        _ => {}
-    }
+    args.extend(build_cookie_args(
+        &url,
+        cookie_mode.as_deref(),
+        cookie_browser.as_deref(),
+        cookie_browser_profile.as_deref(),
+        cookie_file_path.as_deref(),
+        cookie_skip_patterns.as_deref(),
+    ));
 
     // Proxy settings
     if let Some(proxy) = proxy_url.as_ref() {
@@ -2828,6 +2855,23 @@ mod tests {
         } else {
             assert!(args.is_empty());
         }
+    }
+
+    #[test]
+    fn youtube_extractor_args_merge_player_client_and_actual_js() {
+        assert_eq!(
+            build_youtube_extractor_args(true, Some("web_safari")).as_deref(),
+            Some("youtube:player_client=web_safari,player_js_version=actual")
+        );
+        assert_eq!(
+            build_youtube_extractor_args(false, Some("web_safari")).as_deref(),
+            Some("youtube:player_client=web_safari")
+        );
+        assert_eq!(
+            build_youtube_extractor_args(true, Some("auto")).as_deref(),
+            Some("youtube:player_js_version=actual")
+        );
+        assert_eq!(build_youtube_extractor_args(false, Some("bad")), None);
     }
 
     #[test]

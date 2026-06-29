@@ -106,6 +106,7 @@ pub async fn download_gallery(
     cookie_browser: Option<String>,
     cookie_browser_profile: Option<String>,
     cookie_file_path: Option<String>,
+    _cookie_skip_patterns: Option<Vec<String>>,
     proxy_url: Option<String>,
     source: Option<String>,
 ) -> Result<GalleryDownloadResult, String> {

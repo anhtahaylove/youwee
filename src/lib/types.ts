@@ -4,6 +4,7 @@ export type VideoCodec = 'h264' | 'vp9' | 'av1' | 'auto';
 export type AudioBitrate = 'auto' | '128';
 export type SubtitleMode = 'off' | 'auto' | 'manual';
 export type SubtitleFormat = 'srt' | 'vtt' | 'ass';
+export type YouTubePlayerClient = 'auto' | 'web' | 'mweb' | 'tv' | 'ios' | 'android' | 'web_safari';
 export type PluginTrigger =
   | 'download.queued'
   | 'download.beforeStart'
@@ -65,6 +66,7 @@ export interface ItemDownloadSettings {
   playlistLimit?: number | null;
   videoCodec: VideoCodec;
   audioBitrate: AudioBitrate;
+  youtubePlayerClient: YouTubePlayerClient;
   useAria2: boolean;
   aria2Args: string;
   subtitleMode: SubtitleMode;
@@ -91,6 +93,7 @@ export interface ItemUniversalSettings {
   skipExisting?: boolean;
   organizeBySource?: boolean;
   audioBitrate: AudioBitrate;
+  youtubePlayerClient: YouTubePlayerClient;
   useAria2: boolean;
   aria2Args: string;
   timeRangeStart?: string;
@@ -234,6 +237,7 @@ export interface DownloadSettings {
   // YouTube specific settings
   useBunRuntime: boolean; // Deprecated - Deno is now used automatically
   useActualPlayerJs: boolean; // Use actual player.js version for YouTube (fixes some download issues)
+  youtubePlayerClient: YouTubePlayerClient; // Optional yt-dlp YouTube player client preset
   // Post-processing settings
   embedMetadata: boolean; // Embed metadata (title, artist, description) into downloaded files
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
@@ -894,6 +898,7 @@ export interface CookieSettings {
   browser?: BrowserType;
   browserProfile?: string;
   filePath?: string;
+  cookieSkipPatterns?: string[];
 }
 
 export interface BrowserProfile {

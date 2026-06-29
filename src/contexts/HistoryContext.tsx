@@ -541,6 +541,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
       const logStderr = localStorage.getItem('youwee_log_stderr') !== 'false';
       let useBunRuntime = false;
       let useActualPlayerJs = false;
+      let youtubePlayerClient = 'auto';
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
@@ -553,6 +554,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           const parsed = JSON.parse(savedSettings);
           useBunRuntime = parsed.useBunRuntime || false;
           useActualPlayerJs = parsed.useActualPlayerJs || false;
+          youtubePlayerClient = parsed.youtubePlayerClient || 'auto';
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
@@ -629,6 +631,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           logStderr,
           useBunRuntime,
           useActualPlayerJs,
+          youtubePlayerClient,
           historyId: entry.id,
           ...networkOptions,
           // External downloader settings

@@ -243,7 +243,7 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     id: 'youtube-troubleshooting',
     labelKey: 'dependencies.youtubeTroubleshooting',
     descriptionKey: 'dependencies.optionsToFixIssues',
-    keywords: ['youtube', 'troubleshoot', 'fix', 'error', 'player', 'nsig'],
+    keywords: ['youtube', 'troubleshoot', 'fix', 'error', 'player', 'client', '403', 'nsig'],
     section: 'dependencies',
   },
 

@@ -27,6 +27,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useDownload } from '@/contexts/DownloadContext';
@@ -44,7 +51,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     tool: 'ytdlp' | 'ffmpeg';
     source: Exclude<DependencySource, 'auto'>;
   } | null>(null);
-  const { settings, updateUseActualPlayerJs } = useDownload();
+  const { settings, updateSettings, updateUseActualPlayerJs } = useDownload();
   const {
     // yt-dlp
     ytdlpSource,
@@ -846,7 +853,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
               </div>
             </div>
             <div className="mt-3 pt-3 border-t border-border/50">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-medium">{t('dependencies.useActualPlayerJs')}</p>
                   <p className="text-xs text-muted-foreground">
@@ -857,6 +864,46 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                   checked={settings.useActualPlayerJs}
                   onCheckedChange={updateUseActualPlayerJs}
                 />
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-border/50">
+              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-medium">{t('dependencies.youtubePlayerClient')}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {t('dependencies.youtubePlayerClientDesc')}
+                  </p>
+                </div>
+                <Select
+                  value={settings.youtubePlayerClient}
+                  onValueChange={(youtubePlayerClient) =>
+                    updateSettings({
+                      youtubePlayerClient:
+                        youtubePlayerClient as typeof settings.youtubePlayerClient,
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 w-full sm:w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">
+                      {t('dependencies.youtubePlayerClientAuto')}
+                    </SelectItem>
+                    <SelectItem value="web">{t('dependencies.youtubePlayerClientWeb')}</SelectItem>
+                    <SelectItem value="mweb">
+                      {t('dependencies.youtubePlayerClientMweb')}
+                    </SelectItem>
+                    <SelectItem value="tv">{t('dependencies.youtubePlayerClientTv')}</SelectItem>
+                    <SelectItem value="ios">{t('dependencies.youtubePlayerClientIos')}</SelectItem>
+                    <SelectItem value="android">
+                      {t('dependencies.youtubePlayerClientAndroid')}
+                    </SelectItem>
+                    <SelectItem value="web_safari">
+                      {t('dependencies.youtubePlayerClientWebSafari')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <a

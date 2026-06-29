@@ -884,12 +884,21 @@ pub fn verify_sha256(data: &[u8], expected_hash: &str) -> bool {
 
 /// Build cookie args for yt-dlp based on cookie settings
 pub fn build_cookie_args(
+    url: &str,
     cookie_mode: Option<&str>,
     cookie_browser: Option<&str>,
     cookie_browser_profile: Option<&str>,
     cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
 ) -> Vec<String> {
     let mut args = Vec::new();
+
+    if cookie_skip_patterns
+        .map(|patterns| should_skip_cookies_for_url(url, patterns))
+        .unwrap_or(false)
+    {
+        return args;
+    }
 
     let mode = cookie_mode.unwrap_or("off");
     match mode {
@@ -917,6 +926,63 @@ pub fn build_cookie_args(
     }
 
     args
+}
+
+fn parse_cookie_skip_rule(rule: &str) -> Option<(String, String)> {
+    let trimmed = rule.trim().trim_matches('/');
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let rule_url = if trimmed.contains("://") {
+        trimmed.to_string()
+    } else {
+        format!("https://{trimmed}")
+    };
+
+    let parsed = reqwest::Url::parse(&rule_url).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    let raw_path = parsed.path().trim_end_matches('/');
+    let path = if raw_path.is_empty() { "/" } else { raw_path };
+
+    Some((host, path.to_string()))
+}
+
+fn host_matches_cookie_skip_rule(url_host: &str, rule_host: &str) -> bool {
+    url_host == rule_host || url_host.ends_with(&format!(".{rule_host}"))
+}
+
+fn path_matches_cookie_skip_rule(url_path: &str, rule_path: &str) -> bool {
+    if rule_path == "/" {
+        return true;
+    }
+
+    let normalized_url_path = url_path.trim_end_matches('/');
+    normalized_url_path == rule_path
+        || normalized_url_path.starts_with(&format!("{}/", rule_path.trim_end_matches('/')))
+}
+
+pub fn should_skip_cookies_for_url(url: &str, patterns: &[String]) -> bool {
+    if patterns.is_empty() {
+        return false;
+    }
+
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    let Some(url_host) = parsed.host_str().map(|host| host.to_ascii_lowercase()) else {
+        return false;
+    };
+    let url_path = parsed.path();
+
+    patterns.iter().any(|pattern| {
+        parse_cookie_skip_rule(pattern)
+            .map(|(rule_host, rule_path)| {
+                host_matches_cookie_skip_rule(&url_host, &rule_host)
+                    && path_matches_cookie_skip_rule(url_path, &rule_path)
+            })
+            .unwrap_or(false)
+    })
 }
 
 /// Build proxy args for yt-dlp based on proxy URL
@@ -996,17 +1062,22 @@ pub async fn run_ytdlp_json_with_cookies(
     cookie_browser: Option<&str>,
     cookie_browser_profile: Option<&str>,
     cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
     proxy_url: Option<&str>,
 ) -> Result<String, String> {
     // Build full args with site headers, cookies and proxy
-    let site_header_args = ytdlp_url_arg(base_args)
-        .map(|url| build_site_header_args(&url))
+    let url_arg = ytdlp_url_arg(base_args);
+    let site_header_args = url_arg
+        .as_deref()
+        .map(build_site_header_args)
         .unwrap_or_default();
     let cookie_args = build_cookie_args(
+        url_arg.as_deref().unwrap_or_default(),
         cookie_mode,
         cookie_browser,
         cookie_browser_profile,
         cookie_file_path,
+        cookie_skip_patterns,
     );
     let proxy_args = build_proxy_args(proxy_url);
     let mut extra_args = Vec::new();
@@ -1028,17 +1099,22 @@ pub async fn run_ytdlp_with_stderr_and_cookies(
     cookie_browser: Option<&str>,
     cookie_browser_profile: Option<&str>,
     cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
     proxy_url: Option<&str>,
 ) -> Result<YtdlpOutput, String> {
     // Build full args with site headers, cookies and proxy
-    let site_header_args = ytdlp_url_arg(base_args)
-        .map(|url| build_site_header_args(&url))
+    let url_arg = ytdlp_url_arg(base_args);
+    let site_header_args = url_arg
+        .as_deref()
+        .map(build_site_header_args)
         .unwrap_or_default();
     let cookie_args = build_cookie_args(
+        url_arg.as_deref().unwrap_or_default(),
         cookie_mode,
         cookie_browser,
         cookie_browser_profile,
         cookie_file_path,
+        cookie_skip_patterns,
     );
     let proxy_args = build_proxy_args(proxy_url);
     let mut extra_args = Vec::new();
@@ -1124,5 +1200,29 @@ mod tests {
         );
         assert!(merged[..separator_index].contains(&"--user-agent".to_string()));
         assert!(merged[..separator_index].contains(&"--referer".to_string()));
+    }
+
+    #[test]
+    fn cookie_skip_rule_matches_host_and_path_prefix() {
+        let patterns = vec!["facebook.com/reel".to_string()];
+
+        assert!(should_skip_cookies_for_url(
+            "https://www.facebook.com/reel/1159891442771840",
+            &patterns
+        ));
+        assert!(!should_skip_cookies_for_url(
+            "https://www.facebook.com/watch/1159891442771840",
+            &patterns
+        ));
+    }
+
+    #[test]
+    fn cookie_skip_rule_can_match_whole_domain() {
+        let patterns = vec!["facebook.com".to_string()];
+
+        assert!(should_skip_cookies_for_url(
+            "https://m.facebook.com/reel/abc",
+            &patterns
+        ));
     }
 }

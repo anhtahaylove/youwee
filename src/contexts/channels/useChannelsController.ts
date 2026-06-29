@@ -760,6 +760,7 @@ export function useChannelsController(): ChannelsContextType {
       let logStderr = true;
       let useBunRuntime = false;
       let useActualPlayerJs = false;
+      let youtubePlayerClient = 'auto';
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
@@ -786,6 +787,7 @@ export function useChannelsController(): ChannelsContextType {
           subtitleFormat = parsed.subtitleFormat || 'srt';
           useBunRuntime = parsed.useBunRuntime || false;
           useActualPlayerJs = parsed.useActualPlayerJs || false;
+          youtubePlayerClient = parsed.youtubePlayerClient || 'auto';
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
@@ -910,6 +912,7 @@ export function useChannelsController(): ChannelsContextType {
                 logStderr,
                 useBunRuntime,
                 useActualPlayerJs,
+                youtubePlayerClient,
                 ...networkOptions,
                 embedMetadata,
                 embedThumbnail,
@@ -1208,6 +1211,7 @@ export function useChannelsController(): ChannelsContextType {
         let logStderr = true;
         let useBunRuntime = false;
         let useActualPlayerJs = false;
+        let youtubePlayerClient = 'auto';
         let useAria2 = false;
         let aria2Args = '';
         let filenameTemplate = '%(title)s.%(ext)s';
@@ -1221,6 +1225,7 @@ export function useChannelsController(): ChannelsContextType {
             autoOutputPath = parsed.outputPath || '';
             useBunRuntime = parsed.useBunRuntime || false;
             useActualPlayerJs = parsed.useActualPlayerJs || false;
+            youtubePlayerClient = parsed.youtubePlayerClient || 'auto';
             useAria2 = parsed.useAria2 === true;
             aria2Args = parsed.aria2Args || '';
             filenameTemplate = parsed.filenameTemplate || filenameTemplate;
@@ -1306,6 +1311,7 @@ export function useChannelsController(): ChannelsContextType {
               logStderr,
               useBunRuntime,
               useActualPlayerJs,
+              youtubePlayerClient,
               ...networkOptions,
               useAria2,
               aria2Args,

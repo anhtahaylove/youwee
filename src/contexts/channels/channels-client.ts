@@ -107,6 +107,7 @@ export async function getChannelVideos(input: {
   cookieBrowser?: string | null;
   cookieBrowserProfile?: string | null;
   cookieFilePath?: string | null;
+  cookieSkipPatterns?: string[];
   proxyUrl?: string | null;
   youtubeContentType?: YoutubeChannelContentType;
 }): Promise<PlaylistVideoEntry[]> {
@@ -119,6 +120,7 @@ export async function getChannelInfo(input: {
   cookieBrowser?: string | null;
   cookieBrowserProfile?: string | null;
   cookieFilePath?: string | null;
+  cookieSkipPatterns?: string[];
   proxyUrl?: string | null;
   youtubeContentType?: YoutubeChannelContentType;
 }): Promise<ChannelInfo> {

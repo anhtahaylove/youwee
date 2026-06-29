@@ -45,6 +45,7 @@ export function SubtitleDownloadDialog({ open, onClose }: SubtitleDownloadDialog
         cookieBrowser: cookieSettings?.browser,
         cookieBrowserProfile: cookieSettings?.browserProfile,
         cookieFilePath: cookieSettings?.filePath,
+        cookieSkipPatterns: cookieSettings?.cookieSkipPatterns || [],
         proxyUrl: proxyUrl || undefined,
       });
       setSubtitles(result);
