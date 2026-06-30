@@ -77,10 +77,10 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     section: 'general',
   },
   {
-    id: 'max-history',
-    labelKey: 'general.maxHistory',
-    descriptionKey: 'general.storageDesc',
-    keywords: ['history', 'storage', 'limit', 'entries', 'database'],
+    id: 'library-delete-file-behavior',
+    labelKey: 'general.libraryDeleteFileBehavior',
+    descriptionKey: 'general.libraryDeleteFileBehaviorDesc',
+    keywords: ['library', 'delete', 'media', 'file', 'history', 'remove', 'storage'],
     section: 'general',
   },
   {
@@ -120,6 +120,13 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     labelKey: 'download.embedThumbnail',
     descriptionKey: 'download.embedThumbnailDesc',
     keywords: ['thumbnail', 'cover', 'art', 'image', 'post-processing'],
+    section: 'download',
+  },
+  {
+    id: 'auto-organize-collections',
+    labelKey: 'download.autoOrganizeCollections',
+    descriptionKey: 'download.autoOrganizeCollectionsDesc',
+    keywords: ['collection', 'collections', 'playlist', 'chapter', 'library', 'organize'],
     section: 'download',
   },
   {

@@ -35,7 +35,14 @@
     "processingDesc": "Paramètres de traitement vidéo et d'aperçu",
     "previewThreshold": "Seuil de taille de l'aperçu",
     "previewThresholdDesc": "Demander confirmation avant de générer un aperçu vidéo pour les fichiers plus volumineux que cette taille",
-    "previewAlways": "Toujours"
+    "previewAlways": "Toujours",
+    "library": "Bibliothèque",
+    "libraryDesc": "Contrôlez la suppression des fichiers téléchargés",
+    "libraryDeleteFileBehavior": "Lors de la suppression dans la bibliothèque",
+    "libraryDeleteFileBehaviorDesc": "Choisissez si la suppression retire aussi le fichier multimédia de votre appareil",
+    "libraryDeleteAsk": "Demander à chaque fois",
+    "libraryDeleteWithFile": "Toujours supprimer le fichier média",
+    "libraryDeleteKeepFile": "Ne jamais supprimer le fichier média"
   },
   "download": {
     "postProcessing": "Post-traitement",
@@ -52,6 +59,8 @@
     "splitEmbeddedChaptersDesc": "Créer des fichiers séparés à partir des chapitres inclus dans la vidéo",
     "numberChapterFiles": "Numéroter les fichiers de chapitre",
     "numberChapterFilesDesc": "Préfixer les fichiers de chapitre découpés avec leur numéro",
+    "autoOrganizeCollections": "Créer des collections automatiquement",
+    "autoOrganizeCollectionsDesc": "Créer des collections de bibliothèque pour les playlists développées, les téléchargements de chaînes et les fichiers de chapitre",
     "liveStream": "Live",
     "liveStreamDesc": "Configurer le comportement de téléchargement des lives",
     "liveFromStart": "Télécharger depuis le début",
@@ -490,7 +499,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Vidéos téléchargées",
+    "duplicateDownloadsDesc": "Utiliser l historique de la bibliothèque pour détecter les vidéos déjà téléchargées",
+    "rememberDownloadedVideos": "Mémoriser les vidéos téléchargées",
+    "rememberDownloadedVideosDesc": "Vérifier la bibliothèque avant d ajouter des vidéos YouTube à la file Download",
+    "duplicateHandling": "Gestion des doublons",
+    "duplicateHandlingDesc": "Choisissez quoi faire quand une vidéo existe déjà dans la bibliothèque",
+    "duplicateHandlingAsk": "Demander avant d ajouter",
+    "duplicateHandlingSkip": "Ignorer automatiquement",
+    "duplicateHandlingAllow": "Autoriser les doublons"
   },
   "dependencies": {
     "title": "Dépendances",

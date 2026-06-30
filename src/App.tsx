@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DenoDialog } from '@/components/DenoDialog';
+import { DuplicateDownloadReviewHost } from '@/components/download';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { MeteorTransition } from '@/components/effects/MeteorTransition';
 import { FFmpegDialog } from '@/components/FFmpegDialog';
@@ -15,7 +16,8 @@ import { AIProvider } from '@/contexts/AIContext';
 import { ChannelsProvider } from '@/contexts/ChannelsContext';
 import { DataExportProvider } from '@/contexts/DataExportContext';
 import { DependenciesProvider, useDependencies } from '@/contexts/DependenciesContext';
-import { DownloadProvider, useDownload } from '@/contexts/DownloadContext';
+import { DownloadProvider } from '@/contexts/DownloadContext';
+import { useDownload } from '@/contexts/download-context';
 import { GalleryDlProvider } from '@/contexts/GalleryDlContext';
 import { HistoryProvider } from '@/contexts/HistoryContext';
 import { LogProvider } from '@/contexts/LogContext';
@@ -23,6 +25,7 @@ import { MetadataProvider } from '@/contexts/MetadataContext';
 import { PlayerProvider } from '@/contexts/PlayerContext';
 import { ProcessingProvider } from '@/contexts/ProcessingContext';
 import { SubtitleProvider } from '@/contexts/SubtitleContext';
+import { SummarySessionProvider } from '@/contexts/SummarySessionProvider';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { UniversalProvider } from '@/contexts/UniversalContext';
 import { UpdaterProvider, useUpdater } from '@/contexts/UpdaterContext';
@@ -208,6 +211,7 @@ function AppContent() {
       {showFfmpegDialog && <FFmpegDialog onDismiss={() => setShowFfmpegDialog(false)} />}
 
       {showDenoDialog && <DenoDialog onDismiss={() => setShowDenoDialog(false)} />}
+      <DuplicateDownloadReviewHost />
       <MeteorTransition
         isActive={isTransitioning}
         oldMode={oldMode}
@@ -237,19 +241,21 @@ export function App() {
                   <HistoryProvider>
                     <PlayerProvider>
                       <AIProvider>
-                        <ProcessingProvider>
-                          <SubtitleProvider>
-                            <MetadataProvider>
-                              <DataExportProvider>
-                                <ToastProvider>
-                                  <UpdaterWrapper>
-                                    <AppContent />
-                                  </UpdaterWrapper>
-                                </ToastProvider>
-                              </DataExportProvider>
-                            </MetadataProvider>
-                          </SubtitleProvider>
-                        </ProcessingProvider>
+                        <SummarySessionProvider>
+                          <ProcessingProvider>
+                            <SubtitleProvider>
+                              <MetadataProvider>
+                                <DataExportProvider>
+                                  <ToastProvider>
+                                    <UpdaterWrapper>
+                                      <AppContent />
+                                    </UpdaterWrapper>
+                                  </ToastProvider>
+                                </DataExportProvider>
+                              </MetadataProvider>
+                            </SubtitleProvider>
+                          </ProcessingProvider>
+                        </SummarySessionProvider>
                       </AIProvider>
                     </PlayerProvider>
                   </HistoryProvider>

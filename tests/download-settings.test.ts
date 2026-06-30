@@ -87,6 +87,27 @@ describe('download settings playlist numbering and chapter split options', () =>
   });
 });
 
+describe('download settings downloaded video memory', () => {
+  test('defaults downloaded video memory off and asks before adding duplicates', () => {
+    const settings = createDefaultDownloadSettings({});
+
+    expect(settings.rememberDownloadedVideos).toBe(false);
+    expect(settings.duplicateDownloadHandling).toBe('ask');
+  });
+
+  test('persists allow duplicates handling', () => {
+    const saved = serializeDownloadSettings(
+      createDefaultDownloadSettings({
+        rememberDownloadedVideos: true,
+        duplicateDownloadHandling: 'allow',
+      }),
+    );
+
+    expect(saved.rememberDownloadedVideos).toBe(true);
+    expect(saved.duplicateDownloadHandling).toBe('allow');
+  });
+});
+
 describe('download settings yt-dlp advanced options', () => {
   const options: YtdlpAdvancedOption[] = [
     { id: 'impersonate', value: 'chrome' },
@@ -124,5 +145,41 @@ describe('download settings yt-dlp advanced options', () => {
     expect(snapshot.ytdlpAdvancedOptionsEnabled).toBe(true);
     expect(snapshot.ytdlpAdvancedOptions).toEqual(options);
     expect(snapshot.ytdlpAdvancedOptions).not.toBe(settings.ytdlpAdvancedOptions);
+  });
+});
+
+describe('download settings preferred fps', () => {
+  test('defaults preferred fps to original', () => {
+    const settings = createDefaultDownloadSettings({});
+
+    expect(settings.preferredFps).toBe('original');
+  });
+
+  test('normalizes unsupported preferred fps to original', () => {
+    const settings = createDefaultDownloadSettings({
+      preferredFps: '60',
+    } as unknown as Parameters<typeof createDefaultDownloadSettings>[0]);
+
+    expect(settings.preferredFps).toBe('original');
+  });
+
+  test('persists preferred fps', () => {
+    const saved = serializeDownloadSettings(
+      createDefaultDownloadSettings({
+        preferredFps: '30',
+      }),
+    );
+
+    expect(saved.preferredFps).toBe('30');
+  });
+
+  test('snapshots preferred fps into queued items', () => {
+    const settings = createDefaultDownloadSettings({
+      preferredFps: '30',
+    });
+
+    const snapshot = buildItemDownloadSettingsSnapshot(settings);
+
+    expect(snapshot.preferredFps).toBe('30');
   });
 });

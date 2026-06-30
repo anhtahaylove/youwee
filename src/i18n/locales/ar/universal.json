@@ -15,7 +15,8 @@
     "urlCount": "{{count}} رابط",
     "urlCount_plural": "{{count}} روابط",
     "dropHint": "أفلت الروابط أو ملف .txt هنا",
-    "detectedMultiple": "تم اكتشاف {{count}} رابطًا"
+    "detectedMultiple": "تم اكتشاف {{count}} رابطًا",
+    "clearInput": "مسح"
   },
   "page": {
     "quickSettings": "إعدادات سريعة",
@@ -44,6 +45,12 @@
     "advanced": "إعدادات متقدمة",
     "more": "المزيد",
     "liveFromStart": "بث مباشر من البداية",
+    "skipLive": "تخطي البثوث المباشرة",
+    "skipLiveDesc": "تخطي الفيديوهات المباشرة حاليًا بدلاً من تنزيلها",
+    "preferredFps": "معدل الإطارات",
+    "preferredFpsHint": "قد يستخدم 30 FPS جودة أقل",
+    "preferredFpsOriginal": "الأصلي",
+    "preferredFps30": "حتى 30 FPS",
     "autoRetry": "إعادة المحاولة تلقائيًا",
     "retryAttempts": "عدد المحاولات",
     "retryDelaySeconds": "التأخير (ث)"

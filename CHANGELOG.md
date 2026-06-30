@@ -7,8 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Library collections** - Added automatic Library collections for expanded playlists, channel downloads, and split chapter files
+- **Library delete behavior** - Added a setting to choose whether deleting a Library item also deletes the media file
+- **Frame rate** - Added an option to prefer 30 FPS downloads in Download, Universal, and Channels, with a clear quality warning
+- **Downloaded video memory** - Added an optional setting to detect videos already in Library across Download, Universal, Gallery, and Channels, with ask, skip, or allow duplicate handling
+- **Split tool** - Added an optional item action to split completed media files into named segments using FFmpeg
+
+### Changed
+- **Library history** - Removed the max history entries setting so Library can keep downloaded video records until users delete them
+- **Library summaries** - Refined Library item actions and moved full AI summaries into a dedicated reader dialog with text size controls
+- **Queue download folders** - Ask whether queued items should use the new folder when the global download folder changes
+
 ### Fixed
 - **Extension cold-start links** - Fixed browser extension download links opening Youwee without adding the video on cold app launch
+- **AI Summary numbering** - Fixed ordered lists restarting at 1 when rendered with blank lines between topics
+- **Channel fetch controls** - Added a stop action for channel video fetching and avoided re-fetching when opening a just-browsed followed channel
+- **Duplicate dialog thumbnails** - Fixed already-downloaded video dialogs showing a placeholder when the Library entry already has a thumbnail
+- **Settings icons** - Fixed oversized Font Awesome icons breaking Settings layouts when icon CSS is unavailable
 
 ## [0.18.0] - 2026-06-29
 

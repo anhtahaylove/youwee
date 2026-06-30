@@ -35,7 +35,14 @@
     "processingDesc": "إعدادات معالجة الفيديو والمعاينة",
     "previewThreshold": "عتبة حجم المعاينة",
     "previewThresholdDesc": "اسأل قبل إنشاء معاينة فيديو للملفات الأكبر من هذا الحجم",
-    "previewAlways": "دائمًا"
+    "previewAlways": "دائمًا",
+    "library": "المكتبة",
+    "libraryDesc": "تحكم في طريقة حذف الملفات التي تم تنزيلها من المكتبة",
+    "libraryDeleteFileBehavior": "عند حذف عناصر المكتبة",
+    "libraryDeleteFileBehaviorDesc": "اختر ما إذا كان حذف العنصر سيحذف ملف الوسائط من جهازك أيضًا",
+    "libraryDeleteAsk": "اسأل كل مرة",
+    "libraryDeleteWithFile": "حذف ملف الوسائط دائمًا",
+    "libraryDeleteKeepFile": "عدم حذف ملف الوسائط أبدًا"
   },
   "download": {
     "postProcessing": "ما بعد المعالجة",
@@ -52,6 +59,8 @@
     "splitEmbeddedChaptersDesc": "إنشاء ملفات منفصلة من الفصول الموجودة داخل الفيديو",
     "numberChapterFiles": "ترقيم ملفات الفصول",
     "numberChapterFilesDesc": "إضافة رقم الفصل كبادئة لملفات الفصول المقسمة",
+    "autoOrganizeCollections": "إنشاء مجموعات تلقائيًا",
+    "autoOrganizeCollectionsDesc": "إنشاء مجموعات في المكتبة لقوائم التشغيل الموسعة وتنزيلات القنوات وملفات الفصول",
     "liveStream": "البث المباشر",
     "liveStreamDesc": "تكوين سلوك تنزيل البث المباشر",
     "liveFromStart": "التنزيل من البداية",
@@ -490,7 +499,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "الفيديوهات التي تم تنزيلها",
+    "duplicateDownloadsDesc": "استخدم سجل المكتبة لاكتشاف الفيديوهات التي تم تنزيلها من قبل",
+    "rememberDownloadedVideos": "تذكر الفيديوهات التي تم تنزيلها",
+    "rememberDownloadedVideosDesc": "تحقق من المكتبة قبل إضافة فيديوهات YouTube إلى قائمة Download",
+    "duplicateHandling": "التعامل مع التكرارات",
+    "duplicateHandlingDesc": "اختر ما يفعله Youwee عندما يكون الفيديو موجودا في المكتبة",
+    "duplicateHandlingAsk": "اسأل قبل الإضافة",
+    "duplicateHandlingSkip": "تخط تلقائيا",
+    "duplicateHandlingAllow": "السماح بالتكرارات"
   },
   "dependencies": {
     "title": "Dependencies",

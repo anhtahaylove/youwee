@@ -24,6 +24,8 @@
     "guideHighResText": "หลายแหล่งให้ H.264 ได้สูงสุดเพียง Full HD หากต้องการ 2K/4K/8K ให้ใช้ Auto (หรือ VP9/AV1 หากมี) เพื่อรับความละเอียดสูงกว่า",
     "guideFfmpegTitle": "ดาวน์โหลดวิดีโอและเสียงแยกกัน",
     "guideFfmpegText": "ติดตั้ง FFmpeg ใน Settings > Dependencies เพื่อให้ Youwee รวมวิดีโอและเสียงเป็นไฟล์เดียว",
+    "guidePreferredFpsTitle": "อัตราเฟรมอาจเปลี่ยนคุณภาพ",
+    "guidePreferredFpsText": "30 FPS ช่วยประหยัดพื้นที่ได้ แต่ Youwee จะเลือกเฉพาะสตรีมที่มีอยู่แล้ว บางวิดีโอมี 30 FPS เฉพาะคุณภาพต่ำกว่า เช่น 720p หรือ 480p ดังนั้นไฟล์ที่ดาวน์โหลดอาจมีคุณภาพต่ำกว่าที่เลือกไว้",
     "guideOpenSettings": "เปิด Settings",
     "guideGotIt": "เข้าใจแล้ว",
     "detectedMultiple": "ตรวจพบ URL {{count}} รายการ",
@@ -132,6 +134,12 @@
     "downloadFullPlaylist": "ดาวน์โหลดทั้งเพลย์ลิสต์",
     "liveFromStart": "ดาวน์โหลดไลฟ์ตั้งแต่ต้น",
     "liveFromStartDesc": "สำหรับสตรีมสด",
+    "skipLive": "ข้ามไลฟ์สตรีม",
+    "skipLiveDesc": "ข้ามวิดีโอที่กำลังไลฟ์แทนการดาวน์โหลด",
+    "preferredFps": "อัตราเฟรม",
+    "preferredFpsHint": "30 FPS อาจใช้คุณภาพต่ำลง",
+    "preferredFpsOriginal": "ต้นฉบับ",
+    "preferredFps30": "สูงสุด 30 FPS",
     "saveTo": "บันทึกไปที่",
     "selectFolder": "เลือกโฟลเดอร์...",
     "outputFolder": "โฟลเดอร์ปลายทาง: {{path}}",
@@ -259,5 +267,19 @@
     "de": "เยอรมัน",
     "pt": "โปรตุเกส",
     "ru": "รัสเซีย"
+  },
+  "duplicates": {
+    "title": "Already downloaded videos",
+    "description": "{{count}} video(s) already exist in Library. {{newCount}} new video(s) can still be added.",
+    "downloadedAt": "Downloaded {{date}}",
+    "fileExists": "File available",
+    "fileMissing": "File missing",
+    "moreItems": "{{count}} more duplicate(s)",
+    "applyToAll": "Apply this choice to all duplicates in this add",
+    "skip": "Skip duplicates",
+    "addAgain": "Add again",
+    "cancel": "Cancel",
+    "skippedToastTitle": "Already downloaded videos skipped",
+    "skippedToastMessage": "Skipped {{count}} video(s) already found in Library."
   }
 }

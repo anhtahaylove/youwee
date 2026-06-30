@@ -266,9 +266,15 @@
       "daysAgo": "{{count}} ngày trước",
       "showMore": "Xem thêm",
       "showLess": "Thu gọn",
+      "summary": "Tóm tắt AI",
+      "viewFullSummary": "Xem đầy đủ",
       "copySummary": "Sao chép tóm tắt",
       "regenerateSummary": "Tạo lại tóm tắt",
       "generateAiSummary": "Tạo tóm tắt AI",
+      "fontSize": "Cỡ chữ",
+      "decreaseFontSize": "Giảm cỡ chữ",
+      "resetFontSize": "Đặt lại cỡ chữ",
+      "increaseFontSize": "Tăng cỡ chữ",
       "fetchingTranscript": "Đang lấy phụ đề...",
       "generatingSummary": "Đang tạo tóm tắt...",
       "downloading": "Đang tải...",
@@ -279,12 +285,13 @@
       "renameCancel": "Hủy",
       "renameFailed": "Đổi tên file thất bại",
       "redownload": "Tải lại",
+      "moreActions": "Thêm",
       "manageTagsCollections": "Quản lý tag & bộ sưu tập",
       "openUrl": "Mở URL",
       "copy": "Sao chép",
       "copied": "Đã sao chép",
       "delete": "Xóa",
-      "deleteConfirm": "Xóa \"{{title}}\" khỏi lịch sử?",
+      "deleteConfirm": "Xóa \"{{title}}\" khỏi Thư viện? File media vẫn được giữ trên máy của bạn.",
       "failedToRedownload": "Tải lại thất bại",
       "sources": {
         "youtube": "YouTube",
@@ -294,7 +301,14 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "Khác"
-      }
+      },
+      "deleteTitle": "Xóa khỏi Thư viện?",
+      "deleteWithFileTitle": "Xóa luôn file media?",
+      "deleteWithFileConfirm": "Xóa \"{{title}}\" khỏi Thư viện và xóa file media khỏi máy của bạn? Thao tác này không thể hoàn tác.",
+      "deleteLibraryOnly": "Chỉ xóa khỏi Thư viện",
+      "deleteWithFile": "Xóa luôn file media",
+      "deleteCancel": "Hủy",
+      "split": "Tách"
     },
     "collections": {
       "title": "Bộ sưu tập",
@@ -330,6 +344,31 @@
       "errors": {
         "save": "Lưu tag hoặc bộ sưu tập thất bại"
       }
+    },
+    "split": {
+      "title": "Tách thành các đoạn",
+      "loading": "Đang đọc thời lượng media...",
+      "duration": "Thời lượng {{duration}}",
+      "durationUnknown": "Không đọc được thời lượng",
+      "segmentCount": "{{count}} đoạn",
+      "timeline": "Timeline",
+      "timelineHint": "Bấm vào timeline để thêm điểm cắt, hoặc dùng preset nhanh.",
+      "everyMinutes": "Mỗi {{minutes}} phút",
+      "clearCuts": "Xóa điểm cắt",
+      "removeCut": "Xóa điểm cắt tại {{time}}",
+      "removeSegment": "Xóa đoạn",
+      "segmentNamePlaceholder": "Tên đoạn",
+      "ffmpegRequiredTitle": "Cần FFmpeg",
+      "ffmpegRequiredDesc": "Cài FFmpeg trong Settings trước khi tách file media.",
+      "ffmpegMissing": "Cần FFmpeg để tách file media.",
+      "durationUnavailable": "Không đọc được thời lượng hợp lệ của file này.",
+      "cancel": "Hủy",
+      "splitFiles": "Tách file",
+      "splitting": "Đang tách...",
+      "successTitle": "Đã tạo các đoạn",
+      "successMessage": "Đã tạo {{count}} file đoạn và thêm vào Thư viện.",
+      "deleteOriginal": "Xóa file gốc sau khi tách",
+      "deleteOriginalDesc": "Item gốc trong Thư viện vẫn được giữ, nhưng file media gốc sẽ bị xóa khỏi máy."
     }
   },
   "player": {

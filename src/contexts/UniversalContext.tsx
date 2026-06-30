@@ -3,22 +3,25 @@ import { listen } from '@tauri-apps/api/event';
 import { downloadDir, homeDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
 import {
   extractBackendError,
   localizeBackendError,
   localizeProgressError,
 } from '@/lib/backend-error';
+import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import {
   AUTO_RETRY_LIMITS,
   clampAutoRetryDelaySeconds,
@@ -50,12 +53,14 @@ import type {
   Format,
   ItemUniversalSettings,
   PostDownloadPluginPayload,
+  PreferredFps,
   Quality,
   VideoInfoResponse,
   YtdlpAdvancedOption,
 } from '@/lib/types';
 import { sanitizeYtdlpAdvancedOptions } from '@/lib/ytdlp-advanced-options';
-import { useDownload } from './DownloadContext';
+import { useDownload } from './download-context';
+import { UniversalContext } from './universal-context';
 
 const STORAGE_KEY = 'youwee-universal-settings';
 const DOWNLOAD_STORAGE_KEY = 'youwee-settings';
@@ -111,6 +116,7 @@ export interface UniversalSettings {
   format: Format;
   outputPath: string;
   audioBitrate: AudioBitrate;
+  preferredFps: PreferredFps;
   concurrentDownloads: number;
   // Live stream settings
   liveFromStart: boolean;
@@ -223,6 +229,7 @@ function saveSettings(settings: UniversalSettings) {
         quality: settings.quality,
         format: settings.format,
         audioBitrate: settings.audioBitrate,
+        preferredFps: settings.preferredFps,
         concurrentDownloads: settings.concurrentDownloads,
         liveFromStart: settings.liveFromStart,
         skipLive: settings.skipLive,
@@ -239,7 +246,7 @@ function saveSettings(settings: UniversalSettings) {
   }
 }
 
-interface UniversalContextType {
+export interface UniversalContextType {
   items: DownloadItem[];
   focusedItemId: string | null;
   isDownloading: boolean;
@@ -261,6 +268,7 @@ interface UniversalContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
+  updatePreferredFps: (fps: PreferredFps) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
   updateLiveFromStart: (enabled: boolean) => void;
   updateSkipLive: (enabled: boolean) => void;
@@ -276,14 +284,13 @@ interface UniversalContextType {
   renameCompletedItem: (id: string, newName: string) => Promise<void>;
 }
 
-const UniversalContext = createContext<UniversalContextType | null>(null);
-
 interface RenameDownloadedFileResult {
   newFilepath: string;
   newTitle: string;
 }
 
 export function UniversalProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('common');
   const [items, setItems] = useState<DownloadItem[]>([]);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -291,6 +298,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     show: boolean;
     itemId?: string;
     kind: 'db_locked' | 'fresh_cookies';
+  } | null>(null);
+  const [pendingOutputPathUpdate, setPendingOutputPathUpdate] = useState<{
+    outputPath: string;
+    itemIds: string[];
   } | null>(null);
 
   // Load saved settings on init
@@ -301,6 +312,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       format: saved.format || 'mp4',
       outputPath: saved.outputPath || '',
       audioBitrate: saved.audioBitrate || 'auto',
+      preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
       concurrentDownloads: saved.concurrentDownloads || 1,
       // Live stream settings
       liveFromStart: saved.liveFromStart === true, // Default to false
@@ -324,7 +336,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<UniversalSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
-  const { settings: downloadSettings } = useDownload();
+  const { settings: downloadSettings, filterDownloadedDuplicateCandidates } = useDownload();
 
   usePersistedDownloadQueue({
     queueKind: 'universal',
@@ -585,6 +597,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         format: currentSettings.format,
         outputPath: currentSettings.outputPath,
         audioBitrate: currentSettings.audioBitrate,
+        preferredFps: currentSettings.preferredFps,
         useAria2: advancedSettings.useAria2,
         aria2Args: advancedSettings.aria2Args,
         ytdlpAdvancedOptionsEnabled: advancedSettings.ytdlpAdvancedOptionsEnabled,
@@ -594,6 +607,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         numberQueueItems: downloadSettings.numberQueueItems,
         splitEmbeddedChapters: downloadSettings.splitEmbeddedChapters,
         numberChapterFiles: downloadSettings.numberChapterFiles,
+        autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -601,24 +615,39 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
-      const nextUrls = urls.filter((url) => !currentItems.some((item) => item.url === url));
-      const queueTotal = currentItems.length + nextUrls.length;
-      const newItems: DownloadItem[] = nextUrls.map((url, index) => ({
+      const candidates = urls
+        .filter((url) => !currentItems.some((item) => item.url === url))
+        .map((url) => ({
+          url,
+          title: url,
+          duplicateIdentity: buildDownloadDuplicateIdentity(url),
+        }));
+      const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
+      const currentItemsAfterReview = itemsRef.current;
+      const enqueueCandidates = filteredCandidates.filter(
+        (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+      );
+      const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
+      const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
         id: crypto.randomUUID(),
-        url,
-        title: url,
+        url: candidate.url,
+        title: candidate.title,
         status: 'pending' as const,
         progress: 0,
         speed: '',
         eta: '',
-        queueIndex: currentItems.length + index + 1,
+        queueIndex: currentItemsAfterReview.length + index + 1,
         queueTotal,
         // Store settings snapshot
         settings: settingsSnapshot,
       }));
 
       if (newItems.length > 0) {
-        setItems((prev) => [...prev, ...newItems]);
+        setItems((prev) => {
+          const nextItems = [...prev, ...newItems];
+          itemsRef.current = nextItems;
+          return nextItems;
+        });
         // Fetch metadata (thumbnail, title, duration) in background
         fetchMetadataForItems(newItems);
         enqueueQueuedWorkflowForItems(newItems);
@@ -628,9 +657,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     },
     [
       downloadSettings.numberChapterFiles,
+      downloadSettings.autoOrganizeCollections,
       downloadSettings.numberQueueItems,
       downloadSettings.splitEmbeddedChapters,
       enqueueQueuedWorkflowForItems,
+      filterDownloadedDuplicateCandidates,
       fetchMetadataForItems,
     ],
   );
@@ -684,6 +715,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         format: mediaType === 'audio' ? 'mp3' : 'mp4',
         outputPath,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
+        preferredFps: currentSettings.preferredFps,
         useAria2: advancedSettings.useAria2,
         aria2Args: advancedSettings.aria2Args,
         ytdlpAdvancedOptionsEnabled: advancedSettings.ytdlpAdvancedOptionsEnabled,
@@ -695,6 +727,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         numberQueueItems: downloadSettings.numberQueueItems,
         splitEmbeddedChapters: downloadSettings.splitEmbeddedChapters,
         numberChapterFiles: downloadSettings.numberChapterFiles,
+        autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -725,6 +758,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     },
     [
       downloadSettings.numberChapterFiles,
+      downloadSettings.autoOrganizeCollections,
       downloadSettings.numberQueueItems,
       downloadSettings.splitEmbeddedChapters,
       enqueueQueuedWorkflowForItems,
@@ -771,16 +805,59 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       });
 
       if (folder) {
+        const outputPath = folder as string;
+        const itemsToUpdate = itemsRef.current.filter((item) => {
+          if (!item.settings || item.status === 'downloading' || item.status === 'completed') {
+            return false;
+          }
+          const itemSettings = item.settings as ItemUniversalSettings;
+          return itemSettings.outputPath !== outputPath;
+        });
+
         setSettings((s) => {
-          const newSettings = { ...s, outputPath: folder as string };
+          const newSettings = { ...s, outputPath };
           saveSettings(newSettings);
           return newSettings;
         });
+
+        if (itemsToUpdate.length > 0) {
+          setPendingOutputPathUpdate({
+            outputPath,
+            itemIds: itemsToUpdate.map((item) => item.id),
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to select folder:', error);
     }
   }, [settings.outputPath]);
+
+  const confirmQueuedOutputPathUpdate = useCallback(() => {
+    if (!pendingOutputPathUpdate) return;
+    const idsToUpdate = new Set(pendingOutputPathUpdate.itemIds);
+    const { outputPath } = pendingOutputPathUpdate;
+
+    setItems((items) => {
+      const nextItems = items.map((item) => {
+        if (
+          !idsToUpdate.has(item.id) ||
+          !item.settings ||
+          item.status === 'downloading' ||
+          item.status === 'completed'
+        ) {
+          return item;
+        }
+        const itemSettings = item.settings as ItemUniversalSettings;
+        return {
+          ...item,
+          settings: { ...itemSettings, outputPath },
+        };
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+    setPendingOutputPathUpdate(null);
+  }, [pendingOutputPathUpdate]);
 
   const removeItem = useCallback((id: string) => {
     setItems((items) => {
@@ -985,7 +1062,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            autoOrganizeCollections:
+              itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
+            playlistCollectionName: null,
             videoCodec: 'auto', // Use auto for universal downloads
+            preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit: null,
             subtitleMode: 'off',
@@ -1226,6 +1307,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     }
   }, [
     downloadSettings.numberChapterFiles,
+    downloadSettings.autoOrganizeCollections,
     downloadSettings.splitEmbeddedChapters,
     enqueueFailedWorkflowForItem,
     settings,
@@ -1261,6 +1343,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   const updateAudioBitrate = useCallback((audioBitrate: AudioBitrate) => {
     setSettings((s) => {
       const newSettings = { ...s, audioBitrate };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
+  const updatePreferredFps = useCallback((preferredFps: PreferredFps) => {
+    setSettings((s) => {
+      const newSettings = { ...s, preferredFps };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -1367,6 +1457,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateAudioBitrate,
+      updatePreferredFps,
       updateConcurrentDownloads,
       updateLiveFromStart,
       updateSkipLive,
@@ -1399,6 +1490,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateAudioBitrate,
+      updatePreferredFps,
       updateConcurrentDownloads,
       updateLiveFromStart,
       updateSkipLive,
@@ -1412,13 +1504,32 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <UniversalContext.Provider value={value}>{children}</UniversalContext.Provider>;
-}
-
-export function useUniversal() {
-  const context = useContext(UniversalContext);
-  if (!context) {
-    throw new Error('useUniversal must be used within a UniversalProvider');
-  }
-  return context;
+  return (
+    <UniversalContext.Provider value={value}>
+      {children}
+      <AlertDialog
+        open={Boolean(pendingOutputPathUpdate)}
+        onOpenChange={(open) => {
+          if (!open) setPendingOutputPathUpdate(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('queueOutputPathUpdate.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('queueOutputPathUpdate.message', {
+                count: pendingOutputPathUpdate?.itemIds.length ?? 0,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('actions.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmQueuedOutputPathUpdate}>
+              {t('queueOutputPathUpdate.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </UniversalContext.Provider>
+  );
 }

@@ -370,6 +370,7 @@ pub fn run() {
             commands::add_history,
             commands::get_history,
             commands::get_history_entries_by_ids,
+            commands::find_duplicate_downloads,
             commands::delete_history,
             commands::clear_history,
             commands::get_history_count,
@@ -389,6 +390,7 @@ pub fn run() {
             commands::sync_asset_scope_paths,
             commands::rename_downloaded_file,
             commands::sync_history_renamed_entry,
+            commands::split_media_segments,
             commands::update_summary,
             commands::add_summary_only_history,
             commands::open_macos_privacy_settings,
@@ -457,6 +459,7 @@ pub fn run() {
             // Channel commands
             commands::get_channel_videos,
             commands::get_channel_info,
+            commands::stop_channel_fetch,
             commands::follow_channel,
             commands::unfollow_channel,
             commands::get_followed_channels,

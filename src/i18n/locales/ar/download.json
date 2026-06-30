@@ -24,6 +24,8 @@
     "guideHighResText": "توفر كثير من المصادر H.264 حتى Full HD فقط. للحصول على 2K/4K/8K استخدم Auto (أو VP9/AV1 عند توفره) للوصول إلى دقة أعلى.",
     "guideFfmpegTitle": "تنزيل الفيديو والصوت بشكل منفصل",
     "guideFfmpegText": "ثبّت FFmpeg من Settings > Dependencies حتى يتمكن Youwee من دمج الفيديو والصوت في ملف إخراج واحد.",
+    "guidePreferredFpsTitle": "قد يغيّر معدل الإطارات الجودة",
+    "guidePreferredFpsText": "يمكن أن يوفر 30 FPS مساحة، لكن Youwee يختار التدفقات الموجودة فقط. بعض الفيديوهات توفر 30 FPS بجودات أقل مثل 720p أو 480p، لذلك قد تكون جودة التنزيل أقل من الجودة التي اخترتها.",
     "guideOpenSettings": "فتح الإعدادات",
     "guideGotIt": "فهمت",
     "detectedMultiple": "تم اكتشاف {{count}} رابطًا",
@@ -132,6 +134,12 @@
     "downloadFullPlaylist": "تنزيل قائمة التشغيل كاملة",
     "liveFromStart": "تنزيل البث المباشر من البداية",
     "liveFromStartDesc": "للبثوث المباشرة",
+    "skipLive": "تخطي البثوث المباشرة",
+    "skipLiveDesc": "تخطي الفيديوهات المباشرة حاليًا بدلاً من تنزيلها",
+    "preferredFps": "معدل الإطارات",
+    "preferredFpsHint": "قد يستخدم 30 FPS جودة أقل",
+    "preferredFpsOriginal": "الأصلي",
+    "preferredFps30": "حتى 30 FPS",
     "saveTo": "الحفظ إلى",
     "selectFolder": "اختر مجلدًا...",
     "outputFolder": "مجلد الإخراج: {{path}}",
@@ -259,5 +267,19 @@
     "de": "الألمانية",
     "pt": "البرتغالية",
     "ru": "الروسية"
+  },
+  "duplicates": {
+    "title": "Already downloaded videos",
+    "description": "{{count}} video(s) already exist in Library. {{newCount}} new video(s) can still be added.",
+    "downloadedAt": "Downloaded {{date}}",
+    "fileExists": "File available",
+    "fileMissing": "File missing",
+    "moreItems": "{{count}} more duplicate(s)",
+    "applyToAll": "Apply this choice to all duplicates in this add",
+    "skip": "Skip duplicates",
+    "addAgain": "Add again",
+    "cancel": "Cancel",
+    "skippedToastTitle": "Already downloaded videos skipped",
+    "skippedToastMessage": "Skipped {{count}} video(s) already found in Library."
   }
 }

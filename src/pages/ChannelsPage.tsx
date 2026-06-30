@@ -21,9 +21,16 @@ import { ThemePicker } from '@/components/settings/ThemePicker';
 import { EmptyStateIllustration } from '@/components/shared/EmptyStateIllustration';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { detectPlatform, isSupportedPlatform, useChannels } from '@/contexts/ChannelsContext';
+import { detectPlatform, isSupportedPlatform } from '@/contexts/channels/useChannelsController';
+import { useChannels } from '@/contexts/channels-context';
 import { useDependencies } from '@/contexts/DependenciesContext';
-import type { Format, Quality, VideoCodec, YoutubeChannelContentType } from '@/lib/types';
+import type {
+  Format,
+  PreferredFps,
+  Quality,
+  VideoCodec,
+  YoutubeChannelContentType,
+} from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { ChannelDetailView } from '@/pages/channels/ChannelDetailView';
 import { ChannelFetchLoadingState } from '@/pages/channels/ChannelFetchLoadingState';
@@ -73,6 +80,7 @@ export function ChannelsPage() {
     browseLoadingMore,
     browseYoutubeContentType,
     loadMoreChannelVideos,
+    stopChannelFetch,
   } = useChannels();
 
   const { ffmpegStatus } = useDependencies();
@@ -89,6 +97,7 @@ export function ChannelsPage() {
   const [quality, setQuality] = useState<Quality>(initSettings.quality);
   const [format, setFormat] = useState<Format>(initSettings.format);
   const [videoCodec, setVideoCodec] = useState<VideoCodec>(initSettings.videoCodec);
+  const [preferredFps, setPreferredFps] = useState<PreferredFps>(initSettings.preferredFps);
   const [isAudioMode, setIsAudioMode] = useState(initSettings.isAudioMode);
 
   // FFmpeg dialog state
@@ -136,6 +145,11 @@ export function ChannelsPage() {
   }, []);
 
   const handleFetch = useCallback(() => {
+    if (browseLoading || browseLoadingMore) {
+      stopChannelFetch();
+      return;
+    }
+
     const url = urlInput.trim();
     if (!url) return;
     if (!isSupportedPlatform(url)) {
@@ -144,7 +158,15 @@ export function ChannelsPage() {
     const contentType = isYoutubeChannelContentUrl(url) ? youtubeContentType : 'videos';
     setBrowseUrl(url);
     fetchChannelVideos(url, undefined, contentType);
-  }, [urlInput, youtubeContentType, setBrowseUrl, fetchChannelVideos]);
+  }, [
+    browseLoading,
+    browseLoadingMore,
+    fetchChannelVideos,
+    setBrowseUrl,
+    stopChannelFetch,
+    urlInput,
+    youtubeContentType,
+  ]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -165,11 +187,11 @@ export function ChannelsPage() {
       return;
     }
     try {
-      await downloadSelectedVideos(quality, format, videoCodec);
+      await downloadSelectedVideos(quality, format, videoCodec, preferredFps);
     } catch (error) {
       console.error('Download failed:', error);
     }
-  }, [downloadSelectedVideos, quality, format, videoCodec, ffmpegRequired]);
+  }, [downloadSelectedVideos, quality, format, videoCodec, preferredFps, ffmpegRequired]);
 
   const handleFollow = useCallback(async () => {
     if (!browseChannelName || !browseUrl) return;
@@ -185,6 +207,7 @@ export function ChannelsPage() {
           quality: isAudioMode ? 'audio' : quality,
           format,
           videoCodec,
+          preferredFps,
           audioBitrate: '192',
         },
         isYoutubeChannelContentUrl(browseUrl) ? youtubeContentType : 'videos',
@@ -203,6 +226,7 @@ export function ChannelsPage() {
     quality,
     format,
     videoCodec,
+    preferredFps,
     isAudioMode,
     youtubeContentType,
   ]);
@@ -293,26 +317,22 @@ export function ChannelsPage() {
             type="button"
             className={cn(
               'h-11 px-4 rounded-md font-medium text-sm',
-              'btn-gradient flex items-center gap-2',
+              browseLoading || browseLoadingMore
+                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-2'
+                : 'btn-gradient flex items-center gap-2',
               'disabled:opacity-50 disabled:cursor-not-allowed',
             )}
             onClick={handleFetch}
-            disabled={browseLoading || !urlInput.trim()}
-            title={t('fetchVideos')}
+            disabled={!browseLoading && !browseLoadingMore && !urlInput.trim()}
+            title={browseLoading || browseLoadingMore ? t('stopFetch') : t('fetchVideos')}
           >
-            {browseLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+            {browseLoading || browseLoadingMore ? (
+              <Square className="w-4 h-4" />
             ) : (
               <Search className="w-4 h-4" />
             )}
             <span className="hidden sm:inline">
-              {browseLoading
-                ? browseFetchProgress
-                  ? browseFetchProgress.limit
-                    ? `${browseFetchProgress.fetched}/${browseFetchProgress.limit}`
-                    : `${browseFetchProgress.fetched}`
-                  : t('fetching')
-                : t('fetchVideos')}
+              {browseLoading || browseLoadingMore ? t('stopFetch') : t('fetchVideos')}
             </span>
           </button>
         </div>
@@ -330,10 +350,12 @@ export function ChannelsPage() {
           quality={quality}
           format={format}
           videoCodec={videoCodec}
+          preferredFps={preferredFps}
           isAudioMode={isAudioMode}
           onQualityChange={handleQualityChange}
           onFormatChange={setFormat}
           onVideoCodecChange={setVideoCodec}
+          onPreferredFpsChange={setPreferredFps}
           onAudioModeToggle={handleAudioModeToggle}
           outputPath={outputPath}
           onSelectFolder={selectOutputFolder}

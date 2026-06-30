@@ -263,9 +263,15 @@
       "daysAgo": "il y a {{count}} j",
       "showMore": "Afficher plus",
       "showLess": "Afficher moins",
+      "summary": "Résumé IA",
+      "viewFullSummary": "Voir le résumé complet",
       "copySummary": "Copier le résumé",
       "regenerateSummary": "Régénérer le résumé",
       "generateAiSummary": "Générer un résumé IA",
+      "fontSize": "Taille du texte",
+      "decreaseFontSize": "Réduire la taille du texte",
+      "resetFontSize": "Réinitialiser la taille du texte",
+      "increaseFontSize": "Augmenter la taille du texte",
       "fetchingTranscript": "Récupération de la transcription...",
       "generatingSummary": "Génération du résumé...",
       "downloading": "Téléchargement...",
@@ -276,12 +282,13 @@
       "renameCancel": "Annuler",
       "renameFailed": "Échec du renommage du fichier",
       "redownload": "Retélécharger",
+      "moreActions": "Plus",
       "manageTagsCollections": "Gérer tags et collections",
       "openUrl": "Ouvrir l'URL",
       "copy": "Copier",
       "copied": "Copié",
       "delete": "Supprimer",
-      "deleteConfirm": "Supprimer \"{{title}}\" de l'historique ?",
+      "deleteConfirm": "Retirer \"{{title}}\" de la bibliothèque ? Le fichier média restera sur votre appareil.",
       "failedToRedownload": "Échec du retéléchargement",
       "sources": {
         "youtube": "YouTube",
@@ -291,7 +298,14 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "Autre"
-      }
+      },
+      "deleteTitle": "Retirer de la bibliothèque ?",
+      "deleteWithFileTitle": "Supprimer aussi le fichier média ?",
+      "deleteWithFileConfirm": "Retirer \"{{title}}\" de la bibliothèque et supprimer le fichier média de votre appareil ? Cette action est irréversible.",
+      "deleteLibraryOnly": "Retirer de la bibliothèque",
+      "deleteWithFile": "Supprimer aussi le fichier média",
+      "deleteCancel": "Annuler",
+      "split": "Découper"
     },
     "collections": {
       "title": "Collections",
@@ -327,6 +341,31 @@
       "errors": {
         "save": "Échec de l'enregistrement des tags ou collections"
       }
+    },
+    "split": {
+      "title": "Découper en segments",
+      "loading": "Lecture de la durée du média...",
+      "duration": "Durée {{duration}}",
+      "durationUnknown": "Durée indisponible",
+      "segmentCount": "{{count}} segment(s)",
+      "timeline": "Timeline",
+      "timelineHint": "Cliquez sur la timeline pour ajouter des points de coupe, ou utilisez un preset.",
+      "everyMinutes": "Toutes les {{minutes}} min",
+      "clearCuts": "Effacer les coupes",
+      "removeCut": "Supprimer la coupe à {{time}}",
+      "removeSegment": "Supprimer le segment",
+      "segmentNamePlaceholder": "Nom du segment",
+      "ffmpegRequiredTitle": "FFmpeg requis",
+      "ffmpegRequiredDesc": "Installez FFmpeg dans les paramètres avant de découper des fichiers média.",
+      "ffmpegMissing": "FFmpeg est requis pour découper les fichiers média.",
+      "durationUnavailable": "Impossible de lire une durée utilisable pour ce fichier.",
+      "cancel": "Annuler",
+      "splitFiles": "Découper les fichiers",
+      "splitting": "Découpe...",
+      "successTitle": "Segments créés",
+      "successMessage": "{{count}} fichier(s) segment créé(s) et ajouté(s) à la bibliothèque.",
+      "deleteOriginal": "Supprimer le fichier original après la découpe",
+      "deleteOriginalDesc": "L’élément original reste dans la bibliothèque, mais son fichier média est supprimé de l’appareil."
     }
   },
   "player": {

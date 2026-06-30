@@ -24,6 +24,8 @@
     "guideHighResText": "Várias fontes fornecem H.264 apenas até Full HD. Para 2K/4K/8K, use Automático (ou VP9/AV1 quando disponível) para obter maior resolução.",
     "guideFfmpegTitle": "Vídeo e áudio baixados separadamente",
     "guideFfmpegText": "Instale o FFmpeg em Configurações > Dependências para permitir a mesclagem de vídeo e áudio em um único arquivo de saída.",
+    "guidePreferredFpsTitle": "A taxa de quadros pode alterar a qualidade",
+    "guidePreferredFpsText": "30 FPS pode economizar espaço, mas o Youwee seleciona apenas streams existentes. Alguns vídeos só oferecem 30 FPS em qualidades menores, como 720p ou 480p, então a qualidade baixada pode ficar abaixo da escolhida.",
     "guideOpenSettings": "Abrir Configurações",
     "guideGotIt": "Entendi",
     "detectedMultiple": "{{count}} URLs detectados",
@@ -132,6 +134,12 @@
     "downloadFullPlaylist": "Baixar lista de reprodução completa",
     "liveFromStart": "Baixar transmissão ao vivo do início",
     "liveFromStartDesc": "Para transmissões ao vivo",
+    "skipLive": "Ignorar lives",
+    "skipLiveDesc": "Ignorar vídeos transmitidos ao vivo em vez de baixá-los",
+    "preferredFps": "Taxa de quadros",
+    "preferredFpsHint": "30 FPS pode usar qualidade menor",
+    "preferredFpsOriginal": "Original",
+    "preferredFps30": "Até 30 FPS",
     "saveTo": "Salvar em",
     "selectFolder": "Selecionar pasta...",
     "outputFolder": "Pasta de saída: {{path}}",
@@ -259,5 +267,19 @@
     "de": "Alemão",
     "pt": "Português",
     "ru": "Russo"
+  },
+  "duplicates": {
+    "title": "Already downloaded videos",
+    "description": "{{count}} video(s) already exist in Library. {{newCount}} new video(s) can still be added.",
+    "downloadedAt": "Downloaded {{date}}",
+    "fileExists": "File available",
+    "fileMissing": "File missing",
+    "moreItems": "{{count}} more duplicate(s)",
+    "applyToAll": "Apply this choice to all duplicates in this add",
+    "skip": "Skip duplicates",
+    "addAgain": "Add again",
+    "cancel": "Cancel",
+    "skippedToastTitle": "Already downloaded videos skipped",
+    "skippedToastMessage": "Skipped {{count}} video(s) already found in Library."
   }
 }

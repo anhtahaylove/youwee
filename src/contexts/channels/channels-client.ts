@@ -27,6 +27,7 @@ export type ChannelAutoDownloadEvent = {
   quality: string;
   format: string;
   video_codec: string;
+  preferred_fps: string;
   audio_bitrate: string;
   download_threads: number;
 };
@@ -57,6 +58,7 @@ export async function followChannelCommand(input: {
   downloadQuality: string;
   downloadFormat: string;
   downloadVideoCodec: string;
+  downloadPreferredFps: string;
   downloadAudioBitrate: string;
   youtubeContentType: YoutubeChannelContentType;
 }): Promise<string> {
@@ -78,6 +80,7 @@ export async function updateChannelSettingsCommand(input: {
   downloadQuality: string;
   downloadFormat: string;
   downloadVideoCodec: string;
+  downloadPreferredFps: string;
   downloadAudioBitrate: string;
   filterMinDuration: number | null;
   filterMaxDuration: number | null;
@@ -123,6 +126,10 @@ export async function getChannelInfo(input: {
   youtubeContentType?: YoutubeChannelContentType;
 }): Promise<ChannelInfo> {
   return invoke<ChannelInfo>('get_channel_info', input);
+}
+
+export async function stopChannelFetchCommand(): Promise<void> {
+  await invoke('stop_channel_fetch');
 }
 
 export async function getSavedChannelVideos(input: {

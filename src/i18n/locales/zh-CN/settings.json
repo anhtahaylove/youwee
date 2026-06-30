@@ -36,7 +36,14 @@
     "processingDesc": "视频处理和预览设置",
     "previewThreshold": "预览大小阈值",
     "previewThresholdDesc": "对大于此大小的文件生成预览前进行确认",
-    "previewAlways": "始终生成"
+    "previewAlways": "始终生成",
+    "library": "资料库",
+    "libraryDesc": "控制资料库如何删除已下载文件",
+    "libraryDeleteFileBehavior": "删除资料库项目时",
+    "libraryDeleteFileBehaviorDesc": "选择移除项目时是否同时删除设备上的媒体文件",
+    "libraryDeleteAsk": "每次询问",
+    "libraryDeleteWithFile": "始终删除媒体文件",
+    "libraryDeleteKeepFile": "永不删除媒体文件"
   },
   "download": {
     "postProcessing": "后处理",
@@ -53,6 +60,8 @@
     "splitEmbeddedChaptersDesc": "根据视频中已有的章节创建单独文件",
     "numberChapterFiles": "为章节文件编号",
     "numberChapterFilesDesc": "为拆分出的章节文件添加章节编号前缀",
+    "autoOrganizeCollections": "自动创建集合",
+    "autoOrganizeCollectionsDesc": "为展开的播放列表、频道下载和拆分出的章节文件创建资料库集合",
     "queuePersistence": "下载队列",
     "queuePersistenceDesc": "关闭 Youwee 后保留下载队列",
     "persistDownloadQueue": "保存下载队列",
@@ -495,7 +504,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "已下载视频",
+    "duplicateDownloadsDesc": "使用 Library 历史记录检测已经下载过的视频",
+    "rememberDownloadedVideos": "记住已下载视频",
+    "rememberDownloadedVideosDesc": "添加 YouTube 视频到下载队列前先检查 Library",
+    "duplicateHandling": "重复项处理",
+    "duplicateHandlingDesc": "选择当视频已存在于 Library 时 Youwee 的处理方式",
+    "duplicateHandlingAsk": "添加前询问",
+    "duplicateHandlingSkip": "自动跳过",
+    "duplicateHandlingAllow": "允许重复"
   },
   "remoteDownload": {
     "telegramRemote": "Telegram 远程控制",

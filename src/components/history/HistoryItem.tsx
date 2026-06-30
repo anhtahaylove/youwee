@@ -1,18 +1,18 @@
 import {
   AlertCircle,
   Check,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Copy,
   Download,
   ExternalLink,
+  FileAudio,
   FileVideo,
   Folder,
   FolderOpen,
   HardDrive,
   Hash,
   Loader2,
+  MoreHorizontal,
   Pause,
   Pencil,
   Play,
@@ -24,16 +24,35 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CollectionManagerDialog } from '@/components/history/CollectionManagerDialog';
+import { HistorySummaryDialog } from '@/components/history/HistorySummaryDialog';
 import { HistoryTagsCollectionsDialog } from '@/components/history/HistoryTagsCollectionsDialog';
+import { SplitMediaDialog } from '@/components/media/SplitMediaDialog';
 import { FaIcon } from '@/components/shared/FaIcon';
-import { SimpleMarkdown } from '@/components/ui/simple-markdown';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAI } from '@/contexts/AIContext';
+import { useDependencies } from '@/contexts/DependenciesContext';
+import { useDownload } from '@/contexts/download-context';
 import { useHistory } from '@/contexts/HistoryContext';
 import { usePlayer } from '@/contexts/PlayerContext';
+import {
+  type LibraryDeleteFileBehavior,
+  loadLibraryDeleteFileBehavior,
+} from '@/lib/library-delete-behavior';
 import { buildPlayableAudioQueue, isPlayableAudioEntry } from '@/lib/player-queue';
 import { detectSource } from '@/lib/sources';
 import type { HistoryEntry } from '@/lib/types';
 import { cn, isSafeUrl } from '@/lib/utils';
+import { getHistoryItemActionLayout } from './historyItemActions';
 
 interface HistoryItemProps {
   entry: HistoryEntry;
@@ -87,7 +106,10 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     redownload,
     getRedownloadTask,
     setAdvancedFilters,
+    refreshHistory,
   } = useHistory();
+  const { settings } = useDownload();
+  const { ffmpegStatus } = useDependencies();
   const ai = useAI();
   const { currentEntry, isPlaying, playFrom, togglePlay } = usePlayer();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -96,12 +118,16 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const [copied, setCopied] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [localSummary, setLocalSummary] = useState<string | undefined>(entry.summary);
-  const [showFullSummary, setShowFullSummary] = useState(false);
   const [thumbError, setThumbError] = useState(false);
   const [thumbLoaded, setThumbLoaded] = useState(false);
   const [isRenameEditorOpen, setIsRenameEditorOpen] = useState(false);
   const [isTaggingDialogOpen, setIsTaggingDialogOpen] = useState(false);
   const [isCollectionsManagerOpen, setIsCollectionsManagerOpen] = useState(false);
+  const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false);
+  const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
+  const [isSplitDialogOpen, setIsSplitDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deleteFileBehavior, setDeleteFileBehavior] = useState<LibraryDeleteFileBehavior>('ask');
   const [renameName, setRenameName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
 
@@ -115,21 +141,18 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const sourceConfig = detectSource(isDataExport ? 'data_export' : entry.source);
   const sourceLabel = isDataExport ? t('library.toolbar.filterDataExport') : sourceConfig.label;
   const canPlayAudio = isPlayableAudioEntry(entry);
+  const isAudioMedia = canPlayAudio;
   const isCurrentAudio = currentEntry?.id === entry.id;
   const isActivePlayback = isCurrentAudio && isPlaying;
   const thumbnailUrl = entry.thumbnail ? entry.thumbnail.replace(/^http:\/\//, 'https://') : null;
-  const shouldDeferSummaryMarkdown = localSummary
-    ? !showFullSummary && localSummary.length > 200
-    : false;
   const summaryPreview = useMemo(
-    () => (localSummary && shouldDeferSummaryMarkdown ? createSummaryPreview(localSummary) : ''),
-    [localSummary, shouldDeferSummaryMarkdown],
+    () => (localSummary ? createSummaryPreview(localSummary) : ''),
+    [localSummary],
   );
 
   // Reset local summary when entry changes (important for component reuse)
   useEffect(() => {
     setLocalSummary(entry.summary);
-    setShowFullSummary(false);
   }, [entry.summary]);
 
   useEffect(() => {
@@ -148,6 +171,17 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const isGeneratingSummary = task?.status === 'fetching' || task?.status === 'generating';
   // Don't show AI errors if AI is disabled (user didn't explicitly use AI)
   const summaryError = aiEnabled && task?.status === 'error' ? task.error : null;
+  const actionLayout = useMemo(
+    () =>
+      getHistoryItemActionLayout({
+        fileExists: entry.file_exists,
+        isDataExport,
+        aiEnabled,
+      }),
+    [aiEnabled, entry.file_exists, isDataExport],
+  );
+  const canDeleteMediaFile = Boolean(entry.file_exists && entry.filepath.trim());
+  const canSplitMedia = Boolean(entry.file_exists && entry.filepath.trim() && !isDataExport);
 
   // Update local summary when task completes
   useEffect(() => {
@@ -167,16 +201,25 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   }, [openFileLocation, entry.filepath]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm(t('library.item.deleteConfirm', { title: entry.title }))) return;
-    setIsDeleting(true);
-    try {
-      await deleteEntry(entry.id);
-    } catch (error) {
-      console.error('Failed to delete:', error);
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [deleteEntry, entry.id, entry.title, t]);
+    setDeleteFileBehavior(loadLibraryDeleteFileBehavior());
+    setIsActionsPopoverOpen(false);
+    setIsDeleteDialogOpen(true);
+  }, []);
+
+  const confirmDelete = useCallback(
+    async (deleteFile: boolean) => {
+      setIsDeleteDialogOpen(false);
+      setIsDeleting(true);
+      try {
+        await deleteEntry(entry.id, deleteFile && canDeleteMediaFile);
+      } catch (error) {
+        console.error('Failed to delete:', error);
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [canDeleteMediaFile, deleteEntry, entry.id],
+  );
 
   const handleRedownload = useCallback(async () => {
     setRedownloadError(null);
@@ -192,6 +235,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     setRenameName(entry.title);
     setRenameError(null);
     setIsRenameEditorOpen(true);
+    setIsActionsPopoverOpen(false);
   }, [entry.title]);
 
   const handleCancelRename = useCallback(() => {
@@ -219,6 +263,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const handleCopyUrl = useCallback(() => {
     navigator.clipboard.writeText(entry.url);
     setCopied(true);
+    setIsActionsPopoverOpen(false);
     setTimeout(() => setCopied(false), 2000);
   }, [entry.url]);
 
@@ -238,6 +283,11 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     // Start background task - this will continue even if component unmounts
     ai.startSummaryTask(entry.id, entry.url);
   }, [ai, entry.url, entry.id]);
+
+  const handleOpenTagsDialog = useCallback(() => {
+    setIsTaggingDialogOpen(true);
+    setIsActionsPopoverOpen(false);
+  }, []);
 
   const handleTagFilter = useCallback(
     (tagId: string) => {
@@ -295,8 +345,19 @@ export function HistoryItem({ entry }: HistoryItemProps) {
             />
           </>
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
-            <FileVideo className="w-10 h-10 text-muted-foreground/30" />
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[inherit] bg-[linear-gradient(135deg,hsl(var(--muted)/0.98),hsl(var(--background)/0.86))]">
+            <div className="relative flex flex-col items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-background/45 text-muted-foreground shadow-sm backdrop-blur-sm">
+                {isAudioMedia ? (
+                  <FileAudio className="h-5 w-5" />
+                ) : (
+                  <FileVideo className="h-5 w-5" />
+                )}
+              </div>
+              <span className="rounded bg-background/35 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                Youwee
+              </span>
+            </div>
           </div>
         )}
 
@@ -412,42 +473,27 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           )}
 
           {/* AI Summary */}
-          {!isDataExport && (
+          {!isDataExport && (localSummary || summaryError) && (
             <div className="mt-2">
               {localSummary ? (
                 <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
                   <div className="flex items-start gap-2">
                     <Sparkles className="w-3.5 h-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <div
-                        className="text-xs text-muted-foreground overflow-hidden"
-                        style={!showFullSummary ? { maxHeight: '7.5em' } : undefined}
-                      >
-                        {shouldDeferSummaryMarkdown ? (
-                          <p className="leading-relaxed">
-                            {summaryPreview.length > 260
-                              ? `${summaryPreview.slice(0, 260).trimEnd()}...`
-                              : summaryPreview}
-                          </p>
-                        ) : (
-                          <SimpleMarkdown content={localSummary} />
-                        )}
+                      <div className="text-xs text-muted-foreground overflow-hidden">
+                        <p className="line-clamp-3 leading-relaxed">
+                          {summaryPreview.length > 260
+                            ? `${summaryPreview.slice(0, 260).trimEnd()}...`
+                            : summaryPreview}
+                        </p>
                       </div>
                       {localSummary.length > 200 && (
                         <button
                           type="button"
-                          onClick={() => setShowFullSummary(!showFullSummary)}
+                          onClick={() => setIsSummaryDialogOpen(true)}
                           className="text-xs text-purple-500 hover:text-purple-400 mt-1 flex items-center gap-0.5"
                         >
-                          {showFullSummary ? (
-                            <>
-                              {t('library.item.showLess')} <ChevronUp className="w-3 h-3" />
-                            </>
-                          ) : (
-                            <>
-                              {t('library.item.showMore')} <ChevronDown className="w-3 h-3" />
-                            </>
-                          )}
+                          {t('library.item.viewFullSummary')}
                         </button>
                       )}
                     </div>
@@ -480,34 +526,6 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                     </div>
                   </div>
                 </div>
-              ) : aiEnabled ? (
-                <button
-                  type="button"
-                  onClick={handleGenerateSummary}
-                  disabled={isGeneratingSummary}
-                  className={cn(
-                    'flex items-center gap-1.5 text-sm font-medium text-primary transition-opacity hover:opacity-80',
-                    isGeneratingSummary && 'opacity-50',
-                  )}
-                >
-                  {isGeneratingSummary ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span className="gradient-text">
-                        {task?.status === 'fetching'
-                          ? t('library.item.fetchingTranscript')
-                          : t('library.item.generatingSummary')}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="gradient-text inline-flex">
-                        <Sparkles className="w-3.5 h-3.5" />
-                      </span>
-                      <span className="gradient-text">{t('library.item.generateAiSummary')}</span>
-                    </>
-                  )}
-                </button>
               ) : null}
               {summaryError && <p className="text-xs text-destructive mt-1">{summaryError}</p>}
             </div>
@@ -544,38 +562,22 @@ export function HistoryItem({ entry }: HistoryItemProps) {
         )}
 
         {/* Actions */}
-        <div
-          className={cn(
-            'flex items-center gap-1 mt-2 transition-opacity',
-            isRedownloading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          {actionLayout.primary.includes('open-folder') && (
+            <button
+              type="button"
+              onClick={handleOpenFolder}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                'bg-primary/10 hover:bg-primary/20 text-primary transition-colors',
+              )}
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
+              {t('library.item.openFolder')}
+            </button>
           )}
-        >
-          {entry.file_exists ? (
-            <>
-              <button
-                type="button"
-                onClick={handleOpenFolder}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-                  'bg-primary/10 hover:bg-primary/20 text-primary transition-colors',
-                )}
-              >
-                <FolderOpen className="w-3.5 h-3.5" />
-                {t('library.item.openFolder')}
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenRenameEditor}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-                  'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
-                )}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                {t('library.item.rename')}
-              </button>
-            </>
-          ) : !isDataExport ? (
+
+          {actionLayout.primary.includes('redownload') && (
             <button
               type="button"
               onClick={handleRedownload}
@@ -593,71 +595,159 @@ export function HistoryItem({ entry }: HistoryItemProps) {
               )}
               {t('library.item.redownload')}
             </button>
-          ) : null}
-
-          {!isDataExport && (
-            <>
-              <a
-                href={isSafeUrl(entry.url) ? entry.url : '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-                  'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
-                )}
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                {t('library.item.openUrl')}
-              </a>
-
-              <button
-                type="button"
-                onClick={handleCopyUrl}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-                  'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
-                )}
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-green-500" />
-                    {t('library.item.copied')}
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    {t('library.item.copy')}
-                  </>
-                )}
-              </button>
-            </>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsTaggingDialogOpen(true)}
-            className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-              'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
-            )}
-          >
-            <Folder className="w-3.5 h-3.5" />
-            {t('library.item.manageTagsCollections')}
-          </button>
+          {actionLayout.summary && (
+            <button
+              type="button"
+              onClick={handleGenerateSummary}
+              disabled={isGeneratingSummary}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                'bg-primary/10 hover:bg-primary/15 transition-colors',
+                isGeneratingSummary && 'opacity-60',
+              )}
+            >
+              {isGeneratingSummary ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
+                  <span className="gradient-text">
+                    {task?.status === 'fetching'
+                      ? t('library.item.fetchingTranscript')
+                      : t('library.item.generatingSummary')}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-primary" />
+                  <span className="gradient-text">
+                    {localSummary
+                      ? t('library.item.regenerateSummary')
+                      : t('library.item.generateAiSummary')}
+                  </span>
+                </>
+              )}
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={isDeleting}
-            className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-              'bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors',
-              isDeleting && 'opacity-50',
-            )}
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            {t('library.item.delete')}
-          </button>
+          <Popover open={isActionsPopoverOpen} onOpenChange={setIsActionsPopoverOpen}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                  'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
+                )}
+                title={t('library.item.moreActions')}
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+                {t('library.item.moreActions')}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-56 p-2">
+              <div className="space-y-1">
+                {actionLayout.overflow.includes('rename') && (
+                  <button
+                    type="button"
+                    onClick={handleOpenRenameEditor}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    {t('library.item.rename')}
+                  </button>
+                )}
+
+                {actionLayout.overflow.includes('open-url') && (
+                  <a
+                    href={isSafeUrl(entry.url) ? entry.url : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsActionsPopoverOpen(false)}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    {t('library.item.openUrl')}
+                  </a>
+                )}
+
+                {actionLayout.overflow.includes('copy-url') && (
+                  <button
+                    type="button"
+                    onClick={handleCopyUrl}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-green-500" />
+                        {t('library.item.copied')}
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        {t('library.item.copy')}
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {canSplitMedia && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsPopoverOpen(false);
+                      setIsSplitDialogOpen(true);
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <Scissors className="w-3.5 h-3.5" />
+                    {t('library.item.split')}
+                  </button>
+                )}
+
+                {actionLayout.overflow.includes('manage-tags') && (
+                  <button
+                    type="button"
+                    onClick={handleOpenTagsDialog}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <Folder className="w-3.5 h-3.5" />
+                    {t('library.item.manageTagsCollections')}
+                  </button>
+                )}
+
+                {actionLayout.overflow.includes('delete') && (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300',
+                      isDeleting && 'opacity-50',
+                    )}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {t('library.item.delete')}
+                  </button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {isRenameEditorOpen && entry.file_exists && (
@@ -703,6 +793,79 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           open={isCollectionsManagerOpen}
           onOpenChange={setIsCollectionsManagerOpen}
         />
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                  ? t('library.item.deleteWithFileTitle')
+                  : t('library.item.deleteTitle')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                  ? t('library.item.deleteWithFileConfirm', { title: entry.title })
+                  : t('library.item.deleteConfirm', { title: entry.title })}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2 sm:space-x-0">
+              <AlertDialogCancel disabled={isDeleting}>
+                {t('library.item.deleteCancel')}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={isDeleting}
+                onClick={() =>
+                  void confirmDelete(deleteFileBehavior === 'delete-file' && canDeleteMediaFile)
+                }
+                className={
+                  deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                    ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                    : undefined
+                }
+              >
+                {deleteFileBehavior === 'delete-file' && canDeleteMediaFile
+                  ? t('library.item.deleteWithFile')
+                  : t('library.item.deleteLibraryOnly')}
+              </AlertDialogAction>
+              {deleteFileBehavior === 'ask' && canDeleteMediaFile && (
+                <AlertDialogAction
+                  disabled={isDeleting}
+                  onClick={() => void confirmDelete(true)}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {t('library.item.deleteWithFile')}
+                </AlertDialogAction>
+              )}
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        {localSummary && (
+          <HistorySummaryDialog
+            entry={entry}
+            open={isSummaryDialogOpen}
+            onOpenChange={setIsSummaryDialogOpen}
+            summary={localSummary}
+            copied={copiedSummary}
+            isGenerating={isGeneratingSummary}
+            onCopy={handleCopySummary}
+            onRegenerate={handleGenerateSummary}
+          />
+        )}
+        {canSplitMedia && (
+          <SplitMediaDialog
+            open={isSplitDialogOpen}
+            onOpenChange={setIsSplitDialogOpen}
+            inputPath={entry.filepath}
+            title={entry.title}
+            sourceUrl={entry.url}
+            thumbnail={entry.thumbnail}
+            source={entry.source}
+            quality={entry.quality}
+            format={entry.format}
+            autoCollection={settings.autoOrganizeCollections}
+            ffmpegInstalled={ffmpegStatus?.installed}
+            onComplete={refreshHistory}
+          />
+        )}
       </div>
     </div>
   );

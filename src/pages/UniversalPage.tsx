@@ -14,7 +14,7 @@ import { FreshCookieRequiredDialog } from '@/components/FreshCookieRequiredDialo
 import { ThemePicker } from '@/components/settings/ThemePicker';
 import { Button } from '@/components/ui/button';
 import { useDependencies } from '@/contexts/DependenciesContext';
-import { useUniversal } from '@/contexts/UniversalContext';
+import { useUniversal } from '@/contexts/universal-context';
 import { useSchedule } from '@/hooks/useSchedule';
 import { loadCookieSettings } from '@/lib/network-config';
 import type { Quality } from '@/lib/types';
@@ -46,6 +46,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
     updateQuality,
     updateFormat,
     updateAudioBitrate,
+    updatePreferredFps,
     updateConcurrentDownloads,
     updateLiveFromStart,
     updateSkipLive,
@@ -126,6 +127,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
             onQualityChange={updateQuality}
             onFormatChange={updateFormat}
             onAudioBitrateChange={updateAudioBitrate}
+            onPreferredFpsChange={updatePreferredFps}
             onConcurrentChange={updateConcurrentDownloads}
             onSelectFolder={selectOutputFolder}
             onLiveFromStartChange={updateLiveFromStart}

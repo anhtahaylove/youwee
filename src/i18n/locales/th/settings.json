@@ -35,7 +35,14 @@
     "processingDesc": "การตั้งค่าการประมวลผลวิดีโอและพรีวิว",
     "previewThreshold": "เกณฑ์ขนาดพรีวิว",
     "previewThresholdDesc": "ถามก่อนสร้างพรีวิววิดีโอสำหรับไฟล์ที่มีขนาดใหญ่กว่าค่านี้",
-    "previewAlways": "เสมอ"
+    "previewAlways": "เสมอ",
+    "library": "คลังรายการ",
+    "libraryDesc": "ควบคุมวิธีที่คลังรายการลบไฟล์ที่ดาวน์โหลด",
+    "libraryDeleteFileBehavior": "เมื่อลบรายการในคลัง",
+    "libraryDeleteFileBehaviorDesc": "เลือกว่าจะลบไฟล์สื่อออกจากเครื่องพร้อมกับรายการหรือไม่",
+    "libraryDeleteAsk": "ถามทุกครั้ง",
+    "libraryDeleteWithFile": "ลบไฟล์สื่อเสมอ",
+    "libraryDeleteKeepFile": "ไม่ลบไฟล์สื่อ"
   },
   "download": {
     "postProcessing": "หลังการประมวลผล",
@@ -52,6 +59,8 @@
     "splitEmbeddedChaptersDesc": "สร้างไฟล์แยกจาก chapter ที่มีอยู่ในวิดีโอ",
     "numberChapterFiles": "ใส่เลขไฟล์ chapter",
     "numberChapterFilesDesc": "เติมเลข chapter นำหน้าชื่อไฟล์ chapter ที่แยกออกมา",
+    "autoOrganizeCollections": "สร้างคอลเลกชันอัตโนมัติ",
+    "autoOrganizeCollectionsDesc": "สร้างคอลเลกชันใน Library สำหรับเพลย์ลิสต์ที่แยกรายการ การดาวน์โหลดจากช่อง และไฟล์ chapter",
     "liveStream": "สตรีมสด",
     "liveStreamDesc": "กำหนดพฤติกรรมการดาวน์โหลดสตรีมสด",
     "liveFromStart": "ดาวน์โหลดตั้งแต่ต้น",
@@ -490,7 +499,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "วิดีโอที่ดาวน์โหลดแล้ว",
+    "duplicateDownloadsDesc": "ใช้ประวัติ Library เพื่อตรวจหาวิดีโอที่เคยดาวน์โหลด",
+    "rememberDownloadedVideos": "จดจำวิดีโอที่ดาวน์โหลดแล้ว",
+    "rememberDownloadedVideosDesc": "ตรวจสอบ Library ก่อนเพิ่มวิดีโอ YouTube เข้าคิว Download",
+    "duplicateHandling": "การจัดการวิดีโอซ้ำ",
+    "duplicateHandlingDesc": "เลือกสิ่งที่ Youwee ควรทำเมื่อวิดีโอมีอยู่ใน Library แล้ว",
+    "duplicateHandlingAsk": "ถามก่อนเพิ่ม",
+    "duplicateHandlingSkip": "ข้ามอัตโนมัติ",
+    "duplicateHandlingAllow": "อนุญาตรายการซ้ำ"
   },
   "dependencies": {
     "title": "Dependencies",

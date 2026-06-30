@@ -2,18 +2,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { downloadDir, homeDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
 import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
+import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import {
   AUTO_RETRY_LIMITS,
   clampAutoRetryDelaySeconds,
@@ -25,7 +17,8 @@ import {
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { parseUniversalUrls } from '@/lib/sources';
 import type { DownloadItem } from '@/lib/types';
-import { useDownload } from './DownloadContext';
+import { useDownload } from './download-context';
+import { GalleryDlContext } from './gallerydl-context';
 
 const STORAGE_KEY = 'youwee-gallerydl-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
@@ -43,7 +36,7 @@ interface GalleryDownloadResult {
   history_id?: string | null;
 }
 
-interface GalleryDlContextType {
+export interface GalleryDlContextType {
   items: DownloadItem[];
   focusedItemId: string | null;
   isDownloading: boolean;
@@ -60,8 +53,6 @@ interface GalleryDlContextType {
   stopDownload: () => Promise<void>;
   updateConcurrentDownloads: (concurrent: number) => void;
 }
-
-const GalleryDlContext = createContext<GalleryDlContextType | null>(null);
 
 function isAbsolutePath(path: string): boolean {
   if (!path) return false;
@@ -133,7 +124,7 @@ export function GalleryDlProvider({ children }: { children: ReactNode }) {
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<GalleryDlSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
-  const { settings: downloadSettings } = useDownload();
+  const { settings: downloadSettings, filterDownloadedDuplicateCandidates } = useDownload();
 
   usePersistedDownloadQueue({
     queueKind: 'gallery',
@@ -203,27 +194,42 @@ export function GalleryDlProvider({ children }: { children: ReactNode }) {
       if (urls.length === 0) return 0;
 
       const currentItems = itemsRef.current;
-      const newItems: DownloadItem[] = urls
+      const candidates = urls
         .filter((url) => !currentItems.some((item) => item.url === url))
         .map((url) => ({
-          id: crypto.randomUUID(),
           url,
           title: buildItemTitle(url),
-          status: 'pending' as const,
-          progress: 0,
-          speed: '',
-          eta: '',
-          extractor: buildExtractor(url),
+          thumbnail: undefined,
+          duplicateIdentity: buildDownloadDuplicateIdentity(url),
         }));
+      const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
+      const currentItemsAfterReview = itemsRef.current;
+      const enqueueCandidates = filteredCandidates.filter(
+        (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+      );
+      const newItems: DownloadItem[] = enqueueCandidates.map((candidate) => ({
+        id: crypto.randomUUID(),
+        url: candidate.url,
+        title: candidate.title,
+        status: 'pending' as const,
+        progress: 0,
+        speed: '',
+        eta: '',
+        extractor: buildExtractor(candidate.url),
+      }));
 
       if (newItems.length > 0) {
-        setItems((prev) => [...prev, ...newItems]);
+        setItems((prev) => {
+          const nextItems = [...prev, ...newItems];
+          itemsRef.current = nextItems;
+          return nextItems;
+        });
         focusItem(newItems[newItems.length - 1].id);
       }
 
       return newItems.length;
     },
-    [focusItem],
+    [filterDownloadedDuplicateCandidates, focusItem],
   );
 
   const importFromFile = useCallback(async (): Promise<number> => {
@@ -546,12 +552,4 @@ export function GalleryDlProvider({ children }: { children: ReactNode }) {
   );
 
   return <GalleryDlContext.Provider value={value}>{children}</GalleryDlContext.Provider>;
-}
-
-export function useGalleryDl() {
-  const context = useContext(GalleryDlContext);
-  if (!context) {
-    throw new Error('useGalleryDl must be used within a GalleryDlProvider');
-  }
-  return context;
 }

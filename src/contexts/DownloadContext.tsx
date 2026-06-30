@@ -3,22 +3,28 @@ import { listen } from '@tauri-apps/api/event';
 import { downloadDir, homeDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
 import {
   extractBackendError,
   localizeBackendError,
   localizeProgressError,
 } from '@/lib/backend-error';
+import {
+  buildDownloadDuplicateIdentity,
+  getDownloadDuplicateIdentityKey,
+} from '@/lib/download-duplicates';
 import {
   clampAutoRetryDelaySeconds,
   clampAutoRetryMaxAttempts,
@@ -51,6 +57,11 @@ import { normalizeShellEscapedUrl } from '@/lib/sources';
 import type {
   AudioBitrate,
   CookieSettings,
+  DownloadDuplicateCandidate,
+  DownloadDuplicateFilterOptions,
+  DownloadDuplicateMatch,
+  DownloadDuplicateReview,
+  DownloadDuplicateReviewAction,
   DownloadItem,
   DownloadProgress,
   DownloadSettings,
@@ -60,6 +71,7 @@ import type {
   ItemDownloadSettings,
   PlaylistVideoEntry,
   PostDownloadPluginPayload,
+  PreferredFps,
   ProxySettings,
   Quality,
   SponsorBlockAction,
@@ -73,6 +85,7 @@ import type {
   YoutubeSearchVideo,
 } from '@/lib/types';
 import { extractYouTubeVideoId } from '@/lib/youtube-url';
+import { DownloadContext } from './download-context';
 
 const STORAGE_KEY = 'youwee-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
@@ -172,7 +185,18 @@ interface RenameDownloadedFileResult {
   newTitle: string;
 }
 
-interface DownloadContextType {
+interface DownloadQueueCandidate extends DownloadDuplicateCandidate {
+  url: string;
+  title: string;
+  thumbnail?: string;
+  duration?: string;
+  channel?: string;
+  extractor?: string;
+  playlistIndex?: number;
+  playlistTotal?: number;
+}
+
+export interface DownloadContextType {
   items: DownloadItem[];
   focusedItemId: string | null;
   isDownloading: boolean;
@@ -181,6 +205,8 @@ interface DownloadContextType {
   cookieSettings: CookieSettings;
   proxySettings: ProxySettings;
   currentPlaylistInfo: PlaylistInfo | null;
+  duplicateReview: DownloadDuplicateReview | null;
+  duplicateSkipNotice: { count: number } | null;
   addFromText: (text: string) => Promise<number>;
   addSearchResultsToQueue: (results: YoutubeSearchVideo[]) => Promise<YoutubeSearchQueueResult>;
   enqueueExternalUrl: (
@@ -200,6 +226,7 @@ interface DownloadContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateVideoCodec: (codec: VideoCodec) => void;
+  updatePreferredFps: (fps: PreferredFps) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
   updatePlaylistLimit: (limit: number) => void;
@@ -246,6 +273,12 @@ interface DownloadContextType {
   cookieError: { show: boolean; itemId?: string; kind: 'db_locked' | 'fresh_cookies' } | null;
   clearCookieError: () => void;
   retryFailedDownload: (itemId: string) => void;
+  resolveDuplicateReview: (action: DownloadDuplicateReviewAction, applyToAll: boolean) => void;
+  dismissDuplicateSkipNotice: () => void;
+  filterDownloadedDuplicateCandidates: <T extends DownloadDuplicateCandidate>(
+    candidates: T[],
+    options?: DownloadDuplicateFilterOptions,
+  ) => Promise<T[]>;
   // Per-item time range
   updateItemTimeRange: (id: string, start?: string, end?: string) => void;
   selectItemOutputFolder: (id: string) => Promise<void>;
@@ -253,9 +286,8 @@ interface DownloadContextType {
   renameCompletedItem: (id: string, newName: string) => Promise<void>;
 }
 
-const DownloadContext = createContext<DownloadContextType | null>(null);
-
 export function DownloadProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('common');
   const [items, setItems] = useState<DownloadItem[]>([]);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -264,6 +296,12 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     show: boolean;
     itemId?: string;
     kind: 'db_locked' | 'fresh_cookies';
+  } | null>(null);
+  const [duplicateReview, setDuplicateReview] = useState<DownloadDuplicateReview | null>(null);
+  const [duplicateSkipNotice, setDuplicateSkipNotice] = useState<{ count: number } | null>(null);
+  const [pendingOutputPathUpdate, setPendingOutputPathUpdate] = useState<{
+    outputPath: string;
+    itemIds: string[];
   } | null>(null);
 
   // Load saved settings on init
@@ -292,6 +330,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<DownloadSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
+  const duplicateReviewResolverRef = useRef<{
+    resolve: (action: DownloadDuplicateReviewAction) => void;
+  } | null>(null);
 
   usePersistedDownloadQueue({
     queueKind: 'youtube',
@@ -495,6 +536,120 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     return `${m}:${s.toString().padStart(2, '0')}`;
   }, []);
 
+  const requestDuplicateReview = useCallback(
+    (review: DownloadDuplicateReview): Promise<DownloadDuplicateReviewAction> => {
+      if (duplicateReviewResolverRef.current) {
+        duplicateReviewResolverRef.current.resolve('cancel');
+      }
+
+      setDuplicateReview(review);
+      return new Promise((resolve) => {
+        duplicateReviewResolverRef.current = { resolve };
+      });
+    },
+    [],
+  );
+
+  const resolveDuplicateReview = useCallback(
+    (action: DownloadDuplicateReviewAction, _applyToAll: boolean) => {
+      const resolver = duplicateReviewResolverRef.current;
+      duplicateReviewResolverRef.current = null;
+      setDuplicateReview(null);
+      resolver?.resolve(action);
+    },
+    [],
+  );
+
+  const dismissDuplicateSkipNotice = useCallback(() => {
+    setDuplicateSkipNotice(null);
+  }, []);
+
+  const filterDownloadedDuplicateCandidates = useCallback(
+    async <T extends DownloadDuplicateCandidate>(
+      candidates: T[],
+      options: DownloadDuplicateFilterOptions = {},
+    ): Promise<T[]> => {
+      const currentSettings = settingsRef.current;
+      if (
+        !currentSettings.rememberDownloadedVideos ||
+        currentSettings.duplicateDownloadHandling === 'allow' ||
+        candidates.length === 0
+      ) {
+        return candidates;
+      }
+
+      try {
+        const identities = candidates.map((candidate) => candidate.duplicateIdentity);
+        const matches = await invoke<DownloadDuplicateMatch[]>('find_duplicate_downloads', {
+          identities,
+        });
+        if (matches.length === 0) return candidates;
+
+        const matchByKey = new Map<string, DownloadDuplicateMatch>();
+        for (const match of matches) {
+          for (const key of [
+            getDownloadDuplicateIdentityKey({ mediaId: match.mediaId }),
+            getDownloadDuplicateIdentityKey({ canonicalUrl: match.canonicalUrl }),
+          ]) {
+            if (key) {
+              matchByKey.set(key, match);
+            }
+          }
+        }
+        if (matchByKey.size === 0) return candidates;
+
+        const duplicateItems: { candidate: T; duplicate: DownloadDuplicateMatch }[] = [];
+        for (const candidate of candidates) {
+          const duplicate = matchByKey.get(
+            getDownloadDuplicateIdentityKey(candidate.duplicateIdentity),
+          );
+          if (duplicate) {
+            duplicateItems.push({ candidate, duplicate });
+          }
+        }
+
+        if (duplicateItems.length === 0) return candidates;
+
+        const skipDuplicates = () => {
+          const duplicateKeys = new Set(
+            duplicateItems.map((item) =>
+              getDownloadDuplicateIdentityKey(item.candidate.duplicateIdentity),
+            ),
+          );
+          if (options.notify !== false) {
+            setDuplicateSkipNotice({ count: duplicateItems.length });
+          }
+          return candidates.filter(
+            (candidate) =>
+              !duplicateKeys.has(getDownloadDuplicateIdentityKey(candidate.duplicateIdentity)),
+          );
+        };
+
+        if (currentSettings.duplicateDownloadHandling === 'skip' || options.ask === false) {
+          return skipDuplicates();
+        }
+
+        const action = await requestDuplicateReview({
+          duplicates: duplicateItems.map((item) => ({
+            url: item.candidate.url,
+            title: item.candidate.title,
+            thumbnail: item.candidate.thumbnail,
+            duplicate: item.duplicate,
+          })),
+          newCount: candidates.length - duplicateItems.length,
+        });
+
+        if (action === 'add') return candidates;
+        if (action === 'skip') return skipDuplicates();
+        return [];
+      } catch (error) {
+        console.warn('Failed to check downloaded duplicates:', error);
+        return candidates;
+      }
+    },
+    [requestDuplicateReview],
+  );
+
   const enqueueQueuedWorkflowForItems = useCallback((queuedItems: DownloadItem[]) => {
     for (const item of queuedItems) {
       const itemSettings = item.settings as ItemDownloadSettings | undefined;
@@ -571,7 +726,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
   // Add individual URLs (not playlist expansion)
   const addUrlsDirectly = useCallback(
-    (urls: string[], playlistId?: string) => {
+    async (urls: string[], playlistId?: string) => {
       if (urls.length === 0) return 0;
 
       const currentItems = itemsRef.current;
@@ -589,11 +744,21 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       });
 
       const nextUrls = urls.filter((url) => !currentItems.some((item) => item.url === url));
-      const queueTotal = currentItems.length + nextUrls.length;
-      const newItems: DownloadItem[] = nextUrls.map((url, index) => ({
-        id: crypto.randomUUID(),
+      const candidates = nextUrls.map<DownloadQueueCandidate>((url) => ({
         url,
         title: url,
+        duplicateIdentity: buildDownloadDuplicateIdentity(url),
+      }));
+      const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
+      const currentItemsAfterReview = itemsRef.current;
+      const enqueueCandidates = filteredCandidates.filter(
+        (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+      );
+      const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
+      const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
+        id: crypto.randomUUID(),
+        url: candidate.url,
+        title: candidate.title,
         status: 'pending' as const,
         progress: 0,
         speed: '',
@@ -602,20 +767,24 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         // Store playlist context for display
         playlistIndex: playlistId ? index + 1 : undefined,
         playlistTotal: playlistId ? urls.length : undefined,
-        queueIndex: playlistId ? undefined : currentItems.length + index + 1,
+        queueIndex: playlistId ? undefined : currentItemsAfterReview.length + index + 1,
         queueTotal: playlistId ? undefined : queueTotal,
         // Store settings snapshot
         settings: settingsSnapshot,
       }));
 
       if (newItems.length > 0) {
-        setItems((prev) => [...prev, ...newItems]);
+        setItems((prev) => {
+          const nextItems = [...prev, ...newItems];
+          itemsRef.current = nextItems;
+          return nextItems;
+        });
         enqueueQueuedWorkflowForItems(newItems);
       }
 
       return newItems.length;
     },
-    [enqueueQueuedWorkflowForItems],
+    [enqueueQueuedWorkflowForItems, filterDownloadedDuplicateCandidates],
   );
 
   const focusItem = useCallback((itemId: string) => {
@@ -731,6 +900,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       );
       const newItems: DownloadItem[] = [];
       const queuedIds: string[] = [];
+      const candidates: DownloadQueueCandidate[] = [];
 
       for (const result of results) {
         const url = result.url.trim();
@@ -746,19 +916,49 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         }
         queuedIds.push(result.id);
 
-        newItems.push({
-          id: crypto.randomUUID(),
+        candidates.push({
           url,
           title: result.title || url,
+          thumbnail: result.thumbnail || undefined,
+          duration: result.duration || undefined,
+          channel: result.channel || undefined,
+          extractor: 'youtube',
+          duplicateIdentity: buildDownloadDuplicateIdentity(url, videoId),
+        });
+      }
+
+      const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
+      const currentItemsAfterReview = itemsRef.current;
+      const currentYoutubeIdsAfterReview = new Set(
+        currentItemsAfterReview
+          .map((item) => extractYouTubeVideoId(item.url))
+          .filter((id): id is string => id !== null),
+      );
+
+      for (const candidate of filteredCandidates) {
+        const videoId = extractYouTubeVideoId(candidate.url);
+        if (
+          currentItemsAfterReview.some((item) => item.url === candidate.url) ||
+          (videoId && currentYoutubeIdsAfterReview.has(videoId))
+        ) {
+          continue;
+        }
+        if (videoId) {
+          currentYoutubeIdsAfterReview.add(videoId);
+        }
+        newItems.push({
+          id: crypto.randomUUID(),
+          url: candidate.url,
+          title: candidate.title,
           status: 'pending',
           progress: 0,
           speed: '',
           eta: '',
           isPlaylist: false,
-          thumbnail: result.thumbnail || undefined,
-          duration: result.duration || undefined,
-          channel: result.channel || undefined,
-          extractor: 'youtube',
+          thumbnail: candidate.thumbnail,
+          duration: candidate.duration,
+          channel: candidate.channel,
+          extractor: candidate.extractor,
           queueIndex: nextQueueIndex,
           settings: settingsSnapshot,
         });
@@ -778,12 +978,12 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       enqueueQueuedWorkflowForItems(newItems);
       return { added: newItems.length, queuedIds };
     },
-    [enqueueQueuedWorkflowForItems, focusItem],
+    [enqueueQueuedWorkflowForItems, filterDownloadedDuplicateCandidates, focusItem],
   );
 
   // Expand playlist URL to individual videos
   const expandPlaylistUrl = useCallback(
-    async (url: string): Promise<string[]> => {
+    async (url: string): Promise<number> => {
       try {
         const limit = settings.playlistLimit > 0 ? settings.playlistLimit : undefined;
         const entries = await invoke<PlaylistVideoEntry[]>('get_playlist_entries', {
@@ -800,43 +1000,71 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           overrides: {
             downloadPlaylist: false,
             playlistLimit: null,
+            playlistCollectionName:
+              entries.find((entry) => entry.playlist_title)?.playlist_title ?? null,
           },
         });
 
         // Add items with titles and thumbnails from playlist data
         const currentItems = itemsRef.current;
-        const newItems: DownloadItem[] = entries
-          .filter((entry) => !currentItems.some((item) => item.url === entry.url))
-          .map((entry, index) => ({
-            id: crypto.randomUUID(),
+        const candidates = entries
+          .map<DownloadQueueCandidate>((entry, index) => ({
             url: entry.url,
             title: entry.title,
-            status: 'pending' as const,
-            progress: 0,
-            speed: '',
-            eta: '',
-            isPlaylist: false,
             thumbnail: entry.thumbnail,
             duration: entry.duration ? formatDuration(entry.duration) : undefined,
             channel: entry.channel,
             playlistIndex: index + 1,
             playlistTotal: entries.length,
-            // Store settings snapshot
-            settings: settingsSnapshot,
-          }));
+            duplicateIdentity: buildDownloadDuplicateIdentity(entry.url, entry.id),
+          }))
+          .filter((candidate) => !currentItems.some((item) => item.url === candidate.url));
+        const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
+        const currentItemsAfterReview = itemsRef.current;
+        const enqueueCandidates = filteredCandidates.filter(
+          (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+        );
+        const newItems: DownloadItem[] = enqueueCandidates.map((candidate) => ({
+          id: crypto.randomUUID(),
+          url: candidate.url,
+          title: candidate.title,
+          status: 'pending' as const,
+          progress: 0,
+          speed: '',
+          eta: '',
+          isPlaylist: false,
+          thumbnail: candidate.thumbnail,
+          duration: candidate.duration,
+          channel: candidate.channel,
+          playlistIndex: candidate.playlistIndex,
+          playlistTotal: candidate.playlistTotal,
+          // Store settings snapshot
+          settings: settingsSnapshot,
+        }));
 
         if (newItems.length > 0) {
-          setItems((prev) => [...prev, ...newItems]);
+          setItems((prev) => {
+            const nextItems = [...prev, ...newItems];
+            itemsRef.current = nextItems;
+            return nextItems;
+          });
           enqueueQueuedWorkflowForItems(newItems);
         }
 
-        return entries.map((e) => e.url);
+        return newItems.length;
       } catch (error) {
         console.error('Failed to expand playlist:', error);
         throw error;
       }
     },
-    [settings, cookieSettings, proxySettings, formatDuration, enqueueQueuedWorkflowForItems],
+    [
+      settings,
+      cookieSettings,
+      proxySettings,
+      formatDuration,
+      enqueueQueuedWorkflowForItems,
+      filterDownloadedDuplicateCandidates,
+    ],
   );
 
   const addFromText = useCallback(
@@ -852,7 +1080,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
       // Add regular videos directly
       if (regularUrls.length > 0) {
-        totalAdded += addUrlsDirectly(regularUrls);
+        totalAdded += await addUrlsDirectly(regularUrls);
       }
 
       // Expand playlists if playlist mode is ON
@@ -861,12 +1089,11 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         try {
           for (const playlistUrl of playlistUrls) {
             try {
-              const expandedUrls = await expandPlaylistUrl(playlistUrl);
-              totalAdded += expandedUrls.length;
+              totalAdded += await expandPlaylistUrl(playlistUrl);
             } catch (error) {
               // If expansion fails, add as single item
               console.error('Failed to expand playlist, adding as single item:', error);
-              totalAdded += addUrlsDirectly([playlistUrl]);
+              totalAdded += await addUrlsDirectly([playlistUrl]);
             }
           }
         } finally {
@@ -917,16 +1144,59 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       });
 
       if (folder) {
+        const outputPath = folder as string;
+        const itemsToUpdate = itemsRef.current.filter((item) => {
+          if (!item.settings || item.status === 'downloading' || item.status === 'completed') {
+            return false;
+          }
+          const itemSettings = item.settings as ItemDownloadSettings;
+          return itemSettings.outputPath !== outputPath;
+        });
+
         setSettings((s) => {
-          const newSettings = { ...s, outputPath: folder as string };
+          const newSettings = { ...s, outputPath };
           saveSettings(newSettings);
           return newSettings;
         });
+
+        if (itemsToUpdate.length > 0) {
+          setPendingOutputPathUpdate({
+            outputPath,
+            itemIds: itemsToUpdate.map((item) => item.id),
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to select folder:', error);
     }
   }, [settings.outputPath]);
+
+  const confirmQueuedOutputPathUpdate = useCallback(() => {
+    if (!pendingOutputPathUpdate) return;
+    const idsToUpdate = new Set(pendingOutputPathUpdate.itemIds);
+    const { outputPath } = pendingOutputPathUpdate;
+
+    setItems((items) => {
+      const nextItems = items.map((item) => {
+        if (
+          !idsToUpdate.has(item.id) ||
+          !item.settings ||
+          item.status === 'downloading' ||
+          item.status === 'completed'
+        ) {
+          return item;
+        }
+        const itemSettings = item.settings as ItemDownloadSettings;
+        return {
+          ...item,
+          settings: { ...itemSettings, outputPath },
+        };
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+    setPendingOutputPathUpdate(null);
+  }, [pendingOutputPathUpdate]);
 
   const removeItem = useCallback((id: string) => {
     setItems((items) => {
@@ -1135,7 +1405,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
             splitEmbeddedChapters: itemSettings?.splitEmbeddedChapters ?? false,
             numberChapterFiles: itemSettings?.numberChapterFiles ?? true,
+            autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,
+            playlistCollectionName: itemSettings?.playlistCollectionName ?? null,
             videoCodec: itemSettings?.videoCodec ?? settings.videoCodec,
+            preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit:
               itemSettings?.playlistLimit && itemSettings.playlistLimit > 0
@@ -1421,6 +1694,14 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   const updateVideoCodec = useCallback((videoCodec: VideoCodec) => {
     setSettings((s) => {
       const newSettings = { ...s, videoCodec };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
+  const updatePreferredFps = useCallback((preferredFps: PreferredFps) => {
+    setSettings((s) => {
+      const newSettings = { ...s, preferredFps };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -1719,6 +2000,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       cookieSettings,
       proxySettings,
       currentPlaylistInfo,
+      duplicateReview,
+      duplicateSkipNotice,
       addFromText,
       addSearchResultsToQueue,
       enqueueExternalUrl,
@@ -1735,6 +2018,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updatePreferredFps,
       updateAudioBitrate,
       updateConcurrentDownloads,
       updatePlaylistLimit,
@@ -1767,6 +2051,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       cookieError,
       clearCookieError,
       retryFailedDownload,
+      resolveDuplicateReview,
+      dismissDuplicateSkipNotice,
+      filterDownloadedDuplicateCandidates,
       // Per-item time range
       updateItemTimeRange,
       selectItemOutputFolder,
@@ -1781,6 +2068,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       cookieSettings,
       proxySettings,
       currentPlaylistInfo,
+      duplicateReview,
+      duplicateSkipNotice,
       addFromText,
       addSearchResultsToQueue,
       enqueueExternalUrl,
@@ -1797,6 +2086,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updatePreferredFps,
       updateAudioBitrate,
       updateConcurrentDownloads,
       updatePlaylistLimit,
@@ -1827,19 +2117,41 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       cookieError,
       clearCookieError,
       retryFailedDownload,
+      resolveDuplicateReview,
+      dismissDuplicateSkipNotice,
+      filterDownloadedDuplicateCandidates,
       updateItemTimeRange,
       selectItemOutputFolder,
       renameCompletedItem,
     ],
   );
 
-  return <DownloadContext.Provider value={value}>{children}</DownloadContext.Provider>;
-}
-
-export function useDownload() {
-  const context = useContext(DownloadContext);
-  if (!context) {
-    throw new Error('useDownload must be used within a DownloadProvider');
-  }
-  return context;
+  return (
+    <DownloadContext.Provider value={value}>
+      {children}
+      <AlertDialog
+        open={Boolean(pendingOutputPathUpdate)}
+        onOpenChange={(open) => {
+          if (!open) setPendingOutputPathUpdate(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('queueOutputPathUpdate.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('queueOutputPathUpdate.message', {
+                count: pendingOutputPathUpdate?.itemIds.length ?? 0,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('actions.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmQueuedOutputPathUpdate}>
+              {t('queueOutputPathUpdate.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </DownloadContext.Provider>
+  );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import {
   enqueuePluginWorkflowTrigger,
@@ -18,7 +19,11 @@ import type {
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
 import { sanitizeYtdlpAdvancedOptions } from '@/lib/ytdlp-advanced-options';
-import { persistManualChannelDownloadCompletion } from './channel-downloads';
+import { useDownload } from '../download-context';
+import {
+  buildChannelCollectionOptions,
+  persistManualChannelDownloadCompletion,
+} from './channel-downloads';
 import {
   type ChannelAutoDownloadEvent,
   downloadVideoCommand,
@@ -37,6 +42,7 @@ import {
   pickChannelsOutputFolder,
   rebuildTrayMenu,
   saveChannelVideos,
+  stopChannelFetchCommand,
   stopDownloadCommand,
   unfollowChannelCommand,
   updateChannelInfoCommand,
@@ -199,6 +205,7 @@ export interface ChannelsContextType {
       quality: string;
       format: string;
       videoCodec: string;
+      preferredFps: string;
       audioBitrate: string;
     },
     youtubeContentType?: YoutubeChannelContentType,
@@ -212,6 +219,7 @@ export interface ChannelsContextType {
     downloadQuality: string;
     downloadFormat: string;
     downloadVideoCodec?: string;
+    downloadPreferredFps?: string;
     downloadAudioBitrate?: string;
     filterMinDuration?: number | null;
     filterMaxDuration?: number | null;
@@ -240,6 +248,7 @@ export interface ChannelsContextType {
     youtubeContentType?: YoutubeChannelContentType,
   ) => Promise<void>;
   loadMoreChannelVideos: () => Promise<void>;
+  stopChannelFetch: () => Promise<void>;
   clearBrowse: () => void;
 
   // Video selection & download
@@ -247,7 +256,12 @@ export interface ChannelsContextType {
   toggleVideoSelection: (id: string) => void;
   selectAllVideos: () => void;
   deselectAllVideos: () => void;
-  downloadSelectedVideos: (quality?: string, format?: string, videoCodec?: string) => Promise<void>;
+  downloadSelectedVideos: (
+    quality?: string,
+    format?: string,
+    videoCodec?: string,
+    preferredFps?: string,
+  ) => Promise<void>;
   stopDownload: () => Promise<void>;
   isDownloading: boolean;
   downloadingIds: Set<string>;
@@ -272,6 +286,8 @@ export interface ChannelsContextType {
 }
 
 export function useChannelsController(): ChannelsContextType {
+  const { filterDownloadedDuplicateCandidates } = useDownload();
+
   // Followed channels state
   const [followedChannels, setFollowedChannels] = useState<FollowedChannel[]>([]);
   const [loadingChannels, setLoadingChannels] = useState(false);
@@ -447,6 +463,7 @@ export function useChannelsController(): ChannelsContextType {
         quality: string;
         format: string;
         videoCodec: string;
+        preferredFps: string;
         audioBitrate: string;
       },
       youtubeContentType?: YoutubeChannelContentType,
@@ -460,6 +477,7 @@ export function useChannelsController(): ChannelsContextType {
         downloadQuality: downloadSettings?.quality || 'best',
         downloadFormat: downloadSettings?.format || 'mp4',
         downloadVideoCodec: downloadSettings?.videoCodec || 'auto',
+        downloadPreferredFps: downloadSettings?.preferredFps === '30' ? '30' : 'original',
         downloadAudioBitrate: downloadSettings?.audioBitrate || '192',
         youtubeContentType:
           platform === 'youtube'
@@ -506,6 +524,7 @@ export function useChannelsController(): ChannelsContextType {
       downloadQuality: string;
       downloadFormat: string;
       downloadVideoCodec?: string;
+      downloadPreferredFps?: string;
       downloadAudioBitrate?: string;
       filterMinDuration?: number | null;
       filterMaxDuration?: number | null;
@@ -522,6 +541,7 @@ export function useChannelsController(): ChannelsContextType {
         downloadQuality: settings.downloadQuality,
         downloadFormat: settings.downloadFormat,
         downloadVideoCodec: settings.downloadVideoCodec ?? 'auto',
+        downloadPreferredFps: settings.downloadPreferredFps === '30' ? '30' : 'original',
         downloadAudioBitrate: settings.downloadAudioBitrate ?? '192',
         filterMinDuration: settings.filterMinDuration ?? null,
         filterMaxDuration: settings.filterMaxDuration ?? null,
@@ -549,6 +569,8 @@ export function useChannelsController(): ChannelsContextType {
         youtubeContentType?: YoutubeChannelContentType;
       },
     ) => {
+      await stopChannelFetchCommand().catch(() => {});
+
       const requestId = ++fetchRequestIdRef.current;
       const effectiveLimit = options?.limit ?? CHANNEL_BROWSE_BATCH_SIZE;
       const isLoadMore = options?.append ?? false;
@@ -705,9 +727,20 @@ export function useChannelsController(): ChannelsContextType {
     });
   }, [browseHasMore, browseLoading, browseLoadingMore, browseUrl, fetchChannelVideosBatch]);
 
+  const stopChannelFetch = useCallback(async () => {
+    fetchRequestIdRef.current += 1;
+    await stopChannelFetchCommand().catch((error) => {
+      console.error('Failed to stop channel fetch:', error);
+    });
+    setBrowseLoading(false);
+    setBrowseLoadingMore(false);
+    setBrowseFetchProgress(null);
+  }, []);
+
   // Clear browse state
   const clearBrowse = useCallback(() => {
     fetchRequestIdRef.current += 1;
+    stopChannelFetchCommand().catch(() => {});
     browseVideosRef.current = [];
     browseYoutubeContentTypeRef.current = DEFAULT_YOUTUBE_CONTENT_TYPE;
     setBrowseUrl('');
@@ -716,6 +749,7 @@ export function useChannelsController(): ChannelsContextType {
     setBrowseChannelName(null);
     setBrowseChannelAvatar(null);
     setBrowseHasMore(false);
+    setBrowseLoading(false);
     setBrowseLoadingMore(false);
     setBrowseYoutubeContentType(DEFAULT_YOUTUBE_CONTENT_TYPE);
     setBrowseFetchProgress(null);
@@ -746,14 +780,33 @@ export function useChannelsController(): ChannelsContextType {
 
   // Download selected videos (with concurrency pool + per-channel subfolder)
   const downloadSelectedVideos = useCallback(
-    async (overrideQuality?: string, overrideFormat?: string, overrideVideoCodec?: string) => {
-      const videosToDownload = browseVideos.filter((v) => selectedVideoIds.has(v.id));
+    async (
+      overrideQuality?: string,
+      overrideFormat?: string,
+      overrideVideoCodec?: string,
+      overridePreferredFps?: string,
+    ) => {
+      const selectedVideosToDownload = browseVideos.filter((v) => selectedVideoIds.has(v.id));
+      const duplicateCandidates = selectedVideosToDownload.map((video) => ({
+        video,
+        url: video.url,
+        title: video.title || video.url,
+        thumbnail: video.thumbnail,
+        duplicateIdentity: buildDownloadDuplicateIdentity(
+          video.url,
+          detectPlatform(video.url) === 'youtube' ? video.id : null,
+        ),
+      }));
+      const filteredDuplicateCandidates =
+        await filterDownloadedDuplicateCandidates(duplicateCandidates);
+      const videosToDownload = filteredDuplicateCandidates.map((candidate) => candidate.video);
       if (videosToDownload.length === 0) return;
 
       let currentOutputPath = outputPath;
       let quality = overrideQuality || 'best';
       let format = overrideFormat || 'mp4';
       let videoCodec: string = overrideVideoCodec || 'auto';
+      let preferredFps = overridePreferredFps === '30' ? '30' : 'original';
       let audioBitrate = 'auto';
       let subtitleMode = 'off';
       let subtitleLangs: string[] = [];
@@ -769,6 +822,7 @@ export function useChannelsController(): ChannelsContextType {
       let embedMetadata = false;
       let embedThumbnail = false;
       let liveFromStart = false;
+      let autoOrganizeCollections = false;
       let speedLimit: string | null = null;
       let sponsorBlockArgs = { remove: null as string | null, mark: null as string | null };
 
@@ -780,6 +834,9 @@ export function useChannelsController(): ChannelsContextType {
           if (!overrideQuality) quality = parsed.quality || 'best';
           if (!overrideFormat) format = parsed.format || 'mp4';
           if (!overrideVideoCodec) videoCodec = parsed.videoCodec || 'auto';
+          if (!overridePreferredFps) {
+            preferredFps = parsed.preferredFps === '30' ? '30' : 'original';
+          }
           audioBitrate = parsed.audioBitrate || 'auto';
           subtitleMode = parsed.subtitleMode || 'off';
           subtitleLangs = parsed.subtitleLangs || [];
@@ -794,6 +851,7 @@ export function useChannelsController(): ChannelsContextType {
           embedMetadata = parsed.embedMetadata || false;
           embedThumbnail = parsed.embedThumbnail || false;
           liveFromStart = parsed.liveFromStart || false;
+          autoOrganizeCollections = parsed.autoOrganizeCollections === true;
           if (parsed.speedLimitEnabled && parsed.speedLimitValue) {
             speedLimit = `${parsed.speedLimitValue}${parsed.speedLimitUnit || 'M'}`;
           }
@@ -813,10 +871,16 @@ export function useChannelsController(): ChannelsContextType {
         browseChannelName ||
         followedChannelsRef.current.find((c) => c.url === browseUrl)?.name ||
         null;
+      const channelCollectionName =
+        channelName || videosToDownload.find((video) => video.channel)?.channel || null;
       if (channelName) {
         const folderName = sanitizeChannelFolderName(channelName);
         currentOutputPath = `${currentOutputPath}/${folderName}`;
       }
+      const collectionOptions = buildChannelCollectionOptions(
+        { autoOrganizeCollections },
+        channelCollectionName,
+      );
 
       const networkOptions = getNetworkOptions();
 
@@ -898,6 +962,7 @@ export function useChannelsController(): ChannelsContextType {
                 format,
                 downloadPlaylist: false,
                 videoCodec,
+                preferredFps,
                 audioBitrate,
                 playlistLimit: null,
                 subtitleMode,
@@ -911,6 +976,7 @@ export function useChannelsController(): ChannelsContextType {
                 embedMetadata,
                 embedThumbnail,
                 liveFromStart,
+                ...collectionOptions,
                 speedLimit,
                 useAria2,
                 aria2Args,
@@ -972,7 +1038,15 @@ export function useChannelsController(): ChannelsContextType {
         setDownloadingIds(new Set());
       }
     },
-    [browseUrl, browseVideos, browseChannelName, selectedVideoIds, outputPath, getNetworkOptions],
+    [
+      browseUrl,
+      browseVideos,
+      browseChannelName,
+      selectedVideoIds,
+      outputPath,
+      getNetworkOptions,
+      filterDownloadedDuplicateCandidates,
+    ],
   );
 
   // Stop all downloads
@@ -1190,6 +1264,7 @@ export function useChannelsController(): ChannelsContextType {
         quality,
         format,
         video_codec,
+        preferred_fps,
         audio_bitrate,
         download_threads,
       } = event.payload;
@@ -1211,6 +1286,7 @@ export function useChannelsController(): ChannelsContextType {
         let aria2Args = '';
         let ytdlpAdvancedOptionsEnabled = false;
         let ytdlpAdvancedOptions: YtdlpAdvancedOption[] = [];
+        let autoOrganizeCollections = false;
 
         try {
           const saved = localStorage.getItem('youwee-settings');
@@ -1223,6 +1299,7 @@ export function useChannelsController(): ChannelsContextType {
             aria2Args = parsed.aria2Args || '';
             ytdlpAdvancedOptionsEnabled = parsed.ytdlpAdvancedOptionsEnabled === true;
             ytdlpAdvancedOptions = sanitizeYtdlpAdvancedOptions(parsed.ytdlpAdvancedOptions);
+            autoOrganizeCollections = parsed.autoOrganizeCollections === true;
           }
           logStderr = localStorage.getItem('youwee_log_stderr') !== 'false';
         } catch (_e) {
@@ -1234,12 +1311,52 @@ export function useChannelsController(): ChannelsContextType {
         // Per-channel subfolder
         const folderName = sanitizeChannelFolderName(channel_name);
         autoOutputPath = `${autoOutputPath}/${folderName}`;
+        const collectionOptions = buildChannelCollectionOptions(
+          { autoOrganizeCollections },
+          channel_name,
+        );
 
         const networkOptions = getNetworkOptions();
 
+        const duplicateCandidates = newVideos.map((video) => ({
+          video,
+          url: video.url,
+          title: video.title || video.url,
+          thumbnail: video.thumbnail || undefined,
+          duplicateIdentity: buildDownloadDuplicateIdentity(
+            video.url,
+            detectPlatform(video.url) === 'youtube' ? video.video_id : null,
+          ),
+        }));
+        const filteredDuplicateCandidates = await filterDownloadedDuplicateCandidates(
+          duplicateCandidates,
+          { ask: false, notify: false },
+        );
+        const videosToAutoDownload = filteredDuplicateCandidates.map(
+          (candidate) => candidate.video,
+        );
+        const autoDownloadVideoIds = new Set(videosToAutoDownload.map((video) => video.id));
+        const skippedDuplicateVideos = newVideos.filter(
+          (video) => !autoDownloadVideoIds.has(video.id),
+        );
+        if (skippedDuplicateVideos.length > 0) {
+          await Promise.all(
+            skippedDuplicateVideos.map((video) =>
+              updateChannelVideoStatus({ id: video.id, status: 'downloaded' }).catch((error) => {
+                console.error('Failed to mark duplicate channel video as downloaded:', error);
+              }),
+            ),
+          );
+        }
+        if (videosToAutoDownload.length === 0) {
+          refreshChannelNewCounts();
+          rebuildTrayMenu().catch(() => {});
+          return;
+        }
+
         const maxConcurrent = Math.max(1, download_threads || 1);
         const workflowSnapshots = loadPluginWorkflowSnapshots();
-        const queuedAutoDownloads = newVideos.map((video) => ({
+        const queuedAutoDownloads = videosToAutoDownload.map((video) => ({
           video,
           downloadId: `auto-${video.video_id}-${Date.now()}-${crypto.randomUUID()}`,
         }));
@@ -1291,6 +1408,7 @@ export function useChannelsController(): ChannelsContextType {
               format,
               downloadPlaylist: false,
               videoCodec: video_codec,
+              preferredFps: preferred_fps === '30' ? '30' : 'original',
               audioBitrate: audio_bitrate,
               playlistLimit: null,
               subtitleMode: 'off',
@@ -1301,6 +1419,7 @@ export function useChannelsController(): ChannelsContextType {
               useBunRuntime,
               useActualPlayerJs,
               ...networkOptions,
+              ...collectionOptions,
               useAria2,
               aria2Args,
               ytdlpAdvancedOptionsEnabled,
@@ -1346,7 +1465,7 @@ export function useChannelsController(): ChannelsContextType {
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [getNetworkOptions, refreshChannelNewCounts]);
+  }, [filterDownloadedDuplicateCandidates, getNetworkOptions, refreshChannelNewCounts]);
 
   // Refresh active channel videos when activeChannel changes
   useEffect(() => {
@@ -1376,6 +1495,7 @@ export function useChannelsController(): ChannelsContextType {
     browseYoutubeContentType,
     fetchChannelVideos,
     loadMoreChannelVideos,
+    stopChannelFetch,
     clearBrowse,
     selectedVideoIds,
     toggleVideoSelection,

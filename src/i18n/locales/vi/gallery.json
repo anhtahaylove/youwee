@@ -57,6 +57,7 @@
     "placeholderMultiple": "Mỗi dòng một URL. Dòng bắt đầu bằng # sẽ bị bỏ qua.",
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URL",
+    "clearInput": "Xóa",
     "addToQueue": "Thêm"
   }
 }

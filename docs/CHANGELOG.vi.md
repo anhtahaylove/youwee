@@ -7,8 +7,24 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Thêm mới
+- **Collection trong Thư viện** - Thêm tùy chọn tự tạo collection cho playlist đã tách, lượt tải từ channel và file chapter
+- **Cách xóa trong Thư viện** - Thêm cài đặt chọn việc xóa một mục trong Thư viện có xóa luôn file media hay không
+- **Tốc độ khung hình** - Thêm tùy chọn ưu tiên tải 30 FPS trong Tải xuống, Universal và Kênh, kèm cảnh báo rõ về chất lượng
+- **Ghi nhớ video đã tải** - Thêm tùy chọn phát hiện video đã có trong Thư viện cho Tải xuống, Universal, Gallery và Kênh, với lựa chọn hỏi, bỏ qua hoặc cho phép tải trùng
+- **Công cụ tách file** - Thêm action tùy chọn để tách file media đã tải xong thành các đoạn có tên riêng bằng FFmpeg
+
+### Thay đổi
+- **Lịch sử trong Thư viện** - Bỏ cài đặt giới hạn số mục lịch sử để Thư viện có thể giữ bản ghi video đã tải cho tới khi người dùng tự xóa
+- **Tóm tắt trong Thư viện** - Tinh chỉnh action của item và chuyển bản tóm tắt AI đầy đủ sang dialog đọc riêng có chỉnh cỡ chữ
+- **Thư mục tải của hàng đợi** - Hỏi người dùng có muốn áp dụng thư mục tải mới cho các item trong hàng đợi khi đổi thư mục tải tổng hay không
+
 ### Sửa lỗi
 - **Link extension khi app chưa mở** - Sửa lỗi link tải từ browser extension chỉ mở Youwee nhưng không thêm video khi app đang đóng
+- **Đánh số trong AI Summary** - Sửa lỗi danh sách chủ đề trên giao diện luôn bắt đầu lại từ 1 khi có dòng trống giữa các mục
+- **Điều khiển lấy video Kênh** - Thêm nút dừng khi đang lấy video kênh và tránh tải lại danh sách khi mở kênh vừa duyệt xong
+- **Thumbnail trong dialog trùng lặp** - Sửa lỗi dialog video đã tải hiển thị placeholder dù mục trong Thư viện đã có thumbnail
+- **Icon trong Cài đặt** - Sửa lỗi icon Font Awesome quá lớn làm vỡ bố cục Cài đặt khi CSS icon không khả dụng
 
 ## [0.18.0] - 2026-06-29
 

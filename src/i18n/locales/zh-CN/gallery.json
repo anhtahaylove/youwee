@@ -57,6 +57,7 @@
     "placeholderMultiple": "每行一个 URL。以 # 开头的行会被忽略。",
     "urlCount": "{{count}} 个 URL",
     "urlCount_plural": "{{count}} 个 URL",
+    "clearInput": "清除",
     "addToQueue": "添加"
   }
 }

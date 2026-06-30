@@ -35,7 +35,14 @@
     "processingDesc": "Настройки обработки и предпросмотра видео",
     "previewThreshold": "Порог размера предпросмотра",
     "previewThresholdDesc": "Запрашивать подтверждение перед генерацией предпросмотра для файлов крупнее",
-    "previewAlways": "Всегда"
+    "previewAlways": "Всегда",
+    "library": "Библиотека",
+    "libraryDesc": "Управляйте удалением загруженных файлов из библиотеки",
+    "libraryDeleteFileBehavior": "При удалении элементов библиотеки",
+    "libraryDeleteFileBehaviorDesc": "Выберите, удалять ли вместе с записью медиафайл с устройства",
+    "libraryDeleteAsk": "Спрашивать каждый раз",
+    "libraryDeleteWithFile": "Всегда удалять медиафайл",
+    "libraryDeleteKeepFile": "Никогда не удалять медиафайл"
   },
   "download": {
     "postProcessing": "Постобработка",
@@ -52,6 +59,8 @@
     "splitEmbeddedChaptersDesc": "Создавать отдельные файлы из глав, включенных в видео",
     "numberChapterFiles": "Нумеровать файлы глав",
     "numberChapterFilesDesc": "Добавлять номер главы к разделенным файлам глав",
+    "autoOrganizeCollections": "Автоматически создавать коллекции",
+    "autoOrganizeCollectionsDesc": "Создавать коллекции библиотеки для раскрытых плейлистов, загрузок каналов и файлов глав",
     "liveStream": "Прямая трансляция",
     "liveStreamDesc": "Настроить поведение загрузки прямых трансляций",
     "liveFromStart": "Загрузка с начала",
@@ -490,7 +499,16 @@
         "matchFilters": "!is_live",
         "formatSort": "res:1080,fps"
       }
-    }
+    },
+    "duplicateDownloads": "Загруженные видео",
+    "duplicateDownloadsDesc": "Использовать историю библиотеки для поиска уже загруженных видео",
+    "rememberDownloadedVideos": "Запоминать загруженные видео",
+    "rememberDownloadedVideosDesc": "Проверять библиотеку перед добавлением YouTube видео в очередь Download",
+    "duplicateHandling": "Обработка дублей",
+    "duplicateHandlingDesc": "Выберите действие, если видео уже есть в библиотеке",
+    "duplicateHandlingAsk": "Спрашивать перед добавлением",
+    "duplicateHandlingSkip": "Автоматически пропускать",
+    "duplicateHandlingAllow": "Разрешить дубли"
   },
   "dependencies": {
     "title": "Зависимости",
