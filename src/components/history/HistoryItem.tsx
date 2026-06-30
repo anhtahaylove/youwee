@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { CollectionManagerDialog } from '@/components/history/CollectionManagerDialog';
 import { HistorySummaryDialog } from '@/components/history/HistorySummaryDialog';
 import { HistoryTagsCollectionsDialog } from '@/components/history/HistoryTagsCollectionsDialog';
+import { SplitMediaDialog } from '@/components/media/SplitMediaDialog';
 import { FaIcon } from '@/components/shared/FaIcon';
 import {
   AlertDialog,
@@ -39,6 +40,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAI } from '@/contexts/AIContext';
+import { useDependencies } from '@/contexts/DependenciesContext';
+import { useDownload } from '@/contexts/download-context';
 import { useHistory } from '@/contexts/HistoryContext';
 import { usePlayer } from '@/contexts/PlayerContext';
 import {
@@ -103,7 +106,10 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     redownload,
     getRedownloadTask,
     setAdvancedFilters,
+    refreshHistory,
   } = useHistory();
+  const { settings } = useDownload();
+  const { ffmpegStatus } = useDependencies();
   const ai = useAI();
   const { currentEntry, isPlaying, playFrom, togglePlay } = usePlayer();
   const [isDeleting, setIsDeleting] = useState(false);
@@ -119,6 +125,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const [isCollectionsManagerOpen, setIsCollectionsManagerOpen] = useState(false);
   const [isActionsPopoverOpen, setIsActionsPopoverOpen] = useState(false);
   const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
+  const [isSplitDialogOpen, setIsSplitDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deleteFileBehavior, setDeleteFileBehavior] = useState<LibraryDeleteFileBehavior>('ask');
   const [renameName, setRenameName] = useState('');
@@ -174,6 +181,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     [aiEnabled, entry.file_exists, isDataExport],
   );
   const canDeleteMediaFile = Boolean(entry.file_exists && entry.filepath.trim());
+  const canSplitMedia = Boolean(entry.file_exists && entry.filepath.trim() && !isDataExport);
 
   // Update local summary when task completes
   useEffect(() => {
@@ -691,6 +699,23 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                   </button>
                 )}
 
+                {canSplitMedia && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsPopoverOpen(false);
+                      setIsSplitDialogOpen(true);
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm',
+                      'text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground',
+                    )}
+                  >
+                    <Scissors className="w-3.5 h-3.5" />
+                    {t('library.item.split')}
+                  </button>
+                )}
+
                 {actionLayout.overflow.includes('manage-tags') && (
                   <button
                     type="button"
@@ -823,6 +848,22 @@ export function HistoryItem({ entry }: HistoryItemProps) {
             isGenerating={isGeneratingSummary}
             onCopy={handleCopySummary}
             onRegenerate={handleGenerateSummary}
+          />
+        )}
+        {canSplitMedia && (
+          <SplitMediaDialog
+            open={isSplitDialogOpen}
+            onOpenChange={setIsSplitDialogOpen}
+            inputPath={entry.filepath}
+            title={entry.title}
+            sourceUrl={entry.url}
+            thumbnail={entry.thumbnail}
+            source={entry.source}
+            quality={entry.quality}
+            format={entry.format}
+            autoCollection={settings.autoOrganizeCollections}
+            ffmpegInstalled={ffmpegStatus?.installed}
+            onComplete={refreshHistory}
           />
         )}
       </div>

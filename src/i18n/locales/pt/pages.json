@@ -304,7 +304,8 @@
       "deleteWithFileConfirm": "Remover \"{{title}}\" da Biblioteca e excluir o arquivo de mídia do dispositivo? Esta ação não pode ser desfeita.",
       "deleteLibraryOnly": "Remover da Biblioteca",
       "deleteWithFile": "Excluir também o arquivo de mídia",
-      "deleteCancel": "Cancelar"
+      "deleteCancel": "Cancelar",
+      "split": "Dividir"
     },
     "collections": {
       "title": "Coleções",
@@ -340,6 +341,31 @@
       "errors": {
         "save": "Falha ao salvar tags ou coleções"
       }
+    },
+    "split": {
+      "title": "Dividir em segmentos",
+      "loading": "Lendo duração da mídia...",
+      "duration": "Duração {{duration}}",
+      "durationUnknown": "Duração indisponível",
+      "segmentCount": "{{count}} segmento(s)",
+      "timeline": "Linha do tempo",
+      "timelineHint": "Clique na linha do tempo para adicionar cortes ou use um preset rápido.",
+      "everyMinutes": "A cada {{minutes}} min",
+      "clearCuts": "Limpar cortes",
+      "removeCut": "Remover corte em {{time}}",
+      "removeSegment": "Remover segmento",
+      "segmentNamePlaceholder": "Nome do segmento",
+      "ffmpegRequiredTitle": "FFmpeg necessário",
+      "ffmpegRequiredDesc": "Instale o FFmpeg nas Configurações antes de dividir arquivos de mídia.",
+      "ffmpegMissing": "FFmpeg é necessário para dividir arquivos de mídia.",
+      "durationUnavailable": "Não foi possível ler uma duração válida para este arquivo.",
+      "cancel": "Cancelar",
+      "splitFiles": "Dividir arquivos",
+      "splitting": "Dividindo...",
+      "successTitle": "Segmentos criados",
+      "successMessage": "{{count}} arquivo(s) de segmento criado(s) e adicionados à Biblioteca.",
+      "deleteOriginal": "Excluir arquivo original após dividir",
+      "deleteOriginalDesc": "O item original permanece na Biblioteca, mas o arquivo de mídia original será removido do dispositivo."
     }
   },
   "player": {

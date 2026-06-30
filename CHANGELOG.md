@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Library delete behavior** - Added a setting to choose whether deleting a Library item also deletes the media file
 - **Frame rate** - Added an option to prefer 30 FPS downloads in Download, Universal, and Channels, with a clear quality warning
 - **Downloaded video memory** - Added an optional setting to detect videos already in Library across Download, Universal, Gallery, and Channels, with ask, skip, or allow duplicate handling
+- **Split tool** - Added an optional item action to split completed media files into named segments using FFmpeg
 
 ### Changed
 - **Library history** - Removed the max history entries setting so Library can keep downloaded video records until users delete them

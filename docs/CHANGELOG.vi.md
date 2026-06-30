@@ -12,6 +12,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Cách xóa trong Thư viện** - Thêm cài đặt chọn việc xóa một mục trong Thư viện có xóa luôn file media hay không
 - **Tốc độ khung hình** - Thêm tùy chọn ưu tiên tải 30 FPS trong Tải xuống, Universal và Kênh, kèm cảnh báo rõ về chất lượng
 - **Ghi nhớ video đã tải** - Thêm tùy chọn phát hiện video đã có trong Thư viện cho Tải xuống, Universal, Gallery và Kênh, với lựa chọn hỏi, bỏ qua hoặc cho phép tải trùng
+- **Công cụ tách file** - Thêm action tùy chọn để tách file media đã tải xong thành các đoạn có tên riêng bằng FFmpeg
 
 ### Thay đổi
 - **Lịch sử trong Thư viện** - Bỏ cài đặt giới hạn số mục lịch sử để Thư viện có thể giữ bản ghi video đã tải cho tới khi người dùng tự xóa

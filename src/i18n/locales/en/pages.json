@@ -307,7 +307,8 @@
       "deleteWithFileConfirm": "Remove \"{{title}}\" from Library and delete the media file from your device? This cannot be undone.",
       "deleteLibraryOnly": "Remove from Library",
       "deleteWithFile": "Delete media file too",
-      "deleteCancel": "Cancel"
+      "deleteCancel": "Cancel",
+      "split": "Split"
     },
     "collections": {
       "title": "Collections",
@@ -343,6 +344,31 @@
       "errors": {
         "save": "Failed to save tags or collections"
       }
+    },
+    "split": {
+      "title": "Split into segments",
+      "loading": "Reading media duration...",
+      "duration": "Duration {{duration}}",
+      "durationUnknown": "Duration unavailable",
+      "segmentCount": "{{count}} segment(s)",
+      "timeline": "Timeline",
+      "timelineHint": "Click the timeline to add cut points, or use a quick preset.",
+      "everyMinutes": "Every {{minutes}} min",
+      "clearCuts": "Clear cuts",
+      "removeCut": "Remove cut at {{time}}",
+      "removeSegment": "Remove segment",
+      "segmentNamePlaceholder": "Segment name",
+      "ffmpegRequiredTitle": "FFmpeg required",
+      "ffmpegRequiredDesc": "Install FFmpeg in Settings before splitting media files.",
+      "ffmpegMissing": "FFmpeg is required to split media files.",
+      "durationUnavailable": "Could not read a usable duration for this file.",
+      "cancel": "Cancel",
+      "splitFiles": "Split files",
+      "splitting": "Splitting...",
+      "successTitle": "Segments created",
+      "successMessage": "Created {{count}} segment file(s) and added them to Library.",
+      "deleteOriginal": "Delete original file after splitting",
+      "deleteOriginalDesc": "The original Library item will remain, but its media file will be removed from your device."
     }
   },
   "player": {

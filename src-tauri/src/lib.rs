@@ -390,6 +390,7 @@ pub fn run() {
             commands::sync_asset_scope_paths,
             commands::rename_downloaded_file,
             commands::sync_history_renamed_entry,
+            commands::split_media_segments,
             commands::update_summary,
             commands::add_summary_only_history,
             commands::open_macos_privacy_settings,
