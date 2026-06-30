@@ -33,6 +33,11 @@
   "actions": {
     "cancel": "Hủy"
   },
+  "queueOutputPathUpdate": {
+    "title": "Cập nhật item trong hàng đợi?",
+    "message": "Bạn có muốn dùng thư mục tải mới này cho {{count}} item trong hàng đợi chưa bắt đầu hoặc chưa hoàn tất không?",
+    "confirm": "Cập nhật item"
+  },
   "update": {
     "available": "Có bản cập nhật",
     "error": "Lỗi cập nhật",

@@ -33,6 +33,11 @@
   "actions": {
     "cancel": "Annuler"
   },
+  "queueOutputPathUpdate": {
+    "title": "Mettre à jour les éléments en file ?",
+    "message": "Voulez-vous utiliser ce nouveau dossier de téléchargement pour {{count}} élément(s) en file qui n'ont pas encore démarré ou terminé ?",
+    "confirm": "Mettre à jour"
+  },
   "update": {
     "available": "Mise à jour disponible",
     "error": "Erreur de mise à jour",

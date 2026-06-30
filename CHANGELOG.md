@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Library history** - Removed the max history entries setting so Library can keep downloaded video records until users delete them
 - **Library summaries** - Refined Library item actions and moved full AI summaries into a dedicated reader dialog with text size controls
+- **Queue download folders** - Ask whether queued items should use the new folder when the global download folder changes
 
 ### Fixed
 - **Extension cold-start links** - Fixed browser extension download links opening Youwee without adding the video on cold app launch

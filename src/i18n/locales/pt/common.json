@@ -33,6 +33,11 @@
   "actions": {
     "cancel": "Cancelar"
   },
+  "queueOutputPathUpdate": {
+    "title": "Atualizar itens na fila?",
+    "message": "Deseja usar esta nova pasta de download para {{count}} item(ns) na fila que ainda não começaram ou não foram concluídos?",
+    "confirm": "Atualizar itens"
+  },
   "update": {
     "available": "Atualização Disponível",
     "error": "Erro de Atualização",

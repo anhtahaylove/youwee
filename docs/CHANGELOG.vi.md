@@ -16,6 +16,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Thay đổi
 - **Lịch sử trong Thư viện** - Bỏ cài đặt giới hạn số mục lịch sử để Thư viện có thể giữ bản ghi video đã tải cho tới khi người dùng tự xóa
 - **Tóm tắt trong Thư viện** - Tinh chỉnh action của item và chuyển bản tóm tắt AI đầy đủ sang dialog đọc riêng có chỉnh cỡ chữ
+- **Thư mục tải của hàng đợi** - Hỏi người dùng có muốn áp dụng thư mục tải mới cho các item trong hàng đợi khi đổi thư mục tải tổng hay không
 
 ### Sửa lỗi
 - **Link extension khi app chưa mở** - Sửa lỗi link tải từ browser extension chỉ mở Youwee nhưng không thêm video khi app đang đóng

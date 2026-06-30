@@ -33,6 +33,11 @@
   "actions": {
     "cancel": "取消"
   },
+  "queueOutputPathUpdate": {
+    "title": "更新队列项目？",
+    "message": "是否将这个新的下载文件夹用于 {{count}} 个尚未开始或尚未完成的队列项目？",
+    "confirm": "更新项目"
+  },
   "update": {
     "available": "有新版本可用",
     "error": "更新出错",

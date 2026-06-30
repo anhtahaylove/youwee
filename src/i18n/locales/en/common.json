@@ -33,6 +33,11 @@
   "actions": {
     "cancel": "Cancel"
   },
+  "queueOutputPathUpdate": {
+    "title": "Update queued items?",
+    "message": "Do you want to use this new download folder for {{count}} queued item(s) that have not started or completed yet?",
+    "confirm": "Update items"
+  },
   "update": {
     "available": "Update Available",
     "error": "Update Error",

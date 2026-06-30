@@ -4,6 +4,17 @@ import { downloadDir, homeDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readTextFile } from '@tauri-apps/plugin-fs';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
 import {
   extractBackendError,
@@ -279,6 +290,7 @@ interface RenameDownloadedFileResult {
 }
 
 export function UniversalProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('common');
   const [items, setItems] = useState<DownloadItem[]>([]);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -286,6 +298,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     show: boolean;
     itemId?: string;
     kind: 'db_locked' | 'fresh_cookies';
+  } | null>(null);
+  const [pendingOutputPathUpdate, setPendingOutputPathUpdate] = useState<{
+    outputPath: string;
+    itemIds: string[];
   } | null>(null);
 
   // Load saved settings on init
@@ -789,16 +805,59 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       });
 
       if (folder) {
+        const outputPath = folder as string;
+        const itemsToUpdate = itemsRef.current.filter((item) => {
+          if (!item.settings || item.status === 'downloading' || item.status === 'completed') {
+            return false;
+          }
+          const itemSettings = item.settings as ItemUniversalSettings;
+          return itemSettings.outputPath !== outputPath;
+        });
+
         setSettings((s) => {
-          const newSettings = { ...s, outputPath: folder as string };
+          const newSettings = { ...s, outputPath };
           saveSettings(newSettings);
           return newSettings;
         });
+
+        if (itemsToUpdate.length > 0) {
+          setPendingOutputPathUpdate({
+            outputPath,
+            itemIds: itemsToUpdate.map((item) => item.id),
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to select folder:', error);
     }
   }, [settings.outputPath]);
+
+  const confirmQueuedOutputPathUpdate = useCallback(() => {
+    if (!pendingOutputPathUpdate) return;
+    const idsToUpdate = new Set(pendingOutputPathUpdate.itemIds);
+    const { outputPath } = pendingOutputPathUpdate;
+
+    setItems((items) => {
+      const nextItems = items.map((item) => {
+        if (
+          !idsToUpdate.has(item.id) ||
+          !item.settings ||
+          item.status === 'downloading' ||
+          item.status === 'completed'
+        ) {
+          return item;
+        }
+        const itemSettings = item.settings as ItemUniversalSettings;
+        return {
+          ...item,
+          settings: { ...itemSettings, outputPath },
+        };
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+    setPendingOutputPathUpdate(null);
+  }, [pendingOutputPathUpdate]);
 
   const removeItem = useCallback((id: string) => {
     setItems((items) => {
@@ -1445,5 +1504,32 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <UniversalContext.Provider value={value}>{children}</UniversalContext.Provider>;
+  return (
+    <UniversalContext.Provider value={value}>
+      {children}
+      <AlertDialog
+        open={Boolean(pendingOutputPathUpdate)}
+        onOpenChange={(open) => {
+          if (!open) setPendingOutputPathUpdate(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('queueOutputPathUpdate.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('queueOutputPathUpdate.message', {
+                count: pendingOutputPathUpdate?.itemIds.length ?? 0,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('actions.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmQueuedOutputPathUpdate}>
+              {t('queueOutputPathUpdate.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </UniversalContext.Provider>
+  );
 }
