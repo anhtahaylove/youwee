@@ -35,7 +35,14 @@
     "processingDesc": "การตั้งค่าการประมวลผลวิดีโอและพรีวิว",
     "previewThreshold": "เกณฑ์ขนาดพรีวิว",
     "previewThresholdDesc": "ถามก่อนสร้างพรีวิววิดีโอสำหรับไฟล์ที่มีขนาดใหญ่กว่าค่านี้",
-    "previewAlways": "เสมอ"
+    "previewAlways": "เสมอ",
+    "library": "คลังรายการ",
+    "libraryDesc": "ควบคุมวิธีที่คลังรายการลบไฟล์ที่ดาวน์โหลด",
+    "libraryDeleteFileBehavior": "เมื่อลบรายการในคลัง",
+    "libraryDeleteFileBehaviorDesc": "เลือกว่าจะลบไฟล์สื่อออกจากเครื่องพร้อมกับรายการหรือไม่",
+    "libraryDeleteAsk": "ถามทุกครั้ง",
+    "libraryDeleteWithFile": "ลบไฟล์สื่อเสมอ",
+    "libraryDeleteKeepFile": "ไม่ลบไฟล์สื่อ"
   },
   "download": {
     "outputNaming": "การตั้งชื่อไฟล์",
@@ -451,7 +458,16 @@
     "pluginEnvReplacePlaceholder": "บันทึกแล้ว ป้อนค่าใหม่เพื่อแทนที่",
     "pluginEnvSave": "บันทึก",
     "pluginEnvClear": "ล้าง",
-    "pluginEnvSaveError": "บันทึกค่าตัวแปรสภาพแวดล้อมของปลั๊กอินไม่สำเร็จ"
+    "pluginEnvSaveError": "บันทึกค่าตัวแปรสภาพแวดล้อมของปลั๊กอินไม่สำเร็จ",
+    "duplicateDownloads": "วิดีโอที่ดาวน์โหลดแล้ว",
+    "duplicateDownloadsDesc": "ใช้ประวัติ Library เพื่อตรวจหาวิดีโอที่เคยดาวน์โหลด",
+    "rememberDownloadedVideos": "จดจำวิดีโอที่ดาวน์โหลดแล้ว",
+    "rememberDownloadedVideosDesc": "ตรวจสอบ Library ก่อนเพิ่มวิดีโอ YouTube เข้าคิว Download",
+    "duplicateHandling": "การจัดการวิดีโอซ้ำ",
+    "duplicateHandlingDesc": "เลือกสิ่งที่ Youwee ควรทำเมื่อวิดีโอมีอยู่ใน Library แล้ว",
+    "duplicateHandlingAsk": "ถามก่อนเพิ่ม",
+    "duplicateHandlingSkip": "ข้ามอัตโนมัติ",
+    "duplicateHandlingAllow": "อนุญาตรายการซ้ำ"
   },
   "dependencies": {
     "title": "Dependencies",

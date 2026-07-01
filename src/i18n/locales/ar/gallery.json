@@ -57,6 +57,7 @@
     "placeholderMultiple": "رابط واحد في كل سطر. سيتم تجاهل الأسطر التي تبدأ بـ #.",
     "urlCount": "{{count}} رابط",
     "urlCount_plural": "{{count}} روابط",
+    "clearInput": "مسح",
     "addToQueue": "أضف"
   }
 }

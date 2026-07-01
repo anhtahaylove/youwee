@@ -281,7 +281,7 @@
       "copy": "Reter item visual num ponteiro de cópia",
       "copied": "Prontinho.",
       "delete": "Extinguir ambiente físico do banco local",
-      "deleteConfirm": "Vai sumir esse arquivo hein... {{title}}. Sim?",
+      "deleteConfirm": "Remover \"{{title}}\" da Biblioteca? O arquivo de mídia continuará no dispositivo.",
       "failedToRedownload": "Poxa. Tente na raíz...",
       "sources": {
         "youtube": "Assinado o seu ambiente YT...",
@@ -291,7 +291,13 @@
         "twitter": "Rede X. (Ou similar via domínio).",
         "bilibili": "Ambiente CHN conectado!",
         "other": "Múltiplos e gerais!"
-      }
+      },
+      "deleteTitle": "Remover da Biblioteca?",
+      "deleteWithFileTitle": "Excluir também o arquivo de mídia?",
+      "deleteWithFileConfirm": "Remover \"{{title}}\" da Biblioteca e excluir o arquivo de mídia do dispositivo? Esta ação não pode ser desfeita.",
+      "deleteLibraryOnly": "Remover da Biblioteca",
+      "deleteWithFile": "Excluir também o arquivo de mídia",
+      "deleteCancel": "Cancelar"
     },
     "collections": {
       "title": "Coleções",

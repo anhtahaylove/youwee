@@ -51,6 +51,7 @@ export function DownloadPage({ onNavigateToSettings }: DownloadPageProps) {
     updateQuality,
     updateFormat,
     updateVideoCodec,
+    updatePreferredFps,
     updateAudioBitrate,
     updateConcurrentDownloads,
     updatePlaylistLimit,
@@ -176,6 +177,7 @@ export function DownloadPage({ onNavigateToSettings }: DownloadPageProps) {
               onQualityChange={updateQuality}
               onFormatChange={updateFormat}
               onVideoCodecChange={updateVideoCodec}
+              onPreferredFpsChange={updatePreferredFps}
               onAudioBitrateChange={updateAudioBitrate}
               onConcurrentChange={updateConcurrentDownloads}
               onPlaylistLimitChange={updatePlaylistLimit}

@@ -281,7 +281,7 @@
       "copy": "คัดลอก",
       "copied": "คัดลอกแล้ว",
       "delete": "ลบ",
-      "deleteConfirm": "ลบ \"{{title}}\" ออกจากประวัติหรือไม่?",
+      "deleteConfirm": "ลบ \"{{title}}\" ออกจากคลังหรือไม่ ไฟล์สื่อจะยังอยู่ในเครื่องของคุณ",
       "failedToRedownload": "ดาวน์โหลดใหม่ไม่สำเร็จ",
       "sources": {
         "youtube": "YouTube",
@@ -291,7 +291,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "อื่น ๆ"
-      }
+      },
+      "deleteTitle": "ลบออกจากคลังหรือไม่",
+      "deleteWithFileTitle": "ลบไฟล์สื่อด้วยหรือไม่",
+      "deleteWithFileConfirm": "ลบ \"{{title}}\" ออกจากคลังและลบไฟล์สื่อออกจากเครื่องของคุณหรือไม่ การดำเนินการนี้ย้อนกลับไม่ได้",
+      "deleteLibraryOnly": "ลบออกจากคลังเท่านั้น",
+      "deleteWithFile": "ลบไฟล์สื่อด้วย",
+      "deleteCancel": "ยกเลิก"
     },
     "collections": {
       "title": "คอลเลกชัน",

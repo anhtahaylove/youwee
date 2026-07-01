@@ -35,7 +35,14 @@
     "processingDesc": "Configurações de processamento e visualização de vídeo",
     "previewThreshold": "Limite de tamanho para visualização",
     "previewThresholdDesc": "Perguntar antes de gerar prévia de vídeo para arquivos maiores que este tamanho",
-    "previewAlways": "Sempre"
+    "previewAlways": "Sempre",
+    "library": "Biblioteca",
+    "libraryDesc": "Controle como a Biblioteca exclui arquivos baixados",
+    "libraryDeleteFileBehavior": "Ao excluir itens da Biblioteca",
+    "libraryDeleteFileBehaviorDesc": "Escolha se remover um item também exclui o arquivo de mídia do dispositivo",
+    "libraryDeleteAsk": "Perguntar sempre",
+    "libraryDeleteWithFile": "Sempre excluir arquivo de mídia",
+    "libraryDeleteKeepFile": "Nunca excluir arquivo de mídia"
   },
   "download": {
     "outputNaming": "Nome de saída",
@@ -451,7 +458,16 @@
     "aria2ToggleDesc": "Pass --downloader aria2c for faster multi-connection downloads",
     "aria2Args": "Custom Aria2 Args",
     "aria2ArgsDesc": "Supports raw args (e.g. -x 16 -s 16) or prefixed args (aria2c:...)",
-    "aria2ArgsPlaceholder": "-x 16 -s 16 -j 16"
+    "aria2ArgsPlaceholder": "-x 16 -s 16 -j 16",
+    "duplicateDownloads": "Vídeos baixados",
+    "duplicateDownloadsDesc": "Use o histórico da Biblioteca para detectar vídeos já baixados",
+    "rememberDownloadedVideos": "Lembrar vídeos baixados",
+    "rememberDownloadedVideosDesc": "Verificar a Biblioteca antes de adicionar vídeos do YouTube à fila de Download",
+    "duplicateHandling": "Tratamento de duplicados",
+    "duplicateHandlingDesc": "Escolha o que o Youwee deve fazer quando um vídeo já existe na Biblioteca",
+    "duplicateHandlingAsk": "Perguntar antes de adicionar",
+    "duplicateHandlingSkip": "Pular automaticamente",
+    "duplicateHandlingAllow": "Permitir duplicados"
   },
   "dependencies": {
     "title": "Dependências",

@@ -46,6 +46,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
     updateQuality,
     updateFormat,
     updateAudioBitrate,
+    updatePreferredFps,
     updateConcurrentDownloads,
     updateLiveFromStart,
     updateSkipLive,
@@ -126,6 +127,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
             onQualityChange={updateQuality}
             onFormatChange={updateFormat}
             onAudioBitrateChange={updateAudioBitrate}
+            onPreferredFpsChange={updatePreferredFps}
             onConcurrentChange={updateConcurrentDownloads}
             onSelectFolder={selectOutputFolder}
             onLiveFromStartChange={updateLiveFromStart}

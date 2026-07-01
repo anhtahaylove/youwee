@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Перетащите URL или .txt файл сюда",
-    "detectedMultiple": "Обнаружено {{count}} URL"
+    "detectedMultiple": "Обнаружено {{count}} URL",
+    "clearInput": "Очистить"
   },
   "page": {
     "quickSettings": "Быстрые настройки",
@@ -44,6 +45,12 @@
     "advanced": "Расширенные настройки",
     "more": "Ещё",
     "liveFromStart": "Прямая трансляция с начала",
+    "skipLive": "Пропускать прямые эфиры",
+    "skipLiveDesc": "Пропускать видео, которые сейчас идут в прямом эфире, вместо их загрузки",
+    "preferredFps": "Частота кадров",
+    "preferredFpsHint": "30 FPS может использовать более низкое качество",
+    "preferredFpsOriginal": "Оригинал",
+    "preferredFps30": "До 30 FPS",
     "autoRetry": "Автоповтор",
     "retryAttempts": "Попытки",
     "retryDelaySeconds": "Задержка (с)"

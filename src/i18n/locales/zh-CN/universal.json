@@ -15,7 +15,8 @@
     "urlCount": "{{count}} 个链接",
     "urlCount_plural": "{{count}} 个链接",
     "dropHint": "拖放链接或 .txt 文件到此处",
-    "detectedMultiple": "已识别 {{count}} 个链接"
+    "detectedMultiple": "已识别 {{count}} 个链接",
+    "clearInput": "清除"
   },
   "page": {
     "quickSettings": "快捷设置",
@@ -46,6 +47,10 @@
     "liveFromStart": "从头开始录制直播",
     "skipLive": "跳过直播",
     "skipLiveDesc": "跳过当前正在直播的视频，而不是下载它们",
+    "preferredFps": "帧率",
+    "preferredFpsHint": "30 FPS 可能使用较低画质",
+    "preferredFpsOriginal": "原始",
+    "preferredFps30": "最高 30 FPS",
     "autoRetry": "自动重试",
     "retryAttempts": "次数",
     "retryDelaySeconds": "间隔（秒）"

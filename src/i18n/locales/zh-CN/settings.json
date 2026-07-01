@@ -36,7 +36,14 @@
     "processingDesc": "视频处理和预览设置",
     "previewThreshold": "预览大小阈值",
     "previewThresholdDesc": "对大于此大小的文件生成预览前进行确认",
-    "previewAlways": "始终生成"
+    "previewAlways": "始终生成",
+    "library": "资料库",
+    "libraryDesc": "控制资料库如何删除已下载文件",
+    "libraryDeleteFileBehavior": "删除资料库项目时",
+    "libraryDeleteFileBehaviorDesc": "选择移除项目时是否同时删除设备上的媒体文件",
+    "libraryDeleteAsk": "每次询问",
+    "libraryDeleteWithFile": "始终删除媒体文件",
+    "libraryDeleteKeepFile": "永不删除媒体文件"
   },
   "download": {
     "outputNaming": "输出命名",
@@ -456,7 +463,16 @@
     "autoRetryConfigDesc": "设置重试次数和每次重试间隔",
     "retryAttempts": "次数",
     "retryDelay": "间隔",
-    "secondsShort": "秒"
+    "secondsShort": "秒",
+    "duplicateDownloads": "已下载视频",
+    "duplicateDownloadsDesc": "使用 Library 历史记录检测已经下载过的视频",
+    "rememberDownloadedVideos": "记住已下载视频",
+    "rememberDownloadedVideosDesc": "添加 YouTube 视频到下载队列前先检查 Library",
+    "duplicateHandling": "重复项处理",
+    "duplicateHandlingDesc": "选择当视频已存在于 Library 时 Youwee 的处理方式",
+    "duplicateHandlingAsk": "添加前询问",
+    "duplicateHandlingSkip": "自动跳过",
+    "duplicateHandlingAllow": "允许重复"
   },
   "remoteDownload": {
     "telegramRemote": "Telegram 远程控制",

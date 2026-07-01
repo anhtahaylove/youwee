@@ -24,6 +24,8 @@
     "guideHighResText": "很多来源的 H.264 最高只有 Full HD。需要 2K/4K/8K 时，建议使用 Auto（或可用时选择 VP9/AV1）。",
     "guideFfmpegTitle": "下载后视频和音频分成两个文件",
     "guideFfmpegText": "请在 设置 > Dependencies 安装 FFmpeg，Youwee 才能自动把视频和音频合并为一个输出文件。",
+    "guidePreferredFpsTitle": "帧率可能改变画质",
+    "guidePreferredFpsText": "30 FPS 可以节省空间，但 Youwee 只会选择已有的视频流。有些视频只有 720p 或 480p 等较低画质提供 30 FPS，因此下载画质可能低于你选择的画质。",
     "guideOpenSettings": "打开设置",
     "guideGotIt": "知道了",
     "detectedMultiple": "已识别 {{count}} 个链接",
@@ -134,6 +136,10 @@
     "liveFromStartDesc": "适用于直播视频",
     "skipLive": "跳过直播",
     "skipLiveDesc": "跳过当前正在直播的视频，而不是下载它们",
+    "preferredFps": "帧率",
+    "preferredFpsHint": "30 FPS 可能使用较低画质",
+    "preferredFpsOriginal": "原始",
+    "preferredFps30": "最高 30 FPS",
     "saveTo": "保存到",
     "selectFolder": "选择文件夹...",
     "outputFolder": "输出文件夹：{{path}}",
@@ -261,5 +267,19 @@
     "de": "德语",
     "pt": "葡萄牙语",
     "ru": "俄语"
+  },
+  "duplicates": {
+    "title": "已下载过的视频",
+    "description": "{{count}} 个视频已存在于 Library。仍可添加 {{newCount}} 个新视频。",
+    "downloadedAt": "下载于 {{date}}",
+    "fileExists": "文件可用",
+    "fileMissing": "文件缺失",
+    "moreItems": "还有 {{count}} 个重复项",
+    "applyToAll": "将此选择应用到本次添加的所有重复项",
+    "skip": "跳过重复项",
+    "addAgain": "再次添加",
+    "cancel": "取消",
+    "skippedToastTitle": "已跳过下载过的视频",
+    "skippedToastMessage": "已跳过 Library 中已有的 {{count}} 个视频。"
   }
 }

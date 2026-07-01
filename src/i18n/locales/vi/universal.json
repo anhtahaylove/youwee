@@ -15,7 +15,8 @@
     "urlCount": "{{count}} URL",
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Thả URL hoặc file .txt vào đây",
-    "detectedMultiple": "Đã nhận diện {{count}} URL"
+    "detectedMultiple": "Đã nhận diện {{count}} URL",
+    "clearInput": "Xóa"
   },
   "page": {
     "quickSettings": "Cài đặt nhanh",
@@ -46,6 +47,10 @@
     "liveFromStart": "Phát trực tiếp từ đầu",
     "skipLive": "Bỏ qua live",
     "skipLiveDesc": "Bỏ qua video đang phát trực tiếp thay vì tải xuống",
+    "preferredFps": "Tốc độ khung hình",
+    "preferredFpsHint": "30 FPS có thể dùng chất lượng thấp hơn",
+    "preferredFpsOriginal": "Gốc",
+    "preferredFps30": "Tối đa 30 FPS",
     "autoRetry": "Tự động thử lại",
     "retryAttempts": "Số lần",
     "retryDelaySeconds": "Độ trễ (giây)"

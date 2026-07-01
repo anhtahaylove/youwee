@@ -1,4 +1,4 @@
-import { ClipboardPaste, FileText, Link, Link2, List, Loader2, Plus } from 'lucide-react';
+import { ClipboardPaste, FileText, Link, Link2, List, Loader2, Plus, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -101,6 +101,11 @@ export function GalleryUrlInput({
 
   const handleInputChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setValue(event.target.value);
+  };
+
+  const handleClearSingleInput = () => {
+    setValue('');
+    inputRef.current?.focus();
   };
 
   const setMode = (expanded: boolean) => {
@@ -225,18 +230,23 @@ export function GalleryUrlInput({
                 onKeyDown={handleKeyDown}
                 disabled={disabled}
                 className={cn(
-                  'pl-10 pr-20 h-11 text-sm',
+                  'pl-10 pr-11 h-11 text-sm',
                   'bg-background/50 border-border/50',
                   'focus:bg-background transition-colors',
                   'placeholder:text-muted-foreground/50',
                 )}
               />
-              {urlCount > 0 && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                  {urlCount !== 1
-                    ? t('urlInput.urlCount_plural', { count: urlCount })
-                    : t('urlInput.urlCount', { count: urlCount })}
-                </span>
+              {value && (
+                <button
+                  type="button"
+                  onClick={handleClearSingleInput}
+                  disabled={disabled}
+                  className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  title={t('urlInput.clearInput')}
+                  aria-label={t('urlInput.clearInput')}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
             <button

@@ -284,7 +284,7 @@
       "copy": "Sao chép",
       "copied": "Đã sao chép",
       "delete": "Xóa",
-      "deleteConfirm": "Xóa \"{{title}}\" khỏi lịch sử?",
+      "deleteConfirm": "Xóa \"{{title}}\" khỏi Thư viện? File media vẫn được giữ trên máy của bạn.",
       "failedToRedownload": "Tải lại thất bại",
       "sources": {
         "youtube": "YouTube",
@@ -294,7 +294,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "Khác"
-      }
+      },
+      "deleteTitle": "Xóa khỏi Thư viện?",
+      "deleteWithFileTitle": "Xóa luôn file media?",
+      "deleteWithFileConfirm": "Xóa \"{{title}}\" khỏi Thư viện và xóa file media khỏi máy của bạn? Thao tác này không thể hoàn tác.",
+      "deleteLibraryOnly": "Chỉ xóa khỏi Thư viện",
+      "deleteWithFile": "Xóa luôn file media",
+      "deleteCancel": "Hủy"
     },
     "collections": {
       "title": "Bộ sưu tập",

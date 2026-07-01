@@ -962,6 +962,7 @@ pub async fn download_video(
     queue_total: Option<u32>,
     number_queue_items: Option<bool>,
     video_codec: String,
+    preferred_fps: Option<String>,
     audio_bitrate: String,
     playlist_limit: Option<u32>,
     subtitle_mode: String,
@@ -1067,7 +1068,8 @@ pub async fn download_video(
     let should_log_stderr = log_stderr.unwrap_or(true);
     let sanitized_path = sanitize_output_path(&output_path)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
-    let format_string = build_format_string(&quality, &format, &video_codec);
+    let format_string =
+        build_format_string(&quality, &format, &video_codec, preferred_fps.as_deref());
     let output_directory = build_output_directory(&sanitized_path, &url, organize_by_source);
     if !output_directory.is_empty() {
         tokio::fs::create_dir_all(&output_directory)

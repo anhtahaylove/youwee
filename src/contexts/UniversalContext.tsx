@@ -13,6 +13,17 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
 import { normalizeThumbnailUrl, toAssetUrl } from '@/lib/asset-access';
 import {
@@ -20,6 +31,7 @@ import {
   localizeBackendError,
   localizeProgressError,
 } from '@/lib/backend-error';
+import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import {
   AUTO_RETRY_LIMITS,
   clampAutoRetryDelaySeconds,
@@ -51,6 +63,7 @@ import type {
   ItemUniversalSettings,
   PluginExecutionStatusEvent,
   PostDownloadPluginPayload,
+  PreferredFps,
   Quality,
   VideoInfoResponse,
 } from '@/lib/types';
@@ -122,6 +135,7 @@ export interface UniversalSettings {
   format: Format;
   outputPath: string;
   audioBitrate: AudioBitrate;
+  preferredFps: PreferredFps;
   concurrentDownloads: number;
   // Live stream settings
   liveFromStart: boolean;
@@ -222,6 +236,7 @@ function saveSettings(settings: UniversalSettings) {
         quality: settings.quality,
         format: settings.format,
         audioBitrate: settings.audioBitrate,
+        preferredFps: settings.preferredFps,
         concurrentDownloads: settings.concurrentDownloads,
         liveFromStart: settings.liveFromStart,
         skipLive: settings.skipLive,
@@ -260,6 +275,7 @@ interface UniversalContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
+  updatePreferredFps: (fps: PreferredFps) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
   updateLiveFromStart: (enabled: boolean) => void;
   updateSkipLive: (enabled: boolean) => void;
@@ -283,6 +299,7 @@ interface RenameDownloadedFileResult {
 }
 
 export function UniversalProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation('common');
   const [items, setItems] = useState<DownloadItem[]>([]);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -290,6 +307,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     show: boolean;
     itemId?: string;
     kind: 'db_locked' | 'fresh_cookies';
+  } | null>(null);
+  const [pendingOutputPathUpdate, setPendingOutputPathUpdate] = useState<{
+    outputPath: string;
+    itemIds: string[];
   } | null>(null);
 
   // Load saved settings on init
@@ -300,6 +321,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       format: saved.format || 'mp4',
       outputPath: saved.outputPath || '',
       audioBitrate: saved.audioBitrate || 'auto',
+      preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
       concurrentDownloads: saved.concurrentDownloads || 1,
       // Live stream settings
       liveFromStart: saved.liveFromStart === true, // Default to false
@@ -323,7 +345,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<UniversalSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
-  const { settings: downloadSettings } = useDownload();
+  const { settings: downloadSettings, filterDownloadedDuplicateCandidates } = useDownload();
 
   usePersistedDownloadQueue({
     queueKind: 'universal',
@@ -658,6 +680,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         organizeBySource: downloadSettings.organizeBySource,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: downloadSettings.youtubePlayerClient,
+        preferredFps: currentSettings.preferredFps,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
         liveFromStart: currentSettings.liveFromStart,
@@ -670,25 +693,40 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
-      const nextUrls = urls.filter((url) => !currentItems.some((item) => item.url === url));
-      const queueTotal = currentItems.length + nextUrls.length;
-      const newItems: DownloadItem[] = nextUrls.map((url, index) => ({
+      const candidates = urls
+        .filter((url) => !currentItems.some((item) => item.url === url))
+        .map((url) => ({
+          url,
+          title: url,
+          duplicateIdentity: buildDownloadDuplicateIdentity(url),
+        }));
+      const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
+      const currentItemsAfterReview = itemsRef.current;
+      const enqueueCandidates = filteredCandidates.filter(
+        (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+      );
+      const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
+      const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
         id: crypto.randomUUID(),
-        url,
-        title: url,
+        url: candidate.url,
+        title: candidate.title,
         status: 'pending' as const,
         progress: 0,
         speed: '',
         eta: '',
         metadataStage: 'fetching',
-        queueIndex: currentItems.length + index + 1,
+        queueIndex: currentItemsAfterReview.length + index + 1,
         queueTotal,
         // Store settings snapshot
         settings: settingsSnapshot,
       }));
 
       if (newItems.length > 0) {
-        setItems((prev) => [...prev, ...newItems]);
+        setItems((prev) => {
+          const nextItems = [...prev, ...newItems];
+          itemsRef.current = nextItems;
+          return nextItems;
+        });
         // Fetch metadata (thumbnail, title, duration) in background
         fetchMetadataForItems(newItems);
         enqueueQueuedWorkflowForItems(newItems);
@@ -703,6 +741,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       downloadSettings.skipExisting,
       downloadSettings.youtubePlayerClient,
       enqueueQueuedWorkflowForItems,
+      filterDownloadedDuplicateCandidates,
       fetchMetadataForItems,
     ],
   );
@@ -760,6 +799,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         organizeBySource: downloadSettings.organizeBySource,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         youtubePlayerClient: downloadSettings.youtubePlayerClient,
+        preferredFps: currentSettings.preferredFps,
         useAria2: aria2Settings.useAria2,
         aria2Args: aria2Settings.aria2Args,
         timeRangeStart: options?.timeRangeStart,
@@ -846,16 +886,59 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       });
 
       if (folder) {
+        const outputPath = folder as string;
+        const itemsToUpdate = itemsRef.current.filter((item) => {
+          if (!item.settings || item.status === 'downloading' || item.status === 'completed') {
+            return false;
+          }
+          const itemSettings = item.settings as ItemUniversalSettings;
+          return itemSettings.outputPath !== outputPath;
+        });
+
         setSettings((s) => {
-          const newSettings = { ...s, outputPath: folder as string };
+          const newSettings = { ...s, outputPath };
           saveSettings(newSettings);
           return newSettings;
         });
+
+        if (itemsToUpdate.length > 0) {
+          setPendingOutputPathUpdate({
+            outputPath,
+            itemIds: itemsToUpdate.map((item) => item.id),
+          });
+        }
       }
     } catch (error) {
       console.error('Failed to select folder:', error);
     }
   }, [settings.outputPath]);
+
+  const confirmQueuedOutputPathUpdate = useCallback(() => {
+    if (!pendingOutputPathUpdate) return;
+    const idsToUpdate = new Set(pendingOutputPathUpdate.itemIds);
+    const { outputPath } = pendingOutputPathUpdate;
+
+    setItems((items) => {
+      const nextItems = items.map((item) => {
+        if (
+          !idsToUpdate.has(item.id) ||
+          !item.settings ||
+          item.status === 'downloading' ||
+          item.status === 'completed'
+        ) {
+          return item;
+        }
+        const itemSettings = item.settings as ItemUniversalSettings;
+        return {
+          ...item,
+          settings: { ...itemSettings, outputPath },
+        };
+      });
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+    setPendingOutputPathUpdate(null);
+  }, [pendingOutputPathUpdate]);
 
   const removeItem = useCallback((id: string) => {
     setItems((items) => {
@@ -1067,6 +1150,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
             videoCodec: 'auto', // Use auto for universal downloads
+            preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             youtubePlayerClient:
               itemSettings?.youtubePlayerClient ?? downloadSettings.youtubePlayerClient,
@@ -1341,6 +1425,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updatePreferredFps = useCallback((preferredFps: PreferredFps) => {
+    setSettings((s) => {
+      const newSettings = { ...s, preferredFps };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
   const updateConcurrentDownloads = useCallback((concurrentDownloads: number) => {
     const value = Math.max(1, Math.min(5, concurrentDownloads));
     setSettings((s) => {
@@ -1435,6 +1527,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateAudioBitrate,
+      updatePreferredFps,
       updateConcurrentDownloads,
       updateLiveFromStart,
       updateSkipLive,
@@ -1467,6 +1560,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateAudioBitrate,
+      updatePreferredFps,
       updateConcurrentDownloads,
       updateLiveFromStart,
       updateSkipLive,
@@ -1480,7 +1574,34 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     ],
   );
 
-  return <UniversalContext.Provider value={value}>{children}</UniversalContext.Provider>;
+  return (
+    <UniversalContext.Provider value={value}>
+      {children}
+      <AlertDialog
+        open={Boolean(pendingOutputPathUpdate)}
+        onOpenChange={(open) => {
+          if (!open) setPendingOutputPathUpdate(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('queueOutputPathUpdate.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('queueOutputPathUpdate.message', {
+                count: pendingOutputPathUpdate?.itemIds.length ?? 0,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('actions.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmQueuedOutputPathUpdate}>
+              {t('queueOutputPathUpdate.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </UniversalContext.Provider>
+  );
 }
 
 export function useUniversal() {

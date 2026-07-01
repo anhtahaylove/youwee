@@ -15,8 +15,53 @@ pub fn format_size(bytes: u64) -> String {
     }
 }
 
-/// Build yt-dlp format string based on quality, format and codec preferences
-pub fn build_format_string(quality: &str, format: &str, video_codec: &str) -> String {
+fn preferred_fps_filter(preferred_fps: Option<&str>) -> Option<&'static str> {
+    match preferred_fps {
+        Some("30") => Some("[fps<=30]"),
+        _ => None,
+    }
+}
+
+fn apply_fps_filter(format_string: String, preferred_fps: Option<&str>) -> String {
+    let Some(fps_filter) = preferred_fps_filter(preferred_fps) else {
+        return format_string;
+    };
+
+    format_string
+        .split('/')
+        .map(|candidate| {
+            let leading_len = candidate.len() - candidate.trim_start().len();
+            let (leading, trimmed) = candidate.split_at(leading_len);
+
+            if trimmed.starts_with("bestvideo") {
+                format!(
+                    "{}{}",
+                    leading,
+                    trimmed.replacen("bestvideo", &format!("bestvideo{}", fps_filter), 1)
+                )
+            } else if trimmed.starts_with("best[") {
+                format!(
+                    "{}{}",
+                    leading,
+                    trimmed.replacen("best[", &format!("best{}[", fps_filter), 1)
+                )
+            } else if trimmed == "best" {
+                format!("{}best{}", leading, fps_filter)
+            } else {
+                candidate.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+/// Build yt-dlp format string based on quality, format, codec and FPS preferences
+pub fn build_format_string(
+    quality: &str,
+    format: &str,
+    video_codec: &str,
+    preferred_fps: Option<&str>,
+) -> String {
     // Audio-only formats
     if quality == "audio" || format == "mp3" || format == "m4a" || format == "opus" {
         return match format {
@@ -50,7 +95,7 @@ pub fn build_format_string(quality: &str, format: &str, video_codec: &str) -> St
     let is_high_res = matches!(quality, "8k" | "4k" | "2k");
     let is_auto_codec = video_codec == "auto" || video_codec.is_empty();
 
-    if format == "webm" {
+    let format_string = if format == "webm" {
         let webm_codec_filter = match video_codec {
             "vp9" => "[vcodec^=vp9]",
             "av1" => "[vcodec^=av01]",
@@ -181,7 +226,9 @@ pub fn build_format_string(quality: &str, format: &str, video_codec: &str) -> St
             "bestvideo{}+bestaudio/bestvideo+bestaudio/best",
             codec_filter
         )
-    }
+    };
+
+    apply_fps_filter(format_string, preferred_fps)
 }
 
 #[cfg(test)]
@@ -190,7 +237,7 @@ mod tests {
 
     #[test]
     fn webm_4k_ignores_h264_and_uses_webm_streams() {
-        let format = build_format_string("4k", "webm", "h264");
+        let format = build_format_string("4k", "webm", "h264", None);
 
         assert!(format.contains("[ext=webm]"));
         assert!(format.contains("bestaudio[ext=webm]"));
@@ -201,9 +248,26 @@ mod tests {
 
     #[test]
     fn webm_respects_compatible_explicit_codec() {
-        let format = build_format_string("4k", "webm", "av1");
+        let format = build_format_string("4k", "webm", "av1", None);
 
         assert!(format.contains("bestvideo[height<=2160][ext=webm][vcodec^=av01]"));
         assert!(format.contains("bestaudio[ext=webm]"));
+    }
+
+    #[test]
+    fn preferred_30fps_filters_video_candidates() {
+        let format = build_format_string("1080", "mp4", "auto", Some("30"));
+
+        assert!(format.contains("[fps<=30]"));
+        assert!(format.contains("bestvideo[fps<=30][height<=1080][ext=mp4]"));
+        assert!(format.contains("best[fps<=30][height<=1080]"));
+    }
+
+    #[test]
+    fn unsupported_preferred_fps_does_not_filter_video_candidates() {
+        let format = build_format_string("1080", "mp4", "auto", Some("60"));
+
+        assert!(!format.contains("[fps<="));
+        assert!(format.contains("bestvideo[height<=1080][ext=mp4]"));
     }
 }

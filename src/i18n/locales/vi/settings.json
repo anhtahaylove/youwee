@@ -36,7 +36,14 @@
     "processingDesc": "Cài đặt xử lý video và xem trước",
     "previewThreshold": "Ngưỡng kích thước xem trước",
     "previewThresholdDesc": "Hỏi trước khi tạo xem trước cho file lớn hơn kích thước này",
-    "previewAlways": "Luôn tạo"
+    "previewAlways": "Luôn tạo",
+    "library": "Thư viện",
+    "libraryDesc": "Kiểm soát cách Thư viện xóa file đã tải",
+    "libraryDeleteFileBehavior": "Khi xóa mục trong Thư viện",
+    "libraryDeleteFileBehaviorDesc": "Chọn việc xóa một mục có xóa luôn file media trên máy hay không",
+    "libraryDeleteAsk": "Hỏi mỗi lần",
+    "libraryDeleteWithFile": "Luôn xóa file media",
+    "libraryDeleteKeepFile": "Không xóa file media"
   },
   "download": {
     "outputNaming": "Đặt tên file tải về",
@@ -456,7 +463,16 @@
     "autoRetryConfigDesc": "Đặt số lần thử lại và thời gian chờ giữa mỗi lần",
     "retryAttempts": "Số lần",
     "retryDelay": "Độ trễ",
-    "secondsShort": "giây"
+    "secondsShort": "giây",
+    "duplicateDownloads": "Video đã tải",
+    "duplicateDownloadsDesc": "Dùng lịch sử Library để phát hiện video đã từng tải",
+    "rememberDownloadedVideos": "Ghi nhớ video đã tải",
+    "rememberDownloadedVideosDesc": "Kiểm tra Library trước khi thêm video YouTube vào hàng đợi Download",
+    "duplicateHandling": "Cách xử lý trùng lặp",
+    "duplicateHandlingDesc": "Chọn cách Youwee xử lý khi video đã có trong Library",
+    "duplicateHandlingAsk": "Hỏi trước khi thêm",
+    "duplicateHandlingSkip": "Tự động bỏ qua",
+    "duplicateHandlingAllow": "Cho phép trùng lặp"
   },
   "remoteDownload": {
     "telegramRemote": "Điều khiển qua Telegram",

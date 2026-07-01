@@ -7,14 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-01
+
 ### Added
 - **Queue output folder** - Added a queue item action to choose a download folder for individual downloads
 - **Queue and playlist numbering** - Added optional queue-order and playlist-order filename prefixes
+- **Duplicate download detection** - Added Library/history based duplicate checks before adding downloads, with ask, skip, and allow options
+- **Library delete behavior** - Added a setting to remove Library entries only or also delete the media file
+- **Preferred 30 FPS downloads** - Added a preferred 30 FPS option for Download, Universal Download, and Channels
+- **Clear input controls** - Added clear buttons to Download, Universal Download, and Gallery URL fields
+
+### Changed
+- **Channel fetching** - Added a stop action and avoided unnecessary refetches when returning to a just-browsed followed channel
+- **Queue folder changes** - Ask before applying a newly selected global download folder to existing queued items
+- **Custom release links** - Keep updater, extension release links, and app-facing GitHub links on the custom `anhtahaylove/youwee` channel
 
 ### Fixed
 - **Firefox authentication profiles** - Use the real Firefox profile directory when passing a detected profile to yt-dlp
 - **yt-dlp match filters** - Treat downloads skipped by yt-dlp match filters as non-retryable skipped errors
 - **Extension AI Summary popup** - Open Summary through the active tab content script first, with a direct deep-link fallback
+- **Extension cold-start deep links** - Preserve pending extension download links when Youwee is launched from a cold start
+- **AI Summary ordered lists** - Keep ordered-list numbering continuous when rendering saved summaries
+- **Settings icons** - Keep Font Awesome icons sized consistently with adjacent UI text
 
 ## [0.18.0] - 2026-06-29
 

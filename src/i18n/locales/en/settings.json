@@ -36,7 +36,14 @@
     "processingDesc": "Video processing and preview settings",
     "previewThreshold": "Preview size threshold",
     "previewThresholdDesc": "Ask before generating video preview for files larger than this size",
-    "previewAlways": "Always"
+    "previewAlways": "Always",
+    "library": "Library",
+    "libraryDesc": "Control how Library deletes downloaded files",
+    "libraryDeleteFileBehavior": "When deleting Library items",
+    "libraryDeleteFileBehaviorDesc": "Choose whether removing an item also deletes the media file from your device",
+    "libraryDeleteAsk": "Ask every time",
+    "libraryDeleteWithFile": "Always delete media file",
+    "libraryDeleteKeepFile": "Never delete media file"
   },
   "download": {
     "outputNaming": "Output Naming",
@@ -456,7 +463,16 @@
     "autoRetryConfigDesc": "Set retry attempts and delay between retries",
     "retryAttempts": "Attempts",
     "retryDelay": "Delay",
-    "secondsShort": "s"
+    "secondsShort": "s",
+    "duplicateDownloads": "Downloaded videos",
+    "duplicateDownloadsDesc": "Use Library history to detect videos you already downloaded",
+    "rememberDownloadedVideos": "Remember downloaded videos",
+    "rememberDownloadedVideosDesc": "Check Library before adding YouTube videos to the Download queue",
+    "duplicateHandling": "Duplicate handling",
+    "duplicateHandlingDesc": "Choose what Youwee should do when a video already exists in Library",
+    "duplicateHandlingAsk": "Ask before adding",
+    "duplicateHandlingSkip": "Skip automatically",
+    "duplicateHandlingAllow": "Allow duplicates"
   },
   "remoteDownload": {
     "telegramRemote": "Telegram Remote",

@@ -281,7 +281,7 @@
       "copy": "نسخ",
       "copied": "تم النسخ",
       "delete": "حذف",
-      "deleteConfirm": "إزالة \"{{title}}\" من السجل؟",
+      "deleteConfirm": "إزالة \"{{title}}\" من المكتبة؟ سيبقى ملف الوسائط على جهازك.",
       "failedToRedownload": "فشلت إعادة التنزيل",
       "sources": {
         "youtube": "YouTube",
@@ -291,7 +291,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "أخرى"
-      }
+      },
+      "deleteTitle": "إزالة من المكتبة؟",
+      "deleteWithFileTitle": "حذف ملف الوسائط أيضًا؟",
+      "deleteWithFileConfirm": "إزالة \"{{title}}\" من المكتبة وحذف ملف الوسائط من جهازك؟ لا يمكن التراجع عن هذا الإجراء.",
+      "deleteLibraryOnly": "إزالة من المكتبة فقط",
+      "deleteWithFile": "حذف ملف الوسائط أيضًا",
+      "deleteCancel": "إلغاء"
     },
     "collections": {
       "title": "المجموعات",

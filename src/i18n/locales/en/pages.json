@@ -284,7 +284,7 @@
       "copy": "Copy",
       "copied": "Copied",
       "delete": "Delete",
-      "deleteConfirm": "Remove \"{{title}}\" from history?",
+      "deleteConfirm": "Remove \"{{title}}\" from Library? The media file will stay on your device.",
       "failedToRedownload": "Failed to redownload",
       "sources": {
         "youtube": "YouTube",
@@ -294,7 +294,13 @@
         "twitter": "Twitter",
         "bilibili": "Bilibili",
         "other": "Other"
-      }
+      },
+      "deleteTitle": "Remove from Library?",
+      "deleteWithFileTitle": "Delete media file too?",
+      "deleteWithFileConfirm": "Remove \"{{title}}\" from Library and delete the media file from your device? This cannot be undone.",
+      "deleteLibraryOnly": "Remove from Library",
+      "deleteWithFile": "Delete media file too",
+      "deleteCancel": "Cancel"
     },
     "collections": {
       "title": "Collections",

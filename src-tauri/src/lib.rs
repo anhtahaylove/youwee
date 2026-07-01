@@ -371,6 +371,7 @@ pub fn run() {
             commands::add_history,
             commands::get_history,
             commands::get_history_entries_by_ids,
+            commands::find_duplicate_downloads,
             commands::delete_history,
             commands::clear_history,
             commands::get_history_count,
@@ -458,6 +459,7 @@ pub fn run() {
             // Channel commands
             commands::get_channel_videos,
             commands::get_channel_info,
+            commands::stop_channel_fetch,
             commands::follow_channel,
             commands::unfollow_channel,
             commands::get_followed_channels,

@@ -2,6 +2,7 @@ export type Quality = 'best' | '8k' | '4k' | '2k' | '1080' | '720' | '480' | '36
 export type Format = 'mp4' | 'mkv' | 'webm' | 'mp3' | 'm4a' | 'opus';
 export type VideoCodec = 'h264' | 'vp9' | 'av1' | 'auto';
 export type AudioBitrate = 'auto' | '128';
+export type PreferredFps = 'original' | '30';
 export type SubtitleMode = 'off' | 'auto' | 'manual';
 export type SubtitleFormat = 'srt' | 'vtt' | 'ass';
 export type YouTubePlayerClient = 'auto' | 'web' | 'mweb' | 'tv' | 'ios' | 'android' | 'web_safari';
@@ -65,6 +66,7 @@ export interface ItemDownloadSettings {
   downloadPlaylist?: boolean;
   playlistLimit?: number | null;
   videoCodec: VideoCodec;
+  preferredFps?: PreferredFps;
   audioBitrate: AudioBitrate;
   youtubePlayerClient: YouTubePlayerClient;
   useAria2: boolean;
@@ -96,6 +98,7 @@ export interface ItemUniversalSettings {
   organizeBySource?: boolean;
   audioBitrate: AudioBitrate;
   youtubePlayerClient: YouTubePlayerClient;
+  preferredFps?: PreferredFps;
   useAria2: boolean;
   aria2Args: string;
   timeRangeStart?: string;
@@ -199,6 +202,50 @@ export interface YoutubeSearchQueueResult {
   queuedIds: string[];
 }
 
+export type DuplicateDownloadHandling = 'ask' | 'skip' | 'allow';
+
+export type DownloadDuplicateReviewAction = 'skip' | 'add' | 'cancel';
+
+export interface DownloadDuplicateIdentity {
+  mediaId?: string | null;
+  canonicalUrl?: string | null;
+}
+
+export interface DownloadDuplicateMatch {
+  mediaId?: string | null;
+  canonicalUrl?: string | null;
+  historyId: string;
+  title: string;
+  thumbnail?: string | null;
+  filepath: string;
+  downloadedAt: string;
+  fileExists: boolean;
+}
+
+export interface DownloadDuplicateCandidate {
+  url: string;
+  title: string;
+  thumbnail?: string;
+  duplicateIdentity: DownloadDuplicateIdentity;
+}
+
+export interface DownloadDuplicateFilterOptions {
+  ask?: boolean;
+  notify?: boolean;
+}
+
+export interface DownloadDuplicateReviewItem {
+  url: string;
+  title: string;
+  thumbnail?: string;
+  duplicate: DownloadDuplicateMatch;
+}
+
+export interface DownloadDuplicateReview {
+  duplicates: DownloadDuplicateReviewItem[];
+  newCount: number;
+}
+
 export interface ExternalEnqueueResult {
   added: boolean;
   itemId: string | null;
@@ -230,6 +277,7 @@ export interface DownloadSettings {
   organizeBySource: boolean;
   downloadPlaylist: boolean;
   videoCodec: VideoCodec;
+  preferredFps: PreferredFps; // original = no FPS filter, 30 = prefer streams up to 30 FPS
   audioBitrate: AudioBitrate;
   concurrentDownloads: number; // 1-5
   playlistLimit: number; // 0 = unlimited, 1-100
@@ -248,6 +296,9 @@ export interface DownloadSettings {
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
   numberPlaylistItems: boolean; // Prefix playlist downloads with their playlist order
   numberQueueItems: boolean; // Prefix regular queued items with their queue order
+  // Download duplicate detection
+  rememberDownloadedVideos: boolean; // Check Library/history before adding duplicate downloads
+  duplicateDownloadHandling: DuplicateDownloadHandling; // Ask or skip when downloaded videos are detected
   // Live stream settings
   liveFromStart: boolean; // Download live streams from the beginning
   skipLive: boolean; // Skip live streams instead of downloading them
@@ -1222,6 +1273,7 @@ export interface FollowedChannel {
   download_threads: number; // concurrent download threads (default 1)
   download_video_codec: string; // video codec (h264, vp9, av1, auto)
   download_audio_bitrate: string; // audio bitrate (128, 192, 256, 320, auto)
+  download_preferred_fps: PreferredFps; // original, 30
   youtube_content_type: YoutubeChannelContentType;
 }
 

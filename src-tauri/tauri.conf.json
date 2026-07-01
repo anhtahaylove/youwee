@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Youwee",
-  "version": "0.18.0",
+  "version": "0.19.0",
   "identifier": "com.vanloctech.youwee",
   "build": {
     "frontendDist": "../dist",
@@ -153,7 +153,9 @@
       }
     },
     "updater": {
-      "endpoints": ["https://github.com/anhtahaylove/youwee/releases/latest/download/latest.json"],
+      "endpoints": [
+        "https://github.com/anhtahaylove/youwee-releases/releases/latest/download/latest.json"
+      ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk0MzYxNjBFRDQwMzlEM0MKUldROG5RUFVEaFkybE5laTlyUVJXczNRdmFQS1dtc3hpalA3NWw1R2VmUlBDRC9FZCtoR2dlVWcK"
     }
   }

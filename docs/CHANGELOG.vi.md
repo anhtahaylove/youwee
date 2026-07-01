@@ -7,14 +7,28 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-07-01
+
 ### Thêm mới
 - **Folder lưu từng item trong hàng đợi** - Thêm action trên item để chọn folder tải riêng cho từng lượt tải
 - **Đánh số hàng đợi và playlist** - Thêm tùy chọn prefix tên file theo thứ tự hàng đợi hoặc playlist
+- **Phát hiện tải trùng** - Kiểm tra bản ghi Library/history trước khi thêm lượt tải, với lựa chọn hỏi, bỏ qua hoặc vẫn thêm
+- **Cách xóa trong Library** - Thêm cài đặt chỉ xóa bản ghi Library hoặc xóa cả file media
+- **Ưu tiên tải 30 FPS** - Thêm tùy chọn ưu tiên 30 FPS cho Download, Universal Download và Channels
+- **Nút xóa ô nhập** - Thêm nút xóa nhanh cho ô URL ở Download, Universal Download và Gallery
+
+### Thay đổi
+- **Tải dữ liệu kênh** - Thêm action dừng fetch và tránh fetch lại không cần thiết khi quay lại kênh vừa duyệt
+- **Đổi folder hàng đợi** - Hỏi xác nhận trước khi áp dụng folder tải global mới cho các item đang chờ
+- **Link release custom** - Giữ updater, link tải extension và link GitHub trong app ở kênh custom `anhtahaylove/youwee`
 
 ### Sửa lỗi
 - **Profile xác thực Firefox** - Dùng đúng thư mục profile Firefox thực tế khi truyền profile đã phát hiện cho yt-dlp
 - **Bộ lọc match của yt-dlp** - Xem lượt tải bị yt-dlp match filter bỏ qua là lỗi skipped không cần retry
 - **Popup AI Summary trong extension** - Mở Summary qua content script của tab hiện tại trước, có fallback bằng deep link trực tiếp
+- **Deep link extension khi app chưa mở** - Giữ link tải đang chờ từ extension khi Youwee được mở từ trạng thái chưa chạy
+- **Danh sách đánh số trong AI Summary** - Giữ thứ tự đánh số liên tục khi render summary đã lưu
+- **Icon trong Settings** - Giữ kích thước Font Awesome icon đồng bộ với chữ bên cạnh
 
 ## [0.18.0] - 2026-06-29
 

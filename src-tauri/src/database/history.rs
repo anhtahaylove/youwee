@@ -2,8 +2,9 @@ use std::collections::HashMap;
 
 use super::get_db;
 use crate::types::{
-    HistoryAdvancedFilters, HistoryCollection, HistoryEntry, HistoryFilterMatchMode,
-    HistoryMediaType, HistorySearchScope, HistorySort, HistoryTag,
+    DownloadDuplicateIdentity, DownloadDuplicateMatch, HistoryAdvancedFilters, HistoryCollection,
+    HistoryEntry, HistoryFilterMatchMode, HistoryMediaType, HistorySearchScope, HistorySort,
+    HistoryTag,
 };
 use chrono::Utc;
 use rusqlite::{params, params_from_iter, types::Value, Connection};
@@ -111,6 +112,150 @@ fn normalize_quality(value: &str) -> String {
     } else {
         lower
     }
+}
+
+fn extract_youtube_video_id(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    let host = parsed.host_str()?.trim_start_matches("www.").to_lowercase();
+
+    if host == "youtu.be" {
+        return parsed
+            .path_segments()
+            .and_then(|mut segments| segments.next())
+            .filter(|id| !id.is_empty())
+            .map(ToString::to_string);
+    }
+
+    if host == "youtube.com" || host.ends_with(".youtube.com") {
+        if parsed.path() == "/watch" {
+            return parsed
+                .query_pairs()
+                .find(|(key, _)| key == "v")
+                .map(|(_, value)| value.into_owned())
+                .filter(|id| !id.is_empty());
+        }
+
+        let mut segments = parsed.path_segments()?;
+        match segments.next() {
+            Some("shorts" | "embed" | "live") => segments
+                .next()
+                .filter(|id| !id.is_empty())
+                .map(ToString::to_string),
+            _ => None,
+        }
+    } else {
+        None
+    }
+}
+
+fn canonicalize_download_url(url: &str) -> String {
+    let trimmed = url.trim();
+    if let Some(video_id) = extract_youtube_video_id(trimmed) {
+        return format!("https://www.youtube.com/watch?v={video_id}");
+    }
+
+    let Ok(mut parsed) = reqwest::Url::parse(trimmed) else {
+        return trimmed.to_string();
+    };
+
+    parsed.set_fragment(None);
+    parsed.to_string()
+}
+
+fn build_download_media_id(url: &str, _source: Option<&str>) -> Option<String> {
+    if let Some(video_id) = extract_youtube_video_id(url) {
+        return Some(format!("youtube:{video_id}"));
+    }
+
+    None
+}
+
+fn build_history_identity(url: &str, source: Option<&str>) -> (Option<String>, String) {
+    (
+        build_download_media_id(url, source),
+        canonicalize_download_url(url),
+    )
+}
+
+fn duplicate_match_from_values(
+    history_id: String,
+    title: String,
+    thumbnail: Option<String>,
+    filepath: String,
+    downloaded_at: i64,
+    media_id: Option<String>,
+    canonical_url: Option<String>,
+) -> DownloadDuplicateMatch {
+    let downloaded_at = chrono::DateTime::from_timestamp(downloaded_at, 0)
+        .map(|date| date.to_rfc3339())
+        .unwrap_or_default();
+
+    DownloadDuplicateMatch {
+        history_id,
+        title,
+        thumbnail,
+        file_exists: std::path::Path::new(&filepath).exists(),
+        filepath,
+        downloaded_at,
+        media_id,
+        canonical_url,
+    }
+}
+
+fn find_legacy_duplicate_download(
+    conn: &Connection,
+    media_id: Option<&str>,
+    canonical_url: Option<&str>,
+) -> Result<Option<DownloadDuplicateMatch>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, title, thumbnail, filepath, downloaded_at, url, source
+             FROM history
+             WHERE media_id IS NULL OR canonical_url IS NULL
+             ORDER BY downloaded_at DESC",
+        )
+        .map_err(|e| format!("Failed to prepare legacy duplicate lookup: {}", e))?;
+
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| format!("Failed to query legacy duplicate lookup: {}", e))?;
+
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| format!("Failed to read legacy duplicate lookup: {}", e))?
+    {
+        let url: String = row
+            .get(5)
+            .map_err(|e| format!("Failed to read legacy duplicate URL: {}", e))?;
+        let source: Option<String> = row
+            .get(6)
+            .map_err(|e| format!("Failed to read legacy duplicate source: {}", e))?;
+        let (row_media_id, row_canonical_url) = build_history_identity(&url, source.as_deref());
+        let media_id_matches = media_id
+            .zip(row_media_id.as_deref())
+            .is_some_and(|(expected, actual)| expected == actual);
+        let canonical_url_matches =
+            canonical_url.is_some_and(|expected| expected == row_canonical_url);
+
+        if media_id_matches || canonical_url_matches {
+            return Ok(Some(duplicate_match_from_values(
+                row.get(0)
+                    .map_err(|e| format!("Failed to read legacy duplicate id: {}", e))?,
+                row.get(1)
+                    .map_err(|e| format!("Failed to read legacy duplicate title: {}", e))?,
+                row.get(2)
+                    .map_err(|e| format!("Failed to read legacy duplicate thumbnail: {}", e))?,
+                row.get(3)
+                    .map_err(|e| format!("Failed to read legacy duplicate filepath: {}", e))?,
+                row.get(4)
+                    .map_err(|e| format!("Failed to read legacy duplicate date: {}", e))?,
+                row_media_id,
+                Some(row_canonical_url),
+            )));
+        }
+    }
+
+    Ok(None)
 }
 
 fn history_search_fts_available(conn: &Connection) -> bool {
@@ -479,21 +624,30 @@ pub fn add_history_internal(
     let conn = get_db()?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
-
-    let max_entries: i64 = 500;
+    let (media_id, canonical_url) = build_history_identity(&url, source.as_deref());
 
     conn.execute(
-        "INSERT OR REPLACE INTO history (id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, time_range)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-        params![id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, now, time_range],
+        "INSERT OR REPLACE INTO history (id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, time_range, media_id, canonical_url)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+        params![
+            id,
+            url,
+            title,
+            thumbnail,
+            filepath,
+            filesize,
+            duration,
+            quality,
+            format,
+            source,
+            now,
+            time_range,
+            media_id,
+            canonical_url
+        ],
     )
     .map_err(|e| format!("Failed to add history: {}", e))?;
 
-    conn.execute(
-        "DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY downloaded_at DESC LIMIT ?1)",
-        params![max_entries],
-    )
-    .ok();
     conn.execute(
         "DELETE FROM history_tags WHERE history_id NOT IN (SELECT id FROM history)",
         [],
@@ -544,6 +698,68 @@ pub fn update_history_download(
     )
     .map_err(|e| format!("Failed to update history: {}", e))?;
     Ok(())
+}
+
+pub fn find_duplicate_downloads_in_history_db(
+    identities: Vec<DownloadDuplicateIdentity>,
+) -> Result<Vec<DownloadDuplicateMatch>, String> {
+    let conn = get_db()?;
+    let mut matches = Vec::new();
+
+    for identity in identities {
+        let media_id = identity
+            .media_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty());
+        let canonical_url = identity
+            .canonical_url
+            .as_deref()
+            .map(canonicalize_download_url)
+            .filter(|value| !value.is_empty());
+
+        if media_id.is_none() && canonical_url.is_none() {
+            continue;
+        }
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, title, thumbnail, filepath, downloaded_at, media_id, canonical_url
+                 FROM history
+                 WHERE (?1 IS NOT NULL AND media_id = ?1)
+                    OR (?2 IS NOT NULL AND canonical_url = ?2)
+                 ORDER BY downloaded_at DESC
+                 LIMIT 1",
+            )
+            .map_err(|e| format!("Failed to prepare duplicate lookup: {}", e))?;
+
+        let row = stmt.query_row(params![media_id, canonical_url.as_deref()], |row| {
+            let filepath: String = row.get(3)?;
+            Ok(duplicate_match_from_values(
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                filepath,
+                row.get(4)?,
+                row.get(5)?,
+                row.get(6)?,
+            ))
+        });
+
+        match row {
+            Ok(item) => matches.push(item),
+            Err(rusqlite::Error::QueryReturnedNoRows) => {
+                if let Some(item) =
+                    find_legacy_duplicate_download(&conn, media_id, canonical_url.as_deref())?
+                {
+                    matches.push(item);
+                }
+            }
+            Err(error) => return Err(format!("Failed to lookup duplicate download: {}", error)),
+        }
+    }
+
+    Ok(matches)
 }
 
 pub fn update_history_filepath_and_title(
@@ -615,8 +831,8 @@ pub fn get_history_from_db(
 ) -> Result<Vec<HistoryEntry>, String> {
     let conn = get_db()?;
 
-    let limit = limit.unwrap_or(50).min(500);
-    let offset = offset.unwrap_or(0);
+    let limit = limit.filter(|value| *value > 0);
+    let offset = offset.unwrap_or(0).max(0);
     let trimmed_search = search.as_deref().map(str::trim).filter(|s| !s.is_empty());
     let search_scope = filters
         .as_ref()
@@ -665,9 +881,11 @@ pub fn get_history_from_db(
         HistorySort::Title => query.push_str(" ORDER BY LOWER(h.title) ASC"),
         HistorySort::Size => query.push_str(" ORDER BY h.filesize IS NULL ASC, h.filesize DESC"),
     }
-    query.push_str(" LIMIT ? OFFSET ?");
-    query_params.push(Value::from(limit));
-    query_params.push(Value::from(offset));
+    if let Some(limit) = limit {
+        query.push_str(" LIMIT ? OFFSET ?");
+        query_params.push(Value::from(limit));
+        query_params.push(Value::from(offset));
+    }
 
     let mut stmt = conn
         .prepare(&query)
@@ -1059,7 +1277,9 @@ mod tests {
                 source TEXT,
                 downloaded_at INTEGER NOT NULL,
                 summary TEXT,
-                time_range TEXT
+                time_range TEXT,
+                media_id TEXT,
+                canonical_url TEXT
             );
             CREATE TABLE IF NOT EXISTS tags (
                 id TEXT PRIMARY KEY,
@@ -1106,6 +1326,10 @@ mod tests {
             END;",
         )
         .expect("create tables");
+        conn.execute("ALTER TABLE history ADD COLUMN media_id TEXT", [])
+            .ok();
+        conn.execute("ALTER TABLE history ADD COLUMN canonical_url TEXT", [])
+            .ok();
         conn.execute("DELETE FROM history_search_fts", [])
             .expect("clear history search");
         conn.execute("DELETE FROM history_tags", [])
@@ -1339,6 +1563,124 @@ mod tests {
         .expect("search metadata");
         assert_eq!(metadata_result.len(), 1);
         assert_eq!(metadata_result[0].id, title_id);
+    }
+
+    #[test]
+    fn add_history_keeps_more_than_legacy_500_entries() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+
+        for index in 0..501 {
+            add_history_internal(
+                format!("https://www.youtube.com/watch?v=keep{index}"),
+                format!("Video {index}"),
+                None,
+                format!("/tmp/keep-{index}.mp4"),
+                None,
+                None,
+                Some("1080p".to_string()),
+                Some("mp4".to_string()),
+                Some("youtube".to_string()),
+                None,
+            )
+            .expect("add history");
+        }
+
+        let conn = get_db().expect("get db");
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM history", [], |row| row.get(0))
+            .expect("count history");
+        assert_eq!(count, 501);
+    }
+
+    #[test]
+    fn duplicate_download_lookup_matches_media_id_and_canonical_url() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        let media_id = uuid::Uuid::new_v4().to_string();
+        let canonical_id = uuid::Uuid::new_v4().to_string();
+        let legacy_id = uuid::Uuid::new_v4().to_string();
+
+        let conn = get_db().expect("get db");
+        conn.execute(
+            "INSERT INTO history (id, url, title, thumbnail, filepath, source, downloaded_at, media_id, canonical_url)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            params![
+                media_id,
+                "https://www.youtube.com/watch?v=abc123",
+                "Existing by ID",
+                "https://img.example.com/abc123.jpg",
+                "/tmp/id.mp4",
+                "youtube",
+                1_i64,
+                "youtube:abc123",
+                "https://www.youtube.com/watch?v=abc123"
+            ],
+        )
+        .expect("insert media id history");
+        conn.execute(
+            "INSERT INTO history (id, url, title, filepath, source, downloaded_at, media_id, canonical_url)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                canonical_id,
+                "https://example.com/watch/456",
+                "Existing by URL",
+                "/tmp/url.mp4",
+                "other",
+                2_i64,
+                Option::<String>::None,
+                "https://example.com/watch/456"
+            ],
+        )
+        .expect("insert canonical history");
+        conn.execute(
+            "INSERT INTO history (id, url, title, filepath, source, downloaded_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                legacy_id,
+                "https://youtu.be/legacy123?si=abc",
+                "Existing legacy URL",
+                "/tmp/legacy.mp4",
+                "youtube",
+                3_i64,
+            ],
+        )
+        .expect("insert legacy history");
+        drop(conn);
+
+        let matches = find_duplicate_downloads_in_history_db(vec![
+            DownloadDuplicateIdentity {
+                media_id: Some("youtube:abc123".to_string()),
+                canonical_url: Some("https://www.youtube.com/watch?v=abc123&list=PL".to_string()),
+            },
+            DownloadDuplicateIdentity {
+                media_id: None,
+                canonical_url: Some("https://example.com/watch/456".to_string()),
+            },
+            DownloadDuplicateIdentity {
+                media_id: Some("youtube:legacy123".to_string()),
+                canonical_url: Some("https://www.youtube.com/watch?v=legacy123".to_string()),
+            },
+            DownloadDuplicateIdentity {
+                media_id: Some("youtube:not-downloaded".to_string()),
+                canonical_url: None,
+            },
+        ])
+        .expect("find duplicates");
+
+        assert_eq!(matches.len(), 3);
+        assert_eq!(matches[0].title, "Existing by ID");
+        assert_eq!(
+            matches[0].thumbnail.as_deref(),
+            Some("https://img.example.com/abc123.jpg")
+        );
+        assert_eq!(matches[1].title, "Existing by URL");
+        assert_eq!(matches[2].history_id, legacy_id);
+        assert_eq!(matches[2].title, "Existing legacy URL");
+        assert_eq!(
+            matches[2].canonical_url.as_deref(),
+            Some("https://www.youtube.com/watch?v=legacy123")
+        );
     }
 
     #[test]

@@ -8,6 +8,7 @@ import {
   Loader2,
   Plus,
   Search,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -227,6 +228,13 @@ export function UrlInput({
     setValue(newValue);
   };
 
+  const handleClearSingleInput = () => {
+    setValue('');
+    setShowPreview(false);
+    setPreviewUrl(null);
+    inputRef.current?.focus();
+  };
+
   const setMode = (nextMode: UrlInputMode) => {
     setModeState(nextMode);
     // Focus appropriate input after toggle
@@ -358,16 +366,23 @@ export function UrlInput({
                 onKeyDown={handleKeyDown}
                 disabled={disabled}
                 className={cn(
-                  'pl-10 pr-20 h-11 text-sm',
+                  'pl-10 pr-11 h-11 text-sm',
                   'bg-background/50 border-border/50',
                   'focus:bg-background transition-colors',
                   'placeholder:text-muted-foreground/50',
                 )}
               />
-              {urlCount > 0 && (
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                  {urlCount} URL{urlCount !== 1 ? 's' : ''}
-                </span>
+              {value && (
+                <button
+                  type="button"
+                  onClick={handleClearSingleInput}
+                  disabled={disabled}
+                  className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  title={t('urlInput.clearInput')}
+                  aria-label={t('urlInput.clearInput')}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
               )}
             </div>
             <button
@@ -476,6 +491,14 @@ export function UrlInput({
             <div className="rounded-lg bg-muted/50 border border-border/60 px-3 py-2.5">
               <p className="text-sm font-medium">{t('urlInput.guideFfmpegTitle')}</p>
               <p className="text-sm text-muted-foreground mt-1">{t('urlInput.guideFfmpegText')}</p>
+            </div>
+            <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2.5">
+              <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                {t('urlInput.guidePreferredFpsTitle')}
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {t('urlInput.guidePreferredFpsText')}
+              </p>
             </div>
           </div>
 

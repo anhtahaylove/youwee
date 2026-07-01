@@ -38,6 +38,26 @@ pub struct HistoryEntry {
     pub collections: Vec<HistoryCollection>,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadDuplicateIdentity {
+    pub media_id: Option<String>,
+    pub canonical_url: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadDuplicateMatch {
+    pub media_id: Option<String>,
+    pub canonical_url: Option<String>,
+    pub history_id: String,
+    pub title: String,
+    pub thumbnail: Option<String>,
+    pub filepath: String,
+    pub downloaded_at: String,
+    pub file_exists: bool,
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum HistorySort {

@@ -197,7 +197,7 @@ function AboutSettingsContent({
   const { mode } = useTheme();
   const [copied, setCopied] = useState(false);
 
-  const appUrl = 'https://github.com/vanloctech/youwee';
+  const appUrl = 'https://github.com/anhtahaylove/youwee';
   const websiteUrl = 'https://youwee.app';
   const docsUrl = 'https://youwee.app/docs';
   const buyMeACoffeeUrl = 'https://buymeacoffee.com/vanloctech';
@@ -395,7 +395,7 @@ function AboutSettingsContent({
                 {t('about.docs')}
               </a>
               <a
-                href="https://github.com/vanloctech/youwee/blob/main/LICENSE"
+                href="https://github.com/anhtahaylove/youwee/blob/main/LICENSE"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 hover:bg-background text-xs font-medium transition-all hover:shadow-sm"
@@ -404,7 +404,7 @@ function AboutSettingsContent({
                 {t('about.license')}
               </a>
               <a
-                href="https://github.com/vanloctech/youwee/issues"
+                href="https://github.com/anhtahaylove/youwee/issues"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 hover:bg-background text-xs font-medium transition-all hover:shadow-sm"
@@ -459,7 +459,7 @@ function AboutSettingsContent({
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <a
-                href="https://github.com/vanloctech/youwee"
+                href="https://github.com/anhtahaylove/youwee"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/60 hover:bg-background text-xs font-medium transition-all hover:shadow-sm"
@@ -580,12 +580,12 @@ function AboutSettingsContent({
           <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500 animate-pulse" />
           <span className="text-xs text-muted-foreground">{t('about.by')}</span>
           <a
-            href="https://github.com/vanloctech"
+            href="https://github.com/anhtahaylove"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm font-bold gradient-text hover:opacity-80 transition-opacity"
           >
-            vanloctech
+            anhtahaylove
           </a>
         </div>
 
