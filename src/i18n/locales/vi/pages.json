@@ -268,6 +268,10 @@
       "showLess": "Thu gọn",
       "copySummary": "Sao chép tóm tắt",
       "regenerateSummary": "Tạo lại tóm tắt",
+      "fontSize": "Cỡ chữ",
+      "decreaseFontSize": "Giảm cỡ chữ",
+      "resetFontSize": "Đặt lại cỡ chữ",
+      "increaseFontSize": "Tăng cỡ chữ",
       "generateAiSummary": "Tạo tóm tắt AI",
       "fetchingTranscript": "Đang lấy phụ đề...",
       "generatingSummary": "Đang tạo tóm tắt...",
@@ -300,7 +304,8 @@
       "deleteWithFileConfirm": "Xóa \"{{title}}\" khỏi Thư viện và xóa file media khỏi máy của bạn? Thao tác này không thể hoàn tác.",
       "deleteLibraryOnly": "Chỉ xóa khỏi Thư viện",
       "deleteWithFile": "Xóa luôn file media",
-      "deleteCancel": "Hủy"
+      "deleteCancel": "Hủy",
+      "split": "Tách"
     },
     "collections": {
       "title": "Bộ sưu tập",
@@ -336,6 +341,31 @@
       "errors": {
         "save": "Lưu tag hoặc bộ sưu tập thất bại"
       }
+    },
+    "split": {
+      "title": "Tách thành các đoạn",
+      "loading": "Đang đọc thời lượng media...",
+      "duration": "Thời lượng {{duration}}",
+      "durationUnknown": "Không đọc được thời lượng",
+      "segmentCount": "{{count}} đoạn",
+      "timeline": "Timeline",
+      "timelineHint": "Bấm vào timeline để thêm điểm cắt, hoặc dùng preset nhanh.",
+      "everyMinutes": "Mỗi {{minutes}} phút",
+      "clearCuts": "Xóa điểm cắt",
+      "removeCut": "Xóa điểm cắt tại {{time}}",
+      "removeSegment": "Xóa đoạn",
+      "segmentNamePlaceholder": "Tên đoạn",
+      "ffmpegRequiredTitle": "Cần FFmpeg",
+      "ffmpegRequiredDesc": "Cài FFmpeg trong Settings trước khi tách file media.",
+      "ffmpegMissing": "Cần FFmpeg để tách file media.",
+      "durationUnavailable": "Không đọc được thời lượng hợp lệ của file này.",
+      "cancel": "Hủy",
+      "splitFiles": "Tách file",
+      "splitting": "Đang tách...",
+      "successTitle": "Đã tạo các đoạn",
+      "successMessage": "Đã tạo {{count}} file đoạn và thêm vào Thư viện.",
+      "deleteOriginal": "Xóa file gốc sau khi tách",
+      "deleteOriginalDesc": "Item gốc trong Thư viện vẫn được giữ, nhưng file media gốc sẽ bị xóa khỏi máy."
     }
   },
   "player": {

@@ -268,6 +268,10 @@
       "showLess": "收起",
       "copySummary": "复制摘要",
       "regenerateSummary": "重新生成摘要",
+      "fontSize": "字号",
+      "decreaseFontSize": "减小字号",
+      "resetFontSize": "重置字号",
+      "increaseFontSize": "增大字号",
       "generateAiSummary": "生成 AI 摘要",
       "fetchingTranscript": "获取字幕中...",
       "generatingSummary": "生成摘要中...",
@@ -300,7 +304,8 @@
       "deleteWithFileConfirm": "从资料库移除“{{title}}”并删除设备上的媒体文件？此操作无法撤销。",
       "deleteLibraryOnly": "仅从资料库移除",
       "deleteWithFile": "同时删除媒体文件",
-      "deleteCancel": "取消"
+      "deleteCancel": "取消",
+      "split": "拆分"
     },
     "collections": {
       "title": "合集",
@@ -336,6 +341,31 @@
       "errors": {
         "save": "保存标签或合集失败"
       }
+    },
+    "split": {
+      "title": "拆分为片段",
+      "loading": "正在读取媒体时长...",
+      "duration": "时长 {{duration}}",
+      "durationUnknown": "无法读取时长",
+      "segmentCount": "{{count}} 个片段",
+      "timeline": "时间线",
+      "timelineHint": "点击时间线添加切点，或使用快速预设。",
+      "everyMinutes": "每 {{minutes}} 分钟",
+      "clearCuts": "清除切点",
+      "removeCut": "移除 {{time}} 的切点",
+      "removeSegment": "移除片段",
+      "segmentNamePlaceholder": "片段名称",
+      "ffmpegRequiredTitle": "需要 FFmpeg",
+      "ffmpegRequiredDesc": "请先在设置中安装 FFmpeg，然后再拆分媒体文件。",
+      "ffmpegMissing": "拆分媒体文件需要 FFmpeg。",
+      "durationUnavailable": "无法读取此文件的有效时长。",
+      "cancel": "取消",
+      "splitFiles": "拆分文件",
+      "splitting": "正在拆分...",
+      "successTitle": "片段已创建",
+      "successMessage": "已创建 {{count}} 个片段文件并添加到资料库。",
+      "deleteOriginal": "拆分后删除原始文件",
+      "deleteOriginalDesc": "原资料库项目会保留，但设备上的原始媒体文件会被删除。"
     }
   },
   "player": {

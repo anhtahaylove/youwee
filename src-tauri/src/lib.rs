@@ -393,6 +393,7 @@ pub fn run() {
             commands::sync_history_renamed_entry,
             commands::update_summary,
             commands::add_summary_only_history,
+            commands::split_media_segments,
             commands::open_macos_privacy_settings,
             // AI commands
             commands::save_ai_config,

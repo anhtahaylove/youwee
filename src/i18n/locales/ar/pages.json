@@ -265,6 +265,10 @@
       "showLess": "عرض أقل",
       "copySummary": "نسخ الملخص",
       "regenerateSummary": "إعادة إنشاء الملخص",
+      "fontSize": "حجم النص",
+      "decreaseFontSize": "تصغير حجم النص",
+      "resetFontSize": "إعادة ضبط حجم النص",
+      "increaseFontSize": "تكبير حجم النص",
       "generateAiSummary": "إنشاء ملخص بالذكاء الاصطناعي",
       "fetchingTranscript": "جارٍ جلب النص التفريغي...",
       "generatingSummary": "جارٍ إنشاء الملخص...",
@@ -297,7 +301,8 @@
       "deleteWithFileConfirm": "إزالة \"{{title}}\" من المكتبة وحذف ملف الوسائط من جهازك؟ لا يمكن التراجع عن هذا الإجراء.",
       "deleteLibraryOnly": "إزالة من المكتبة فقط",
       "deleteWithFile": "حذف ملف الوسائط أيضًا",
-      "deleteCancel": "إلغاء"
+      "deleteCancel": "إلغاء",
+      "split": "تقسيم"
     },
     "collections": {
       "title": "المجموعات",
@@ -333,6 +338,31 @@
       "errors": {
         "save": "فشل حفظ الوسوم أو المجموعات"
       }
+    },
+    "split": {
+      "title": "تقسيم إلى مقاطع",
+      "loading": "جارٍ قراءة مدة الوسائط...",
+      "duration": "المدة {{duration}}",
+      "durationUnknown": "المدة غير متاحة",
+      "segmentCount": "{{count}} مقطع",
+      "timeline": "الخط الزمني",
+      "timelineHint": "انقر على الخط الزمني لإضافة نقاط قص، أو استخدم إعدادًا سريعًا.",
+      "everyMinutes": "كل {{minutes}} دقائق",
+      "clearCuts": "مسح نقاط القص",
+      "removeCut": "إزالة نقطة القص عند {{time}}",
+      "removeSegment": "إزالة المقطع",
+      "segmentNamePlaceholder": "اسم المقطع",
+      "ffmpegRequiredTitle": "يتطلب FFmpeg",
+      "ffmpegRequiredDesc": "ثبّت FFmpeg من الإعدادات قبل تقسيم ملفات الوسائط.",
+      "ffmpegMissing": "يتطلب تقسيم ملفات الوسائط FFmpeg.",
+      "durationUnavailable": "تعذر قراءة مدة صالحة لهذا الملف.",
+      "cancel": "إلغاء",
+      "splitFiles": "تقسيم الملفات",
+      "splitting": "جارٍ التقسيم...",
+      "successTitle": "تم إنشاء المقاطع",
+      "successMessage": "تم إنشاء {{count}} ملف مقطع وإضافتها إلى المكتبة.",
+      "deleteOriginal": "حذف الملف الأصلي بعد التقسيم",
+      "deleteOriginalDesc": "سيبقى عنصر المكتبة الأصلي، لكن ملف الوسائط الأصلي سيُحذف من جهازك."
     }
   },
   "player": {

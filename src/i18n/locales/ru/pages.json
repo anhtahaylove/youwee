@@ -265,6 +265,10 @@
       "showLess": "Показать меньше",
       "copySummary": "Копировать сводку",
       "regenerateSummary": "Пересоздать сводку",
+      "fontSize": "Размер текста",
+      "decreaseFontSize": "Уменьшить размер текста",
+      "resetFontSize": "Сбросить размер текста",
+      "increaseFontSize": "Увеличить размер текста",
       "generateAiSummary": "Создать ИИ-сводку",
       "fetchingTranscript": "Получение транскрипции...",
       "generatingSummary": "Создание сводки...",
@@ -297,7 +301,8 @@
       "deleteWithFileConfirm": "Удалить \"{{title}}\" из библиотеки и удалить медиафайл с устройства? Это действие нельзя отменить.",
       "deleteLibraryOnly": "Удалить из библиотеки",
       "deleteWithFile": "Также удалить медиафайл",
-      "deleteCancel": "Отмена"
+      "deleteCancel": "Отмена",
+      "split": "Разделить"
     },
     "collections": {
       "title": "Коллекции",
@@ -333,6 +338,31 @@
       "errors": {
         "save": "Не удалось сохранить теги или коллекции"
       }
+    },
+    "split": {
+      "title": "Разделить на сегменты",
+      "loading": "Чтение длительности медиа...",
+      "duration": "Длительность {{duration}}",
+      "durationUnknown": "Длительность недоступна",
+      "segmentCount": "{{count}} сегмент(ов)",
+      "timeline": "Таймлайн",
+      "timelineHint": "Нажмите на таймлайн, чтобы добавить точки разреза, или используйте быстрый пресет.",
+      "everyMinutes": "Каждые {{minutes}} мин",
+      "clearCuts": "Очистить разрезы",
+      "removeCut": "Удалить разрез на {{time}}",
+      "removeSegment": "Удалить сегмент",
+      "segmentNamePlaceholder": "Название сегмента",
+      "ffmpegRequiredTitle": "Требуется FFmpeg",
+      "ffmpegRequiredDesc": "Установите FFmpeg в настройках перед разделением медиафайлов.",
+      "ffmpegMissing": "Для разделения медиафайлов требуется FFmpeg.",
+      "durationUnavailable": "Не удалось прочитать длительность этого файла.",
+      "cancel": "Отмена",
+      "splitFiles": "Разделить файлы",
+      "splitting": "Разделение...",
+      "successTitle": "Сегменты созданы",
+      "successMessage": "Создано {{count}} файл(ов) сегментов и добавлено в библиотеку.",
+      "deleteOriginal": "Удалить исходный файл после разделения",
+      "deleteOriginalDesc": "Исходный элемент останется в библиотеке, но медиафайл будет удален с устройства."
     }
   },
   "player": {

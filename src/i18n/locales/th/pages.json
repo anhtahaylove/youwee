@@ -265,6 +265,10 @@
       "showLess": "แสดงน้อยลง",
       "copySummary": "คัดลอกสรุป",
       "regenerateSummary": "สร้างสรุปใหม่",
+      "fontSize": "ขนาดตัวอักษร",
+      "decreaseFontSize": "ลดขนาดตัวอักษร",
+      "resetFontSize": "รีเซ็ตขนาดตัวอักษร",
+      "increaseFontSize": "เพิ่มขนาดตัวอักษร",
       "generateAiSummary": "สร้างสรุปด้วย AI",
       "fetchingTranscript": "กำลังดึงทรานสคริปต์...",
       "generatingSummary": "กำลังสร้างสรุป...",
@@ -297,7 +301,8 @@
       "deleteWithFileConfirm": "ลบ \"{{title}}\" ออกจากคลังและลบไฟล์สื่อออกจากเครื่องของคุณหรือไม่ การดำเนินการนี้ย้อนกลับไม่ได้",
       "deleteLibraryOnly": "ลบออกจากคลังเท่านั้น",
       "deleteWithFile": "ลบไฟล์สื่อด้วย",
-      "deleteCancel": "ยกเลิก"
+      "deleteCancel": "ยกเลิก",
+      "split": "แยก"
     },
     "collections": {
       "title": "คอลเลกชัน",
@@ -333,6 +338,31 @@
       "errors": {
         "save": "บันทึกแท็กหรือคอลเลกชันไม่สำเร็จ"
       }
+    },
+    "split": {
+      "title": "แยกเป็นช่วง",
+      "loading": "กำลังอ่านความยาวสื่อ...",
+      "duration": "ความยาว {{duration}}",
+      "durationUnknown": "ไม่พบความยาว",
+      "segmentCount": "{{count}} ช่วง",
+      "timeline": "ไทม์ไลน์",
+      "timelineHint": "คลิกไทม์ไลน์เพื่อเพิ่มจุดตัด หรือใช้ preset ด่วน",
+      "everyMinutes": "ทุก {{minutes}} นาที",
+      "clearCuts": "ล้างจุดตัด",
+      "removeCut": "ลบจุดตัดที่ {{time}}",
+      "removeSegment": "ลบช่วง",
+      "segmentNamePlaceholder": "ชื่อช่วง",
+      "ffmpegRequiredTitle": "ต้องใช้ FFmpeg",
+      "ffmpegRequiredDesc": "ติดตั้ง FFmpeg ใน Settings ก่อนแยกไฟล์สื่อ",
+      "ffmpegMissing": "ต้องใช้ FFmpeg เพื่อแยกไฟล์สื่อ",
+      "durationUnavailable": "ไม่สามารถอ่านความยาวที่ใช้ได้ของไฟล์นี้",
+      "cancel": "ยกเลิก",
+      "splitFiles": "แยกไฟล์",
+      "splitting": "กำลังแยก...",
+      "successTitle": "สร้างช่วงแล้ว",
+      "successMessage": "สร้างไฟล์ช่วง {{count}} ไฟล์และเพิ่มลง Library แล้ว",
+      "deleteOriginal": "ลบไฟล์ต้นฉบับหลังแยก",
+      "deleteOriginalDesc": "รายการต้นฉบับใน Library จะยังอยู่ แต่ไฟล์สื่อต้นฉบับจะถูกลบออกจากเครื่อง"
     }
   },
   "player": {

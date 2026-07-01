@@ -1,8 +1,6 @@
 import {
   AlertCircle,
   Check,
-  ChevronDown,
-  ChevronUp,
   Clock,
   Copy,
   Download,
@@ -24,7 +22,9 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CollectionManagerDialog } from '@/components/history/CollectionManagerDialog';
+import { HistorySummaryDialog } from '@/components/history/HistorySummaryDialog';
 import { HistoryTagsCollectionsDialog } from '@/components/history/HistoryTagsCollectionsDialog';
+import { SplitMediaDialog } from '@/components/media/SplitMediaDialog';
 import { FaIcon } from '@/components/shared/FaIcon';
 import {
   AlertDialog,
@@ -36,8 +36,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { SimpleMarkdown } from '@/components/ui/simple-markdown';
 import { useAI } from '@/contexts/AIContext';
+import { useDependencies } from '@/contexts/DependenciesContext';
 import { useHistory } from '@/contexts/HistoryContext';
 import { usePlayer } from '@/contexts/PlayerContext';
 import { normalizeThumbnailUrl } from '@/lib/asset-access';
@@ -102,8 +102,10 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     redownload,
     getRedownloadTask,
     setAdvancedFilters,
+    refreshHistory,
   } = useHistory();
   const ai = useAI();
+  const { ffmpegStatus } = useDependencies();
   const { currentEntry, isPlaying, playFrom, togglePlay } = usePlayer();
   const [isDeleting, setIsDeleting] = useState(false);
   const [redownloadError, setRedownloadError] = useState<string | null>(null);
@@ -111,13 +113,14 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const [copied, setCopied] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [localSummary, setLocalSummary] = useState<string | undefined>(entry.summary);
-  const [showFullSummary, setShowFullSummary] = useState(false);
   const [thumbError, setThumbError] = useState(false);
   const [thumbLoaded, setThumbLoaded] = useState(false);
   const [isRenameEditorOpen, setIsRenameEditorOpen] = useState(false);
   const [isTaggingDialogOpen, setIsTaggingDialogOpen] = useState(false);
   const [isCollectionsManagerOpen, setIsCollectionsManagerOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isSummaryDialogOpen, setIsSummaryDialogOpen] = useState(false);
+  const [isSplitDialogOpen, setIsSplitDialogOpen] = useState(false);
   const [deleteFileBehavior, setDeleteFileBehavior] = useState<LibraryDeleteFileBehavior>('ask');
   const [renameName, setRenameName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
@@ -135,18 +138,14 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const isCurrentAudio = currentEntry?.id === entry.id;
   const isActivePlayback = isCurrentAudio && isPlaying;
   const thumbnailUrl = normalizeThumbnailUrl(entry.thumbnail);
-  const shouldDeferSummaryMarkdown = localSummary
-    ? !showFullSummary && localSummary.length > 200
-    : false;
   const summaryPreview = useMemo(
-    () => (localSummary && shouldDeferSummaryMarkdown ? createSummaryPreview(localSummary) : ''),
-    [localSummary, shouldDeferSummaryMarkdown],
+    () => (localSummary ? createSummaryPreview(localSummary) : ''),
+    [localSummary],
   );
 
   // Reset local summary when entry changes (important for component reuse)
   useEffect(() => {
     setLocalSummary(entry.summary);
-    setShowFullSummary(false);
   }, [entry.summary]);
 
   useEffect(() => {
@@ -166,6 +165,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   // Don't show AI errors if AI is disabled (user didn't explicitly use AI)
   const summaryError = aiEnabled && task?.status === 'error' ? task.error : null;
   const canDeleteMediaFile = Boolean(entry.file_exists && entry.filepath.trim());
+  const canSplitMedia = canDeleteMediaFile && !isDataExport;
 
   // Update local summary when task completes
   useEffect(() => {
@@ -448,37 +448,18 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                   <div className="flex items-start gap-2">
                     <Sparkles className="w-3.5 h-3.5 text-purple-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <div
-                        className="text-xs text-muted-foreground overflow-hidden"
-                        style={!showFullSummary ? { maxHeight: '7.5em' } : undefined}
+                      <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+                        {summaryPreview.length > 260
+                          ? `${summaryPreview.slice(0, 260).trimEnd()}...`
+                          : summaryPreview}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsSummaryDialogOpen(true)}
+                        className="mt-1 text-xs text-purple-500 transition-colors hover:text-purple-400"
                       >
-                        {shouldDeferSummaryMarkdown ? (
-                          <p className="leading-relaxed">
-                            {summaryPreview.length > 260
-                              ? `${summaryPreview.slice(0, 260).trimEnd()}...`
-                              : summaryPreview}
-                          </p>
-                        ) : (
-                          <SimpleMarkdown content={localSummary} />
-                        )}
-                      </div>
-                      {localSummary.length > 200 && (
-                        <button
-                          type="button"
-                          onClick={() => setShowFullSummary(!showFullSummary)}
-                          className="text-xs text-purple-500 hover:text-purple-400 mt-1 flex items-center gap-0.5"
-                        >
-                          {showFullSummary ? (
-                            <>
-                              {t('library.item.showLess')} <ChevronUp className="w-3 h-3" />
-                            </>
-                          ) : (
-                            <>
-                              {t('library.item.showMore')} <ChevronDown className="w-3 h-3" />
-                            </>
-                          )}
-                        </button>
-                      )}
+                        {t('library.item.showMore')}
+                      </button>
                     </div>
                     <div className="flex flex-col gap-1 flex-shrink-0">
                       <button
@@ -603,6 +584,19 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                 <Pencil className="w-3.5 h-3.5" />
                 {t('library.item.rename')}
               </button>
+              {canSplitMedia && (
+                <button
+                  type="button"
+                  onClick={() => setIsSplitDialogOpen(true)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                    'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 transition-colors',
+                  )}
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  {t('library.item.split')}
+                </button>
+              )}
             </>
           ) : !isDataExport ? (
             <button
@@ -732,6 +726,33 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           open={isCollectionsManagerOpen}
           onOpenChange={setIsCollectionsManagerOpen}
         />
+        {localSummary && (
+          <HistorySummaryDialog
+            entry={entry}
+            open={isSummaryDialogOpen}
+            onOpenChange={setIsSummaryDialogOpen}
+            summary={localSummary}
+            copied={copiedSummary}
+            isGenerating={isGeneratingSummary}
+            onCopy={handleCopySummary}
+            onRegenerate={handleGenerateSummary}
+          />
+        )}
+        {canSplitMedia && (
+          <SplitMediaDialog
+            open={isSplitDialogOpen}
+            onOpenChange={setIsSplitDialogOpen}
+            inputPath={entry.filepath}
+            title={entry.title}
+            sourceUrl={entry.url}
+            thumbnail={entry.thumbnail || null}
+            source={entry.source || null}
+            quality={entry.quality || null}
+            format={entry.format || null}
+            ffmpegInstalled={ffmpegStatus?.installed ?? true}
+            onComplete={refreshHistory}
+          />
+        )}
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
