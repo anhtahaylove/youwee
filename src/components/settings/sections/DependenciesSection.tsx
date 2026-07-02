@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useDownload } from '@/contexts/DownloadContext';
 import type { DependencySource, YtdlpChannel } from '@/lib/types';
@@ -250,9 +251,22 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                     {isLoading ? (
                       <div className="h-5 w-16 rounded-full bg-muted animate-pulse" />
                     ) : ytdlpInfo ? (
-                      <Badge variant="secondary" className="font-mono text-xs">
-                        {ytdlpInfo.version}
-                      </Badge>
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant="secondary"
+                              className="cursor-help font-mono text-xs"
+                              title={ytdlpInfo.binary_path}
+                            >
+                              {ytdlpInfo.version}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[min(520px,calc(100vw-2rem))] break-all font-mono">
+                            {ytdlpInfo.binary_path}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : (
                       <Badge variant="destructive" className="text-xs">
                         {t('dependencies.notFound')}

@@ -5,6 +5,7 @@ import {
   Copy,
   Download,
   ExternalLink,
+  FileAudio,
   FileVideo,
   Folder,
   FolderOpen,
@@ -322,7 +323,11 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
-            <FileVideo className="w-10 h-10 text-muted-foreground/30" />
+            {canPlayAudio ? (
+              <FileAudio className="w-10 h-10 text-muted-foreground/30" />
+            ) : (
+              <FileVideo className="w-10 h-10 text-muted-foreground/30" />
+            )}
           </div>
         )}
 
