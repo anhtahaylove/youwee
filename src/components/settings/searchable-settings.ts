@@ -137,6 +137,13 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     section: 'download',
   },
   {
+    id: 'auto-organize-collections',
+    labelKey: 'download.autoOrganizeCollections',
+    descriptionKey: 'download.autoOrganizeCollectionsDesc',
+    keywords: ['collection', 'collections', 'playlist', 'channel', 'library', 'organize'],
+    section: 'download',
+  },
+  {
     id: 'persist-download-queue',
     labelKey: 'download.persistDownloadQueue',
     descriptionKey: 'download.persistDownloadQueueDesc',

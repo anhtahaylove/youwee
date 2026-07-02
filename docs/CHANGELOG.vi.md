@@ -7,6 +7,18 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.1] - 2026-07-02
+
+### Thêm mới
+- **Tách media** - Thêm action trong Thư viện để tách file đã tải thành các segment mà không tự tạo collection ngoài ý muốn
+- **Collection tự động trong Thư viện** - Thêm cài đặt tùy chọn để nhóm playlist đã tách và lượt tải từ channel vào collection trong Thư viện
+
+### Thay đổi
+- **Version updater custom** - Chuyển bản custom sang `0.19.1-custom.1` để updater custom phân biệt với `0.19.0-custom.1`
+
+### Sửa lỗi
+- **Dialog summary trong Thư viện** - Giữ nội dung summary đã lưu dễ đọc hơn bằng điều khiển cỡ chữ trong dialog
+
 ## [0.19.0] - 2026-07-01
 
 ### Thêm mới

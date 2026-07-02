@@ -64,6 +64,8 @@
     "numberPlaylistItemsDesc": "Thêm số thứ tự playlist vào đầu tên file",
     "numberQueueItems": "Đánh số item trong hàng đợi",
     "numberQueueItemsDesc": "Thêm số thứ tự hàng đợi vào đầu tên file tải thông thường",
+    "autoOrganizeCollections": "Tự tạo collection",
+    "autoOrganizeCollectionsDesc": "Tạo collection trong Thư viện cho playlist đã tách và lượt tải từ channel",
     "queuePersistence": "Hàng đợi tải xuống",
     "queuePersistenceDesc": "Giữ hàng đợi sau khi đóng Youwee",
     "persistDownloadQueue": "Lưu hàng đợi tải xuống",

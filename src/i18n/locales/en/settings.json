@@ -64,6 +64,8 @@
     "numberPlaylistItemsDesc": "Prefix playlist downloads with their playlist order",
     "numberQueueItems": "Number queued items",
     "numberQueueItemsDesc": "Prefix regular queued downloads with their queue order",
+    "autoOrganizeCollections": "Auto-create collections",
+    "autoOrganizeCollectionsDesc": "Create Library collections for expanded playlists and channel downloads",
     "queuePersistence": "Download Queue",
     "queuePersistenceDesc": "Keep queued downloads after closing Youwee",
     "persistDownloadQueue": "Save download queue",

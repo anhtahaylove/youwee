@@ -23,9 +23,11 @@ use tauri_plugin_shell::ShellExt;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use crate::database::add_history_internal;
 use crate::database::add_log_internal;
 use crate::database::update_history_download;
+use crate::database::{
+    add_history_collection_in_db, add_history_internal, ensure_collection_for_download_in_db,
+};
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
     enqueue_post_download_workflow, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
@@ -649,6 +651,42 @@ fn build_output_template(
     )
 }
 
+fn build_auto_collection_names(
+    enabled: bool,
+    playlist_collection_name: Option<&str>,
+) -> Vec<String> {
+    if !enabled {
+        return Vec::new();
+    }
+
+    let mut names = Vec::new();
+    if let Some(raw_name) = playlist_collection_name {
+        let name = raw_name.trim();
+        if !name.is_empty() && !names.iter().any(|existing: &String| existing == name) {
+            names.push(name.to_string());
+        }
+    }
+    names
+}
+
+fn assign_history_auto_collections(history_id: &str, collection_names: &[String]) {
+    for collection_name in collection_names {
+        let result =
+            ensure_collection_for_download_in_db(collection_name, None).and_then(|collection| {
+                add_history_collection_in_db(history_id.to_string(), collection.id)
+            });
+        if let Err(error) = result {
+            add_log_internal(
+                "error",
+                "Failed to organize download into collection",
+                Some(&error),
+                None,
+            )
+            .ok();
+        }
+    }
+}
+
 fn push_overwrite_args(args: &mut Vec<String>, skip_existing: Option<bool>) {
     if skip_existing.unwrap_or(false) {
         args.push("--no-overwrites".to_string());
@@ -961,6 +999,8 @@ pub async fn download_video(
     queue_index: Option<u32>,
     queue_total: Option<u32>,
     number_queue_items: Option<bool>,
+    auto_organize_collections: Option<bool>,
+    playlist_collection_name: Option<String>,
     video_codec: String,
     preferred_fps: Option<String>,
     audio_bitrate: String,
@@ -1087,6 +1127,10 @@ pub async fn download_video(
         number_queue_items.unwrap_or(false),
         queue_index,
         queue_total,
+    );
+    let auto_collection_names = build_auto_collection_names(
+        auto_organize_collections.unwrap_or(false),
+        playlist_collection_name.as_deref(),
     );
     let output_template = build_output_template(&output_directory, filename_template, &item_prefix);
 
@@ -1400,6 +1444,7 @@ pub async fn download_video(
             emit_failed_workflow,
             download_kind.clone(),
             item_prefix.clone(),
+            auto_collection_names.clone(),
             Some(core_fallback),
         )
         .await;
@@ -1804,6 +1849,9 @@ pub async fn download_video(
                             } else {
                                 None
                             };
+                            if let Some(ref hist_id) = progress_history_id {
+                                assign_history_auto_collections(hist_id, &auto_collection_names);
+                            }
 
                             let progress = DownloadProgress {
                                 id: id.clone(),
@@ -2015,6 +2063,7 @@ pub async fn download_video(
                 emit_failed_workflow,
                 download_kind,
                 item_prefix,
+                auto_collection_names,
                 None,
             )
             .await
@@ -2042,6 +2091,7 @@ async fn handle_tokio_download(
     emit_failed_workflow: bool,
     download_kind: String,
     item_prefix: String,
+    auto_collection_names: Vec<String>,
     core_fallback: Option<CoreDownloadFallback>,
 ) -> Result<(), String> {
     let stdout = process
@@ -2437,6 +2487,9 @@ async fn handle_tokio_download(
         } else {
             None
         };
+        if let Some(ref hist_id) = progress_history_id {
+            assign_history_auto_collections(hist_id, &auto_collection_names);
+        }
 
         let progress = DownloadProgress {
             id: id.clone(),
@@ -2538,6 +2591,7 @@ async fn handle_tokio_download(
                             emit_failed_workflow,
                             download_kind,
                             item_prefix,
+                            auto_collection_names.clone(),
                             None,
                         ))
                         .await;
@@ -2917,6 +2971,20 @@ mod tests {
                 &regular_queue_prefix,
             ),
             "C:/Downloads/07 - %(title)s.%(ext)s"
+        );
+    }
+
+    #[test]
+    fn auto_collection_names_are_default_off() {
+        assert!(build_auto_collection_names(false, Some("Playlist")).is_empty());
+    }
+
+    #[test]
+    fn auto_collection_names_trim_empty_playlist_names() {
+        assert!(build_auto_collection_names(true, Some("   ")).is_empty());
+        assert_eq!(
+            build_auto_collection_names(true, Some("  Playlist  ")),
+            vec!["Playlist".to_string()]
         );
     }
 

@@ -81,6 +81,8 @@ export interface ItemDownloadSettings {
   skipLive?: boolean;
   numberPlaylistItems?: boolean;
   numberQueueItems?: boolean;
+  autoOrganizeCollections?: boolean;
+  playlistCollectionName?: string | null;
   pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
   postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
   autoRetryEnabled: boolean;
@@ -106,6 +108,7 @@ export interface ItemUniversalSettings {
   liveFromStart?: boolean;
   skipLive?: boolean;
   numberQueueItems?: boolean;
+  autoOrganizeCollections?: boolean;
   pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
   postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
   autoRetryEnabled: boolean;
@@ -296,6 +299,7 @@ export interface DownloadSettings {
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
   numberPlaylistItems: boolean; // Prefix playlist downloads with their playlist order
   numberQueueItems: boolean; // Prefix regular queued items with their queue order
+  autoOrganizeCollections: boolean; // Create Library collections for grouped playlist/channel outputs
   // Download duplicate detection
   rememberDownloadedVideos: boolean; // Check Library/history before adding duplicate downloads
   duplicateDownloadHandling: DuplicateDownloadHandling; // Ask or skip when downloaded videos are detected
@@ -781,6 +785,7 @@ export interface PlaylistVideoEntry {
   duration?: number;
   channel?: string;
   upload_date?: string;
+  playlist_title?: string;
 }
 
 export type YoutubeChannelContentType = 'videos' | 'shorts' | 'streams' | 'videos_shorts';

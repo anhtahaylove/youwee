@@ -63,6 +63,8 @@
     "numberPlaylistItemsDesc": "Добавлять порядок в плейлисте к именам файлов",
     "numberQueueItems": "Нумеровать элементы очереди",
     "numberQueueItemsDesc": "Добавлять порядок в очереди к обычным загрузкам",
+    "autoOrganizeCollections": "Автоматически создавать коллекции",
+    "autoOrganizeCollectionsDesc": "Создавать коллекции библиотеки для раскрытых плейлистов и загрузок каналов",
     "liveStream": "Прямая трансляция",
     "liveStreamDesc": "Настроить поведение загрузки прямых трансляций",
     "liveFromStart": "Загрузка с начала",

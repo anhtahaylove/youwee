@@ -64,6 +64,8 @@
     "numberPlaylistItemsDesc": "为播放列表下载文件添加播放列表顺序前缀",
     "numberQueueItems": "为队列项目编号",
     "numberQueueItemsDesc": "为普通队列下载文件添加队列顺序前缀",
+    "autoOrganizeCollections": "自动创建集合",
+    "autoOrganizeCollectionsDesc": "为展开的播放列表和频道下载创建资料库集合",
     "queuePersistence": "下载队列",
     "queuePersistenceDesc": "关闭 Youwee 后保留下载队列",
     "persistDownloadQueue": "保存下载队列",

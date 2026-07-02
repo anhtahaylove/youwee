@@ -122,6 +122,20 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
               onCheckedChange={(numberQueueItems) => updateSettings({ numberQueueItems })}
             />
           </SettingsRow>
+
+          <SettingsRow
+            id="auto-organize-collections"
+            label={t('download.autoOrganizeCollections')}
+            description={t('download.autoOrganizeCollectionsDesc')}
+            highlight={highlightId === 'auto-organize-collections'}
+          >
+            <Switch
+              checked={settings.autoOrganizeCollections}
+              onCheckedChange={(autoOrganizeCollections) =>
+                updateSettings({ autoOrganizeCollections })
+              }
+            />
+          </SettingsRow>
         </SettingsCard>
       </SettingsSection>
 

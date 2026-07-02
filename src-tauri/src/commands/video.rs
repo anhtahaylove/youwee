@@ -1246,6 +1246,11 @@ pub async fn get_playlist_entries(
                 .get("upload_date")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+            let playlist_title = json
+                .get("playlist_title")
+                .or_else(|| json.get("playlist"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
 
             entries.push(PlaylistVideoEntry {
                 id,
@@ -1255,6 +1260,7 @@ pub async fn get_playlist_entries(
                 duration,
                 channel,
                 upload_date,
+                playlist_title,
             });
         }
     }

@@ -435,6 +435,7 @@ async fn fetch_channel_videos_once(
                 duration,
                 channel,
                 upload_date,
+                playlist_title: None,
             });
         }
     }
@@ -877,7 +878,7 @@ pub async fn set_polling_network_config(
     cookie_skip_patterns: Option<Vec<String>>,
     proxy_url: Option<String>,
 ) -> Result<(), String> {
-    use crate::services::polling::{PollingNetworkConfig, set_network_config};
+    use crate::services::polling::{set_network_config, PollingNetworkConfig};
 
     set_network_config(PollingNetworkConfig {
         cookie_mode,

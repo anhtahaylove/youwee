@@ -63,6 +63,8 @@
     "numberPlaylistItemsDesc": "Adicionar a ordem da playlist aos nomes dos arquivos",
     "numberQueueItems": "Numerar itens da fila",
     "numberQueueItemsDesc": "Adicionar a ordem da fila aos downloads comuns",
+    "autoOrganizeCollections": "Criar coleções automaticamente",
+    "autoOrganizeCollectionsDesc": "Criar coleções da Biblioteca para playlists expandidas e downloads de canais",
     "liveStream": "Transmissão ao Vivo",
     "liveStreamDesc": "Configurar comportamento de download de transmissões ao vivo",
     "liveFromStart": "Baixar desde o Início",

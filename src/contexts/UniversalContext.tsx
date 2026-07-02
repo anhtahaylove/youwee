@@ -686,6 +686,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         liveFromStart: currentSettings.liveFromStart,
         skipLive: currentSettings.skipLive,
         numberQueueItems: downloadSettings.numberQueueItems,
+        autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -736,6 +737,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     },
     [
       downloadSettings.filenameTemplate,
+      downloadSettings.autoOrganizeCollections,
       downloadSettings.numberQueueItems,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
@@ -807,6 +809,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
         skipLive: options?.skipLive ?? currentSettings.skipLive,
         numberQueueItems: downloadSettings.numberQueueItems,
+        autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -838,6 +841,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     },
     [
       downloadSettings.filenameTemplate,
+      downloadSettings.autoOrganizeCollections,
       downloadSettings.numberQueueItems,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
@@ -1149,6 +1153,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            autoOrganizeCollections:
+              itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
+            playlistCollectionName: null,
             videoCodec: 'auto', // Use auto for universal downloads
             preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
@@ -1383,6 +1390,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     }
   }, [
     downloadSettings.filenameTemplate,
+    downloadSettings.autoOrganizeCollections,
     downloadSettings.organizeBySource,
     downloadSettings.skipExisting,
     downloadSettings.youtubePlayerClient,

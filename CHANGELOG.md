@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.1] - 2026-07-02
+
+### Added
+- **Media split** - Added a manual Library action to split downloaded media into segment files without automatic collection side effects
+- **Automatic Library collections** - Added an opt-in setting to group expanded playlists and channel downloads into Library collections
+
+### Changed
+- **Custom updater versioning** - Moved custom builds to `0.19.1-custom.1` so the custom updater can distinguish them from `0.19.0-custom.1`
+
+### Fixed
+- **Library summary dialog** - Kept saved summary text readable with dialog font-size controls
+
 ## [0.19.0] - 2026-07-01
 
 ### Added

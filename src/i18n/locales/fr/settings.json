@@ -63,6 +63,8 @@
     "numberPlaylistItemsDesc": "Préfixer les téléchargements avec leur ordre dans la playlist",
     "numberQueueItems": "Numéroter les éléments de file",
     "numberQueueItemsDesc": "Préfixer les téléchargements ordinaires avec leur ordre dans la file",
+    "autoOrganizeCollections": "Créer des collections automatiquement",
+    "autoOrganizeCollectionsDesc": "Créer des collections de bibliothèque pour les playlists développées et les téléchargements de chaînes",
     "liveStream": "Live",
     "liveStreamDesc": "Configurer le comportement de téléchargement des lives",
     "liveFromStart": "Télécharger depuis le début",

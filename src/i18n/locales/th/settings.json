@@ -63,6 +63,8 @@
     "numberPlaylistItemsDesc": "เติมเลขลำดับเพลย์ลิสต์นำหน้าชื่อไฟล์",
     "numberQueueItems": "ใส่เลขรายการในคิว",
     "numberQueueItemsDesc": "เติมเลขลำดับคิวนำหน้าชื่อไฟล์สำหรับวิดีโอทั่วไป",
+    "autoOrganizeCollections": "สร้างคอลเลกชันอัตโนมัติ",
+    "autoOrganizeCollectionsDesc": "สร้างคอลเลกชันใน Library สำหรับเพลย์ลิสต์ที่แยกรายการและการดาวน์โหลดจากช่อง",
     "liveStream": "สตรีมสด",
     "liveStreamDesc": "กำหนดพฤติกรรมการดาวน์โหลดสตรีมสด",
     "liveFromStart": "ดาวน์โหลดตั้งแต่ต้น",

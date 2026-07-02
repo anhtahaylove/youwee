@@ -199,6 +199,7 @@ function saveSettings(settings: DownloadSettings) {
         embedThumbnail: settings.embedThumbnail,
         numberPlaylistItems: settings.numberPlaylistItems,
         numberQueueItems: settings.numberQueueItems,
+        autoOrganizeCollections: settings.autoOrganizeCollections,
         rememberDownloadedVideos: settings.rememberDownloadedVideos,
         duplicateDownloadHandling: settings.duplicateDownloadHandling,
         liveFromStart: settings.liveFromStart,
@@ -394,6 +395,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       embedThumbnail: saved.embedThumbnail === true, // Default to false (requires FFmpeg)
       numberPlaylistItems: saved.numberPlaylistItems === true,
       numberQueueItems: saved.numberQueueItems === true,
+      autoOrganizeCollections: saved.autoOrganizeCollections === true,
       // Download duplicate detection
       rememberDownloadedVideos: saved.rememberDownloadedVideos !== false,
       duplicateDownloadHandling:
@@ -883,6 +885,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipLive: currentSettings.skipLive,
         numberPlaylistItems: currentSettings.numberPlaylistItems,
         numberQueueItems: currentSettings.numberQueueItems,
+        autoOrganizeCollections: currentSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -1002,6 +1005,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipLive: options?.skipLive ?? currentSettings.skipLive,
         numberPlaylistItems: currentSettings.numberPlaylistItems,
         numberQueueItems: currentSettings.numberQueueItems,
+        autoOrganizeCollections: currentSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -1060,6 +1064,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipLive: currentSettings.skipLive,
         numberPlaylistItems: currentSettings.numberPlaylistItems,
         numberQueueItems: currentSettings.numberQueueItems,
+        autoOrganizeCollections: currentSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
         autoRetryEnabled: currentSettings.autoRetryEnabled,
@@ -1192,6 +1197,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           skipLive: settingsRef.current.skipLive,
           numberPlaylistItems: settingsRef.current.numberPlaylistItems,
           numberQueueItems: settingsRef.current.numberQueueItems,
+          autoOrganizeCollections: settingsRef.current.autoOrganizeCollections,
+          playlistCollectionName:
+            entries.find((entry) => entry.playlist_title)?.playlist_title ?? null,
           pluginWorkflowSnapshots: workflowSnapshots,
           postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
           autoRetryEnabled: settingsRef.current.autoRetryEnabled,
@@ -1600,6 +1608,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,
+            playlistCollectionName: itemSettings?.playlistCollectionName ?? null,
             videoCodec: itemSettings?.videoCodec ?? settings.videoCodec,
             preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,

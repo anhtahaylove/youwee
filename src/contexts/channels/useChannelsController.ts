@@ -18,7 +18,10 @@ import type {
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
 import { useDownload } from '../DownloadContext';
-import { persistManualChannelDownloadCompletion } from './channel-downloads';
+import {
+  buildChannelCollectionOptions,
+  persistManualChannelDownloadCompletion,
+} from './channel-downloads';
 import {
   type ChannelAutoDownloadEvent,
   downloadVideoCommand,
@@ -819,6 +822,7 @@ export function useChannelsController(): ChannelsContextType {
       let embedMetadata = false;
       let embedThumbnail = false;
       let liveFromStart = false;
+      let autoOrganizeCollections = false;
       let speedLimit: string | null = null;
       let sponsorBlockArgs = { remove: null as string | null, mark: null as string | null };
 
@@ -849,6 +853,7 @@ export function useChannelsController(): ChannelsContextType {
           embedMetadata = parsed.embedMetadata || false;
           embedThumbnail = parsed.embedThumbnail || false;
           liveFromStart = parsed.liveFromStart || false;
+          autoOrganizeCollections = parsed.autoOrganizeCollections === true;
           if (parsed.speedLimitEnabled && parsed.speedLimitValue) {
             speedLimit = `${parsed.speedLimitValue}${parsed.speedLimitUnit || 'M'}`;
           }
@@ -872,6 +877,10 @@ export function useChannelsController(): ChannelsContextType {
         const folderName = sanitizeChannelFolderName(channelName);
         currentOutputPath = `${currentOutputPath}/${folderName}`;
       }
+      const collectionOptions = buildChannelCollectionOptions(
+        { autoOrganizeCollections },
+        channelName,
+      );
 
       const networkOptions = getNetworkOptions();
 
@@ -967,6 +976,7 @@ export function useChannelsController(): ChannelsContextType {
                 useBunRuntime,
                 useActualPlayerJs,
                 youtubePlayerClient,
+                ...collectionOptions,
                 ...networkOptions,
                 embedMetadata,
                 embedThumbnail,
@@ -1280,6 +1290,7 @@ export function useChannelsController(): ChannelsContextType {
         let filenameTemplate = '%(title)s.%(ext)s';
         let skipExisting = false;
         let organizeBySource = false;
+        let autoOrganizeCollections = false;
 
         try {
           const saved = localStorage.getItem('youwee-settings');
@@ -1294,6 +1305,7 @@ export function useChannelsController(): ChannelsContextType {
             filenameTemplate = parsed.filenameTemplate || filenameTemplate;
             skipExisting = parsed.skipExisting === true;
             organizeBySource = parsed.organizeBySource === true;
+            autoOrganizeCollections = parsed.autoOrganizeCollections === true;
           }
           logStderr = localStorage.getItem('youwee_log_stderr') !== 'false';
         } catch (_e) {
@@ -1305,6 +1317,10 @@ export function useChannelsController(): ChannelsContextType {
         // Per-channel subfolder
         const folderName = sanitizeChannelFolderName(channel_name);
         autoOutputPath = `${autoOutputPath}/${folderName}`;
+        const collectionOptions = buildChannelCollectionOptions(
+          { autoOrganizeCollections },
+          channel_name,
+        );
 
         const networkOptions = getNetworkOptions();
 
@@ -1412,6 +1428,7 @@ export function useChannelsController(): ChannelsContextType {
               useBunRuntime,
               useActualPlayerJs,
               youtubePlayerClient,
+              ...collectionOptions,
               ...networkOptions,
               useAria2,
               aria2Args,
