@@ -140,7 +140,15 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     id: 'auto-organize-collections',
     labelKey: 'download.autoOrganizeCollections',
     descriptionKey: 'download.autoOrganizeCollectionsDesc',
-    keywords: ['collection', 'collections', 'playlist', 'channel', 'library', 'organize'],
+    keywords: [
+      'collection',
+      'collections',
+      'playlist',
+      'channel',
+      'chapter',
+      'library',
+      'organize',
+    ],
     section: 'download',
   },
   {
@@ -162,6 +170,20 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     labelKey: 'download.embedThumbnail',
     descriptionKey: 'download.embedThumbnailDesc',
     keywords: ['thumbnail', 'cover', 'art', 'image', 'post-processing'],
+    section: 'download',
+  },
+  {
+    id: 'split-embedded-chapters',
+    labelKey: 'download.splitEmbeddedChapters',
+    descriptionKey: 'download.splitEmbeddedChaptersDesc',
+    keywords: ['chapter', 'chapters', 'split', 'clip', 'post-processing', 'yt-dlp'],
+    section: 'download',
+  },
+  {
+    id: 'number-chapter-files',
+    labelKey: 'download.numberChapterFiles',
+    descriptionKey: 'download.numberChapterFilesDesc',
+    keywords: ['chapter', 'number', 'prefix', 'filename', 'order'],
     section: 'download',
   },
   {

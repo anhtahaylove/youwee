@@ -81,6 +81,8 @@ export interface ItemDownloadSettings {
   skipLive?: boolean;
   numberPlaylistItems?: boolean;
   numberQueueItems?: boolean;
+  splitEmbeddedChapters?: boolean;
+  numberChapterFiles?: boolean;
   autoOrganizeCollections?: boolean;
   playlistCollectionName?: string | null;
   pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
@@ -108,6 +110,8 @@ export interface ItemUniversalSettings {
   liveFromStart?: boolean;
   skipLive?: boolean;
   numberQueueItems?: boolean;
+  splitEmbeddedChapters?: boolean;
+  numberChapterFiles?: boolean;
   autoOrganizeCollections?: boolean;
   pluginWorkflowSnapshots?: PluginWorkflowSnapshotMap;
   postDownloadWorkflowSteps?: PluginWorkflowStepSnapshot[];
@@ -299,6 +303,8 @@ export interface DownloadSettings {
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
   numberPlaylistItems: boolean; // Prefix playlist downloads with their playlist order
   numberQueueItems: boolean; // Prefix regular queued items with their queue order
+  splitEmbeddedChapters: boolean; // Split downloaded media into embedded chapter files
+  numberChapterFiles: boolean; // Prefix chapter files with chapter numbers when splitting
   autoOrganizeCollections: boolean; // Create Library collections for grouped playlist/channel outputs
   // Download duplicate detection
   rememberDownloadedVideos: boolean; // Check Library/history before adding duplicate downloads

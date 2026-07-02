@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.2] - 2026-07-02
+
+### Added
+- **Embedded chapter split** - Added an opt-in download setting to split embedded video chapters into separate files with optional chapter numbering
+
+### Changed
+- **Automatic Library collections** - Include split chapter outputs in automatic Library collections when the setting is enabled
+
 ## [0.19.1-custom.1] - 2026-07-02
 
 ### Added

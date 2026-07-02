@@ -686,6 +686,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         liveFromStart: currentSettings.liveFromStart,
         skipLive: currentSettings.skipLive,
         numberQueueItems: downloadSettings.numberQueueItems,
+        splitEmbeddedChapters: downloadSettings.splitEmbeddedChapters,
+        numberChapterFiles: downloadSettings.numberChapterFiles,
         autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
@@ -738,9 +740,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     [
       downloadSettings.filenameTemplate,
       downloadSettings.autoOrganizeCollections,
+      downloadSettings.numberChapterFiles,
       downloadSettings.numberQueueItems,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
+      downloadSettings.splitEmbeddedChapters,
       downloadSettings.youtubePlayerClient,
       enqueueQueuedWorkflowForItems,
       filterDownloadedDuplicateCandidates,
@@ -809,6 +813,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
         skipLive: options?.skipLive ?? currentSettings.skipLive,
         numberQueueItems: downloadSettings.numberQueueItems,
+        splitEmbeddedChapters: downloadSettings.splitEmbeddedChapters,
+        numberChapterFiles: downloadSettings.numberChapterFiles,
         autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
@@ -842,9 +848,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     [
       downloadSettings.filenameTemplate,
       downloadSettings.autoOrganizeCollections,
+      downloadSettings.numberChapterFiles,
       downloadSettings.numberQueueItems,
       downloadSettings.organizeBySource,
       downloadSettings.skipExisting,
+      downloadSettings.splitEmbeddedChapters,
       downloadSettings.youtubePlayerClient,
       enqueueQueuedWorkflowForItems,
       fetchMetadataForItems,
@@ -1153,6 +1161,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            splitEmbeddedChapters:
+              itemSettings?.splitEmbeddedChapters ?? downloadSettings.splitEmbeddedChapters,
+            numberChapterFiles:
+              itemSettings?.numberChapterFiles ?? downloadSettings.numberChapterFiles,
             autoOrganizeCollections:
               itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
             playlistCollectionName: null,
@@ -1391,8 +1403,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   }, [
     downloadSettings.filenameTemplate,
     downloadSettings.autoOrganizeCollections,
+    downloadSettings.numberChapterFiles,
     downloadSettings.organizeBySource,
     downloadSettings.skipExisting,
+    downloadSettings.splitEmbeddedChapters,
     downloadSettings.youtubePlayerClient,
     enqueueFailedWorkflowForItem,
     settings,

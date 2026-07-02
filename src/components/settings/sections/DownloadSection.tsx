@@ -189,6 +189,32 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
           >
             <Switch checked={settings.embedThumbnail} onCheckedChange={updateEmbedThumbnail} />
           </SettingsRow>
+
+          <SettingsRow
+            id="split-embedded-chapters"
+            label={t('download.splitEmbeddedChapters')}
+            description={t('download.splitEmbeddedChaptersDesc')}
+            highlight={highlightId === 'split-embedded-chapters'}
+          >
+            <Switch
+              checked={settings.splitEmbeddedChapters}
+              onCheckedChange={(splitEmbeddedChapters) => updateSettings({ splitEmbeddedChapters })}
+            />
+          </SettingsRow>
+
+          {settings.splitEmbeddedChapters && (
+            <SettingsRow
+              id="number-chapter-files"
+              label={t('download.numberChapterFiles')}
+              description={t('download.numberChapterFilesDesc')}
+              highlight={highlightId === 'number-chapter-files'}
+            >
+              <Switch
+                checked={settings.numberChapterFiles}
+                onCheckedChange={(numberChapterFiles) => updateSettings({ numberChapterFiles })}
+              />
+            </SettingsRow>
+          )}
         </SettingsCard>
       </SettingsSection>
 

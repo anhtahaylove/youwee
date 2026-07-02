@@ -7,6 +7,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.2] - 2026-07-02
+
+### Thêm mới
+- **Tách chapter có sẵn** - Thêm cài đặt tùy chọn để tách chapter có sẵn trong video thành file riêng, có thể đánh số theo thứ tự chapter
+
+### Thay đổi
+- **Collection tự động trong Thư viện** - Đưa cả file chapter đã tách vào collection tự động khi cài đặt này được bật
+
 ## [0.19.1-custom.1] - 2026-07-02
 
 ### Thêm mới
