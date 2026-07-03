@@ -1413,6 +1413,10 @@ mod tests {
             END;",
         )
         .expect("create tables");
+        conn.execute("ALTER TABLE history ADD COLUMN summary TEXT", [])
+            .ok();
+        conn.execute("ALTER TABLE history ADD COLUMN time_range TEXT", [])
+            .ok();
         conn.execute("ALTER TABLE history ADD COLUMN media_id TEXT", [])
             .ok();
         conn.execute("ALTER TABLE history ADD COLUMN canonical_url TEXT", [])

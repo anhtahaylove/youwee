@@ -7,6 +7,13 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.19.1-custom.4] - 2026-07-03
+
+### 修复
+- **粘贴文本中的 URL** - 在 Download、Universal Download、Gallery 和 Metadata 输入中从普通文本提取有效 URL
+- **在文件夹中显示** - 将文件定位操作改为通过应用的 `open_file_location` 命令执行，以提升 Windows 行为一致性
+- **History 测试 schema** - 当测试需要新的 metadata 列时，保持 history 数据库测试与旧的内存 schema 兼容
+
 ## [0.19.1-custom.3] - 2026-07-03
 
 ### 变更

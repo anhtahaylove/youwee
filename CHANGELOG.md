@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.4] - 2026-07-03
+
+### Fixed
+- **Pasted URL text** - Extract valid URLs from pasted prose in Download, Universal Download, Gallery, and Metadata inputs
+- **Show in folder** - Route file reveal actions through the app `open_file_location` command for more consistent Windows behavior
+- **History test schema** - Keep history database tests compatible with older in-memory schemas when newer metadata columns are expected
+
 ## [0.19.1-custom.3] - 2026-07-03
 
 ### Changed

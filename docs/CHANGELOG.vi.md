@@ -7,6 +7,13 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.4] - 2026-07-03
+
+### Sửa lỗi
+- **Text dán có URL** - Tách URL hợp lệ từ đoạn text dán vào Download, Universal Download, Gallery và Metadata
+- **Mở trong thư mục** - Chuyển các action reveal file qua command `open_file_location` của app để ổn định hơn trên Windows
+- **Schema test history** - Giữ test database history tương thích với schema in-memory cũ khi cần các cột metadata mới
+
 ## [0.19.1-custom.3] - 2026-07-03
 
 ### Thay đổi
