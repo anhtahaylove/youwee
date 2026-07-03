@@ -32,6 +32,7 @@ jobs:
             friendly_name: Mac-Apple-Silicon
             yt_dlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
             yt_dlp_name: youwee-yt-dlp-aarch64-apple-darwin
+            bundle_args: ''
           
           # macOS Intel (yt-dlp_macos is Universal Binary for both Intel and Apple Silicon)
           - platform: macos-15
@@ -41,6 +42,7 @@ jobs:
             friendly_name: Mac-Intel
             yt_dlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos
             yt_dlp_name: youwee-yt-dlp-x86_64-apple-darwin
+            bundle_args: ''
           
           # Linux x86_64
           - platform: ubuntu-22.04
@@ -50,6 +52,7 @@ jobs:
             friendly_name: Linux
             yt_dlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
             yt_dlp_name: youwee-yt-dlp-x86_64-unknown-linux-gnu
+            bundle_args: ''
           
           # Windows x86_64
           - platform: windows-latest
@@ -59,6 +62,7 @@ jobs:
             friendly_name: Windows
             yt_dlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
             yt_dlp_name: youwee-yt-dlp-x86_64-pc-windows-msvc.exe
+            bundle_args: --bundles nsis
 
     runs-on: ${{ matrix.platform }}
     
@@ -121,7 +125,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tauriScript: bun run tauri
-          args: --target ${{ matrix.target }}
+          args: --target ${{ matrix.target }} ${{ matrix.bundle_args }}
 
       - name: Rename artifacts with friendly names (macOS)
         if: matrix.os_name == 'macos'

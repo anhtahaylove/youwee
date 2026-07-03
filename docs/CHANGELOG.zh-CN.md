@@ -12,6 +12,7 @@ Youwee 的所有重要更改都将记录在此文件中。
 ### 变更
 - **发布自动化** - 将自定义源码发布构建保持在仍受维护的 GitHub release action v3
 - **扩展发布打包** - 当未配置 AMO 凭据时，允许源码标签构建跳过 Firefox 签名
+- **Windows 发布打包** - 源码发布 workflow 仅构建 NSIS，避免自定义 prerelease 版本导致 MSI 打包失败
 
 ## [0.19.1-custom.2] - 2026-07-02
 

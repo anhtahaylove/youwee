@@ -12,6 +12,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Thay đổi
 - **Tự động hóa release** - Giữ workflow build release của source custom trên GitHub release action v3 đang được duy trì
 - **Đóng gói extension release** - Cho phép build tag ở source bỏ qua bước ký Firefox khi chưa cấu hình AMO credentials
+- **Đóng gói release Windows** - Chỉ build NSIS trong workflow release source để version prerelease custom không làm MSI packaging fail
 
 ## [0.19.1-custom.2] - 2026-07-02
 
