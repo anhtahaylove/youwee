@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import { extractUrls } from '@/lib/sources';
 import { useDownload } from './DownloadContext';
 
 const STORAGE_KEY = 'youwee_metadata_settings';
@@ -170,18 +171,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const parseUrls = useCallback((text: string): string[] => {
-    return text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => {
-        if (!line || line.startsWith('#')) return false;
-        return (
-          line.includes('youtube.com') ||
-          line.includes('youtu.be') ||
-          line.includes('http://') ||
-          line.includes('https://')
-        );
-      });
+    return extractUrls(text);
   }, []);
 
   const addUrls = useCallback(

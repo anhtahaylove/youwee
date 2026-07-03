@@ -35,6 +35,10 @@ import type { DownloadCompletedPayload, PluginManifest } from '../sdk-js/src/typ
 
 const originalEnv = { ...process.env };
 
+function realpathForDenoPermission(path: string): string {
+  return realpathSync.native(path);
+}
+
 function replaceStoredZipEntryBytes(
   archiveBytes: Buffer,
   entryName: string,
@@ -694,11 +698,11 @@ describe('youwee-sdk runtime-cli', () => {
     }
 
     const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-test-'));
-    const resolvedTempDir = realpathSync(tempDir);
+    const resolvedTempDir = realpathForDenoPermission(tempDir);
     const pluginFile = join(tempDir, 'plugin.cjs');
     const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
     const runtimeCli = resolve(process.cwd(), 'sdk-js/dist/runtime-cli.js');
-    const runtimeDistDir = realpathSync(resolve(process.cwd(), 'sdk-js', 'dist'));
+    const runtimeDistDir = realpathForDenoPermission(resolve(process.cwd(), 'sdk-js', 'dist'));
 
     writeFileSync(
       pluginFile,
@@ -784,11 +788,11 @@ describe('youwee-sdk runtime-cli', () => {
     }
 
     const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-tool-runner-'));
-    const resolvedTempDir = realpathSync(tempDir);
+    const resolvedTempDir = realpathForDenoPermission(tempDir);
     const pluginFile = join(tempDir, 'plugin.cjs');
     const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
     const runtimeCli = resolve(process.cwd(), 'sdk-js/dist/runtime-cli.js');
-    const runtimeDistDir = realpathSync(resolve(process.cwd(), 'sdk-js', 'dist'));
+    const runtimeDistDir = realpathForDenoPermission(resolve(process.cwd(), 'sdk-js', 'dist'));
     const denoPath = denoExecPath.stdout.trim();
 
     writeFileSync(
@@ -893,11 +897,11 @@ describe('youwee-sdk runtime-cli', () => {
     }
 
     const tempDir = mkdtempSync(join(tmpdir(), 'youwee-sdk-env-sanitize-'));
-    const resolvedTempDir = realpathSync(tempDir);
+    const resolvedTempDir = realpathForDenoPermission(tempDir);
     const pluginFile = join(tempDir, 'plugin.cjs');
     const sdkEntry = resolve(process.cwd(), 'sdk-js/dist/index.js');
     const runtimeCli = resolve(process.cwd(), 'sdk-js/dist/runtime-cli.js');
-    const runtimeDistDir = realpathSync(resolve(process.cwd(), 'sdk-js', 'dist'));
+    const runtimeDistDir = realpathForDenoPermission(resolve(process.cwd(), 'sdk-js', 'dist'));
 
     writeFileSync(
       pluginFile,
