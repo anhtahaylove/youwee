@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.3] - 2026-07-03
+
+### Changed
+- **Release automation** - Keep custom source release builds on the maintained GitHub release action v3
+- **Extension release packaging** - Let source tag builds skip Firefox signing when AMO credentials are not configured
+
 ## [0.19.1-custom.2] - 2026-07-02
 
 ### Added

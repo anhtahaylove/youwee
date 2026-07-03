@@ -225,14 +225,21 @@ jobs:
       - name: Build and package extension archives
         run: bun run ext:package
 
-      - name: Validate Firefox signing secrets
+      - name: Check Firefox signing secrets
+        id: firefox-signing
+        env:
+          FIREFOX_AMO_JWT_ISSUER: ${{ secrets.FIREFOX_AMO_JWT_ISSUER }}
+          FIREFOX_AMO_JWT_SECRET: ${{ secrets.FIREFOX_AMO_JWT_SECRET }}
         run: |
-          if [ -z "${{ secrets.FIREFOX_AMO_JWT_ISSUER }}" ] || [ -z "${{ secrets.FIREFOX_AMO_JWT_SECRET }}" ]; then
-            echo "Missing FIREFOX_AMO_JWT_ISSUER or FIREFOX_AMO_JWT_SECRET secrets."
-            exit 1
+          if [ -n "$FIREFOX_AMO_JWT_ISSUER" ] && [ -n "$FIREFOX_AMO_JWT_SECRET" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Firefox AMO secrets are not configured; skipping Firefox extension signing."
           fi
 
       - name: Sign Firefox extension (AMO unlisted)
+        if: steps.firefox-signing.outputs.enabled == 'true'
         run: |
           bunx web-ext sign \
             --source-dir extensions/youwee-webext/dist/firefox \
@@ -242,6 +249,7 @@ jobs:
             --api-secret "${{ secrets.FIREFOX_AMO_JWT_SECRET }}"
 
       - name: Rename signed Firefox XPI
+        if: steps.firefox-signing.outputs.enabled == 'true'
         run: |
           SIGNED_XPI=$(find extensions/youwee-webext/dist/packages -name "*.xpi" | head -1)
           if [ -z "$SIGNED_XPI" ]; then
