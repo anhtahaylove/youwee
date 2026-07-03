@@ -122,12 +122,6 @@ export function MainLayout({ children, currentPage, onPageChange }: MainLayoutPr
             role="toolbar"
             data-tauri-drag-region
             className="flex-1 h-full"
-            onMouseDown={(e) => {
-              if (e.button === 0) {
-                e.preventDefault();
-                getCurrentWindow().startDragging();
-              }
-            }}
             onDoubleClick={() => getCurrentWindow().toggleMaximize()}
           />
           {/* Window controls — NOT inside the drag region */}
