@@ -726,6 +726,25 @@ fn title_from_filepath(filepath: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+fn display_title_for_download(
+    metadata_title: Option<String>,
+    current_title: Option<String>,
+    final_filepath: &Option<String>,
+    total_count: Option<u32>,
+) -> Option<String> {
+    let filepath_title = || {
+        final_filepath
+            .as_ref()
+            .and_then(|path| title_from_filepath(path))
+    };
+
+    if total_count.unwrap_or(1) > 1 {
+        current_title.or_else(filepath_title).or(metadata_title)
+    } else {
+        metadata_title.or_else(filepath_title).or(current_title)
+    }
+}
+
 fn build_auto_collection_names(
     enabled: bool,
     playlist_collection_name: Option<&str>,
@@ -1723,8 +1742,8 @@ pub async fn download_video(
             );
 
             // Only use frontend title if it's not a URL (placeholder)
-            let mut current_title: Option<String> =
-                title.clone().filter(|t| !t.starts_with("http"));
+            let metadata_title: Option<String> = title.clone().filter(|t| !t.starts_with("http"));
+            let mut current_title = metadata_title.clone();
             let mut current_index: Option<u32> = None;
             let mut total_count: Option<u32> = None;
             let mut total_filesize: u64 = 0;
@@ -1983,11 +2002,12 @@ pub async fn download_video(
                                 }
                             });
 
-                            let display_title = current_title.clone().or_else(|| {
-                                final_filepath
-                                    .as_ref()
-                                    .and_then(|path| title_from_filepath(path))
-                            });
+                            let display_title = display_title_for_download(
+                                metadata_title.clone(),
+                                current_title.clone(),
+                                &final_filepath,
+                                total_count,
+                            );
                             let output_collection_names = build_output_collection_names(
                                 &auto_collection_names,
                                 auto_organize_collections_enabled,
@@ -2293,7 +2313,8 @@ async fn handle_tokio_download(
     let mut stdout_reader = BufReader::new(stdout);
 
     // Only use frontend title if it's not a URL (placeholder)
-    let mut current_title: Option<String> = title.filter(|t| !t.starts_with("http"));
+    let metadata_title: Option<String> = title.filter(|t| !t.starts_with("http"));
+    let mut current_title = metadata_title.clone();
     let mut current_index: Option<u32> = None;
     let mut total_count: Option<u32> = None;
     let mut total_filesize: u64 = 0;
@@ -2616,12 +2637,8 @@ async fn handle_tokio_download(
             }
         });
 
-        // Fallback: extract title from final_filepath if current_title is None
-        let display_title = current_title.or_else(|| {
-            final_filepath
-                .as_ref()
-                .and_then(|path| title_from_filepath(path))
-        });
+        let display_title =
+            display_title_for_download(metadata_title, current_title, &final_filepath, total_count);
         let output_collection_names = build_output_collection_names(
             &auto_collection_names,
             auto_organize_collections_enabled,
@@ -3542,5 +3559,43 @@ mod tests {
         let title = title_from_download_filename(None, "Video.mp4");
 
         assert_eq!(title.as_deref(), Some("Video"));
+    }
+
+    #[test]
+    fn single_download_display_title_keeps_unicode_metadata_title() {
+        let title = display_title_for_download(
+            Some("Machiot - Đổi Nhạc Nền Vol. 2".to_string()),
+            Some("Machiot - i Nhc Nn Vol. 2".to_string()),
+            &None,
+            None,
+        );
+
+        assert_eq!(title.as_deref(), Some("Machiot - Đổi Nhạc Nền Vol. 2"));
+    }
+
+    #[test]
+    fn single_download_display_title_prefers_utf8_filepath_over_stdout_title() {
+        let filepath = Some("Machiot - Đổi Nhạc Nền Vol. 2.mp4".to_string());
+        let title = display_title_for_download(
+            None,
+            Some("Machiot - i Nhc Nn Vol. 2".to_string()),
+            &filepath,
+            None,
+        );
+
+        assert_eq!(title.as_deref(), Some("Machiot - Đổi Nhạc Nền Vol. 2"));
+    }
+
+    #[test]
+    fn playlist_display_title_keeps_current_item_title() {
+        let filepath = Some("Playlist name.mp4".to_string());
+        let title = display_title_for_download(
+            Some("Playlist name".to_string()),
+            Some("Video item title".to_string()),
+            &filepath,
+            Some(3),
+        );
+
+        assert_eq!(title.as_deref(), Some("Video item title"));
     }
 }

@@ -1,4 +1,4 @@
-# Youwee
+# Youwee Custom Fork
 
 <div align="center">
 
@@ -10,13 +10,14 @@
   ![العربية](https://img.shields.io/badge/lang-%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9-0A8F6A)
   ![ไทย](https://img.shields.io/badge/lang-%E0%B9%84%E0%B8%97%E0%B8%A2-7B1FA2)
   ![Português](https://img.shields.io/badge/lang-Português-009C3B)
-  [![Vote for next language](https://img.shields.io/badge/Vote-Next_Language-orange?logo=github)](https://github.com/vanloctech/youwee/discussions/18)
+  [![Upstream](https://img.shields.io/badge/upstream-vanloctech%2Fyouwee-64748b?logo=github)](https://github.com/vanloctech/youwee)
 
   <img src="src-tauri/icons/icon.png" alt="Youwee Logo" width="128" height="128">
   
-  **Beautiful and Ultimate yt-dlp GUI & Video Downloader - Processing - Free & Open Source**
+  **Personal Windows-focused Youwee fork with upstream tracking, custom downloader fixes, and signed custom releases**
 
-  [![Downloads](https://img.shields.io/github/downloads/vanloctech/youwee/total?label=Downloads)](https://github.com/vanloctech/youwee/releases)
+  [![Custom Releases](https://img.shields.io/github/downloads/anhtahaylove/youwee-releases/total?label=Custom%20Downloads)](https://github.com/anhtahaylove/youwee-releases/releases)
+  [![Source Fork](https://img.shields.io/badge/source-anhtahaylove%2Fyouwee-0EA5E9?logo=github)](https://github.com/anhtahaylove/youwee)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![Reddit](https://img.shields.io/badge/Reddit-r%2Fyouwee-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/r/youwee)
   [![Website](https://img.shields.io/badge/Website-youwee.app-0EA5E9)](https://youwee.app)
@@ -26,6 +27,22 @@
 </div>
 
 ---
+
+## About This Fork
+
+This repository is the `anhtahaylove/youwee` custom fork of [vanloctech/youwee](https://github.com/vanloctech/youwee). It stays close to upstream, but carries Windows-first fixes and experiments that are useful for daily use before they are accepted upstream.
+
+Custom release binaries live separately at [anhtahaylove/youwee-releases](https://github.com/anhtahaylove/youwee-releases), so the source fork and updater assets can be managed cleanly.
+
+### Custom Highlights
+
+- **Custom updater channel** — Uses `anhtahaylove/youwee-releases` instead of upstream release prompts.
+- **Facebook Reels core fallback** — Keeps Reels downloads inside the core download path with better Library/history metadata.
+- **Unicode-safe download titles on Windows** — Preserves Vietnamese and other Unicode titles in Logs and Library when yt-dlp stdout loses characters.
+- **Browser extension branding** — Chromium/Firefox extension UI uses the custom fork identity and keeps unsupported actions hidden.
+- **Telegram Remote Download topics** — Supports `message_thread_id` for Telegram forum topics.
+- **Firefox profile folder resolution** — Accepts real Firefox profile folder names such as `i879pxds.default-release`.
+- **Upstream v0.19 feature ports** — Includes selected Library, media split, collection organization, queue output folder, numbering, and UI fixes.
 
 ## Features
 
@@ -100,19 +117,19 @@ Use Youwee only with content you own, have permission to use, or are legally all
 
 | Platform | Download                                                                                                                                                                                                                                   |
 |----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Windows** (x64) | [Download .msi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Windows.msi) · [Download .exe](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Windows-Setup.exe)                                |
-| **macOS** (Apple Silicon) | [Download .dmg](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Mac-Apple-Silicon.dmg)                                                                                                                                |
-| **macOS** (Intel) | [Download .dmg](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Mac-Intel.dmg)                                                                                                                                        |
-| **Linux** (x64) | [Download .deb](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Linux.deb) · [Download .AppImage](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Linux.AppImage) (Recommend for auto update) |
+| **Windows** (x64, custom fork) | [Download latest custom installer](https://github.com/anhtahaylove/youwee-releases/releases/latest) |
+| **macOS** (Apple Silicon) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
+| **macOS** (Intel) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
+| **Linux** (x64) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
 
-> See all releases on the [Releases page](https://github.com/vanloctech/youwee/releases)
+> See custom Windows releases at [anhtahaylove/youwee-releases](https://github.com/anhtahaylove/youwee-releases/releases). For official cross-platform releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
 
 ### Browser Extension (Chromium + Firefox)
 
 | Browser | Download |
 |---------|----------|
-| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Download .zip](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Download .xpi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | Bundled with the custom Windows installer, or use upstream extension assets |
+| **Firefox** | Bundled with the custom Windows installer, or use upstream extension assets |
 
 - One-click send current page to Youwee with `Download now` or `Add to queue`
 - Floating button supports `Video/Audio` + quality selection on supported sites
@@ -138,7 +155,7 @@ Extend Youwee with signed `.ywp` plugins for post-download workflows such as not
 
 ```bash
 # Clone the repository
-git clone https://github.com/vanloctech/youwee.git
+git clone https://github.com/anhtahaylove/youwee.git
 cd youwee
 
 # Install dependencies
@@ -161,7 +178,7 @@ bun run tauri build
 
 ## Contributing
 
-We welcome contributions. See [Contributing Guide](CONTRIBUTING.md).
+This fork is used for custom Windows builds and upstreamable experiments. Neutral fixes are split into clean PR branches against [vanloctech/youwee](https://github.com/vanloctech/youwee) when they are useful beyond this fork. See [Contributing Guide](CONTRIBUTING.md).
 
 ## License
 
@@ -171,8 +188,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **Website**: [youwee.app](https://youwee.app)
 - **Discord**: [Youwee Community](https://discord.gg/yCrs9hcw)
-- **GitHub**: [@vanloctech](https://github.com/vanloctech)
-- **Issues**: [GitHub Issues](https://github.com/vanloctech/youwee/issues)
+- **Custom fork**: [@anhtahaylove/youwee](https://github.com/anhtahaylove/youwee)
+- **Upstream**: [@vanloctech/youwee](https://github.com/vanloctech/youwee)
+- **Issues**: [Custom fork issues](https://github.com/anhtahaylove/youwee/issues)
 
 ---
 
@@ -182,17 +200,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <source
     media="(prefers-color-scheme: dark)"
     srcset="
-      https://api.star-history.com/svg?repos=vanloctech/youwee&type=Date&theme=dark
+      https://api.star-history.com/svg?repos=vanloctech/youwee,anhtahaylove/youwee&type=Date&theme=dark
     "
   />
   <source
     media="(prefers-color-scheme: light)"
     srcset="
-      https://api.star-history.com/svg?repos=vanloctech/youwee&type=Date
+      https://api.star-history.com/svg?repos=vanloctech/youwee,anhtahaylove/youwee&type=Date
     "
   />
   <img
     alt="Star History Chart"
-    src="https://api.star-history.com/svg?repos=vanloctech/youwee&type=Date"
+    src="https://api.star-history.com/svg?repos=vanloctech/youwee,anhtahaylove/youwee&type=Date"
   />
 </picture>
