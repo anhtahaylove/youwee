@@ -3,6 +3,16 @@ import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { Download, FileText, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
@@ -11,7 +21,7 @@ import type { LogFilter } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 export function LogToolbar() {
-  const { t } = useTranslation('pages');
+  const { t } = useTranslation(['pages', 'common']);
   const toast = useToast();
   const {
     filter,
@@ -27,6 +37,7 @@ export function LogToolbar() {
   } = useLogs();
 
   const [clearing, setClearing] = useState(false);
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const filterOptions: { value: LogFilter; label: string }[] = [
@@ -38,15 +49,19 @@ export function LogToolbar() {
     { value: 'stderr', label: t('logs.toolbar.filterDetail') },
   ];
 
-  const handleClear = useCallback(async () => {
-    if (!confirm(t('logs.toolbar.clearConfirm'))) return;
+  const handleClear = useCallback(() => {
+    setClearConfirmOpen(true);
+  }, []);
+
+  const handleConfirmClear = useCallback(async () => {
     setClearing(true);
     try {
       await clearLogs();
+      setClearConfirmOpen(false);
     } finally {
       setClearing(false);
     }
-  }, [clearLogs, t]);
+  }, [clearLogs]);
 
   const handleExport = useCallback(async () => {
     setExporting(true);
@@ -183,6 +198,36 @@ export function LogToolbar() {
           </button>
         </div>
       </div>
+      <AlertDialog
+        open={clearConfirmOpen}
+        onOpenChange={(open) => {
+          if (!clearing) {
+            setClearConfirmOpen(open);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('logs.toolbar.clear')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('logs.toolbar.clearConfirm')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearing}>
+              {t('actions.cancel', { ns: 'common' })}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={clearing}
+              onClick={(event) => {
+                event.preventDefault();
+                void handleConfirmClear();
+              }}
+              className="bg-red-500 text-white hover:bg-red-600"
+            >
+              {t('logs.toolbar.clear')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
