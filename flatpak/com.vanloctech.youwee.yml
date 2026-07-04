@@ -25,11 +25,8 @@ modules:
     sources:
       - type: dir
         path: payload
-      - type: file
-        path: com.vanloctech.youwee.metainfo.xml
     build-commands:
       - cp -a usr/. /app/
-      - install -Dm644 com.vanloctech.youwee.metainfo.xml /app/share/metainfo/com.vanloctech.youwee.metainfo.xml
       - |
         set -eu
         DESKTOP_FILE="$(find /app/share/applications -maxdepth 1 -type f -name '*.desktop' | sort | head -n 1)"

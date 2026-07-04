@@ -218,7 +218,7 @@ jobs:
       - name: Install Flatpak tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y appstream dbus-x11 flatpak flatpak-builder
+          sudo apt-get install -y dbus-x11 flatpak flatpak-builder
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
       - name: Download Linux deb artifact
@@ -264,7 +264,6 @@ jobs:
             test -x /app/bin/youwee
             test -x /app/bin/youwee-yt-dlp
             test -f /app/share/applications/com.vanloctech.youwee.desktop
-            test -f /app/share/metainfo/com.vanloctech.youwee.metainfo.xml
             ldd /app/bin/youwee | tee /tmp/youwee-ldd.txt
             if grep -q "not found" /tmp/youwee-ldd.txt; then
               echo "Missing runtime libraries in Flatpak bundle:"
