@@ -1,0 +1,63 @@
+{
+  "title": "Galería",
+  "page": {
+    "systemManagedOnly": "Solo gestionado por el sistema"
+  },
+  "missing": {
+    "title": "Se requiere gallery-dl",
+    "checking": "Comprobando gallery-dl del sistema...",
+    "description": "Instala gallery-dl en tu sistema para descargar galerías, colecciones y feeds de creadores.",
+    "refresh": "Actualizar estado",
+    "openDependencies": "Abrir dependencias",
+    "installGuide": "Guía de instalación"
+  },
+  "actions": {
+    "startDownload": "Iniciar descarga",
+    "stopDownload": "Detener descarga",
+    "clearAll": "Borrar todo"
+  },
+  "settings": {
+    "notSelected": "Seleccionar carpeta",
+    "selectFolder": "Seleccionar carpeta de salida",
+    "systemManagedOnly": "Solo gestionado por el sistema",
+    "advanced": "Avanzado",
+    "more": "Más",
+    "parallelDownloads": "Descargas simultáneas",
+    "atATime": "{{count}} a la vez",
+    "systemManagedHint": "Youwee solo utiliza el archivo binario gallery-dl del sistema para esta pantalla."
+  },
+  "queue": {
+    "title": "Cola",
+    "pending": "{{count}} pendiente",
+    "clearCompleted": "Borrar completadas ({{count}})",
+    "openFolder": "Abrir carpeta",
+    "remove": "Eliminar elemento",
+    "status": {
+      "pending": "Pendiente",
+      "downloading": "Descargando",
+      "completed": "Completada",
+      "failed": "Fallida"
+    },
+    "empty": {
+      "title": "Suelta una URL de galería para empezar",
+      "description": "Usa esta pantalla para galerías de imágenes, feeds de artistas, capítulos de manga y otras fuentes de tipo colección para las que gallery-dl sea más adecuado que Universal.",
+      "moreCount": "y muchos más",
+      "viewFullList": "Ver sitios compatibles"
+    }
+  },
+  "urlInput": {
+    "single": "Individual",
+    "singleHint": "Pega una única URL de galería",
+    "multiple": "Múltiple",
+    "multipleHint": "Añade múltiples URL de galería (una por línea)",
+    "paste": "Pegar",
+    "import": "Importar",
+    "detectedMultiple": "{{count}} URL detectadas",
+    "placeholder": "Pega una URL de galería, publicación o creador",
+    "placeholderMultiple": "Una URL por línea. Se ignoran las líneas que empiezan con #.",
+    "urlCount": "{{count}} URL",
+    "urlCount_plural": "{{count}} URL",
+    "clearInput": "Borrar",
+    "addToQueue": "Añadir"
+  }
+}

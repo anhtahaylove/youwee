@@ -27,6 +27,8 @@
     "pt": "Português",
     "ru": "Russian",
     "th": "ไทย",
+    "ja": "Japanese",
+    "es": "Spanish",
     "label": "Language",
     "select": "Select language"
   },

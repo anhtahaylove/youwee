@@ -20,6 +20,15 @@ import enPages from './locales/en/pages.json';
 import enSettings from './locales/en/settings.json';
 import enSubtitles from './locales/en/subtitles.json';
 import enUniversal from './locales/en/universal.json';
+import esChannels from './locales/es/channels.json';
+import esCommon from './locales/es/common.json';
+import esDownload from './locales/es/download.json';
+import esGallery from './locales/es/gallery.json';
+import esMetadata from './locales/es/metadata.json';
+import esPages from './locales/es/pages.json';
+import esSettings from './locales/es/settings.json';
+import esSubtitles from './locales/es/subtitles.json';
+import esUniversal from './locales/es/universal.json';
 import frChannels from './locales/fr/channels.json';
 import frCommon from './locales/fr/common.json';
 import frDownload from './locales/fr/download.json';
@@ -29,6 +38,15 @@ import frPages from './locales/fr/pages.json';
 import frSettings from './locales/fr/settings.json';
 import frSubtitles from './locales/fr/subtitles.json';
 import frUniversal from './locales/fr/universal.json';
+import jaChannels from './locales/ja/channels.json';
+import jaCommon from './locales/ja/common.json';
+import jaDownload from './locales/ja/download.json';
+import jaGallery from './locales/ja/gallery.json';
+import jaMetadata from './locales/ja/metadata.json';
+import jaPages from './locales/ja/pages.json';
+import jaSettings from './locales/ja/settings.json';
+import jaSubtitles from './locales/ja/subtitles.json';
+import jaUniversal from './locales/ja/universal.json';
 import ptChannels from './locales/pt/channels.json';
 import ptCommon from './locales/pt/common.json';
 import ptDownload from './locales/pt/download.json';
@@ -99,6 +117,17 @@ const resources = {
     settings: enSettings,
     subtitles: enSubtitles,
   },
+  es: {
+    common: esCommon,
+    channels: esChannels,
+    download: esDownload,
+    gallery: esGallery,
+    metadata: esMetadata,
+    universal: esUniversal,
+    pages: esPages,
+    settings: esSettings,
+    subtitles: esSubtitles,
+  },
   fr: {
     common: frCommon,
     channels: frChannels,
@@ -109,6 +138,17 @@ const resources = {
     pages: frPages,
     settings: frSettings,
     subtitles: frSubtitles,
+  },
+  ja: {
+    common: jaCommon,
+    channels: jaChannels,
+    download: jaDownload,
+    gallery: jaGallery,
+    metadata: jaMetadata,
+    universal: jaUniversal,
+    pages: jaPages,
+    settings: jaSettings,
+    subtitles: jaSubtitles,
   },
   vi: {
     common: viCommon,
