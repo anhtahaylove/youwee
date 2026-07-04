@@ -7,6 +7,15 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.5] - 2026-07-04
+
+### Sửa lỗi
+- **Xác nhận khi xoá** - Dùng hộp thoại xác nhận trong app cho thao tác xoá toàn bộ Library và Logs
+- **Tên tải xuống Unicode** - Giữ tên tiếng Việt và Unicode từ metadata hoặc filepath cuối thay vì stdout Windows bị mất ký tự
+
+### Thay đổi
+- **README fork custom** - Trình bày rõ public fork và kênh release custom cho tester
+
 ## [0.19.1-custom.4] - 2026-07-03
 
 ### Sửa lỗi

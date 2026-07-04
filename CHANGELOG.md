@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.5] - 2026-07-04
+
+### Fixed
+- **Clear confirmations** - Use in-app confirmation dialogs for destructive Library and Logs clear actions
+- **Unicode download titles** - Keep Vietnamese and other Unicode titles from metadata or final file paths instead of lossy Windows process output
+
+### Changed
+- **Custom fork README** - Present the public fork and custom release channel clearly for testers
+
 ## [0.19.1-custom.4] - 2026-07-03
 
 ### Fixed
