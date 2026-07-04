@@ -1451,6 +1451,11 @@ pub async fn get_available_subtitles(
                 is_auto: false,
             },
             SubtitleInfo {
+                lang: "es".to_string(),
+                name: "Spanish".to_string(),
+                is_auto: false,
+            },
+            SubtitleInfo {
                 lang: "ko".to_string(),
                 name: "Korean".to_string(),
                 is_auto: false,

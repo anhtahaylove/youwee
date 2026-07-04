@@ -625,6 +625,8 @@ fn tray_text(key: &str) -> &'static str {
         "fr"
     } else if lang.starts_with("ja") {
         "ja"
+    } else if lang.starts_with("es") {
+        "es"
     } else {
         "en"
     };
@@ -706,6 +708,25 @@ fn tray_text(key: &str) -> &'static str {
         ("ja", "open") => "Youwee を開く",
         ("ja", "browser_extension") => "ブラウザ拡張機能",
         ("ja", "quit") => "終了",
+        // Spanish
+        ("es", "followed_channels") => "Canales seguidos",
+        ("es", "no_channels") => "No sigues ningún canal",
+        ("es", "new_suffix") => "nuevos",
+        ("es", "download_queue") => "Cola de descargas",
+        ("es", "downloading") => "Descargando",
+        ("es", "pending") => "Pendiente",
+        ("es", "completed") => "Completado",
+        ("es", "errors") => "Errores",
+        ("es", "idle") => "Inactivo",
+        ("es", "remote_download") => "Descarga remota",
+        ("es", "running") => "Ejecutándose",
+        ("es", "disabled") => "Deshabilitado",
+        ("es", "check_all") => "Comprobar canales seguidos ahora",
+        ("es", "settings") => "Ajustes",
+        ("es", "check_update") => "Buscar actualizaciones...",
+        ("es", "open") => "Abrir Youwee",
+        ("es", "browser_extension") => "Extensión de navegador",
+        ("es", "quit") => "Salir",
         // English (default)
         (_, "followed_channels") => "Followed Channels",
         (_, "no_channels") => "No channels followed",
