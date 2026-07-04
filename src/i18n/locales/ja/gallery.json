@@ -1,0 +1,63 @@
+{
+  "title": "ギャラリー",
+  "page": {
+    "systemManagedOnly": "システム管理のみ"
+  },
+  "missing": {
+    "title": "gallery-dl が必要です",
+    "checking": "システムの gallery-dl を確認中...",
+    "description": "ギャラリー、コレクション、クリエイターのフィードをダウンロードするには、システムに gallery-dl をインストールしてください。",
+    "refresh": "ステータスを更新",
+    "openDependencies": "依存関係を開く",
+    "installGuide": "インストールガイド"
+  },
+  "actions": {
+    "startDownload": "ダウンロード開始",
+    "stopDownload": "ダウンロード停止",
+    "clearAll": "すべてクリア"
+  },
+  "settings": {
+    "notSelected": "フォルダを選択",
+    "selectFolder": "保存先フォルダを選択",
+    "systemManagedOnly": "システム管理のみ",
+    "advanced": "詳細設定",
+    "more": "その他",
+    "parallelDownloads": "同時ダウンロード数",
+    "atATime": "同時 {{count}} 件",
+    "systemManagedHint": "Youwee はこの画面でのみシステムの gallery-dl バイナリを使用します。"
+  },
+  "queue": {
+    "title": "キュー",
+    "pending": "{{count}} 件が待機中",
+    "clearCompleted": "完了済みをクリア ({{count}})",
+    "openFolder": "フォルダを開く",
+    "remove": "項目を削除",
+    "status": {
+      "pending": "待機中",
+      "downloading": "ダウンロード中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "empty": {
+      "title": "ギャラリーの URL を入力して開始",
+      "description": "この画面は、画像ギャラリー、アーティストフィード、マンガの章など、Universal よりも gallery-dl に適したコレクション形式のソースに使用します。",
+      "moreCount": "他多数",
+      "viewFullList": "対応サイト一覧を見る"
+    }
+  },
+  "urlInput": {
+    "single": "単一 URL",
+    "singleHint": "単一のギャラリー URL を貼り付け",
+    "multiple": "複数 URL",
+    "multipleHint": "複数のギャラリー URL を追加 (1 行に 1 つ)",
+    "paste": "貼り付け",
+    "import": "インポート",
+    "detectedMultiple": "{{count}} 件の URL を検出",
+    "placeholder": "ギャラリー、投稿、またはクリエイターの URL を貼り付け",
+    "placeholderMultiple": "1 行に 1 つの URL。# で始まる行は無視されます。",
+    "urlCount": "{{count}} 件の URL",
+    "urlCount_plural": "{{count}} 件の URL",
+    "clearInput": "クリア",
+    "addToQueue": "追加"
+  }
+}

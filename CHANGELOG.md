@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Japanese language** - Added Japanese translations for the app interface
 - **Linux Flatpak package** - Added a Flatpak release bundle for Linux users on modern distributions where AppImage may require extra FUSE packages
 
 ### Changed

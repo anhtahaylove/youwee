@@ -29,6 +29,15 @@ import frPages from './locales/fr/pages.json';
 import frSettings from './locales/fr/settings.json';
 import frSubtitles from './locales/fr/subtitles.json';
 import frUniversal from './locales/fr/universal.json';
+import jaChannels from './locales/ja/channels.json';
+import jaCommon from './locales/ja/common.json';
+import jaDownload from './locales/ja/download.json';
+import jaGallery from './locales/ja/gallery.json';
+import jaMetadata from './locales/ja/metadata.json';
+import jaPages from './locales/ja/pages.json';
+import jaSettings from './locales/ja/settings.json';
+import jaSubtitles from './locales/ja/subtitles.json';
+import jaUniversal from './locales/ja/universal.json';
 import ptChannels from './locales/pt/channels.json';
 import ptCommon from './locales/pt/common.json';
 import ptDownload from './locales/pt/download.json';
@@ -109,6 +118,17 @@ const resources = {
     pages: frPages,
     settings: frSettings,
     subtitles: frSubtitles,
+  },
+  ja: {
+    common: jaCommon,
+    channels: jaChannels,
+    download: jaDownload,
+    gallery: jaGallery,
+    metadata: jaMetadata,
+    universal: jaUniversal,
+    pages: jaPages,
+    settings: jaSettings,
+    subtitles: jaSubtitles,
   },
   vi: {
     common: viCommon,
