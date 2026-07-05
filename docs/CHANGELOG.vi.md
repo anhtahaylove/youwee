@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.6] - 2026-07-05
+
+### Sửa lỗi
+- **Profile xác thực Firefox** - Chuyển tên hiển thị cũ như `default-release` sang đúng thư mục profile thật trước khi yt-dlp đọc cookie trình duyệt
+- **Churn format trên Windows** - Chuẩn hóa file text của repo về LF để Biome và build không ghi lại line ending ngoài phạm vi thay đổi
+
 ## [0.19.1-custom.5] - 2026-07-04
 
 ### Sửa lỗi

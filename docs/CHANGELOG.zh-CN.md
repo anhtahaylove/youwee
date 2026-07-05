@@ -7,6 +7,12 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.19.1-custom.6] - 2026-07-05
+
+### 修复
+- **Firefox 认证配置文件** - 在 yt-dlp 读取浏览器 Cookie 前，将 `default-release` 等旧显示名解析为真实的配置文件目录
+- **Windows 格式化 churn** - 将仓库文本文件规范为 LF，避免 Biome 和构建过程在 Windows 上重写无关的换行符
+
 ## [0.19.1-custom.5] - 2026-07-04
 
 ### 修复

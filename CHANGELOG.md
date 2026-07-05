@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.6] - 2026-07-05
+
+### Fixed
+- **Firefox authentication profiles** - Resolve legacy Firefox display names such as `default-release` to the real profile folder before yt-dlp reads browser cookies
+- **Windows formatter churn** - Keep repository text files normalized to LF so Biome and build runs do not rewrite unrelated line endings on Windows
+
 ## [0.19.1-custom.5] - 2026-07-04
 
 ### Fixed
