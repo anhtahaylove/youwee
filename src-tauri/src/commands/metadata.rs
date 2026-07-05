@@ -750,7 +750,7 @@ pub async fn fetch_metadata(
         "-o".to_string(),
         output_template.clone(),
     ];
-    add_safe_filename_args(&mut args);
+    add_safe_filename_args(&mut args, Some(&sanitized_path));
 
     // Description output template - yt-dlp adds .description automatically
     if write_description {
