@@ -1,18 +1,21 @@
 use crate::services::{
-    DenoUpdateInfo, FfmpegUpdateInfo, check_deno_internal, check_deno_update_internal,
-    check_ffmpeg_internal, check_ffmpeg_update_internal, check_gallerydl_internal,
-    get_all_ytdlp_versions, get_channel_api_url, get_deno_download_url, get_ffmpeg_download_info,
-    get_ffmpeg_path, get_ffmpeg_source, get_latest_ffmpeg_release_info, get_ytdlp_channel,
+    check_deno_internal, check_deno_update_internal, check_ffmpeg_internal,
+    check_ffmpeg_update_internal, check_gallerydl_internal, get_all_ytdlp_versions,
+    get_channel_api_url, get_deno_download_url, get_ffmpeg_download_info, get_ffmpeg_path,
+    get_ffmpeg_source, get_latest_ffmpeg_release_info, get_ytdlp_channel,
     get_ytdlp_channel_download_url, get_ytdlp_download_info, get_ytdlp_source,
     get_ytdlp_version_internal, parse_ffmpeg_version, set_ffmpeg_source, set_ytdlp_channel,
     set_ytdlp_source, system_ffmpeg_upgrade_message, system_ytdlp_upgrade_message, verify_sha256,
-    write_app_ffmpeg_release_version,
+    write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo,
 };
 use crate::types::{
     BackendError, DenoStatus, DependencySource, FfmpegStatus, GalleryDlStatus, YtdlpAllVersions,
     YtdlpChannel, YtdlpChannelUpdateInfo, YtdlpVersionInfo,
 };
-use crate::utils::{CommandExt, extract_deno_zip, extract_tar_gz, extract_tar_xz, extract_zip};
+use crate::utils::{
+    extract_deno_zip, extract_tar_gz, extract_tar_xz, extract_zip, firefox_profiles_from_ini,
+    CommandExt,
+};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::process::Stdio;
@@ -44,13 +47,6 @@ pub struct DetectedBrowser {
 pub struct BrowserProfile {
     pub folder_name: String,  // Used for yt-dlp: "Profile 1"
     pub display_name: String, // Shown to user: "Loc Nguyen" or fallback to folder_name
-}
-
-fn firefox_profile_folder_name(path: &str) -> Option<String> {
-    path.replace('\\', "/")
-        .rsplit('/')
-        .find(|segment| !segment.is_empty())
-        .map(str::to_string)
 }
 
 #[tauri::command]
@@ -1150,8 +1146,8 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
                 let profile_section = &content[profile_start..];
                 // Find "name": "value" pattern
                 if let Some(name_start) = profile_section.find("\"name\"") {
-                    let after_name = &profile_section[name_start + 6..]; // skip "name"
-                    // Find the colon and then the opening quote
+                    // skip "name", then find the colon and opening quote
+                    let after_name = &profile_section[name_start + 6..];
                     if let Some(colon_pos) = after_name.find(':') {
                         let after_colon = &after_name[colon_pos + 1..];
                         // Skip whitespace and find opening quote
@@ -1173,89 +1169,11 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
     }
 
     fn get_firefox_profiles(content: &str) -> Vec<BrowserProfile> {
-        #[derive(Default)]
-        struct FirefoxProfileEntry {
-            name: Option<String>,
-            path: Option<String>,
-            is_default: bool,
-            index: usize,
-        }
-
-        let mut entries = Vec::new();
-        let mut install_default_paths = Vec::new();
-        let mut current_profile: Option<FirefoxProfileEntry> = None;
-        let mut in_install_section = false;
-        let mut next_index = 0;
-
-        for raw_line in content.lines() {
-            let line = raw_line.trim();
-
-            if line.starts_with('[') && line.ends_with(']') {
-                if let Some(entry) = current_profile.take() {
-                    if entry.name.as_deref().is_some_and(|name| !name.is_empty()) {
-                        entries.push(entry);
-                    }
-                }
-
-                in_install_section = line.starts_with("[Install");
-                current_profile = if line.starts_with("[Profile") {
-                    let entry = FirefoxProfileEntry {
-                        index: next_index,
-                        ..Default::default()
-                    };
-                    next_index += 1;
-                    Some(entry)
-                } else {
-                    None
-                };
-                continue;
-            }
-
-            if let Some(entry) = current_profile.as_mut() {
-                if let Some(name) = line.strip_prefix("Name=") {
-                    entry.name = Some(name.to_string());
-                } else if let Some(path) = line.strip_prefix("Path=") {
-                    entry.path = Some(path.to_string());
-                } else if line == "Default=1" {
-                    entry.is_default = true;
-                }
-            } else if in_install_section {
-                if let Some(path) = line.strip_prefix("Default=") {
-                    if !path.is_empty() {
-                        install_default_paths.push(path.to_string());
-                    }
-                }
-            }
-        }
-
-        if let Some(entry) = current_profile {
-            if entry.name.as_deref().is_some_and(|name| !name.is_empty()) {
-                entries.push(entry);
-            }
-        }
-
-        entries.sort_by_key(|entry| {
-            let is_install_default = entry.path.as_ref().is_some_and(|path| {
-                install_default_paths
-                    .iter()
-                    .any(|default_path| default_path == path)
-            });
-
-            (!is_install_default, !entry.is_default, entry.index)
-        });
-
-        entries
+        firefox_profiles_from_ini(content)
             .into_iter()
-            .filter_map(|entry| {
-                let display_name = entry.name?;
-                let folder_name = entry
-                    .path
-                    .as_deref()
-                    .and_then(firefox_profile_folder_name)?;
-                Some(BrowserProfile {
-                    folder_name,
-                    display_name,
-                })
+            .map(|profile| BrowserProfile {
+                folder_name: profile.folder_name,
+                display_name: profile.display_name,
             })
             .collect()
     }
@@ -1445,21 +1363,4 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
     }
 
     Ok(profiles)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::firefox_profile_folder_name;
-
-    #[test]
-    fn firefox_profile_uses_the_real_directory_name() {
-        assert_eq!(
-            firefox_profile_folder_name("Profiles/i879pxds.default-release"),
-            Some("i879pxds.default-release".to_string())
-        );
-        assert_eq!(
-            firefox_profile_folder_name(r"Profiles\i879pxds.default-release"),
-            Some("i879pxds.default-release".to_string())
-        );
-    }
 }
