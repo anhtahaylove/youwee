@@ -18,6 +18,9 @@
       "final": "Résumé final",
       "parts": "Par parties"
     },
+    "longVideoWords": "Mots par partie",
+    "longVideoWordsHint": "La valeur par défaut est 8 000 mots (environ 32 000 caractères). Des valeurs plus élevées utilisent moins de requêtes IA.",
+    "longVideoWordsSummary": "{{count}} mots/partie",
     "autoSameAsVideo": "Auto (identique à la vidéo)",
     "transcriptLanguages": "Langues de transcription (ordre de priorité)",
     "add": "Ajouter",

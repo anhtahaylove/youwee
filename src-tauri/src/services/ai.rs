@@ -98,8 +98,13 @@ pub struct SummaryResult {
     pub model: String,
 }
 
-pub const LONG_SUMMARY_THRESHOLD_CHARS: usize = 8000;
-pub const LONG_SUMMARY_CHUNK_CHARS: usize = 8000;
+pub const DEFAULT_LONG_SUMMARY_WORDS: u32 = 8_000;
+pub const MIN_LONG_SUMMARY_WORDS: u32 = 200;
+pub const MAX_LONG_SUMMARY_WORDS: u32 = 50_000;
+pub const LONG_SUMMARY_WORD_TO_CHAR_RATIO: usize = 4;
+pub const LONG_SUMMARY_THRESHOLD_CHARS: usize =
+    DEFAULT_LONG_SUMMARY_WORDS as usize * LONG_SUMMARY_WORD_TO_CHAR_RATIO;
+pub const LONG_SUMMARY_CHUNK_CHARS: usize = LONG_SUMMARY_THRESHOLD_CHARS;
 pub const LONG_SUMMARY_COMPOSE_CHARS: usize = 8000;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -312,7 +317,21 @@ Be thorough, readable, and well-structured."#
 }
 
 pub fn should_use_long_summary(transcript: &str) -> bool {
-    transcript.chars().count() > LONG_SUMMARY_THRESHOLD_CHARS
+    should_use_long_summary_with_limit(transcript, LONG_SUMMARY_THRESHOLD_CHARS)
+}
+
+pub fn should_use_long_summary_with_limit(transcript: &str, max_chars: usize) -> bool {
+    transcript.chars().count() > max_chars.max(1)
+}
+
+pub fn normalize_long_summary_words(words: Option<u32>) -> u32 {
+    words
+        .unwrap_or(DEFAULT_LONG_SUMMARY_WORDS)
+        .clamp(MIN_LONG_SUMMARY_WORDS, MAX_LONG_SUMMARY_WORDS)
+}
+
+pub fn long_summary_words_to_chars(words: Option<u32>) -> usize {
+    normalize_long_summary_words(words) as usize * LONG_SUMMARY_WORD_TO_CHAR_RATIO
 }
 
 pub fn resolve_long_summary_format(
@@ -745,8 +764,18 @@ mod tests {
         let short_transcript = "a".repeat(LONG_SUMMARY_THRESHOLD_CHARS);
         let long_transcript = "a".repeat(LONG_SUMMARY_THRESHOLD_CHARS + 1);
 
+        assert_eq!(LONG_SUMMARY_THRESHOLD_CHARS, 32_000);
         assert!(!should_use_long_summary(&short_transcript));
         assert!(should_use_long_summary(&long_transcript));
+    }
+
+    #[test]
+    fn long_summary_words_convert_to_safe_char_limits() {
+        assert_eq!(DEFAULT_LONG_SUMMARY_WORDS, 8_000);
+        assert_eq!(long_summary_words_to_chars(Some(8_000)), 32_000);
+        assert_eq!(long_summary_words_to_chars(Some(199)), 800);
+        assert_eq!(long_summary_words_to_chars(Some(50_001)), 200_000);
+        assert_eq!(long_summary_words_to_chars(None), 32_000);
     }
 
     #[test]

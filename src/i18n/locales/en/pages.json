@@ -18,6 +18,9 @@
       "final": "Final summary",
       "parts": "By parts"
     },
+    "longVideoWords": "Words per part",
+    "longVideoWordsHint": "Default is 8,000 words (about 32,000 characters). Higher values use fewer AI requests.",
+    "longVideoWordsSummary": "{{count}} words/part",
     "autoSameAsVideo": "Auto (same as video)",
     "transcriptLanguages": "Transcript Languages (priority order)",
     "add": "Add",

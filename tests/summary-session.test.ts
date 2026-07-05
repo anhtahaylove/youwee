@@ -1,8 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import {
   createInitialSummarySessionState,
+  DEFAULT_LONG_SUMMARY_WORDS,
   getBackendSummaryCancelRequestId,
   isLongSummaryTranscript,
+  longSummaryWordsToChars,
+  normalizeLongSummaryWords,
   summarySessionReducer,
 } from '../src/lib/summary-session';
 
@@ -13,6 +16,7 @@ describe('summarySessionReducer', () => {
       language: 'auto',
       transcriptLanguages: ['en'],
       longSummaryFormat: 'auto',
+      longSummaryWords: DEFAULT_LONG_SUMMARY_WORDS,
     });
 
     const loading = summarySessionReducer(initial, {
@@ -55,6 +59,7 @@ describe('summarySessionReducer', () => {
       language: 'vi',
       transcriptLanguages: ['vi', 'en'],
       longSummaryFormat: 'auto',
+      longSummaryWords: DEFAULT_LONG_SUMMARY_WORDS,
     });
     const loading = summarySessionReducer(initial, {
       type: 'start',
@@ -78,7 +83,15 @@ describe('summarySessionReducer', () => {
   });
 
   test('detects transcripts that will use long summary mode', () => {
-    expect(isLongSummaryTranscript('a'.repeat(8000))).toBe(false);
-    expect(isLongSummaryTranscript('a'.repeat(8001))).toBe(true);
+    expect(isLongSummaryTranscript('a'.repeat(32_000), DEFAULT_LONG_SUMMARY_WORDS)).toBe(false);
+    expect(isLongSummaryTranscript('a'.repeat(32_001), DEFAULT_LONG_SUMMARY_WORDS)).toBe(true);
+  });
+
+  test('normalizes custom long summary word limits before converting to chars', () => {
+    expect(DEFAULT_LONG_SUMMARY_WORDS).toBe(8000);
+    expect(longSummaryWordsToChars(8000)).toBe(32_000);
+    expect(normalizeLongSummaryWords(199)).toBe(200);
+    expect(normalizeLongSummaryWords(50_001)).toBe(50_000);
+    expect(normalizeLongSummaryWords(Number.NaN)).toBe(DEFAULT_LONG_SUMMARY_WORDS);
   });
 });

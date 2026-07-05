@@ -18,6 +18,9 @@
       "final": "Tóm tắt cuối",
       "parts": "Theo từng phần"
     },
+    "longVideoWords": "Số từ mỗi phần",
+    "longVideoWordsHint": "Mặc định là 8.000 từ (khoảng 32.000 ký tự). Giá trị cao hơn sẽ dùng ít lượt gọi AI hơn.",
+    "longVideoWordsSummary": "{{count}} từ/phần",
     "autoSameAsVideo": "Tự động (giống video)",
     "transcriptLanguages": "Ngôn ngữ phụ đề (thứ tự ưu tiên)",
     "add": "Thêm",

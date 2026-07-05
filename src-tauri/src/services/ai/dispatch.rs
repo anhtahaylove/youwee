@@ -13,6 +13,7 @@ pub async fn generate_summary(
         &config.summary_language,
         title,
         &LongSummaryFormat::Auto,
+        None,
         &NO_LONG_SUMMARY_HOOKS,
     )
     .await
@@ -32,6 +33,7 @@ pub async fn generate_summary_custom(
         language,
         title,
         &LongSummaryFormat::Auto,
+        None,
         &NO_LONG_SUMMARY_HOOKS,
     )
     .await
@@ -44,17 +46,19 @@ pub async fn generate_summary_custom_with_hooks(
     language: &str,
     title: Option<&str>,
     long_summary_format: &LongSummaryFormat,
+    long_summary_words: Option<u32>,
     hooks: &LongSummaryHooks<'_>,
 ) -> Result<SummaryResult, AIError> {
     if transcript.trim().is_empty() {
         return Err(AIError::NoTranscript);
     }
 
-    if !should_use_long_summary(transcript) {
+    let long_summary_chars = long_summary_words_to_chars(long_summary_words);
+    if !should_use_long_summary_with_limit(transcript, long_summary_chars) {
         return generate_summary_custom_once(config, transcript, style, language, title).await;
     }
 
-    let chunks = chunk_transcript(transcript, LONG_SUMMARY_CHUNK_CHARS);
+    let chunks = chunk_transcript(transcript, long_summary_chars);
     if chunks.len() <= 1 {
         return generate_summary_custom_once(config, transcript, style, language, title).await;
     }

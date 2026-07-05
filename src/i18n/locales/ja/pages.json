@@ -18,6 +18,9 @@
       "final": "最終要約",
       "parts": "パート別"
     },
+    "longVideoWords": "1パートあたりの単語数",
+    "longVideoWordsHint": "初期値は 8,000 語（約 32,000 文字）です。大きい値ほど AI リクエスト回数が少なくなります。",
+    "longVideoWordsSummary": "{{count}} 語/パート",
     "autoSameAsVideo": "自動 (動画と同じ言語)",
     "transcriptLanguages": "文字起こしの優先言語",
     "add": "追加",

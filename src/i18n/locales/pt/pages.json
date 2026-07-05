@@ -18,6 +18,9 @@
       "final": "Resumo final",
       "parts": "Por partes"
     },
+    "longVideoWords": "Palavras por parte",
+    "longVideoWordsHint": "O padrão é 8.000 palavras (cerca de 32.000 caracteres). Valores maiores usam menos chamadas de IA.",
+    "longVideoWordsSummary": "{{count}} palavras/parte",
     "autoSameAsVideo": "Automático (igual ao vídeo)",
     "transcriptLanguages": "Idiomas de Transcrição (ordem de prioridade)",
     "add": "Adicionar",

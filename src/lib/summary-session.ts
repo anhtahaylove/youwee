@@ -1,6 +1,11 @@
 import type { LongSummaryFormat, SummaryStyle } from '@/lib/types';
 
-export const LONG_SUMMARY_TRANSCRIPT_THRESHOLD_CHARS = 8000;
+export const DEFAULT_LONG_SUMMARY_WORDS = 8000;
+export const MIN_LONG_SUMMARY_WORDS = 200;
+export const MAX_LONG_SUMMARY_WORDS = 50_000;
+export const LONG_SUMMARY_WORD_TO_CHAR_RATIO = 4;
+export const LONG_SUMMARY_TRANSCRIPT_THRESHOLD_CHARS =
+  DEFAULT_LONG_SUMMARY_WORDS * LONG_SUMMARY_WORD_TO_CHAR_RATIO;
 
 export type SummarySessionStatus =
   | 'idle'
@@ -28,6 +33,7 @@ export interface SummarySessionOptions {
   language: string;
   transcriptLanguages: string[];
   longSummaryFormat: LongSummaryFormat;
+  longSummaryWords: number;
 }
 
 export interface SummarySessionState {
@@ -85,8 +91,26 @@ export function getBackendSummaryCancelRequestId(requestId: string | null): stri
   return normalized ? normalized : null;
 }
 
-export function isLongSummaryTranscript(transcript: string): boolean {
-  return Array.from(transcript).length > LONG_SUMMARY_TRANSCRIPT_THRESHOLD_CHARS;
+export function normalizeLongSummaryWords(value: unknown): number {
+  const numericValue = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return DEFAULT_LONG_SUMMARY_WORDS;
+  }
+  return Math.min(
+    MAX_LONG_SUMMARY_WORDS,
+    Math.max(MIN_LONG_SUMMARY_WORDS, Math.round(numericValue)),
+  );
+}
+
+export function longSummaryWordsToChars(words: unknown): number {
+  return normalizeLongSummaryWords(words) * LONG_SUMMARY_WORD_TO_CHAR_RATIO;
+}
+
+export function isLongSummaryTranscript(
+  transcript: string,
+  longSummaryWords = DEFAULT_LONG_SUMMARY_WORDS,
+): boolean {
+  return Array.from(transcript).length > longSummaryWordsToChars(longSummaryWords);
 }
 
 export function summarySessionReducer(

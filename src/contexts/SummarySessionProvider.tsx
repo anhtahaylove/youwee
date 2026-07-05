@@ -6,8 +6,10 @@ import { useDownload } from '@/contexts/download-context';
 import { localizeUnknownError } from '@/lib/backend-error';
 import {
   createInitialSummarySessionState,
+  DEFAULT_LONG_SUMMARY_WORDS,
   getBackendSummaryCancelRequestId,
   isLongSummaryTranscript,
+  normalizeLongSummaryWords,
   type SummarySessionOptions,
   summarySessionReducer,
 } from '@/lib/summary-session';
@@ -30,6 +32,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
       language: ai.config.summary_language,
       transcriptLanguages: ai.config.transcript_languages || ['en'],
       longSummaryFormat: 'auto',
+      longSummaryWords: DEFAULT_LONG_SUMMARY_WORDS,
     }),
   );
   const requestIdRef = useRef(0);
@@ -48,6 +51,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
         language: ai.config.summary_language,
         transcriptLanguages: ai.config.transcript_languages || ['en'],
         longSummaryFormat: 'auto',
+        longSummaryWords: DEFAULT_LONG_SUMMARY_WORDS,
       },
     });
   }, [
@@ -174,9 +178,12 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           throw new Error('No transcript available for this video');
         }
 
+        const longSummaryWords = normalizeLongSummaryWords(options.longSummaryWords);
         setStatus(
           'generating',
-          isLongSummaryTranscript(transcript) ? 'preparingLongSummary' : 'generating',
+          isLongSummaryTranscript(transcript, longSummaryWords)
+            ? 'preparingLongSummary'
+            : 'generating',
         );
         backendSummaryRequestIdRef.current = summaryRequestId;
         const summaryResult = await invoke<{ summary: string }>('generate_summary_with_options', {
@@ -185,6 +192,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           language: options.language,
           title: videoInfo.title,
           longSummaryFormat: options.longSummaryFormat,
+          longSummaryWords,
           requestId: summaryRequestId,
         });
 

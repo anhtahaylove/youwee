@@ -41,6 +41,12 @@ import {
   SUMMARY_FONT_SIZE_STORAGE_KEY,
   type SummaryFontSize,
 } from '@/lib/summary-font-size';
+import {
+  DEFAULT_LONG_SUMMARY_WORDS,
+  MAX_LONG_SUMMARY_WORDS,
+  MIN_LONG_SUMMARY_WORDS,
+  normalizeLongSummaryWords,
+} from '@/lib/summary-session';
 import { LANGUAGE_OPTIONS, type LongSummaryFormat, type SummaryStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -135,6 +141,7 @@ export function SummaryPage({
   const summaryStyle = options.style;
   const summaryLanguage = options.language;
   const longSummaryFormat = options.longSummaryFormat;
+  const longSummaryWords = options.longSummaryWords;
   const transcriptLanguages = options.transcriptLanguages;
   const summaryLanguageLabel =
     summaryLanguage === 'auto'
@@ -142,6 +149,10 @@ export function SummaryPage({
       : LANGUAGE_OPTIONS.find((l) => l.code === summaryLanguage)?.name || summaryLanguage;
   const longSummaryFormatLabel =
     longSummaryFormat === 'auto' ? null : t(`summary.longVideoFormatOptions.${longSummaryFormat}`);
+  const longSummaryWordsLabel =
+    longSummaryWords === DEFAULT_LONG_SUMMARY_WORDS
+      ? null
+      : t('summary.longVideoWordsSummary', { count: longSummaryWords });
 
   const getLoadingText = useCallback(
     (status: string) => {
@@ -391,6 +402,7 @@ export function SummaryPage({
               {summaryStyle.charAt(0).toUpperCase() + summaryStyle.slice(1)} •{' '}
               {summaryLanguageLabel}
               {longSummaryFormatLabel ? ` • ${longSummaryFormatLabel}` : ''}
+              {longSummaryWordsLabel ? ` • ${longSummaryWordsLabel}` : ''}
             </span>
           )}
         </div>
@@ -398,7 +410,7 @@ export function SummaryPage({
         {/* Settings Panel */}
         {showSettings && (
           <div className="p-4 rounded-xl bg-muted/30 border border-border/50 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {/* Summary Style */}
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">
@@ -442,30 +454,63 @@ export function SummaryPage({
                 </Select>
               </div>
 
-              {/* Long Video Format */}
-              <div className="space-y-1.5">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t('summary.longVideoFormat')}
-                </span>
-                <Select
-                  value={longSummaryFormat}
-                  onValueChange={(value) =>
-                    updateOptions({ longSummaryFormat: value as LongSummaryFormat })
-                  }
-                >
-                  <SelectTrigger className="h-9 bg-background/50">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">{t('summary.longVideoFormatOptions.auto')}</SelectItem>
-                    <SelectItem value="final">
-                      {t('summary.longVideoFormatOptions.final')}
-                    </SelectItem>
-                    <SelectItem value="parts">
-                      {t('summary.longVideoFormatOptions.parts')}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+              {/* Long Video */}
+              <div className="space-y-1.5 lg:col-span-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(8rem,10rem)]">
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('summary.longVideoFormat')}
+                    </span>
+                    <Select
+                      value={longSummaryFormat}
+                      onValueChange={(value) =>
+                        updateOptions({ longSummaryFormat: value as LongSummaryFormat })
+                      }
+                    >
+                      <SelectTrigger className="h-9 bg-background/50">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">
+                          {t('summary.longVideoFormatOptions.auto')}
+                        </SelectItem>
+                        <SelectItem value="final">
+                          {t('summary.longVideoFormatOptions.final')}
+                        </SelectItem>
+                        <SelectItem value="parts">
+                          {t('summary.longVideoFormatOptions.parts')}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t('summary.longVideoWords')}
+                    </span>
+                    <Input
+                      type="number"
+                      min={MIN_LONG_SUMMARY_WORDS}
+                      max={MAX_LONG_SUMMARY_WORDS}
+                      step={500}
+                      value={longSummaryWords}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        if (Number.isFinite(value)) {
+                          updateOptions({ longSummaryWords: value });
+                        }
+                      }}
+                      onBlur={() =>
+                        updateOptions({
+                          longSummaryWords: normalizeLongSummaryWords(longSummaryWords),
+                        })
+                      }
+                      className="h-9 bg-background/50"
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground/70">
+                  {t('summary.longVideoWordsHint')}
+                </p>
               </div>
             </div>
 

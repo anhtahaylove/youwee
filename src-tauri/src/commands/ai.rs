@@ -64,6 +64,7 @@ async fn generate_summary_with_progress(
     language: &str,
     title: Option<&str>,
     long_summary_format: &LongSummaryFormat,
+    long_summary_words: Option<u32>,
     request_id: Option<String>,
 ) -> Result<crate::services::SummaryResult, String> {
     let request_id = normalize_request_id(request_id);
@@ -106,6 +107,7 @@ async fn generate_summary_with_progress(
         language,
         title,
         long_summary_format,
+        long_summary_words,
         &hooks,
     )
     .await
@@ -181,6 +183,7 @@ pub async fn generate_video_summary(
         &config.summary_language,
         title.as_deref(),
         &LongSummaryFormat::Auto,
+        None,
         request_id,
     )
     .await?;
@@ -202,6 +205,7 @@ pub async fn generate_summary_with_options(
     language: String,
     title: Option<String>,
     long_summary_format: Option<String>,
+    long_summary_words: Option<u32>,
     request_id: Option<String>,
 ) -> Result<SummaryResult, String> {
     let config = get_ai_config(app.clone()).await?;
@@ -227,6 +231,7 @@ pub async fn generate_summary_with_options(
         &language,
         title.as_deref(),
         &long_summary_format,
+        long_summary_words,
         request_id,
     )
     .await?;
