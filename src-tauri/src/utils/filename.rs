@@ -3,7 +3,7 @@
 const WINDOWS_MAX_PATH: usize = 260;
 const RESERVED_SUFFIX_BYTES: usize = 40;
 const MIN_TRIM_FILENAMES: u32 = 50;
-const MAX_TRIM_FILENAMES: u32 = 200;
+const MAX_TRIM_FILENAMES: u32 = 180;
 const DEFAULT_TRIM_FILENAMES: u32 = 180;
 
 /// Compute a safe `--trim-filenames` byte limit from the output directory length.
@@ -11,7 +11,7 @@ const DEFAULT_TRIM_FILENAMES: u32 = 180;
 /// Reserves space for the directory prefix so the final path stays within common
 /// filesystem limits (especially `MAX_PATH` on Windows).
 pub fn calc_trim_filenames_bytes(output_path: &str) -> u32 {
-    let path_len = output_path.chars().count();
+    let path_len = output_path.as_bytes().len();
     let available = WINDOWS_MAX_PATH
         .saturating_sub(path_len)
         .saturating_sub(RESERVED_SUFFIX_BYTES);
@@ -45,7 +45,20 @@ mod tests {
 
     #[test]
     fn calc_trim_filenames_clamps_short_paths_to_default_cap() {
-        assert_eq!(calc_trim_filenames_bytes("/tmp"), MAX_TRIM_FILENAMES);
+        assert_eq!(calc_trim_filenames_bytes("/tmp"), DEFAULT_TRIM_FILENAMES);
+    }
+
+    #[test]
+    fn calc_trim_filenames_uses_byte_length_for_non_ascii_paths() {
+        let path = "G:\\下载\\Youwee\\very-long-non-ascii-output-directory-name";
+        assert!(path.as_bytes().len() > path.chars().count());
+
+        let expected = (WINDOWS_MAX_PATH
+            .saturating_sub(path.as_bytes().len())
+            .saturating_sub(RESERVED_SUFFIX_BYTES) as u32)
+            .clamp(MIN_TRIM_FILENAMES, MAX_TRIM_FILENAMES);
+        assert_eq!(calc_trim_filenames_bytes(path), expected);
+        assert!(expected < DEFAULT_TRIM_FILENAMES);
     }
 
     #[test]
