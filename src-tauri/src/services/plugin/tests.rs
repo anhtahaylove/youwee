@@ -351,6 +351,7 @@ fn version_ranges_are_checked_correctly() {
     assert!(satisfies_version_range("0.13.3", ">=0.13.0 <0.14.0").unwrap());
     assert!(!satisfies_version_range("0.14.0", ">=0.13.0 <0.14.0").unwrap());
     assert!(satisfies_version_range("0.13.3", "=0.13.3").unwrap());
+    assert!(satisfies_version_range("0.19.1-custom.6", ">=0.19.0 <0.20.0").unwrap());
 }
 
 #[test]

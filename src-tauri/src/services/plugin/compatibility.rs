@@ -13,7 +13,11 @@ struct SimpleSemver {
 
 fn parse_simple_semver(version: &str) -> Option<SimpleSemver> {
     let trimmed = version.trim().trim_start_matches('v');
-    let mut parts = trimmed.split('.');
+    let core = trimmed
+        .split(|ch| ch == '-' || ch == '+')
+        .next()
+        .unwrap_or(trimmed);
+    let mut parts = core.split('.');
     let major = parts.next()?.parse().ok()?;
     let minor = parts.next()?.parse().ok()?;
     let patch = parts.next()?.parse().ok()?;
