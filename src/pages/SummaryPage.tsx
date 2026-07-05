@@ -31,7 +31,7 @@ import { SimpleMarkdown } from '@/components/ui/simple-markdown';
 import { useAI } from '@/contexts/AIContext';
 import { useSummarySession } from '@/contexts/summary-session-context';
 import { localizeUnknownError } from '@/lib/backend-error';
-import { LANGUAGE_OPTIONS, type SummaryStyle } from '@/lib/types';
+import { LANGUAGE_OPTIONS, type LongSummaryFormat, type SummaryStyle } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface SummaryPageProps {
@@ -109,6 +109,7 @@ export function SummaryPage({
     options,
     isLoading,
     loadingStatus,
+    loadingParams,
     error,
     result,
     saved,
@@ -117,14 +118,21 @@ export function SummaryPage({
   } = state;
   const summaryStyle = options.style;
   const summaryLanguage = options.language;
+  const longSummaryFormat = options.longSummaryFormat;
   const transcriptLanguages = options.transcriptLanguages;
+  const summaryLanguageLabel =
+    summaryLanguage === 'auto'
+      ? t('summary.autoLanguage')
+      : LANGUAGE_OPTIONS.find((l) => l.code === summaryLanguage)?.name || summaryLanguage;
+  const longSummaryFormatLabel =
+    longSummaryFormat === 'auto' ? null : t(`summary.longVideoFormatOptions.${longSummaryFormat}`);
 
   const getLoadingText = useCallback(
     (status: string) => {
       if (!status) return '';
-      return t(`summary.loading.${status}`);
+      return t(`summary.loading.${status}`, loadingParams);
     },
-    [t],
+    [loadingParams, t],
   );
 
   const runSummary = useCallback(
@@ -353,9 +361,8 @@ export function SummaryPage({
           {!showSettings && (
             <span className="text-xs text-muted-foreground">
               {summaryStyle.charAt(0).toUpperCase() + summaryStyle.slice(1)} •{' '}
-              {summaryLanguage === 'auto'
-                ? t('summary.autoLanguage')
-                : LANGUAGE_OPTIONS.find((l) => l.code === summaryLanguage)?.name || summaryLanguage}
+              {summaryLanguageLabel}
+              {longSummaryFormatLabel ? ` • ${longSummaryFormatLabel}` : ''}
             </span>
           )}
         </div>
@@ -403,6 +410,32 @@ export function SummaryPage({
                         {l.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Long Video Format */}
+              <div className="space-y-1.5">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {t('summary.longVideoFormat')}
+                </span>
+                <Select
+                  value={longSummaryFormat}
+                  onValueChange={(value) =>
+                    updateOptions({ longSummaryFormat: value as LongSummaryFormat })
+                  }
+                >
+                  <SelectTrigger className="h-9 bg-background/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">{t('summary.longVideoFormatOptions.auto')}</SelectItem>
+                    <SelectItem value="final">
+                      {t('summary.longVideoFormatOptions.final')}
+                    </SelectItem>
+                    <SelectItem value="parts">
+                      {t('summary.longVideoFormatOptions.parts')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

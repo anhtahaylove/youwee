@@ -12,6 +12,12 @@
     "concise": "موجز (أهم النقاط)",
     "detailed": "مفصل (شامل)",
     "outputLanguage": "لغة الإخراج",
+    "longVideoFormat": "تنسيق الفيديو الطويل",
+    "longVideoFormatOptions": {
+      "auto": "تلقائي",
+      "final": "الملخص النهائي",
+      "parts": "حسب الأجزاء"
+    },
     "autoSameAsVideo": "تلقائي (مثل لغة الفيديو)",
     "transcriptLanguages": "لغات النص التفريغي (ترتيب الأولوية)",
     "add": "إضافة",
@@ -40,7 +46,9 @@
     "loading": {
       "fetchingInfo": "جارٍ جلب معلومات الفيديو...",
       "fetchingTranscript": "جارٍ جلب النص التفريغي...",
-      "generating": "جارٍ إنشاء الملخص..."
+      "generating": "جارٍ إنشاء الملخص...",
+      "summarizingChunk": "جارٍ تلخيص الجزء {{current}}/{{total}}...",
+      "combiningSummary": "جارٍ دمج الملخص النهائي..."
     },
     "aiSettings": "إعدادات الذكاء الاصطناعي",
     "configureAI": "تهيئة ميزات الذكاء الاصطناعي",

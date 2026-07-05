@@ -1,4 +1,4 @@
-import type { SummaryStyle } from '@/lib/types';
+import type { LongSummaryFormat, SummaryStyle } from '@/lib/types';
 
 export type SummarySessionStatus =
   | 'idle'
@@ -25,6 +25,7 @@ export interface SummarySessionOptions {
   style: SummaryStyle;
   language: string;
   transcriptLanguages: string[];
+  longSummaryFormat: LongSummaryFormat;
 }
 
 export interface SummarySessionState {
@@ -33,6 +34,7 @@ export interface SummarySessionState {
   status: SummarySessionStatus;
   isLoading: boolean;
   loadingStatus: string;
+  loadingParams: Record<string, string | number>;
   error: string | null;
   result: SummarySessionResult | null;
   saved: boolean;
@@ -50,6 +52,7 @@ export type SummarySessionAction =
       type: 'set-status';
       status: Extract<SummarySessionStatus, 'fetching-info' | 'fetching-transcript' | 'generating'>;
       loadingStatus: string;
+      loadingParams?: Record<string, string | number>;
     }
   | { type: 'complete'; result: SummarySessionResult }
   | { type: 'fail'; error: string }
@@ -66,6 +69,7 @@ export function createInitialSummarySessionState(
     status: 'idle',
     isLoading: false,
     loadingStatus: '',
+    loadingParams: {},
     error: null,
     result: null,
     saved: false,
@@ -95,6 +99,7 @@ export function summarySessionReducer(
         status: 'fetching-info',
         isLoading: true,
         loadingStatus: '',
+        loadingParams: {},
         error: null,
         result: null,
         saved: false,
@@ -106,6 +111,7 @@ export function summarySessionReducer(
         status: action.status,
         isLoading: true,
         loadingStatus: action.loadingStatus,
+        loadingParams: action.loadingParams || {},
       };
     case 'complete':
       return {
@@ -113,6 +119,7 @@ export function summarySessionReducer(
         status: 'completed',
         isLoading: false,
         loadingStatus: '',
+        loadingParams: {},
         error: null,
         result: action.result,
       };
@@ -122,6 +129,7 @@ export function summarySessionReducer(
         status: 'error',
         isLoading: false,
         loadingStatus: '',
+        loadingParams: {},
         error: action.error,
       };
     case 'cancel':
@@ -130,6 +138,7 @@ export function summarySessionReducer(
         status: 'cancelled',
         isLoading: false,
         loadingStatus: '',
+        loadingParams: {},
         error: null,
       };
     case 'mark-saved':

@@ -12,6 +12,12 @@
     "concise": "กระชับ (ประเด็นสำคัญ)",
     "detailed": "ละเอียด (ครบถ้วน)",
     "outputLanguage": "ภาษาผลลัพธ์",
+    "longVideoFormat": "รูปแบบวิดีโอยาว",
+    "longVideoFormatOptions": {
+      "auto": "อัตโนมัติ",
+      "final": "สรุปสุดท้าย",
+      "parts": "แบ่งตามส่วน"
+    },
     "autoSameAsVideo": "อัตโนมัติ (เหมือนวิดีโอ)",
     "transcriptLanguages": "ภาษาของทรานสคริปต์ (เรียงตามลำดับความสำคัญ)",
     "add": "เพิ่ม",
@@ -40,7 +46,9 @@
     "loading": {
       "fetchingInfo": "กำลังดึงข้อมูลวิดีโอ...",
       "fetchingTranscript": "กำลังดึงทรานสคริปต์...",
-      "generating": "กำลังสร้างสรุป..."
+      "generating": "กำลังสร้างสรุป...",
+      "summarizingChunk": "กำลังสรุปส่วนที่ {{current}}/{{total}}...",
+      "combiningSummary": "กำลังรวมสรุปสุดท้าย..."
     },
     "aiSettings": "การตั้งค่า AI",
     "configureAI": "ตั้งค่าฟีเจอร์ AI",

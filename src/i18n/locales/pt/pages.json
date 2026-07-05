@@ -12,6 +12,12 @@
     "concise": "Conciso (pontos principais)",
     "detailed": "Detalhado (abrangente)",
     "outputLanguage": "Idioma de Saída",
+    "longVideoFormat": "Formato de vídeo longo",
+    "longVideoFormatOptions": {
+      "auto": "Automático",
+      "final": "Resumo final",
+      "parts": "Por partes"
+    },
     "autoSameAsVideo": "Automático (igual ao vídeo)",
     "transcriptLanguages": "Idiomas de Transcrição (ordem de prioridade)",
     "add": "Adicionar",
@@ -40,7 +46,9 @@
     "loading": {
       "fetchingInfo": "Buscando informações...",
       "fetchingTranscript": "Buscando transcrição...",
-      "generating": "Gerando resumo..."
+      "generating": "Gerando resumo...",
+      "summarizingChunk": "Resumindo parte {{current}}/{{total}}...",
+      "combiningSummary": "Combinando resumo final..."
     },
     "aiSettings": "Configurações de IA",
     "configureAI": "Configurar recursos de IA",

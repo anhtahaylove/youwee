@@ -12,6 +12,12 @@
     "concise": "Súc tích (điểm chính)",
     "detailed": "Chi tiết (toàn diện)",
     "outputLanguage": "Ngôn ngữ đầu ra",
+    "longVideoFormat": "Định dạng video dài",
+    "longVideoFormatOptions": {
+      "auto": "Tự động",
+      "final": "Tóm tắt cuối",
+      "parts": "Theo từng phần"
+    },
     "autoSameAsVideo": "Tự động (giống video)",
     "transcriptLanguages": "Ngôn ngữ phụ đề (thứ tự ưu tiên)",
     "add": "Thêm",
@@ -48,7 +54,9 @@
     "loading": {
       "fetchingInfo": "Đang lấy thông tin video...",
       "fetchingTranscript": "Đang lấy phụ đề...",
-      "generating": "Đang tạo tóm tắt..."
+      "generating": "Đang tạo tóm tắt...",
+      "summarizingChunk": "Đang tóm tắt phần {{current}}/{{total}}...",
+      "combiningSummary": "Đang tổng hợp tóm tắt cuối..."
     }
   },
   "processing": {
