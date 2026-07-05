@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { normalizeShellEscapedUrl } from '@/lib/sources';
+import { extractUrls } from '@/lib/sources';
 import { cn } from '@/lib/utils';
 import { VideoPreview } from './VideoPreview';
 
@@ -40,16 +40,9 @@ interface UrlInputProps {
 }
 
 function extractFirstUrl(text: string): string | null {
-  const lines = text.split('\n');
-  for (const line of lines) {
-    const trimmed = normalizeShellEscapedUrl(line);
-    if (trimmed && !trimmed.startsWith('#')) {
-      if (trimmed.includes('youtube.com') || trimmed.includes('youtu.be')) {
-        return trimmed;
-      }
-    }
-  }
-  return null;
+  return (
+    extractUrls(text).find((url) => url.includes('youtube.com') || url.includes('youtu.be')) ?? null
+  );
 }
 
 function isPlaylistOnlyUrl(url: string): boolean {
@@ -60,17 +53,8 @@ function isPlaylistOnlyUrl(url: string): boolean {
 }
 
 function countUrls(text: string): number {
-  return text
-    .trim()
-    .split('\n')
-    .filter((l) => {
-      const trimmed = normalizeShellEscapedUrl(l);
-      return (
-        trimmed &&
-        !trimmed.startsWith('#') &&
-        (trimmed.includes('youtube.com') || trimmed.includes('youtu.be'))
-      );
-    }).length;
+  return extractUrls(text).filter((url) => url.includes('youtube.com') || url.includes('youtu.be'))
+    .length;
 }
 
 export function UrlInput({

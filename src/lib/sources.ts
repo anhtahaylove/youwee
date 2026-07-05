@@ -216,17 +216,52 @@ function isShellEscapedUrlChar(char: string): boolean {
   return "?=&#%+:/._-~@!$'()*,;[]".includes(char);
 }
 
+const URL_PATTERN = /https?:\/\/[^\s<>"'`]+/gi;
+const TRAILING_URL_PUNCTUATION = '.,;:!?)]}';
+
+function cleanExtractedUrl(candidate: string): string {
+  let url = normalizeShellEscapedUrl(candidate);
+  while (url && TRAILING_URL_PUNCTUATION.includes(url.charAt(url.length - 1))) {
+    url = url.slice(0, -1);
+  }
+  return url;
+}
+
+/**
+ * Extract HTTP/HTTPS URLs from pasted text while preserving order.
+ */
+export function extractUrls(text: string): string[] {
+  const urls: string[] = [];
+  const seen = new Set<string>();
+
+  const addUrl = (candidate: string) => {
+    const url = cleanExtractedUrl(candidate);
+    if (!url || !isValidUrl(url) || seen.has(url)) return;
+    seen.add(url);
+    urls.push(url);
+  };
+
+  for (const line of text.split('\n')) {
+    const normalizedLine = normalizeShellEscapedUrl(line);
+    if (!normalizedLine || normalizedLine.startsWith('#')) continue;
+
+    const matches = normalizedLine.match(URL_PATTERN);
+    if (matches) {
+      for (const match of matches) {
+        addUrl(match);
+      }
+      continue;
+    }
+
+    addUrl(normalizedLine);
+  }
+
+  return urls;
+}
+
 /**
  * Parse URLs from text input, filtering for valid HTTP/HTTPS URLs
  */
 export function parseUniversalUrls(text: string): string[] {
-  return text
-    .split('\n')
-    .map(normalizeShellEscapedUrl)
-    .filter((line) => {
-      // Skip empty lines and comments
-      if (!line || line.startsWith('#')) return false;
-      // Validate URL format
-      return isValidUrl(line);
-    });
+  return extractUrls(text);
 }

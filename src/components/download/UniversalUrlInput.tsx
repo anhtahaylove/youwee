@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { isValidUrl, normalizeShellEscapedUrl } from '@/lib/sources';
+import { extractUrls } from '@/lib/sources';
 import { cn } from '@/lib/utils';
 
 interface UniversalUrlInputProps {
@@ -15,13 +15,7 @@ interface UniversalUrlInputProps {
 }
 
 function countUrls(text: string): number {
-  return text
-    .trim()
-    .split('\n')
-    .filter((l) => {
-      const trimmed = normalizeShellEscapedUrl(l);
-      return trimmed && !trimmed.startsWith('#') && isValidUrl(trimmed);
-    }).length;
+  return extractUrls(text).length;
 }
 
 export function UniversalUrlInput({

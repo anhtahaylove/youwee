@@ -53,7 +53,7 @@ import {
   refreshPluginWorkflowSnapshots,
   refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
-import { normalizeShellEscapedUrl } from '@/lib/sources';
+import { extractUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
   CookieSettings,
@@ -509,15 +509,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const parseUrls = useCallback((text: string): string[] => {
-    return text
-      .split('\n')
-      .map(normalizeShellEscapedUrl)
-      .filter((line) => {
-        // Skip empty lines and comments
-        if (!line || line.startsWith('#')) return false;
-        // Check for valid YouTube URLs
-        return line.includes('youtube.com') || line.includes('youtu.be');
-      });
+    return extractUrls(text).filter(
+      (url) => url.includes('youtube.com') || url.includes('youtu.be'),
+    );
   }, []);
 
   // Helper to check if URL is a playlist

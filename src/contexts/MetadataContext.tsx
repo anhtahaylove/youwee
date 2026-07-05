@@ -4,6 +4,7 @@ import { downloadDir, homeDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import { extractUrls } from '@/lib/sources';
 import { useDownload } from './download-context';
 import { MetadataContext } from './metadata-context';
 
@@ -160,18 +161,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const parseUrls = useCallback((text: string): string[] => {
-    return text
-      .split('\n')
-      .map((line) => line.trim())
-      .filter((line) => {
-        if (!line || line.startsWith('#')) return false;
-        return (
-          line.includes('youtube.com') ||
-          line.includes('youtu.be') ||
-          line.includes('http://') ||
-          line.includes('https://')
-        );
-      });
+    return extractUrls(text);
   }, []);
 
   const addUrls = useCallback(
