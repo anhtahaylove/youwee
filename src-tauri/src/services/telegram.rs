@@ -404,9 +404,7 @@ async fn handle_update(
         return;
     }
     let message_thread_id = message.message_thread_id;
-    if configured_message_thread_id.is_some()
-        && message_thread_id != configured_message_thread_id
-    {
+    if configured_message_thread_id.is_some() && message_thread_id != configured_message_thread_id {
         return;
     }
 
