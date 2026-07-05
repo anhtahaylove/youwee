@@ -55,6 +55,7 @@
       "fetchingInfo": "Đang lấy thông tin video...",
       "fetchingTranscript": "Đang lấy phụ đề...",
       "generating": "Đang tạo tóm tắt...",
+      "preparingLongSummary": "Đã phát hiện video dài. Đang chuẩn bị tóm tắt AI nhiều phần...",
       "summarizingChunk": "Đang tóm tắt phần {{current}}/{{total}}...",
       "combiningSummary": "Đang tổng hợp tóm tắt cuối..."
     }

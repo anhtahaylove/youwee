@@ -47,6 +47,7 @@
       "fetchingInfo": "Récupération des infos vidéo...",
       "fetchingTranscript": "Récupération de la transcription...",
       "generating": "Génération du résumé...",
+      "preparingLongSummary": "Vidéo longue détectée. Préparation d'un résumé IA en plusieurs parties...",
       "summarizingChunk": "Résumé de la partie {{current}}/{{total}}...",
       "combiningSummary": "Assemblage du résumé final..."
     },

@@ -6,6 +6,8 @@ import { useDownload } from '@/contexts/download-context';
 import { localizeUnknownError } from '@/lib/backend-error';
 import {
   createInitialSummarySessionState,
+  getBackendSummaryCancelRequestId,
+  isLongSummaryTranscript,
   type SummarySessionOptions,
   summarySessionReducer,
 } from '@/lib/summary-session';
@@ -31,7 +33,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
     }),
   );
   const requestIdRef = useRef(0);
-  const activeSummaryRequestIdRef = useRef<string | null>(null);
+  const backendSummaryRequestIdRef = useRef<string | null>(null);
   const customizedOptionsRef = useRef(false);
 
   useEffect(() => {
@@ -77,7 +79,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unlistenPromise = listen<SummaryProgressPayload>('summary-progress', (event) => {
       const progress = event.payload;
-      if (progress.requestId !== activeSummaryRequestIdRef.current) {
+      if (progress.requestId !== backendSummaryRequestIdRef.current) {
         return;
       }
 
@@ -116,7 +118,6 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
       const requestSequence = requestIdRef.current + 1;
       requestIdRef.current = requestSequence;
       const summaryRequestId = `summary-${Date.now()}-${requestSequence}`;
-      activeSummaryRequestIdRef.current = summaryRequestId;
       const normalizedUrl = inputUrl.trim();
       const options = state.options;
 
@@ -173,7 +174,11 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           throw new Error('No transcript available for this video');
         }
 
-        setStatus('generating', 'generating');
+        setStatus(
+          'generating',
+          isLongSummaryTranscript(transcript) ? 'preparingLongSummary' : 'generating',
+        );
+        backendSummaryRequestIdRef.current = summaryRequestId;
         const summaryResult = await invoke<{ summary: string }>('generate_summary_with_options', {
           transcript,
           style: options.style,
@@ -183,8 +188,10 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           requestId: summaryRequestId,
         });
 
+        if (backendSummaryRequestIdRef.current === summaryRequestId) {
+          backendSummaryRequestIdRef.current = null;
+        }
         if (!isCurrentRequest()) return;
-        activeSummaryRequestIdRef.current = null;
 
         dispatch({
           type: 'complete',
@@ -199,8 +206,10 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           },
         });
       } catch (error) {
+        if (backendSummaryRequestIdRef.current === summaryRequestId) {
+          backendSummaryRequestIdRef.current = null;
+        }
         if (!isCurrentRequest()) return;
-        activeSummaryRequestIdRef.current = null;
         const message = localizeUnknownError(error);
         dispatch({ type: 'fail', error: message });
       }
@@ -209,8 +218,8 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
   );
 
   const stopSummary = useCallback(() => {
-    const requestId = activeSummaryRequestIdRef.current;
-    activeSummaryRequestIdRef.current = null;
+    const requestId = getBackendSummaryCancelRequestId(backendSummaryRequestIdRef.current);
+    backendSummaryRequestIdRef.current = null;
     requestIdRef.current += 1;
     if (requestId) {
       void invoke('cancel_summary_generation', { requestId });

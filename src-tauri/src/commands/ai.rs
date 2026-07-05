@@ -29,6 +29,17 @@ fn clear_cancelled_summary_request(request_id: Option<&str>) {
     }
 }
 
+fn take_cancelled_summary_request(request_id: Option<&str>) -> bool {
+    request_id
+        .and_then(|request_id| {
+            cancelled_summary_requests()
+                .lock()
+                .ok()
+                .map(|mut requests| requests.remove(request_id))
+        })
+        .unwrap_or(false)
+}
+
 fn is_summary_request_cancelled(request_id: &str) -> bool {
     cancelled_summary_requests()
         .lock()
@@ -56,7 +67,9 @@ async fn generate_summary_with_progress(
     request_id: Option<String>,
 ) -> Result<crate::services::SummaryResult, String> {
     let request_id = normalize_request_id(request_id);
-    clear_cancelled_summary_request(request_id.as_deref());
+    if take_cancelled_summary_request(request_id.as_deref()) {
+        return Err(crate::services::AIError::Cancelled.to_wire_string());
+    }
     let progress_request_id = request_id.clone();
     let progress_app = app.clone();
     let progress = move |progress: LongSummaryProgress| {
@@ -248,6 +261,43 @@ pub fn cancel_summary_generation(request_id: String) -> Result<(), String> {
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct SummaryResult {
     pub summary: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static TEST_CANCEL_MUTEX: Mutex<()> = Mutex::new(());
+
+    fn reset_cancelled_summary_requests() {
+        cancelled_summary_requests().lock().unwrap().clear();
+    }
+
+    #[test]
+    fn take_cancelled_summary_request_consumes_existing_marker() {
+        let _guard = TEST_CANCEL_MUTEX.lock().unwrap();
+        reset_cancelled_summary_requests();
+        cancel_summary_generation("summary-race".to_string()).unwrap();
+
+        assert!(take_cancelled_summary_request(Some("summary-race")));
+        assert!(!take_cancelled_summary_request(Some("summary-race")));
+
+        reset_cancelled_summary_requests();
+    }
+
+    #[test]
+    fn clear_cancelled_summary_request_removes_marker_after_completion() {
+        let _guard = TEST_CANCEL_MUTEX.lock().unwrap();
+        reset_cancelled_summary_requests();
+        cancel_summary_generation("summary-complete".to_string()).unwrap();
+
+        clear_cancelled_summary_request(Some("summary-complete"));
+
+        assert!(!take_cancelled_summary_request(Some("summary-complete")));
+
+        reset_cancelled_summary_requests();
+    }
 }
 
 /// Get available AI models for a provider

@@ -55,6 +55,7 @@
       "fetchingInfo": "获取视频信息...",
       "fetchingTranscript": "获取字幕...",
       "generating": "生成摘要中...",
+      "preparingLongSummary": "检测到长视频，正在准备多段 AI 摘要...",
       "summarizingChunk": "正在总结第 {{current}}/{{total}} 部分...",
       "combiningSummary": "正在合成最终摘要..."
     }

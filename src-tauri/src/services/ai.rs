@@ -100,6 +100,7 @@ pub struct SummaryResult {
 
 pub const LONG_SUMMARY_THRESHOLD_CHARS: usize = 8000;
 pub const LONG_SUMMARY_CHUNK_CHARS: usize = 8000;
+pub const LONG_SUMMARY_COMPOSE_CHARS: usize = 8000;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -574,6 +575,77 @@ pub fn build_parts_prompt(
     )
 }
 
+pub fn should_batch_chunk_summaries_for_compose(chunk_summaries: &[ChunkSummary]) -> bool {
+    format_chunk_summaries(chunk_summaries).chars().count() > LONG_SUMMARY_COMPOSE_CHARS
+}
+
+pub fn batch_chunk_summaries_for_compose(
+    chunk_summaries: &[ChunkSummary],
+    max_chars: usize,
+) -> Vec<Vec<ChunkSummary>> {
+    let max_chars = max_chars.max(1);
+    let mut batches: Vec<Vec<ChunkSummary>> = Vec::new();
+    let mut current: Vec<ChunkSummary> = Vec::new();
+    let mut current_chars = 0usize;
+
+    for summary in chunk_summaries {
+        let summary_chars = format_chunk_summary(summary).chars().count();
+        let separator_chars = if current.is_empty() { 0 } else { 2 };
+        let candidate_chars = current_chars + separator_chars + summary_chars;
+
+        if !current.is_empty() && candidate_chars > max_chars {
+            batches.push(current);
+            current = vec![summary.clone()];
+            current_chars = summary_chars;
+            continue;
+        }
+
+        current.push(summary.clone());
+        current_chars = candidate_chars;
+    }
+
+    if !current.is_empty() {
+        batches.push(current);
+    }
+
+    batches
+}
+
+pub fn build_intermediate_prompt(
+    chunk_summaries: &[ChunkSummary],
+    style: &SummaryStyle,
+    language: &str,
+    title: Option<&str>,
+    resolved_format: ResolvedLongSummaryFormat,
+    batch_index: usize,
+    batch_count: usize,
+) -> String {
+    let style_instruction = match (style, resolved_format) {
+        (SummaryStyle::Detailed, ResolvedLongSummaryFormat::Parts) => {
+            "Create an intermediate summary for segment {batch} of {total}. Preserve order, transitions, important details, and content-based headings. Do not use generic headings like `## Part 1`."
+        }
+        (SummaryStyle::Detailed, ResolvedLongSummaryFormat::Final) => {
+            "Create an intermediate summary for segment {batch} of {total}. Preserve proportional detail so the final long-video summary can remain detailed."
+        }
+        (_, ResolvedLongSummaryFormat::Parts) => {
+            "Create a concise intermediate summary for segment {batch} of {total}. Preserve order and use content-based headings when useful."
+        }
+        (_, ResolvedLongSummaryFormat::Final) => {
+            "Create a concise intermediate summary for segment {batch} of {total}. Preserve the main points needed for the final whole-video summary."
+        }
+    }
+    .replace("{batch}", &batch_index.to_string())
+    .replace("{total}", &batch_count.to_string());
+
+    build_composed_summary_prompt(
+        chunk_summaries,
+        &style_instruction,
+        "Intermediate summary:",
+        language,
+        title,
+    )
+}
+
 fn build_composed_summary_prompt(
     chunk_summaries: &[ChunkSummary],
     style_instruction: &str,
@@ -599,14 +671,16 @@ fn build_composed_summary_prompt(
 fn format_chunk_summaries(chunk_summaries: &[ChunkSummary]) -> String {
     chunk_summaries
         .iter()
-        .map(|chunk| {
-            format!(
-                "<chunk_summary index=\"{}\">\n{}\n</chunk_summary>",
-                chunk.index, chunk.summary
-            )
-        })
+        .map(format_chunk_summary)
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+fn format_chunk_summary(chunk: &ChunkSummary) -> String {
+    format!(
+        "<chunk_summary index=\"{}\">\n{}\n</chunk_summary>",
+        chunk.index, chunk.summary
+    )
 }
 
 fn title_section(title: Option<&str>) -> String {
@@ -632,11 +706,15 @@ fn summary_language_instruction<'a>(language: &'a str, source_label: &'a str) ->
             "ja" => "Japanese",
             "ko" => "Korean",
             "zh" => "Chinese",
+            "zh-Hans" => "Chinese (Simplified)",
+            "zh-Hant" => "Chinese (Traditional)",
             "es" => "Spanish",
             "fr" => "French",
             "de" => "German",
             "pt" => "Portuguese",
             "ru" => "Russian",
+            "ar" => "Arabic",
+            "th" => "Thai",
             _ => language,
         }
     )
@@ -791,5 +869,66 @@ mod tests {
             .contains("preserve proportional detail"));
         assert!(prompt.contains("long video"));
         assert!(prompt.contains("Security rule:"));
+    }
+
+    #[test]
+    fn chunk_summary_batches_keep_compose_prompts_under_limit_when_possible() {
+        let chunk_summaries = (1..=6)
+            .map(|index| ChunkSummary {
+                index,
+                summary: format!(
+                    "Section {index}. {}",
+                    "Detailed summary sentence. ".repeat(12)
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batches = batch_chunk_summaries_for_compose(&chunk_summaries, 500);
+
+        assert!(batches.len() > 1);
+        assert_eq!(batches.iter().flatten().count(), chunk_summaries.len());
+        assert!(batches.iter().all(|batch| !batch.is_empty()));
+        assert!(batches.iter().all(|batch| {
+            format_chunk_summaries(batch).chars().count() <= 500 || batch.len() == 1
+        }));
+    }
+
+    #[test]
+    fn intermediate_compose_prompt_keeps_security_and_content_headings() {
+        let chunk_summaries = vec![
+            ChunkSummary {
+                index: 1,
+                summary: "Opening context.".to_string(),
+            },
+            ChunkSummary {
+                index: 2,
+                summary: "Main development.".to_string(),
+            },
+        ];
+
+        let prompt = build_intermediate_prompt(
+            &chunk_summaries,
+            &SummaryStyle::Detailed,
+            "en",
+            Some("Long Video"),
+            ResolvedLongSummaryFormat::Parts,
+            1,
+            3,
+        );
+
+        assert!(prompt.contains("Security rule:"));
+        assert!(prompt.contains("content-based headings"));
+        assert!(prompt.contains("segment 1 of 3"));
+        assert!(prompt.contains("<chunk_summary index=\"1\">"));
+    }
+
+    #[test]
+    fn summary_language_instruction_uses_readable_language_names() {
+        assert!(summary_language_instruction("zh-Hans", "chunk summaries")
+            .contains("Chinese (Simplified)"));
+        assert!(summary_language_instruction("zh-Hant", "chunk summaries")
+            .contains("Chinese (Traditional)"));
+        assert!(summary_language_instruction("ar", "chunk summaries").contains("Arabic"));
+        assert!(summary_language_instruction("th", "chunk summaries").contains("Thai"));
     }
 }

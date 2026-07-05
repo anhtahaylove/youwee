@@ -47,6 +47,7 @@
       "fetchingInfo": "กำลังดึงข้อมูลวิดีโอ...",
       "fetchingTranscript": "กำลังดึงทรานสคริปต์...",
       "generating": "กำลังสร้างสรุป...",
+      "preparingLongSummary": "ตรวจพบวิดีโอยาว กำลังเตรียมสรุป AI แบบหลายส่วน...",
       "summarizingChunk": "กำลังสรุปส่วนที่ {{current}}/{{total}}...",
       "combiningSummary": "กำลังรวมสรุปสุดท้าย..."
     },

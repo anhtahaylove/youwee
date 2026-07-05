@@ -47,6 +47,7 @@
       "fetchingInfo": "جارٍ جلب معلومات الفيديو...",
       "fetchingTranscript": "جارٍ جلب النص التفريغي...",
       "generating": "جارٍ إنشاء الملخص...",
+      "preparingLongSummary": "تم اكتشاف فيديو طويل. جارٍ تجهيز ملخص ذكاء اصطناعي متعدد الأجزاء...",
       "summarizingChunk": "جارٍ تلخيص الجزء {{current}}/{{total}}...",
       "combiningSummary": "جارٍ دمج الملخص النهائي..."
     },

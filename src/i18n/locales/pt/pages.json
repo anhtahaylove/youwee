@@ -47,6 +47,7 @@
       "fetchingInfo": "Buscando informações...",
       "fetchingTranscript": "Buscando transcrição...",
       "generating": "Gerando resumo...",
+      "preparingLongSummary": "Vídeo longo detectado. Preparando um resumo de IA em várias partes...",
       "summarizingChunk": "Resumindo parte {{current}}/{{total}}...",
       "combiningSummary": "Combinando resumo final..."
     },

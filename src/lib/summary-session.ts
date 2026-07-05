@@ -1,5 +1,7 @@
 import type { LongSummaryFormat, SummaryStyle } from '@/lib/types';
 
+export const LONG_SUMMARY_TRANSCRIPT_THRESHOLD_CHARS = 8000;
+
 export type SummarySessionStatus =
   | 'idle'
   | 'fetching-info'
@@ -76,6 +78,15 @@ export function createInitialSummarySessionState(
     showFullSummary: true,
     showSettings: false,
   };
+}
+
+export function getBackendSummaryCancelRequestId(requestId: string | null): string | null {
+  const normalized = requestId?.trim();
+  return normalized ? normalized : null;
+}
+
+export function isLongSummaryTranscript(transcript: string): boolean {
+  return Array.from(transcript).length > LONG_SUMMARY_TRANSCRIPT_THRESHOLD_CHARS;
 }
 
 export function summarySessionReducer(

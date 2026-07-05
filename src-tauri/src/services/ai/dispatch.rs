@@ -97,6 +97,16 @@ pub async fn generate_summary_custom_with_hooks(
         chunk_index: None,
         chunk_count,
     });
+    let chunk_summaries = reduce_chunk_summaries_for_composition(
+        config,
+        chunk_summaries,
+        style,
+        language,
+        title,
+        resolved_format,
+        hooks,
+    )
+    .await?;
 
     let prompt = match resolved_format {
         ResolvedLongSummaryFormat::Final => {
@@ -107,6 +117,50 @@ pub async fn generate_summary_custom_with_hooks(
         }
     };
     generate_raw_for_provider(config, &prompt).await
+}
+
+async fn reduce_chunk_summaries_for_composition(
+    config: &AIConfig,
+    chunk_summaries: Vec<ChunkSummary>,
+    style: &SummaryStyle,
+    language: &str,
+    title: Option<&str>,
+    resolved_format: ResolvedLongSummaryFormat,
+    hooks: &LongSummaryHooks<'_>,
+) -> Result<Vec<ChunkSummary>, AIError> {
+    let mut summaries = chunk_summaries;
+
+    while summaries.len() > 1 && should_batch_chunk_summaries_for_compose(&summaries) {
+        let batches = batch_chunk_summaries_for_compose(&summaries, LONG_SUMMARY_COMPOSE_CHARS);
+        if batches.len() >= summaries.len() {
+            break;
+        }
+
+        let batch_count = batches.len();
+        let mut reduced = Vec::with_capacity(batch_count);
+
+        for (batch_index, batch) in batches.iter().enumerate() {
+            hooks.ensure_not_cancelled()?;
+            let prompt = build_intermediate_prompt(
+                batch,
+                style,
+                language,
+                title,
+                resolved_format,
+                batch_index + 1,
+                batch_count,
+            );
+            let result = generate_raw_for_provider(config, &prompt).await?;
+            reduced.push(ChunkSummary {
+                index: batch_index + 1,
+                summary: result.summary,
+            });
+        }
+
+        summaries = reduced;
+    }
+
+    Ok(summaries)
 }
 
 async fn generate_summary_custom_once(

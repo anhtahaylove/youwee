@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   createInitialSummarySessionState,
+  getBackendSummaryCancelRequestId,
+  isLongSummaryTranscript,
   summarySessionReducer,
 } from '../src/lib/summary-session';
 
@@ -10,6 +12,7 @@ describe('summarySessionReducer', () => {
       style: 'concise',
       language: 'auto',
       transcriptLanguages: ['en'],
+      longSummaryFormat: 'auto',
     });
 
     const loading = summarySessionReducer(initial, {
@@ -51,6 +54,7 @@ describe('summarySessionReducer', () => {
       style: 'detailed',
       language: 'vi',
       transcriptLanguages: ['vi', 'en'],
+      longSummaryFormat: 'auto',
     });
     const loading = summarySessionReducer(initial, {
       type: 'start',
@@ -64,5 +68,17 @@ describe('summarySessionReducer', () => {
     expect(cancelled.isLoading).toBe(false);
     expect(cancelled.url).toBe('https://youtu.be/abc');
     expect(cancelled.loadingStatus).toBe('');
+  });
+
+  test('only sends backend cancellation when a backend summary request is active', () => {
+    expect(getBackendSummaryCancelRequestId(null)).toBeNull();
+    expect(getBackendSummaryCancelRequestId('')).toBeNull();
+    expect(getBackendSummaryCancelRequestId('  ')).toBeNull();
+    expect(getBackendSummaryCancelRequestId(' summary-123 ')).toBe('summary-123');
+  });
+
+  test('detects transcripts that will use long summary mode', () => {
+    expect(isLongSummaryTranscript('a'.repeat(8000))).toBe(false);
+    expect(isLongSummaryTranscript('a'.repeat(8001))).toBe(true);
   });
 });

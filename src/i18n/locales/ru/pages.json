@@ -47,6 +47,7 @@
       "fetchingInfo": "Получение информации о видео...",
       "fetchingTranscript": "Получение транскрипции...",
       "generating": "Генерация сводки...",
+      "preparingLongSummary": "Обнаружено длинное видео. Подготовка многочастной ИИ-сводки...",
       "summarizingChunk": "Сводка части {{current}}/{{total}}...",
       "combiningSummary": "Объединение итоговой сводки..."
     },
