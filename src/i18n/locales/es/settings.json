@@ -597,6 +597,8 @@
     "update": "Actualizar",
     "install": "Instalar",
     "checkForUpdates": "Buscar actualizaciones",
+    "ytdlpUpdateToastTitle": "Actualización de yt-dlp disponible",
+    "ytdlpUpdateToastMessage": "La versión {{version}} está lista para instalar.",
     "source": "Fuente",
     "sourceAppManaged": "Gestionado por la aplicación",
     "sourceSystem": "Sistema (externo)",

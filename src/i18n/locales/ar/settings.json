@@ -524,6 +524,8 @@
     "update": "تحديث",
     "install": "تثبيت",
     "checkForUpdates": "التحقق من التحديثات",
+    "ytdlpUpdateToastTitle": "يتوفر تحديث yt-dlp",
+    "ytdlpUpdateToastMessage": "الإصدار {{version}} جاهز للتثبيت.",
     "source": "المصدر",
     "sourceAppManaged": "مدار من التطبيق",
     "sourceSystem": "النظام (خارجي)",
