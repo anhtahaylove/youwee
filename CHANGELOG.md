@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.7] - 2026-07-06
+
+### Fixed
+- **Long Windows output folders** - Keep yt-dlp output paths stable for very long or non-ASCII folders and recover the completed filepath so Library/history records are written
+
 ## [0.19.1-custom.6] - 2026-07-05
 
 ### Fixed

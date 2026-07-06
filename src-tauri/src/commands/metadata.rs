@@ -741,13 +741,19 @@ pub async fn fetch_metadata(
     let sanitized_path = sanitize_output_path(&output_path)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
     // Use title only without extension - yt-dlp will add .info.json, .description, .jpg etc
-    let output_template = format!("{}/%(title)s", sanitized_path);
+    let output_template = "%(title)s".to_string();
+    let output_path_arg = format!(
+        "home:{}",
+        sanitized_path.trim_end_matches(|ch| ch == '/' || ch == '\\')
+    );
 
     let mut args = vec![
         "--skip-download".to_string(),
         "--no-warnings".to_string(),
         "--no-simulate".to_string(), // Actually write files even with --print
         "--no-playlist".to_string(), // Only fetch single video metadata
+        "--paths".to_string(),
+        output_path_arg,
         "-o".to_string(),
         output_template.clone(),
     ];
@@ -756,7 +762,7 @@ pub async fn fetch_metadata(
     // Description output template - yt-dlp adds .description automatically
     if write_description {
         args.push("-o".to_string());
-        args.push(format!("description:{}/%(title)s", sanitized_path));
+        args.push("description:%(title)s".to_string());
     }
 
     // Comments require info.json to be written first, then we'll split them

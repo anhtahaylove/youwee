@@ -525,6 +525,25 @@ fn replace_output_template(args: &mut [String], output_template: String) {
     }
 }
 
+fn replace_output_path(args: &mut Vec<String>, output_directory: &str) {
+    let path_arg = output_path_arg(output_directory);
+    if let Some(index) = args.iter().position(|arg| arg == "--paths") {
+        if let Some(value) = args.get_mut(index + 1) {
+            *value = path_arg;
+        } else {
+            args.push(path_arg);
+        }
+        return;
+    }
+
+    if let Some(index) = args.iter().position(|arg| arg == "-o") {
+        args.splice(index..index, ["--paths".to_string(), path_arg]);
+    } else {
+        args.push("--paths".to_string());
+        args.push(path_arg);
+    }
+}
+
 fn normalize_filename_template(filename_template: Option<String>) -> String {
     let candidate = filename_template.unwrap_or_default();
     let trimmed = candidate.trim();
@@ -638,35 +657,28 @@ fn build_item_prefix(
     String::new()
 }
 
-fn build_output_template(
-    output_directory: &str,
-    filename_template: Option<String>,
-    item_prefix: &str,
-) -> String {
+fn output_path_arg(output_directory: &str) -> String {
     format!(
-        "{}/{}{}",
-        output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
+        "home:{}",
+        output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\')
+    )
+}
+
+fn build_output_template(filename_template: Option<String>, item_prefix: &str) -> String {
+    format!(
+        "{}{}",
         item_prefix,
         normalize_filename_template(filename_template)
     )
 }
 
-fn build_chapter_output_template(
-    output_directory: &str,
-    item_prefix: &str,
-    number_chapter_files: bool,
-) -> String {
+fn build_chapter_output_template(item_prefix: &str, number_chapter_files: bool) -> String {
     let chapter_prefix = if number_chapter_files {
         "%(section_number)02d - "
     } else {
         ""
     };
-    format!(
-        "{}/{}{}%(section_title)s.%(ext)s",
-        output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
-        item_prefix,
-        chapter_prefix
-    )
+    format!("{}{}%(section_title)s.%(ext)s", item_prefix, chapter_prefix)
 }
 
 fn parse_printed_filepaths(contents: &str) -> Vec<String> {
@@ -689,6 +701,44 @@ fn parse_split_chapter_filepaths<'a>(lines: impl IntoIterator<Item = &'a String>
         }
     }
     paths
+}
+
+fn is_media_filepath(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    [
+        ".mp3", ".m4a", ".opus", ".mp4", ".mkv", ".webm", ".flac", ".wav",
+    ]
+    .iter()
+    .any(|extension| lower.ends_with(extension))
+}
+
+fn clean_ytdlp_filepath(value: &str) -> &str {
+    value
+        .trim()
+        .trim_matches(|ch| ch == '"' || ch == '\'')
+        .trim()
+}
+
+fn filepath_from_download_output(line: &str) -> Option<String> {
+    let trimmed = line.trim();
+    let candidate = if let Some((_, path)) = trimmed.split_once("Destination:") {
+        clean_ytdlp_filepath(path)
+    } else if let Some(path) = trimmed.strip_prefix("[Merger] Merging formats into ") {
+        clean_ytdlp_filepath(path)
+    } else if let Some(path) = trimmed
+        .strip_prefix("[download] ")
+        .and_then(|value| value.strip_suffix(" has already been downloaded"))
+    {
+        clean_ytdlp_filepath(path)
+    } else {
+        return None;
+    };
+
+    if is_media_filepath(candidate) {
+        Some(candidate.to_string())
+    } else {
+        None
+    }
 }
 
 fn push_unique_filepath(paths: &mut Vec<String>, path: &str) {
@@ -717,6 +767,35 @@ fn output_filepaths(
         push_unique_filepath(&mut paths, filepath);
     }
     paths
+}
+
+fn newest_media_filepath_in_dir(output_directory: &str) -> Option<String> {
+    let mut newest: Option<(std::time::SystemTime, String)> = None;
+    for entry in std::fs::read_dir(output_directory).ok()?.flatten() {
+        let path = entry.path();
+        let path_text = path.to_string_lossy().to_string();
+        if !is_media_filepath(&path_text) {
+            continue;
+        }
+
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+
+        let modified = metadata.modified().unwrap_or(std::time::UNIX_EPOCH);
+        if newest
+            .as_ref()
+            .map(|(current_modified, _)| modified > *current_modified)
+            .unwrap_or(true)
+        {
+            newest = Some((modified, path_text));
+        }
+    }
+
+    newest.map(|(_, path)| path)
 }
 
 fn title_from_filepath(filepath: &str) -> Option<String> {
@@ -921,11 +1000,11 @@ fn facebook_reel_core_fallback_args(
     }
     push_arg_before_url(&mut fallback_args, "--downloader", "native");
     push_arg_before_url(&mut fallback_args, "--impersonate", "chrome");
+    replace_output_path(&mut fallback_args, output_directory);
     replace_output_template(
         &mut fallback_args,
         format!(
-            "{}/{}{}.%(ext)s",
-            output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\'),
+            "{}{}.%(ext)s",
             item_prefix,
             facebook_reel_fallback_basename(url)
         ),
@@ -1334,7 +1413,7 @@ pub async fn download_video(
         auto_organize_collections_enabled,
         playlist_collection_name.as_deref(),
     );
-    let output_template = build_output_template(&output_directory, filename_template, &item_prefix);
+    let output_template = build_output_template(filename_template, &item_prefix);
 
     // Use a temp file to capture the final filepath from yt-dlp.
     // On Windows with non-UTF-8 locales (e.g. Chinese/GBK), stdout is encoded
@@ -1349,6 +1428,8 @@ pub async fn download_video(
         "--no-warnings".to_string(),
         "-f".to_string(),
         format_string,
+        "--paths".to_string(),
+        output_path_arg(&output_directory),
         "-o".to_string(),
         output_template,
         "--print-to-file".to_string(),
@@ -1371,7 +1452,7 @@ pub async fn download_video(
         args.push("-o".to_string());
         args.push(format!(
             "chapter:{}",
-            build_chapter_output_template(&output_directory, &item_prefix, number_chapter_files,)
+            build_chapter_output_template(&item_prefix, number_chapter_files,)
         ));
     }
 
@@ -1802,6 +1883,10 @@ pub async fn download_video(
                             }
                         }
 
+                        if let Some(filepath) = filepath_from_download_output(&line) {
+                            final_filepath = Some(filepath);
+                        }
+
                         // Capture final filepath
                         let trimmed = line.trim();
                         if !trimmed.is_empty()
@@ -1809,14 +1894,7 @@ pub async fn download_video(
                             && !trimmed.starts_with("Deleting")
                             && !trimmed.starts_with("WARNING")
                             && !trimmed.starts_with("ERROR")
-                            && (trimmed.ends_with(".mp3")
-                                || trimmed.ends_with(".m4a")
-                                || trimmed.ends_with(".opus")
-                                || trimmed.ends_with(".mp4")
-                                || trimmed.ends_with(".mkv")
-                                || trimmed.ends_with(".webm")
-                                || trimmed.ends_with(".flac")
-                                || trimmed.ends_with(".wav"))
+                            && is_media_filepath(trimmed)
                         {
                             final_filepath = Some(trimmed.to_string());
                         }
@@ -1930,6 +2008,10 @@ pub async fn download_video(
                         if should_log_stderr && !stderr_line.is_empty() {
                             add_log_internal("stderr", &stderr_line, None, Some(&url)).ok();
                         }
+
+                        if let Some(filepath) = filepath_from_download_output(&stderr_line) {
+                            final_filepath = Some(filepath);
+                        }
                     }
                     CommandEvent::Error(err) => {
                         let error = BackendError::from_message(format!("Process error: {}", err));
@@ -1979,6 +2061,13 @@ pub async fn download_video(
                         if status.code == Some(0) {
                             let chapter_filepaths =
                                 parse_split_chapter_filepaths(recent_output.iter());
+                            let final_path_exists = final_filepath
+                                .as_ref()
+                                .map(|path| Path::new(path).is_file())
+                                .unwrap_or(false);
+                            if !final_path_exists {
+                                final_filepath = newest_media_filepath_in_dir(&sanitized_path);
+                            }
                             let output_paths = output_filepaths(
                                 &printed_filepaths,
                                 &chapter_filepaths,
@@ -2366,19 +2455,15 @@ async fn handle_tokio_download(
                 // On Windows, yt-dlp may print --print after_move:filepath to stderr.
                 // Capture it here as a fallback in case stdout doesn't contain the path.
                 let t = line.trim();
-                if !t.is_empty()
-                    && !t.starts_with('[')
-                    && (t.ends_with(".mp4")
-                        || t.ends_with(".mkv")
-                        || t.ends_with(".mp3")
-                        || t.ends_with(".m4a")
-                        || t.ends_with(".opus")
-                        || t.ends_with(".webm")
-                        || t.ends_with(".flac")
-                        || t.ends_with(".wav"))
-                {
+                if !t.is_empty() && !t.starts_with('[') && is_media_filepath(t) {
                     if let Ok(mut guard) = stderr_fp_clone.lock() {
                         *guard = Some(t.to_string());
+                    }
+                }
+
+                if let Some(filepath) = filepath_from_download_output(&line) {
+                    if let Ok(mut guard) = stderr_fp_clone.lock() {
+                        *guard = Some(filepath);
                     }
                 }
 
@@ -2507,19 +2592,13 @@ async fn handle_tokio_download(
             }
         }
 
+        if let Some(filepath) = filepath_from_download_output(&line) {
+            final_filepath = Some(filepath);
+        }
+
         // Capture final filepath
         let trimmed = line.trim();
-        if !trimmed.is_empty()
-            && !trimmed.starts_with('[')
-            && (trimmed.ends_with(".mp3")
-                || trimmed.ends_with(".m4a")
-                || trimmed.ends_with(".opus")
-                || trimmed.ends_with(".mp4")
-                || trimmed.ends_with(".mkv")
-                || trimmed.ends_with(".webm")
-                || trimmed.ends_with(".flac")
-                || trimmed.ends_with(".wav"))
-        {
+        if !trimmed.is_empty() && !trimmed.starts_with('[') && is_media_filepath(trimmed) {
             final_filepath = Some(trimmed.to_string());
         }
 
@@ -2617,6 +2696,13 @@ async fn handle_tokio_download(
     if status.success() {
         let recent_lines = recent_output_snapshot(&recent_output);
         let chapter_filepaths = parse_split_chapter_filepaths(recent_lines.iter());
+        let final_path_exists = final_filepath
+            .as_ref()
+            .map(|path| Path::new(path).is_file())
+            .unwrap_or(false);
+        if !final_path_exists {
+            final_filepath = newest_media_filepath_in_dir(&output_directory);
+        }
         let output_paths =
             output_filepaths(&printed_filepaths, &chapter_filepaths, &final_filepath);
         let actual_filesize = output_paths
@@ -3127,25 +3213,19 @@ mod tests {
     #[test]
     fn output_template_uses_safe_custom_filename_template() {
         assert_eq!(
-            build_output_template(
-                "C:/Downloads/",
-                Some("%(uploader)s - %(title)s".to_string()),
-                ""
-            ),
-            "C:/Downloads/%(uploader)s - %(title)s.%(ext)s"
+            build_output_template(Some("%(uploader)s - %(title)s".to_string()), ""),
+            "%(uploader)s - %(title)s.%(ext)s"
         );
         assert_eq!(
-            build_output_template(
-                "C:/Downloads",
-                Some("../escape/%(title)s.%(ext)s".to_string()),
-                ""
-            ),
-            "C:/Downloads/%(title)s.%(ext)s"
+            build_output_template(Some("../escape/%(title)s.%(ext)s".to_string()), ""),
+            "%(title)s.%(ext)s"
         );
         assert_eq!(
-            build_output_template("C:/Downloads", Some("  ".to_string()), ""),
-            "C:/Downloads/%(title)s.%(ext)s"
+            build_output_template(Some("  ".to_string()), ""),
+            "%(title)s.%(ext)s"
         );
+        assert_eq!(output_path_arg("C:/Downloads/"), "home:C:/Downloads");
+        assert_eq!(output_path_arg(r"C:\Downloads\"), r"home:C:\Downloads");
     }
 
     #[test]
@@ -3162,12 +3242,8 @@ mod tests {
             build_item_prefix(true, false, None, None, true, Some(7), Some(42));
         assert_eq!(regular_queue_prefix, "07 - ");
         assert_eq!(
-            build_output_template(
-                "C:/Downloads",
-                Some("%(title)s.%(ext)s".to_string()),
-                &regular_queue_prefix,
-            ),
-            "C:/Downloads/07 - %(title)s.%(ext)s"
+            build_output_template(Some("%(title)s.%(ext)s".to_string()), &regular_queue_prefix,),
+            "07 - %(title)s.%(ext)s"
         );
     }
 
@@ -3188,12 +3264,12 @@ mod tests {
     #[test]
     fn chapter_template_uses_item_and_chapter_numbers() {
         assert_eq!(
-            build_chapter_output_template("C:/Downloads", "03 - ", true),
-            "C:/Downloads/03 - %(section_number)02d - %(section_title)s.%(ext)s"
+            build_chapter_output_template("03 - ", true),
+            "03 - %(section_number)02d - %(section_title)s.%(ext)s"
         );
         assert_eq!(
-            build_chapter_output_template("C:/Downloads/", "", false),
-            "C:/Downloads/%(section_title)s.%(ext)s"
+            build_chapter_output_template("", false),
+            "%(section_title)s.%(ext)s"
         );
     }
 
@@ -3210,6 +3286,51 @@ mod tests {
                 "C:/Downloads/01 - Intro.mp4".to_string()
             ]
         );
+    }
+
+    #[test]
+    fn download_output_parser_finds_media_filepaths() {
+        assert_eq!(
+            filepath_from_download_output(
+                r#"[Merger] Merging formats into "\\?\C:\Downloads\Long Folder\Video.mp4""#
+            )
+            .as_deref(),
+            Some(r"\\?\C:\Downloads\Long Folder\Video.mp4")
+        );
+        assert_eq!(
+            filepath_from_download_output(
+                r"[download] Destination: \\?\C:\Downloads\Long Folder\Video.mp4"
+            )
+            .as_deref(),
+            Some(r"\\?\C:\Downloads\Long Folder\Video.mp4")
+        );
+        assert_eq!(
+            filepath_from_download_output(
+                r"[download] Destination: \\?\C:\Downloads\Long Folder\Video.jpg"
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn newest_media_filepath_scans_output_directory() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system time should be after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("youwee-output-scan-{nonce}"));
+        std::fs::create_dir_all(&root).expect("test output directory should be created");
+        let ignored = root.join("thumbnail.jpg");
+        let media = root.join("video.mp4");
+        std::fs::write(&ignored, b"thumbnail").expect("thumbnail should be written");
+        std::fs::write(&media, b"video").expect("media should be written");
+
+        assert_eq!(
+            newest_media_filepath_in_dir(&root.to_string_lossy()).as_deref(),
+            Some(media.to_string_lossy().as_ref())
+        );
+
+        std::fs::remove_dir_all(root).ok();
     }
 
     #[test]
@@ -3387,8 +3508,10 @@ mod tests {
             "aria2c",
             "--downloader-args",
             "aria2c:-x 16",
+            "--paths",
+            "home:C:/Old",
             "-o",
-            "C:/Downloads/%(title)s.%(ext)s",
+            "%(title)s.%(ext)s",
             "--",
             "https://www.facebook.com/reel/1889836315019111",
         ]
@@ -3433,10 +3556,13 @@ mod tests {
             .find(|pair| pair[0] == "-o")
             .map(|pair| pair[1].as_str())
             .unwrap();
-        assert_eq!(
-            output,
-            "C:/Downloads/02 - facebook-com-reel-1889836315019111.%(ext)s"
-        );
+        assert_eq!(output, "02 - facebook-com-reel-1889836315019111.%(ext)s");
+        let output_path = fallback_args
+            .windows(2)
+            .find(|pair| pair[0] == "--paths")
+            .map(|pair| pair[1].as_str())
+            .unwrap();
+        assert_eq!(output_path, "home:C:/Downloads");
     }
 
     #[test]

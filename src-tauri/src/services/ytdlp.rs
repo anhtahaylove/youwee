@@ -1242,6 +1242,13 @@ mod tests {
     }
 
     #[test]
+    fn safe_filename_args_keeps_floor_for_extreme_output_paths() {
+        let path = "C:\\Users\\Administrator\\Downloads\\Youwee filename safety test - duong dan dai co dau tieng Viet 20260706\\thu muc con rat dai voi chu Viet khong dau va Unicode \u{111}\u{1b0}\u{1edd}ng d\u{1eab}n ki\u{1ec3}m th\u{1eed} filename trim cho Facebook Instagram";
+
+        assert_eq!(calc_trim_filenames_bytes(path), MIN_TRIM_FILENAMES);
+    }
+
+    #[test]
     fn parse_ytdlp_error_detects_upcoming_live() {
         let error = parse_ytdlp_error(
             "ERROR: [youtube] p_k8zlee-kQ: This live event will begin in 3 hours.",

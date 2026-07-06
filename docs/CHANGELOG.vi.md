@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.7] - 2026-07-06
+
+### Sửa lỗi
+- **Thư mục tải xuống Windows quá dài** - Giữ output path của yt-dlp ổn định với thư mục rất dài hoặc có Unicode, đồng thời khôi phục filepath hoàn tất để Library/history được ghi đúng
+
 ## [0.19.1-custom.6] - 2026-07-05
 
 ### Sửa lỗi
