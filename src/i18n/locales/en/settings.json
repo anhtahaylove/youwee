@@ -597,6 +597,8 @@
     "update": "Update",
     "install": "Install",
     "checkForUpdates": "Check for updates",
+    "ytdlpUpdateToastTitle": "yt-dlp update available",
+    "ytdlpUpdateToastMessage": "Version {{version}} is ready to install.",
     "source": "Source",
     "sourceAppManaged": "App managed",
     "sourceSystem": "System (external)",

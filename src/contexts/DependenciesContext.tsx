@@ -96,14 +96,17 @@ interface DependenciesContextType {
 
   // Actions
   refreshYtdlpVersion: () => Promise<void>;
-  checkForUpdate: () => Promise<void>;
+  checkForUpdate: (options?: { silent?: boolean }) => Promise<string | null>;
   updateYtdlp: () => Promise<void>;
 
   // yt-dlp channel actions
   setYtdlpSource: (source: DependencySource) => Promise<void>;
   setYtdlpChannel: (channel: YtdlpChannel) => Promise<void>;
   refreshAllYtdlpVersions: () => Promise<YtdlpAllVersions | null>;
-  checkChannelUpdate: (channel: YtdlpChannel) => Promise<void>;
+  checkChannelUpdate: (
+    channel: YtdlpChannel,
+    options?: { silent?: boolean },
+  ) => Promise<YtdlpChannelUpdateInfo | null>;
   downloadChannelBinary: (channel: YtdlpChannel) => Promise<void>;
 
   // FFmpeg actions
@@ -252,21 +255,30 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
   );
 
   // Check for channel update
-  const checkChannelUpdate = useCallback(async (channel: YtdlpChannel) => {
-    if (channel === 'bundled') return; // Bundled doesn't have updates
-    setIsChannelCheckingUpdate(true);
-    setChannelError(null);
-    try {
-      const updateInfo = await invoke<YtdlpChannelUpdateInfo>('check_ytdlp_channel_update', {
-        channel,
-      });
-      setYtdlpChannelUpdateInfo(updateInfo);
-    } catch (err) {
-      setChannelError(localizeUnknownError(err));
-    } finally {
-      setIsChannelCheckingUpdate(false);
-    }
-  }, []);
+  const checkChannelUpdate = useCallback(
+    async (channel: YtdlpChannel, options?: { silent?: boolean }) => {
+      if (channel === 'bundled') return null; // Bundled doesn't have updates
+      setIsChannelCheckingUpdate(true);
+      if (!options?.silent) {
+        setChannelError(null);
+      }
+      try {
+        const updateInfo = await invoke<YtdlpChannelUpdateInfo>('check_ytdlp_channel_update', {
+          channel,
+        });
+        setYtdlpChannelUpdateInfo(updateInfo);
+        return updateInfo;
+      } catch (err) {
+        if (!options?.silent) {
+          setChannelError(localizeUnknownError(err));
+        }
+        return null;
+      } finally {
+        setIsChannelCheckingUpdate(false);
+      }
+    },
+    [],
+  );
 
   // Download channel binary
   const downloadChannelBinary = useCallback(
@@ -581,15 +593,21 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Check for updates
-  const checkForUpdate = useCallback(async () => {
+  const checkForUpdate = useCallback(async (options?: { silent?: boolean }) => {
     setIsChecking(true);
-    setError(null);
+    if (!options?.silent) {
+      setError(null);
+    }
     setUpdateSuccess(false);
     try {
       const latest = await invoke<string>('check_ytdlp_update');
       setLatestVersion(latest);
+      return latest;
     } catch (err) {
-      setError(localizeUnknownError(err));
+      if (!options?.silent) {
+        setError(localizeUnknownError(err));
+      }
+      return null;
     } finally {
       setIsChecking(false);
     }

@@ -597,6 +597,8 @@
     "update": "更新",
     "install": "インストール",
     "checkForUpdates": "更新をチェック",
+    "ytdlpUpdateToastTitle": "yt-dlp の更新があります",
+    "ytdlpUpdateToastMessage": "バージョン {{version}} をインストールできます。",
     "source": "ソース",
     "sourceAppManaged": "アプリ管理",
     "sourceSystem": "システム (外部)",
