@@ -896,11 +896,8 @@ fn push_overwrite_args(args: &mut Vec<String>, skip_existing: Option<bool>) {
     }
 }
 
-fn push_filename_safety_args(args: &mut Vec<String>) {
-    if cfg!(target_os = "windows") {
-        args.push("--windows-filenames".to_string());
-    }
-    add_safe_filename_args(args);
+fn push_filename_safety_args(args: &mut Vec<String>, output_path: Option<&str>) {
+    add_safe_filename_args(args, output_path);
 }
 
 fn facebook_reel_core_fallback_args(
@@ -1471,7 +1468,7 @@ pub async fn download_video(
     }
 
     push_overwrite_args(&mut args, skip_existing);
-    push_filename_safety_args(&mut args);
+    push_filename_safety_args(&mut args, Some(&sanitized_path));
 
     // Playlist handling
     if !download_playlist {
@@ -3324,7 +3321,7 @@ mod tests {
     #[test]
     fn filename_safety_args_follow_platform() {
         let mut args = Vec::new();
-        push_filename_safety_args(&mut args);
+        push_filename_safety_args(&mut args, None);
 
         if cfg!(target_os = "windows") {
             assert_eq!(args, vec!["--windows-filenames", "--trim-filenames", "180"]);

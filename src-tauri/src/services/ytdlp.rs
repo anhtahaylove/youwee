@@ -935,10 +935,34 @@ pub fn build_cookie_args(
     args
 }
 
+const WINDOWS_MAX_PATH: usize = 260;
+const RESERVED_FILENAME_SUFFIX_BYTES: usize = 40;
+const MIN_TRIM_FILENAMES: u32 = 50;
+const MAX_TRIM_FILENAMES: u32 = 180;
+const DEFAULT_TRIM_FILENAMES: u32 = 180;
+
+/// Compute a safe `--trim-filenames` byte limit from the output directory length.
+pub fn calc_trim_filenames_bytes(output_path: &str) -> u32 {
+    let available = WINDOWS_MAX_PATH
+        .saturating_sub(output_path.as_bytes().len())
+        .saturating_sub(RESERVED_FILENAME_SUFFIX_BYTES);
+
+    (available as u32).clamp(MIN_TRIM_FILENAMES, MAX_TRIM_FILENAMES)
+}
+
 /// Keep yt-dlp output filenames below common filesystem limits.
-pub fn add_safe_filename_args(args: &mut Vec<String>) {
+pub fn add_safe_filename_args(args: &mut Vec<String>, output_path: Option<&str>) {
+    if cfg!(target_os = "windows") {
+        args.push("--windows-filenames".to_string());
+    }
+
     args.push("--trim-filenames".to_string());
-    args.push("180".to_string());
+    args.push(
+        output_path
+            .map(calc_trim_filenames_bytes)
+            .unwrap_or(DEFAULT_TRIM_FILENAMES)
+            .to_string(),
+    );
 }
 
 fn parse_cookie_skip_rule(rule: &str) -> Option<(String, String)> {
@@ -1183,9 +1207,38 @@ mod tests {
     fn safe_filename_args_trim_long_titles_before_writing_files() {
         let mut args = vec!["--newline".to_string()];
 
-        add_safe_filename_args(&mut args);
+        add_safe_filename_args(&mut args, None);
 
-        assert_eq!(args, vec!["--newline", "--trim-filenames", "180"]);
+        if cfg!(target_os = "windows") {
+            assert_eq!(
+                args,
+                vec![
+                    "--newline",
+                    "--windows-filenames",
+                    "--trim-filenames",
+                    "180"
+                ]
+            );
+        } else {
+            assert_eq!(args, vec!["--newline", "--trim-filenames", "180"]);
+        }
+    }
+
+    #[test]
+    fn safe_filename_args_trim_from_output_path_bytes() {
+        let path = "G:\\\u{4e0b}\u{8f7d}\\Youwee\\very-long-non-ascii-output-directory-name";
+        let expected = (WINDOWS_MAX_PATH
+            .saturating_sub(path.as_bytes().len())
+            .saturating_sub(RESERVED_FILENAME_SUFFIX_BYTES) as u32)
+            .clamp(MIN_TRIM_FILENAMES, MAX_TRIM_FILENAMES);
+
+        assert_eq!(calc_trim_filenames_bytes(path), expected);
+        assert!(expected < DEFAULT_TRIM_FILENAMES);
+    }
+
+    #[test]
+    fn safe_filename_args_clamp_short_paths_to_default_cap() {
+        assert_eq!(calc_trim_filenames_bytes("/tmp"), DEFAULT_TRIM_FILENAMES);
     }
 
     #[test]
