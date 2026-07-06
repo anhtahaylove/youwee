@@ -1033,7 +1033,7 @@ pub async fn download_video(
         "--file-access-retries".to_string(),
         "2".to_string(),
     ];
-    add_safe_filename_args(&mut args);
+    add_safe_filename_args(&mut args, Some(&sanitized_path));
 
     if split_embedded_chapters {
         args.push("--split-chapters".to_string());
