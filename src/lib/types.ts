@@ -119,6 +119,7 @@ export interface ItemUniversalSettings {
   quality: Quality;
   format: Format;
   outputPath: string;
+  videoCodec?: VideoCodec;
   audioBitrate: AudioBitrate;
   preferredFps?: PreferredFps;
   useAria2: boolean;
