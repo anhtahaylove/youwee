@@ -7,6 +7,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.9] - 2026-07-07
+
+### Thêm mới
+- **Codec video cho Universal** - Cho Universal Download chọn H.264, VP9, AV1 hoặc Auto và giữ codec đã chọn trên từng item trong hàng đợi
+
+### Sửa lỗi
+- **Tham số summary OpenAI** - Tự động đổi request summary OpenAI và proxy giữa `max_tokens` và `max_completion_tokens` khi model từ chối một dạng tham số
+
 ## [0.19.1-custom.8] - 2026-07-07
 
 ### Thêm mới

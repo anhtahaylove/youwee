@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.9] - 2026-07-07
+
+### Added
+- **Universal video codec** - Let Universal downloads choose H.264, VP9, AV1, or Auto and preserve the selected codec on queued items
+
+### Fixed
+- **OpenAI summary parameters** - Automatically switch OpenAI and proxy summary requests between `max_tokens` and `max_completion_tokens` when models reject one form
+
 ## [0.19.1-custom.8] - 2026-07-07
 
 ### Added

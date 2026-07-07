@@ -7,6 +7,14 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.19.1-custom.9] - 2026-07-07
+
+### 新增
+- **Universal 视频编码** - 允许 Universal Download 选择 H.264、VP9、AV1 或 Auto，并在队列项目中保留所选编码
+
+### 修复
+- **OpenAI 摘要参数** - 当模型拒绝某种参数形式时，自动在 `max_tokens` 与 `max_completion_tokens` 之间切换 OpenAI 和代理摘要请求
+
 ## [0.19.1-custom.8] - 2026-07-07
 
 ### 新增
