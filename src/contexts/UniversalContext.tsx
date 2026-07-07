@@ -23,7 +23,6 @@ import {
 } from '@/lib/backend-error';
 import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import {
-  AUTO_RETRY_LIMITS,
   clampAutoRetryDelaySeconds,
   clampAutoRetryMaxAttempts,
   isNonRetryableError,
@@ -55,9 +54,17 @@ import type {
   PostDownloadPluginPayload,
   PreferredFps,
   Quality,
+  VideoCodec,
   VideoInfoResponse,
   YtdlpAdvancedOption,
 } from '@/lib/types';
+import {
+  buildItemUniversalSettingsSnapshot,
+  createDefaultUniversalSettings,
+  resolveUniversalVideoCodec,
+  serializeUniversalSettings,
+  type UniversalSettings,
+} from '@/lib/universal-settings';
 import { sanitizeYtdlpAdvancedOptions } from '@/lib/ytdlp-advanced-options';
 import { useDownload } from './download-context';
 import { UniversalContext } from './universal-context';
@@ -108,27 +115,6 @@ async function resolveDefaultOutputPath(): Promise<string> {
       return '';
     }
   }
-}
-
-// Simplified settings for Universal downloads (no codec, subtitles, playlist)
-export interface UniversalSettings {
-  quality: Quality;
-  format: Format;
-  outputPath: string;
-  audioBitrate: AudioBitrate;
-  preferredFps: PreferredFps;
-  concurrentDownloads: number;
-  // Live stream settings
-  liveFromStart: boolean;
-  skipLive: boolean;
-  // Speed limit settings
-  speedLimitEnabled: boolean;
-  speedLimitValue: number;
-  speedLimitUnit: 'K' | 'M' | 'G';
-  // Auto retry settings
-  autoRetryEnabled: boolean;
-  autoRetryMaxAttempts: number;
-  autoRetryDelaySeconds: number;
 }
 
 // Load settings from localStorage
@@ -222,25 +208,7 @@ function loadDownloadAdvancedSettings(): {
 // Save settings to localStorage
 function saveSettings(settings: UniversalSettings) {
   try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        outputPath: settings.outputPath,
-        quality: settings.quality,
-        format: settings.format,
-        audioBitrate: settings.audioBitrate,
-        preferredFps: settings.preferredFps,
-        concurrentDownloads: settings.concurrentDownloads,
-        liveFromStart: settings.liveFromStart,
-        skipLive: settings.skipLive,
-        speedLimitEnabled: settings.speedLimitEnabled,
-        speedLimitValue: settings.speedLimitValue,
-        speedLimitUnit: settings.speedLimitUnit,
-        autoRetryEnabled: settings.autoRetryEnabled,
-        autoRetryMaxAttempts: settings.autoRetryMaxAttempts,
-        autoRetryDelaySeconds: settings.autoRetryDelaySeconds,
-      }),
-    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(serializeUniversalSettings(settings)));
   } catch (e) {
     console.error('Failed to save settings:', e);
   }
@@ -267,6 +235,7 @@ export interface UniversalContextType {
   stopDownload: () => Promise<void>;
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
+  updateVideoCodec: (codec: VideoCodec) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
   updatePreferredFps: (fps: PreferredFps) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
@@ -307,29 +276,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   // Load saved settings on init
   const [settings, setSettings] = useState<UniversalSettings>(() => {
     const saved = loadSavedSettings();
-    return {
-      quality: saved.quality || 'best',
-      format: saved.format || 'mp4',
-      outputPath: saved.outputPath || '',
-      audioBitrate: saved.audioBitrate || 'auto',
-      preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
-      concurrentDownloads: saved.concurrentDownloads || 1,
-      // Live stream settings
-      liveFromStart: saved.liveFromStart === true, // Default to false
-      skipLive: saved.skipLive === true, // Default to false
-      // Speed limit settings
-      speedLimitEnabled: saved.speedLimitEnabled === true, // Default to false (unlimited)
-      speedLimitValue: saved.speedLimitValue || 10,
-      speedLimitUnit: saved.speedLimitUnit || 'M',
-      // Auto retry settings
-      autoRetryEnabled: saved.autoRetryEnabled === true, // Default to false
-      autoRetryMaxAttempts: clampAutoRetryMaxAttempts(
-        saved.autoRetryMaxAttempts || AUTO_RETRY_LIMITS.maxAttempts.default,
-      ),
-      autoRetryDelaySeconds: clampAutoRetryDelaySeconds(
-        saved.autoRetryDelaySeconds || AUTO_RETRY_LIMITS.delaySeconds.default,
-      ),
-    };
+    return createDefaultUniversalSettings(saved);
   });
 
   const isDownloadingRef = useRef(false);
@@ -592,28 +539,18 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const workflowSnapshots = loadPluginWorkflowSnapshots();
 
       // Snapshot current settings for these items
-      const settingsSnapshot: ItemUniversalSettings = {
-        quality: currentSettings.quality,
-        format: currentSettings.format,
-        outputPath: currentSettings.outputPath,
-        audioBitrate: currentSettings.audioBitrate,
-        preferredFps: currentSettings.preferredFps,
+      const settingsSnapshot = buildItemUniversalSettingsSnapshot(currentSettings, {
         useAria2: advancedSettings.useAria2,
         aria2Args: advancedSettings.aria2Args,
         ytdlpAdvancedOptionsEnabled: advancedSettings.ytdlpAdvancedOptionsEnabled,
         ytdlpAdvancedOptions: advancedSettings.ytdlpAdvancedOptions,
-        liveFromStart: currentSettings.liveFromStart,
-        skipLive: currentSettings.skipLive,
         numberQueueItems: downloadSettings.numberQueueItems,
         splitEmbeddedChapters: downloadSettings.splitEmbeddedChapters,
         numberChapterFiles: downloadSettings.numberChapterFiles,
         autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
-        autoRetryEnabled: currentSettings.autoRetryEnabled,
-        autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
-        autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
-      };
+      });
 
       const candidates = urls
         .filter((url) => !currentItems.some((item) => item.url === url))
@@ -710,30 +647,28 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const advancedSettings = loadDownloadAdvancedSettings();
       const workflowSnapshots = loadPluginWorkflowSnapshots();
 
-      const settingsSnapshot: ItemUniversalSettings = {
-        quality: mediaType === 'audio' ? 'audio' : videoQuality,
-        format: mediaType === 'audio' ? 'mp3' : 'mp4',
-        outputPath,
-        audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
-        preferredFps: currentSettings.preferredFps,
+      const settingsSnapshot = buildItemUniversalSettingsSnapshot(currentSettings, {
         useAria2: advancedSettings.useAria2,
         aria2Args: advancedSettings.aria2Args,
         ytdlpAdvancedOptionsEnabled: advancedSettings.ytdlpAdvancedOptionsEnabled,
         ytdlpAdvancedOptions: advancedSettings.ytdlpAdvancedOptions,
-        timeRangeStart: options?.timeRangeStart,
-        timeRangeEnd: options?.timeRangeEnd,
-        liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
-        skipLive: options?.skipLive ?? currentSettings.skipLive,
         numberQueueItems: downloadSettings.numberQueueItems,
         splitEmbeddedChapters: downloadSettings.splitEmbeddedChapters,
         numberChapterFiles: downloadSettings.numberChapterFiles,
         autoOrganizeCollections: downloadSettings.autoOrganizeCollections,
         pluginWorkflowSnapshots: workflowSnapshots,
         postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
-        autoRetryEnabled: currentSettings.autoRetryEnabled,
-        autoRetryMaxAttempts: currentSettings.autoRetryMaxAttempts,
-        autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
-      };
+        overrides: {
+          quality: mediaType === 'audio' ? 'audio' : videoQuality,
+          format: mediaType === 'audio' ? 'mp3' : 'mp4',
+          outputPath,
+          audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
+          timeRangeStart: options?.timeRangeStart,
+          timeRangeEnd: options?.timeRangeEnd,
+          liveFromStart: options?.liveFromStart ?? currentSettings.liveFromStart,
+          skipLive: options?.skipLive ?? currentSettings.skipLive,
+        },
+      });
 
       const newItem: DownloadItem = {
         id: crypto.randomUUID(),
@@ -1065,7 +1000,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             autoOrganizeCollections:
               itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
             playlistCollectionName: null,
-            videoCodec: 'auto', // Use auto for universal downloads
+            videoCodec: resolveUniversalVideoCodec(itemSettings, settings),
             preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit: null,
@@ -1340,6 +1275,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateVideoCodec = useCallback((videoCodec: VideoCodec) => {
+    setSettings((s) => {
+      const newSettings = { ...s, videoCodec };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
   const updateAudioBitrate = useCallback((audioBitrate: AudioBitrate) => {
     setSettings((s) => {
       const newSettings = { ...s, audioBitrate };
@@ -1456,6 +1399,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       stopDownload,
       updateQuality,
       updateFormat,
+      updateVideoCodec,
       updateAudioBitrate,
       updatePreferredFps,
       updateConcurrentDownloads,
@@ -1489,6 +1433,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       stopDownload,
       updateQuality,
       updateFormat,
+      updateVideoCodec,
       updateAudioBitrate,
       updatePreferredFps,
       updateConcurrentDownloads,
