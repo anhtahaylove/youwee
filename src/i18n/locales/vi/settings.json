@@ -565,6 +565,8 @@
     "update": "Cập nhật",
     "install": "Cài đặt",
     "checkForUpdates": "Kiểm tra cập nhật",
+    "ytdlpUpdateToastTitle": "Có bản cập nhật yt-dlp",
+    "ytdlpUpdateToastMessage": "Phiên bản {{version}} đã sẵn sàng để cài đặt.",
     "source": "Nguồn",
     "sourceAppManaged": "Ứng dụng quản lý",
     "sourceSystem": "Hệ thống (ngoài ứng dụng)",

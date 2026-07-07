@@ -565,6 +565,8 @@
     "update": "更新",
     "install": "安装",
     "checkForUpdates": "检查更新",
+    "ytdlpUpdateToastTitle": "yt-dlp 有可用更新",
+    "ytdlpUpdateToastMessage": "版本 {{version}} 已可安装。",
     "source": "来源",
     "sourceAppManaged": "应用管理",
     "sourceSystem": "系统（外部管理）",

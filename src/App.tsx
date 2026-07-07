@@ -32,6 +32,7 @@ import { usePluginExecutionToasts } from '@/hooks/usePluginExecutionToasts';
 import { useTelegramRemoteCommands } from '@/hooks/useTelegramRemoteCommands';
 import { useTrayDownloadStatus } from '@/hooks/useTrayDownloadStatus';
 import { useTrayEvents } from '@/hooks/useTrayEvents';
+import { useYtdlpAutoUpdateToast } from '@/hooks/useYtdlpAutoUpdateToast';
 import {
   ChannelsPage,
   DownloadPage,
@@ -70,6 +71,10 @@ function AppContent() {
     setCurrentPage('settings');
   }, []);
 
+  const openDependenciesSettings = useCallback(() => {
+    openSettingsPage('dependencies');
+  }, [openSettingsPage]);
+
   const openExternalSummary = useCallback((url: string) => {
     externalSummaryRequestIdRef.current += 1;
     setExternalSummaryRequest({
@@ -88,6 +93,9 @@ function AppContent() {
   useTrayDownloadStatus();
   useTrayEvents(setCurrentPage, openSettingsPage, updater.checkForUpdate);
   usePluginExecutionToasts();
+  useYtdlpAutoUpdateToast({
+    onOpenDependencies: openDependenciesSettings,
+  });
 
   useEffect(() => {
     const locale = i18n.resolvedLanguage || i18n.language || 'en';

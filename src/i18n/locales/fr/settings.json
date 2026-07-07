@@ -489,6 +489,8 @@
     "update": "Mettre à jour",
     "install": "Installer",
     "checkForUpdates": "Vérifier les mises à jour",
+    "ytdlpUpdateToastTitle": "Mise à jour yt-dlp disponible",
+    "ytdlpUpdateToastMessage": "La version {{version}} est prête à être installée.",
     "ffmpeg": "FFmpeg",
     "gallerydl": "gallery-dl",
     "galleryCollectionsEngine": "Moteur de téléchargement de galeries et collections",
