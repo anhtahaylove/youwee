@@ -7,6 +7,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.8] - 2026-07-07
+
+### Thêm mới
+- **Thông báo cập nhật yt-dlp** - Báo cho người dùng khi kênh yt-dlp đang chọn có bản mới và mở luồng cập nhật trong Settings > Dependencies từ toast
+
+### Thay đổi
+- **Cỡ chữ khi đọc summary** - Cho summary vừa tạo và summary đã lưu dùng chung điều khiển cỡ chữ trực tiếp để đọc dễ hơn
+
 ## [0.19.1-custom.7] - 2026-07-06
 
 ### Sửa lỗi

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.8] - 2026-07-07
+
+### Added
+- **yt-dlp update notice** - Notify users when the selected yt-dlp channel has a newer version and open the Dependencies settings update flow from the toast
+
+### Changed
+- **Summary reading size** - Let generated and saved summaries share inline font-size controls for more comfortable reading
+
 ## [0.19.1-custom.7] - 2026-07-06
 
 ### Fixed
