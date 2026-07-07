@@ -45,6 +45,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
     stopDownload,
     updateQuality,
     updateFormat,
+    updateVideoCodec,
     updateAudioBitrate,
     updatePreferredFps,
     updateConcurrentDownloads,
@@ -126,6 +127,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
             totalFileSize={totalFileSize > 0 ? totalFileSize : undefined}
             onQualityChange={updateQuality}
             onFormatChange={updateFormat}
+            onVideoCodecChange={updateVideoCodec}
             onAudioBitrateChange={updateAudioBitrate}
             onPreferredFpsChange={updatePreferredFps}
             onConcurrentChange={updateConcurrentDownloads}

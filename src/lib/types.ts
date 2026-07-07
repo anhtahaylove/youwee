@@ -100,6 +100,7 @@ export interface ItemUniversalSettings {
   filenameTemplate?: string;
   skipExisting?: boolean;
   organizeBySource?: boolean;
+  videoCodec?: VideoCodec;
   audioBitrate: AudioBitrate;
   youtubePlayerClient: YouTubePlayerClient;
   preferredFps?: PreferredFps;

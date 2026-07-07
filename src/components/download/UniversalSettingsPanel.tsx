@@ -21,9 +21,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { UniversalSettings } from '@/contexts/UniversalContext';
-import type { AudioBitrate, Format, PreferredFps, Quality } from '@/lib/types';
+import type { AudioBitrate, Format, PreferredFps, Quality, VideoCodec } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function formatFileSize(bytes: number): string {
@@ -66,6 +67,7 @@ interface UniversalSettingsPanelProps {
   totalFileSize?: number;
   onQualityChange: (quality: Quality) => void;
   onFormatChange: (format: Format) => void;
+  onVideoCodecChange: (codec: VideoCodec) => void;
   onAudioBitrateChange: (bitrate: AudioBitrate) => void;
   onPreferredFpsChange: (fps: PreferredFps) => void;
   onConcurrentChange: (concurrent: number) => void;
@@ -80,6 +82,7 @@ export function UniversalSettingsPanel({
   totalFileSize,
   onQualityChange,
   onFormatChange,
+  onVideoCodecChange,
   onAudioBitrateChange,
   onPreferredFpsChange,
   onConcurrentChange,
@@ -88,12 +91,23 @@ export function UniversalSettingsPanel({
   onSkipLiveChange,
 }: UniversalSettingsPanelProps) {
   const { t } = useTranslation('universal');
+  const toast = useToast();
+  const webmCodecToastId = 'universal-webm-codec-adjusted';
   const isAudioOnly =
     settings.quality === 'audio' || ['mp3', 'm4a', 'opus'].includes(settings.format);
   const formatOptions = isAudioOnly ? audioFormatOptions : videoFormatOptions;
   const currentVideoQuality = isAudioOnly ? '1080' : settings.quality;
 
   const fileSizeDisplay = totalFileSize && totalFileSize > 0 ? formatFileSize(totalFileSize) : '';
+
+  const showWebmCodecToast = () => {
+    toast.warning({
+      id: webmCodecToastId,
+      title: t('settings.codecAdjusted'),
+      message: t('settings.webmCodecNotice'),
+      durationMs: 4500,
+    });
+  };
 
   const handleModeChange = (mode: 'video' | 'audio') => {
     if (mode === 'audio') {
@@ -114,6 +128,27 @@ export function UniversalSettingsPanel({
 
   const handleVideoQualityChange = (quality: Quality) => {
     onQualityChange(quality);
+  };
+
+  const handleFormatChange = (format: Format) => {
+    onFormatChange(format);
+    if (format === 'webm' && settings.videoCodec === 'h264') {
+      onVideoCodecChange('auto');
+      showWebmCodecToast();
+    } else if (format !== 'webm') {
+      toast.dismiss(webmCodecToastId);
+    }
+  };
+
+  const handleVideoCodecChange = (codec: VideoCodec) => {
+    if (settings.format === 'webm' && codec === 'h264') {
+      onVideoCodecChange('auto');
+      showWebmCodecToast();
+      return;
+    }
+
+    onVideoCodecChange(codec);
+    toast.dismiss(webmCodecToastId);
   };
 
   const outputFolderName = settings.outputPath
@@ -183,7 +218,7 @@ export function UniversalSettingsPanel({
       )}
 
       {/* Format Select */}
-      <Select value={settings.format} onValueChange={onFormatChange} disabled={disabled}>
+      <Select value={settings.format} onValueChange={handleFormatChange} disabled={disabled}>
         <SelectTrigger
           className="w-[75px] h-9 text-xs bg-card/50 border-border/50"
           title={t('settings.outputFormat')}
@@ -227,8 +262,42 @@ export function UniversalSettingsPanel({
 
           {/* Content */}
           <div className="p-4 space-y-4">
-            {/* Row 1: Audio Bitrate & Concurrent */}
+            {/* Row 1: Codec & Audio Bitrate */}
             <div className="grid grid-cols-2 gap-3">
+              {/* Video Codec */}
+              <div className="space-y-1.5">
+                <Label className="text-[11px] text-muted-foreground">
+                  {t('settings.videoCodec')}
+                </Label>
+                <Select
+                  value={settings.videoCodec}
+                  onValueChange={(codec) => handleVideoCodecChange(codec as VideoCodec)}
+                  disabled={disabled || isAudioOnly}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Auto" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      value="h264"
+                      className="text-xs"
+                      disabled={settings.format === 'webm'}
+                    >
+                      H.264
+                    </SelectItem>
+                    <SelectItem value="vp9" className="text-xs">
+                      VP9
+                    </SelectItem>
+                    <SelectItem value="av1" className="text-xs">
+                      AV1
+                    </SelectItem>
+                    <SelectItem value="auto" className="text-xs">
+                      Auto
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Audio Bitrate */}
               <div className="space-y-1.5">
                 <Label className="text-[11px] text-muted-foreground">
@@ -252,29 +321,29 @@ export function UniversalSettingsPanel({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              {/* Concurrent Downloads */}
-              <div className="space-y-1.5">
-                <Label className="text-[11px] text-muted-foreground">
-                  {t('settings.parallelDownloads')}
-                </Label>
-                <Select
-                  value={String(settings.concurrentDownloads || 1)}
-                  onValueChange={(v) => onConcurrentChange(Number(v))}
-                  disabled={disabled}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 4, 5].map((n) => (
-                      <SelectItem key={n} value={String(n)} className="text-xs">
-                        {t('settings.atATime', { count: n })}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Row 2: Concurrent Downloads */}
+            <div className="space-y-1.5">
+              <Label className="text-[11px] text-muted-foreground">
+                {t('settings.parallelDownloads')}
+              </Label>
+              <Select
+                value={String(settings.concurrentDownloads || 1)}
+                onValueChange={(v) => onConcurrentChange(Number(v))}
+                disabled={disabled}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <SelectItem key={n} value={String(n)} className="text-xs">
+                      {t('settings.atATime', { count: n })}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Toggles Section */}

@@ -42,6 +42,7 @@
     "totalFileSize": "ขนาดไฟล์รวม",
     "videoQuality": "คุณภาพวิดีโอ",
     "outputFormat": "รูปแบบเอาต์พุต",
+    "videoCodec": "Video Codec",
     "advanced": "ตั้งค่าขั้นสูง",
     "more": "เพิ่มเติม",
     "liveFromStart": "ไลฟ์ตั้งแต่ต้น",
@@ -51,6 +52,8 @@
     "preferredFpsHint": "30 FPS อาจใช้คุณภาพต่ำลง",
     "preferredFpsOriginal": "ต้นฉบับ",
     "preferredFps30": "สูงสุด 30 FPS",
+    "codecAdjusted": "ปรับ codec แล้ว",
+    "webmCodecNotice": "WebM ไม่รองรับ H.264 ดังนั้น video codec จึงถูกเปลี่ยนเป็น Auto (VP9/AV1)",
     "autoRetry": "ลองใหม่อัตโนมัติ",
     "retryAttempts": "จำนวนครั้ง",
     "retryDelaySeconds": "หน่วงเวลา (วินาที)"

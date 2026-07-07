@@ -42,6 +42,7 @@
     "totalFileSize": "Taille totale du fichier",
     "videoQuality": "Qualité vidéo",
     "outputFormat": "Format de sortie",
+    "videoCodec": "Codec vidéo",
     "advanced": "Paramètres avancés",
     "more": "Plus",
     "liveFromStart": "Live depuis le début",
@@ -51,6 +52,8 @@
     "preferredFpsHint": "30 FPS peut utiliser une qualité plus basse",
     "preferredFpsOriginal": "Original",
     "preferredFps30": "Jusqu'à 30 FPS",
+    "codecAdjusted": "Codec ajusté",
+    "webmCodecNotice": "WebM ne prend pas en charge H.264, le codec vidéo a donc été changé en Auto (VP9/AV1).",
     "autoRetry": "Nouvelle tentative auto",
     "retryAttempts": "Tentatives",
     "retryDelaySeconds": "Délai (s)"

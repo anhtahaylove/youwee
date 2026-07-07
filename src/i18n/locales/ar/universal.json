@@ -42,6 +42,7 @@
     "totalFileSize": "إجمالي حجم الملف",
     "videoQuality": "جودة الفيديو",
     "outputFormat": "صيغة الإخراج",
+    "videoCodec": "Video Codec",
     "advanced": "إعدادات متقدمة",
     "more": "المزيد",
     "liveFromStart": "بث مباشر من البداية",
@@ -51,6 +52,8 @@
     "preferredFpsHint": "قد يستخدم 30 FPS جودة أقل",
     "preferredFpsOriginal": "الأصلي",
     "preferredFps30": "حتى 30 FPS",
+    "codecAdjusted": "تم تعديل الترميز",
+    "webmCodecNotice": "لا يدعم WebM ترميز H.264، لذلك تم تغيير video codec إلى Auto (VP9/AV1).",
     "autoRetry": "إعادة المحاولة تلقائيًا",
     "retryAttempts": "عدد المحاولات",
     "retryDelaySeconds": "التأخير (ث)"

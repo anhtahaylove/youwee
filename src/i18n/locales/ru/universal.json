@@ -42,6 +42,7 @@
     "totalFileSize": "Общий размер файла",
     "videoQuality": "Качество видео",
     "outputFormat": "Формат вывода",
+    "videoCodec": "Видеокодек",
     "advanced": "Расширенные настройки",
     "more": "Ещё",
     "liveFromStart": "Прямая трансляция с начала",
@@ -51,6 +52,8 @@
     "preferredFpsHint": "30 FPS может использовать более низкое качество",
     "preferredFpsOriginal": "Оригинал",
     "preferredFps30": "До 30 FPS",
+    "codecAdjusted": "Кодек изменен",
+    "webmCodecNotice": "WebM не поддерживает H.264, поэтому видеокодек был изменен на Auto (VP9/AV1).",
     "autoRetry": "Автоповтор",
     "retryAttempts": "Попытки",
     "retryDelaySeconds": "Задержка (с)"

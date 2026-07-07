@@ -65,8 +65,13 @@ import type {
   PostDownloadPluginPayload,
   PreferredFps,
   Quality,
+  VideoCodec,
   VideoInfoResponse,
 } from '@/lib/types';
+import {
+  normalizeUniversalFormatCodec,
+  resolveUniversalVideoCodec,
+} from '@/lib/universal-settings';
 import { useDownload } from './DownloadContext';
 
 const STORAGE_KEY = 'youwee-universal-settings';
@@ -129,11 +134,12 @@ async function resolveDefaultOutputPath(): Promise<string> {
   }
 }
 
-// Simplified settings for Universal downloads (no codec, subtitles, playlist)
+// Simplified settings for Universal downloads (no subtitles or playlist)
 export interface UniversalSettings {
   quality: Quality;
   format: Format;
   outputPath: string;
+  videoCodec: VideoCodec;
   audioBitrate: AudioBitrate;
   preferredFps: PreferredFps;
   concurrentDownloads: number;
@@ -235,6 +241,7 @@ function saveSettings(settings: UniversalSettings) {
         outputPath: settings.outputPath,
         quality: settings.quality,
         format: settings.format,
+        videoCodec: settings.videoCodec,
         audioBitrate: settings.audioBitrate,
         preferredFps: settings.preferredFps,
         concurrentDownloads: settings.concurrentDownloads,
@@ -274,6 +281,7 @@ interface UniversalContextType {
   stopDownload: () => Promise<void>;
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
+  updateVideoCodec: (codec: VideoCodec) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
   updatePreferredFps: (fps: PreferredFps) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
@@ -320,6 +328,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       quality: saved.quality || 'best',
       format: saved.format || 'mp4',
       outputPath: saved.outputPath || '',
+      videoCodec: normalizeUniversalFormatCodec(saved.format || 'mp4', saved.videoCodec),
       audioBitrate: saved.audioBitrate || 'auto',
       preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
       concurrentDownloads: saved.concurrentDownloads || 1,
@@ -678,6 +687,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         filenameTemplate: downloadSettings.filenameTemplate,
         skipExisting: downloadSettings.skipExisting,
         organizeBySource: downloadSettings.organizeBySource,
+        videoCodec: currentSettings.videoCodec,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: downloadSettings.youtubePlayerClient,
         preferredFps: currentSettings.preferredFps,
@@ -803,6 +813,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         filenameTemplate: downloadSettings.filenameTemplate,
         skipExisting: downloadSettings.skipExisting,
         organizeBySource: downloadSettings.organizeBySource,
+        videoCodec: mediaType === 'audio' ? 'auto' : currentSettings.videoCodec,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         youtubePlayerClient: downloadSettings.youtubePlayerClient,
         preferredFps: currentSettings.preferredFps,
@@ -1168,7 +1179,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             autoOrganizeCollections:
               itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
             playlistCollectionName: null,
-            videoCodec: 'auto', // Use auto for universal downloads
+            videoCodec: resolveUniversalVideoCodec(itemSettings),
             preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             youtubePlayerClient:
@@ -1433,7 +1444,22 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
   const updateFormat = useCallback((format: Format) => {
     setSettings((s) => {
-      const newSettings = { ...s, format };
+      const newSettings = {
+        ...s,
+        format,
+        videoCodec: normalizeUniversalFormatCodec(format, s.videoCodec),
+      };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
+  const updateVideoCodec = useCallback((videoCodec: VideoCodec) => {
+    setSettings((s) => {
+      const newSettings = {
+        ...s,
+        videoCodec: normalizeUniversalFormatCodec(s.format, videoCodec),
+      };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -1548,6 +1574,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       stopDownload,
       updateQuality,
       updateFormat,
+      updateVideoCodec,
       updateAudioBitrate,
       updatePreferredFps,
       updateConcurrentDownloads,
@@ -1581,6 +1608,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       stopDownload,
       updateQuality,
       updateFormat,
+      updateVideoCodec,
       updateAudioBitrate,
       updatePreferredFps,
       updateConcurrentDownloads,
