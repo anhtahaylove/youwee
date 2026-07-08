@@ -7,6 +7,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.10] - 2026-07-08
+
+### Thêm mới
+- **AI Summary cho video dài** - Chia transcript dài thành các phần tóm tắt có thể hủy, cho chọn xuất theo từng phần hoặc tóm tắt cuối, và tùy chỉnh số từ mỗi phần
+
+### Sửa lỗi
+- **Danh sách đánh số trong AI Summary** - Giữ đúng thứ tự danh sách đánh số qua các block markdown tách rời trong summary đã tạo
+
 ## [0.19.1-custom.9] - 2026-07-07
 
 ### Thêm mới

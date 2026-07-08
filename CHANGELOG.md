@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.10] - 2026-07-08
+
+### Added
+- **Long-video AI Summary** - Split long transcripts into cancellable multi-part summaries with per-part/final output options and configurable words-per-part limits
+
+### Fixed
+- **AI Summary ordered lists** - Preserve ordered-list numbering across separated markdown list blocks in generated summaries
+
 ## [0.19.1-custom.9] - 2026-07-07
 
 ### Added

@@ -40,7 +40,10 @@
     "loading": {
       "fetchingInfo": "Buscando informações...",
       "fetchingTranscript": "Buscando transcrição...",
-      "generating": "Gerando resumo..."
+      "generating": "Gerando resumo...",
+      "preparingLongSummary": "Vídeo longo detectado. Preparando um resumo de IA em várias partes...",
+      "summarizingChunk": "Resumindo parte {{current}}/{{total}}...",
+      "combiningSummary": "Combinando resumo final..."
     },
     "aiSettings": "Configurações de IA",
     "configureAI": "Configurar recursos de IA",
@@ -49,7 +52,16 @@
     "aiNotEnabledTitle": "Os recursos de IA estão desativados",
     "aiNotEnabledHint": "Ative a IA nas configurações para começar a gerar resumos.",
     "apiKeyMissingTitle": "Chave de API não configurada",
-    "apiKeyMissingHint": "Adicione sua chave de API nas configurações para usar os recursos de IA."
+    "apiKeyMissingHint": "Adicione sua chave de API nas configurações para usar os recursos de IA.",
+    "longVideoFormat": "Formato de vídeo longo",
+    "longVideoFormatOptions": {
+      "auto": "Automático",
+      "final": "Resumo final",
+      "parts": "Por partes"
+    },
+    "longVideoWords": "Palavras por parte",
+    "longVideoWordsHint": "O padrão é 8.000 palavras (cerca de 32.000 caracteres). Valores maiores usam menos chamadas de IA.",
+    "longVideoWordsSummary": "{{count}} palavras/parte"
   },
   "processing": {
     "title": "Processamento",

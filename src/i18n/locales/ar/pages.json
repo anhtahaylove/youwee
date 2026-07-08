@@ -40,7 +40,10 @@
     "loading": {
       "fetchingInfo": "جارٍ جلب معلومات الفيديو...",
       "fetchingTranscript": "جارٍ جلب النص التفريغي...",
-      "generating": "جارٍ إنشاء الملخص..."
+      "generating": "جارٍ إنشاء الملخص...",
+      "preparingLongSummary": "تم اكتشاف فيديو طويل. جارٍ تجهيز ملخص ذكاء اصطناعي متعدد الأجزاء...",
+      "summarizingChunk": "جارٍ تلخيص الجزء {{current}}/{{total}}...",
+      "combiningSummary": "جارٍ دمج الملخص النهائي..."
     },
     "aiSettings": "إعدادات الذكاء الاصطناعي",
     "configureAI": "تهيئة ميزات الذكاء الاصطناعي",
@@ -49,7 +52,16 @@
     "aiNotEnabledTitle": "ميزات الذكاء الاصطناعي معطلة",
     "aiNotEnabledHint": "فعّل الذكاء الاصطناعي في الإعدادات لبدء إنشاء الملخصات.",
     "apiKeyMissingTitle": "مفتاح API غير مضبوط",
-    "apiKeyMissingHint": "أضف مفتاح API في الإعدادات لاستخدام ميزات الذكاء الاصطناعي."
+    "apiKeyMissingHint": "أضف مفتاح API في الإعدادات لاستخدام ميزات الذكاء الاصطناعي.",
+    "longVideoFormat": "تنسيق الفيديو الطويل",
+    "longVideoFormatOptions": {
+      "auto": "تلقائي",
+      "final": "الملخص النهائي",
+      "parts": "حسب الأجزاء"
+    },
+    "longVideoWords": "عدد الكلمات لكل جزء",
+    "longVideoWordsHint": "القيمة الافتراضية 8,000 كلمة (حوالي 32,000 حرف). القيم الأعلى تستخدم طلبات ذكاء اصطناعي أقل.",
+    "longVideoWordsSummary": "{{count}} كلمة/جزء"
   },
   "processing": {
     "title": "المعالجة",

@@ -40,7 +40,10 @@
     "loading": {
       "fetchingInfo": "Récupération des infos vidéo...",
       "fetchingTranscript": "Récupération de la transcription...",
-      "generating": "Génération du résumé..."
+      "generating": "Génération du résumé...",
+      "preparingLongSummary": "Vidéo longue détectée. Préparation d'un résumé IA en plusieurs parties...",
+      "summarizingChunk": "Résumé de la partie {{current}}/{{total}}...",
+      "combiningSummary": "Assemblage du résumé final..."
     },
     "aiSettings": "Paramètres IA",
     "configureAI": "Configurer les fonctionnalités IA",
@@ -49,7 +52,16 @@
     "aiNotEnabledTitle": "Les fonctionnalités IA sont désactivées",
     "aiNotEnabledHint": "Activez l’IA dans les paramètres pour commencer à générer des résumés.",
     "apiKeyMissingTitle": "Clé API non configurée",
-    "apiKeyMissingHint": "Ajoutez votre clé API dans les paramètres pour utiliser les fonctions IA."
+    "apiKeyMissingHint": "Ajoutez votre clé API dans les paramètres pour utiliser les fonctions IA.",
+    "longVideoFormat": "Format vidéo longue",
+    "longVideoFormatOptions": {
+      "auto": "Auto",
+      "final": "Résumé final",
+      "parts": "Par parties"
+    },
+    "longVideoWords": "Mots par partie",
+    "longVideoWordsHint": "La valeur par défaut est 8 000 mots (environ 32 000 caractères). Des valeurs plus élevées utilisent moins de requêtes IA.",
+    "longVideoWordsSummary": "{{count}} mots/partie"
   },
   "processing": {
     "title": "Traitement",

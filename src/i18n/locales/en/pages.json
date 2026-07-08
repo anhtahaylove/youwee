@@ -48,8 +48,20 @@
     "loading": {
       "fetchingInfo": "Fetching video info...",
       "fetchingTranscript": "Fetching transcript...",
-      "generating": "Generating summary..."
-    }
+      "generating": "Generating summary...",
+      "preparingLongSummary": "Long video detected. Preparing a multi-part AI summary...",
+      "summarizingChunk": "Summarizing part {{current}}/{{total}}...",
+      "combiningSummary": "Combining final summary..."
+    },
+    "longVideoFormat": "Long video format",
+    "longVideoFormatOptions": {
+      "auto": "Auto",
+      "final": "Final summary",
+      "parts": "By parts"
+    },
+    "longVideoWords": "Words per part",
+    "longVideoWordsHint": "Default is 8,000 words (about 32,000 characters). Higher values use fewer AI requests.",
+    "longVideoWordsSummary": "{{count}} words/part"
   },
   "processing": {
     "title": "Processing",
