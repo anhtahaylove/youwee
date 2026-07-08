@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.12] - 2026-07-09
+
 ### Fixed
 - **AppImage icons** - Updated Tauri build tooling and compatible dependencies so Linux AppImage packages keep their desktop icon metadata
 

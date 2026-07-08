@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.12] - 2026-07-09
+
 ### Sửa lỗi
 - **Icon AppImage** - Cập nhật Tauri build tooling và các dependency tương thích để gói AppImage Linux giữ đúng metadata icon desktop
 
