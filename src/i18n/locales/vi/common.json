@@ -28,7 +28,9 @@
     "ru": "Tiếng Nga",
     "th": "Tiếng Thái",
     "label": "Ngôn ngữ",
-    "select": "Chọn ngôn ngữ"
+    "select": "Chọn ngôn ngữ",
+    "ja": "Tiếng Nhật",
+    "es": "Tiếng Tây Ban Nha"
   },
   "actions": {
     "cancel": "Hủy"

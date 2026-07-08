@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.11] - 2026-07-08
+
+### Thêm mới
+- **Giao diện tiếng Nhật và tiếng Tây Ban Nha** - Thêm bộ dịch tiếng Nhật và tiếng Tây Ban Nha, đồng thời giữ fallback tiếng Anh cho các chuỗi chỉ có trong bản custom
+
 ## [0.19.1-custom.10] - 2026-07-08
 
 ### Thêm mới

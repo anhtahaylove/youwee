@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.11] - 2026-07-08
+
+### Added
+- **Japanese and Spanish UI** - Add Japanese and Spanish locale bundles while keeping custom-only strings covered by English fallbacks
+
 ## [0.19.1-custom.10] - 2026-07-08
 
 ### Added

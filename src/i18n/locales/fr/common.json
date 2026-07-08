@@ -28,7 +28,9 @@
     "ru": "Russe",
     "th": "Thaï",
     "label": "Langue",
-    "select": "Choisir la langue"
+    "select": "Choisir la langue",
+    "ja": "Japonais",
+    "es": "Espagnol"
   },
   "actions": {
     "cancel": "Annuler"

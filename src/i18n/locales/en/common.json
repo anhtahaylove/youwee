@@ -28,7 +28,9 @@
     "ru": "Russian",
     "th": "ไทย",
     "label": "Language",
-    "select": "Select language"
+    "select": "Select language",
+    "ja": "Japanese",
+    "es": "Spanish"
   },
   "actions": {
     "cancel": "Cancel"
