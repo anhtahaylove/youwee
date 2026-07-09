@@ -5,6 +5,7 @@ import {
   Globe,
   Images,
   Moon,
+  Radio,
   ScrollText,
   Settings,
   Sparkles,
@@ -26,6 +27,7 @@ export type Page =
   | 'universal'
   | 'gallery'
   | 'channels'
+  | 'tiktok-live'
   | 'summary'
   | 'processing'
   | 'subtitles'
@@ -65,6 +67,11 @@ const navItems: NavItem[] = [
     id: 'channels',
     labelKey: 'sidebar.channels',
     icon: <Tv className="w-5 h-5" />,
+  },
+  {
+    id: 'tiktok-live',
+    labelKey: 'sidebar.tiktokLive',
+    icon: <Radio className="w-5 h-5" />,
   },
   {
     id: 'summary',

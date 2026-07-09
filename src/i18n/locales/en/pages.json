@@ -393,5 +393,39 @@
     "modeShuffle": "Shuffle",
     "minimize": "Minimize player",
     "close": "Close player"
+  },
+  "tiktokLive": {
+    "title": "TikTok Live Recorder",
+    "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
+    "input": {
+      "placeholder": "Enter @username, room ID, or TikTok Live URL..."
+    },
+    "quality": "Quality",
+    "transport": "Transport",
+    "duration": "Duration seconds (0 = unlimited)",
+    "selected": "Selected",
+    "output": {
+      "label": "Output folder",
+      "select": "Select output folder",
+      "empty": "Choose folder"
+    },
+    "actions": {
+      "inspect": "Inspect Live",
+      "record": "Start Recording",
+      "cancel": "Cancel Recording",
+      "showInFolder": "Show in folder"
+    },
+    "status": {
+      "inspecting": "Inspecting TikTok Live...",
+      "inspectReady": "{{count}} variant(s) found.",
+      "notLive": "This TikTok Live is not active.",
+      "recording": "Recording TikTok Live...",
+      "recorded": "Recording saved and added to Library.",
+      "cancelled": "Recording cancelled.",
+      "failed": "TikTok Live action failed."
+    },
+    "recordResult": {
+      "title": "Recording complete"
+    }
   }
 }

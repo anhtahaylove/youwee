@@ -338,8 +338,14 @@ fn apply_history_filters(
     if let Some(src) = source {
         let src = src.trim();
         if !src.is_empty() && src != "all" {
-            query.push_str(&format!(" AND {history_alias}.source = ?"));
-            params.push(Value::from(src.to_string()));
+            if src == "tiktok" {
+                query.push_str(&format!(
+                    " AND {history_alias}.source IN ('tiktok', 'tiktok-live')"
+                ));
+            } else {
+                query.push_str(&format!(" AND {history_alias}.source = ?"));
+                params.push(Value::from(src.to_string()));
+            }
         }
     }
 
@@ -1443,6 +1449,15 @@ mod tests {
         .expect("insert history row");
     }
 
+    fn insert_history_row_with_source(id: &str, source: &str) {
+        let conn = get_db().expect("get db");
+        conn.execute(
+            "INSERT INTO history (id, url, title, filepath, source, downloaded_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, "https://example.com/v", "video", "", source, 0_i64],
+        )
+        .expect("insert sourced history row");
+    }
+
     fn insert_history_search_row(id: &str, title: &str, summary: &str) {
         let conn = get_db().expect("get db");
         conn.execute(
@@ -1589,6 +1604,30 @@ mod tests {
             .expect("filter history");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].id, first_id);
+    }
+
+    #[test]
+    fn tiktok_source_filter_includes_tiktok_live_entries() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        let live_id = uuid::Uuid::new_v4().to_string();
+        let instagram_id = uuid::Uuid::new_v4().to_string();
+        insert_history_row_with_source(&live_id, "tiktok-live");
+        insert_history_row_with_source(&instagram_id, "instagram");
+
+        let result = get_history_from_db(
+            Some(50),
+            Some(0),
+            Some("tiktok".to_string()),
+            None,
+            None,
+            None,
+        )
+        .expect("filter history");
+
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, live_id);
+        assert_eq!(result[0].source.as_deref(), Some("tiktok-live"));
     }
 
     #[test]

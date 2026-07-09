@@ -8,4 +8,5 @@ export { ProcessingPage } from './ProcessingPage';
 export { SettingsPage } from './SettingsPage';
 export { SubtitlesPage } from './SubtitlesPage';
 export { SummaryPage } from './SummaryPage';
+export { TikTokLivePage } from './TikTokLivePage';
 export { UniversalPage } from './UniversalPage';

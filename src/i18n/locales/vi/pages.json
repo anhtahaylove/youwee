@@ -393,5 +393,39 @@
     "modeShuffle": "Phát ngẫu nhiên",
     "minimize": "Thu nhỏ trình phát",
     "close": "Đóng trình phát"
+  },
+  "tiktokLive": {
+    "title": "Ghi TikTok Live",
+    "subtitle": "Kiểm tra và ghi TikTok Live bằng xác thực trình duyệt của Youwee.",
+    "input": {
+      "placeholder": "Nhập @username, room ID hoặc URL TikTok Live..."
+    },
+    "quality": "Chất lượng",
+    "transport": "Transport",
+    "duration": "Thời lượng giây (0 = không giới hạn)",
+    "selected": "Đã chọn",
+    "output": {
+      "label": "Thư mục lưu",
+      "select": "Chọn thư mục lưu",
+      "empty": "Chọn thư mục"
+    },
+    "actions": {
+      "inspect": "Kiểm tra Live",
+      "record": "Bắt đầu ghi",
+      "cancel": "Hủy ghi",
+      "showInFolder": "Mở trong thư mục"
+    },
+    "status": {
+      "inspecting": "Đang kiểm tra TikTok Live...",
+      "inspectReady": "Tìm thấy {{count}} biến thể stream.",
+      "notLive": "TikTok Live này chưa hoạt động.",
+      "recording": "Đang ghi TikTok Live...",
+      "recorded": "Đã lưu bản ghi và thêm vào Library.",
+      "cancelled": "Đã hủy ghi.",
+      "failed": "Thao tác TikTok Live thất bại."
+    },
+    "recordResult": {
+      "title": "Ghi xong"
+    }
   }
 }

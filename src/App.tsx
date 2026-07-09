@@ -45,6 +45,7 @@ import {
   SettingsPage,
   SubtitlesPage,
   SummaryPage,
+  TikTokLivePage,
   UniversalPage,
 } from '@/pages';
 
@@ -178,6 +179,7 @@ function AppContent() {
           <GalleryPage onNavigateToSettings={() => openSettingsPage('general')} />
         )}
         {currentPage === 'channels' && <ChannelsPage />}
+        {currentPage === 'tiktok-live' && <TikTokLivePage />}
         {currentPage === 'summary' && (
           <SummaryPage
             externalRequestId={externalSummaryRequest?.id}
