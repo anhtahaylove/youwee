@@ -1,8 +1,7 @@
 use crate::database::add_history_internal;
 use crate::database::add_log_internal;
 use crate::services::{
-    get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies,
-    should_skip_cookies_for_url,
+    get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
 };
 use crate::types::BackendError;
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
@@ -237,6 +236,56 @@ fn format_score(format: &TikTokLiveFormat) -> i64 {
     variant_score(&format.variant)
 }
 
+fn has_video_variant(variant: &TikTokLiveVariant) -> bool {
+    let has_dimensions = variant.width.unwrap_or(0) > 0 && variant.height.unwrap_or(0) > 0;
+    let has_resolution = variant
+        .resolution
+        .as_deref()
+        .is_some_and(|resolution| resolution.contains('x'));
+    let has_vcodec = variant
+        .vcodec
+        .as_deref()
+        .is_some_and(|codec| !codec.eq_ignore_ascii_case("none"));
+    let audio_only_quality = variant
+        .quality
+        .as_deref()
+        .is_some_and(|quality| quality.eq_ignore_ascii_case("ao"));
+
+    !audio_only_quality && (has_dimensions || has_resolution || has_vcodec)
+}
+
+fn has_audio_variant(variant: &TikTokLiveVariant) -> bool {
+    variant
+        .acodec
+        .as_deref()
+        .map(|codec| !codec.eq_ignore_ascii_case("none"))
+        .unwrap_or(true)
+}
+
+fn is_video_audio_variant(variant: &TikTokLiveVariant) -> bool {
+    has_video_variant(variant) && has_audio_variant(variant)
+}
+
+fn select_best_variant<'a>(
+    variants: impl Iterator<Item = &'a TikTokLiveVariant> + Clone,
+) -> Option<&'a TikTokLiveVariant> {
+    variants
+        .clone()
+        .filter(|variant| is_video_audio_variant(variant))
+        .max_by_key(|variant| variant_score(variant))
+        .or_else(|| variants.max_by_key(|variant| variant_score(variant)))
+}
+
+fn select_best_format<'a>(
+    formats: impl Iterator<Item = &'a TikTokLiveFormat> + Clone,
+) -> Option<&'a TikTokLiveFormat> {
+    formats
+        .clone()
+        .filter(|format| is_video_audio_variant(&format.variant))
+        .max_by_key(|format| format_score(format))
+        .or_else(|| formats.max_by_key(|format| format_score(format)))
+}
+
 fn matches_filter(value: &Option<String>, filter: &Option<String>) -> bool {
     let Some(filter) = filter.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
         return true;
@@ -285,21 +334,17 @@ fn select_variant(
     preferred_quality: &Option<String>,
     preferred_transport: &Option<String>,
 ) -> Option<TikTokLiveVariant> {
-    variants
-        .iter()
-        .filter(|variant| {
-            matches_filter(&variant.quality, preferred_quality)
-                || matches_filter(&variant.note, preferred_quality)
-        })
-        .filter(|variant| matches_transport(variant, preferred_transport))
-        .max_by_key(|variant| variant_score(variant))
-        .cloned()
-        .or_else(|| {
-            variants
-                .iter()
-                .max_by_key(|variant| variant_score(variant))
-                .cloned()
-        })
+    select_best_variant(
+        variants
+            .iter()
+            .filter(|variant| {
+                matches_filter(&variant.quality, preferred_quality)
+                    || matches_filter(&variant.note, preferred_quality)
+            })
+            .filter(|variant| matches_transport(variant, preferred_transport)),
+    )
+    .cloned()
+    .or_else(|| select_best_variant(variants.iter()).cloned())
 }
 
 fn select_format(
@@ -307,21 +352,17 @@ fn select_format(
     preferred_quality: &Option<String>,
     preferred_transport: &Option<String>,
 ) -> Option<TikTokLiveFormat> {
-    formats
-        .iter()
-        .filter(|format| {
-            matches_filter(&format.variant.quality, preferred_quality)
-                || matches_filter(&format.variant.note, preferred_quality)
-        })
-        .filter(|format| matches_transport(&format.variant, preferred_transport))
-        .max_by_key(|format| format_score(format))
-        .cloned()
-        .or_else(|| {
-            formats
-                .iter()
-                .max_by_key(|format| format_score(format))
-                .cloned()
-        })
+    select_best_format(
+        formats
+            .iter()
+            .filter(|format| {
+                matches_filter(&format.variant.quality, preferred_quality)
+                    || matches_filter(&format.variant.note, preferred_quality)
+            })
+            .filter(|format| matches_transport(&format.variant, preferred_transport)),
+    )
+    .cloned()
+    .or_else(|| select_best_format(formats.iter()).cloned())
 }
 
 fn variant_from_ytdlp_format(format: &serde_json::Value) -> Option<TikTokLiveVariant> {
@@ -755,9 +796,7 @@ fn read_firefox_cookie_header(db_path: &Path, target_host: &str) -> Option<Strin
         let conn = Connection::open(db_to_read).ok()?;
         let now = chrono::Utc::now().timestamp();
         let mut stmt = conn
-            .prepare(
-                "SELECT host, name, value FROM moz_cookies WHERE (expiry = 0 OR expiry > ?1)",
-            )
+            .prepare("SELECT host, name, value FROM moz_cookies WHERE (expiry = 0 OR expiry > ?1)")
             .ok()?;
         let rows = stmt
             .query_map([now], |row| {
@@ -806,7 +845,8 @@ fn tiktok_cookie_header(
             .and_then(|path| tiktok_cookie_header_from_netscape_file(path, &host)),
         "browser" => match (cookie_browser, cookie_browser_profile) {
             (Some(browser), Some(profile)) if browser.eq_ignore_ascii_case("firefox") => {
-                firefox_cookie_db_path(profile).and_then(|path| read_firefox_cookie_header(&path, &host))
+                firefox_cookie_db_path(profile)
+                    .and_then(|path| read_firefox_cookie_header(&path, &host))
             }
             _ => None,
         },
@@ -943,8 +983,8 @@ async fn fetch_tiktok_target_json(
             cookie_file_path,
             cookie_skip_patterns,
         );
-        let room_json = fetch_tiktok_room_info_json(room_id, cookie_header.as_deref(), proxy_url)
-            .await?;
+        let room_json =
+            fetch_tiktok_room_info_json(room_id, cookie_header.as_deref(), proxy_url).await?;
         if let Some(username) = room_owner_username(&room_json) {
             let live_url = format!("https://www.tiktok.com/@{username}/live");
             if let Ok(json) = fetch_tiktok_live_json(
@@ -1324,9 +1364,8 @@ mod tests {
 
     #[test]
     fn treats_profile_urls_as_live_targets() {
-        let url =
-            parse_tiktok_live_target("https://www.tiktok.com/@some.user?lang=en#profile")
-                .expect("profile url");
+        let url = parse_tiktok_live_target("https://www.tiktok.com/@some.user?lang=en#profile")
+            .expect("profile url");
         assert_eq!(url.kind, TikTokLiveTargetKind::Url);
         assert_eq!(url.username.as_deref(), Some("some.user"));
         assert_eq!(
@@ -1503,6 +1542,104 @@ mod tests {
     }
 
     #[test]
+    fn auto_prefers_muxed_video_audio_over_audio_only_tiktok_live_format() {
+        let audio_only = TikTokLiveFormat {
+            variant: TikTokLiveVariant {
+                format_id: "audio".to_string(),
+                ext: Some("m4a".to_string()),
+                protocol: Some("https".to_string()),
+                quality: Some("ao".to_string()),
+                resolution: Some("audio only".to_string()),
+                width: None,
+                height: None,
+                fps: None,
+                vcodec: Some("none".to_string()),
+                acodec: Some("aac".to_string()),
+                tbr: Some(12_000.0),
+                note: None,
+            },
+            url: "https://signed.example/audio.m4a".to_string(),
+            http_headers: serde_json::Map::new(),
+        };
+        let muxed = TikTokLiveFormat {
+            variant: TikTokLiveVariant {
+                format_id: "hd-hls".to_string(),
+                ext: Some("m3u8".to_string()),
+                protocol: Some("hls".to_string()),
+                quality: Some("hd".to_string()),
+                resolution: Some("1280x720".to_string()),
+                width: Some(1280),
+                height: Some(720),
+                fps: Some(30.0),
+                vcodec: Some("h264".to_string()),
+                acodec: Some("aac".to_string()),
+                tbr: Some(2500.0),
+                note: None,
+            },
+            url: "https://signed.example/hd.m3u8".to_string(),
+            http_headers: serde_json::Map::new(),
+        };
+
+        let selected = select_format(
+            &[audio_only, muxed],
+            &Some("auto".to_string()),
+            &Some("auto".to_string()),
+        )
+        .expect("selected");
+
+        assert_eq!(selected.variant.format_id, "hd-hls");
+    }
+
+    #[test]
+    fn auto_prefers_muxed_video_audio_over_video_only_tiktok_live_format() {
+        let video_only = TikTokLiveFormat {
+            variant: TikTokLiveVariant {
+                format_id: "uhd-video-only".to_string(),
+                ext: Some("m3u8".to_string()),
+                protocol: Some("hls".to_string()),
+                quality: Some("uhd".to_string()),
+                resolution: Some("1920x1080".to_string()),
+                width: Some(1920),
+                height: Some(1080),
+                fps: Some(60.0),
+                vcodec: Some("h264".to_string()),
+                acodec: Some("none".to_string()),
+                tbr: Some(8000.0),
+                note: None,
+            },
+            url: "https://signed.example/uhd.m3u8".to_string(),
+            http_headers: serde_json::Map::new(),
+        };
+        let muxed = TikTokLiveFormat {
+            variant: TikTokLiveVariant {
+                format_id: "hd-muxed".to_string(),
+                ext: Some("m3u8".to_string()),
+                protocol: Some("hls".to_string()),
+                quality: Some("hd".to_string()),
+                resolution: Some("1280x720".to_string()),
+                width: Some(1280),
+                height: Some(720),
+                fps: Some(30.0),
+                vcodec: Some("h264".to_string()),
+                acodec: Some("aac".to_string()),
+                tbr: Some(2500.0),
+                note: None,
+            },
+            url: "https://signed.example/hd.m3u8".to_string(),
+            http_headers: serde_json::Map::new(),
+        };
+
+        let selected = select_format(
+            &[video_only, muxed],
+            &Some("auto".to_string()),
+            &Some("auto".to_string()),
+        )
+        .expect("selected");
+
+        assert_eq!(selected.variant.format_id, "hd-muxed");
+    }
+
+    #[test]
     fn prefers_hls_over_flv_when_resolution_matches() {
         let stream_data = serde_json::json!({
             "data": {
@@ -1592,10 +1729,8 @@ mod tests {
 
     #[test]
     fn copies_and_removes_sqlite_sidecars() {
-        let dir = std::env::temp_dir().join(format!(
-            "youwee-sqlite-copy-test-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("youwee-sqlite-copy-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let source = dir.join("cookies.sqlite");
         let dest = dir.join("copy.sqlite");

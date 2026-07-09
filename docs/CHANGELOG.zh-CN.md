@@ -7,6 +7,14 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.19.1-custom.14] - 2026-07-10
+
+### 新增
+- **TikTok Live Recorder Phase 1** - 新增 TikTok Live 录制页面，支持 Inspect、Record、Cancel、Firefox cookie 认证，并为完成的录制写入 Library/history
+
+### 修复
+- **TikTok Live 自动质量** - 优先选择最佳的音视频合流直播流，再回退到仅视频或仅音频格式
+
 ## [0.19.1-custom.13] - 2026-07-09
 
 ### 变更

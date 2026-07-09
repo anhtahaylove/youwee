@@ -7,6 +7,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.14] - 2026-07-10
+
+### Thêm mới
+- **TikTok Live Recorder Phase 1** - Thêm trang ghi TikTok Live với Inspect, Record, Cancel, xác thực cookie Firefox, và ghi Library/history cho bản ghi hoàn tất
+
+### Sửa lỗi
+- **Chất lượng tự động TikTok Live** - Ưu tiên stream live muxed video+audio tốt nhất trước khi fallback sang định dạng chỉ video hoặc chỉ âm thanh
+
 ## [0.19.1-custom.13] - 2026-07-09
 
 ### Thay đổi

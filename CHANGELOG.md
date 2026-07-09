@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.14] - 2026-07-10
+
+### Added
+- **TikTok Live Recorder Phase 1** - Add a TikTok Live recorder page with inspect, record, cancel, Firefox cookie authentication, and Library/history entries for completed recordings
+
+### Fixed
+- **TikTok Live auto quality** - Prefer the best muxed video+audio live stream before falling back to video-only or audio-only formats
+
 ## [0.19.1-custom.13] - 2026-07-09
 
 ### Changed
