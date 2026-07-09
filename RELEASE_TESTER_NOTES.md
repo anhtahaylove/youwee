@@ -7,7 +7,7 @@ Release page:
 https://github.com/anhtahaylove/youwee/releases/tag/v0.19.1-custom.13
 
 SHA256:
-`available after the v0.19.1-custom.13 GitHub release workflow finishes`
+`59508de1ea79323fb316111ec8501934298a70b00968eef2690bfbf4e6973f51`
 
 ## What changed
 
