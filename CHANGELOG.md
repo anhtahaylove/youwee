@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.13] - 2026-07-09
+
+### Changed
+- **Custom release channel** - Move custom updater metadata, installer downloads, and extension download links from `anhtahaylove/youwee-releases` into the main `anhtahaylove/youwee` fork release page
+
 ## [0.19.1-custom.12] - 2026-07-09
 
 ### Fixed

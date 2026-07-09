@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.13] - 2026-07-09
+
+### Thay đổi
+- **Kênh release custom** - Chuyển metadata updater custom, link tải installer và link tải extension từ `anhtahaylove/youwee-releases` sang trang release chính của fork `anhtahaylove/youwee`
+
 ## [0.19.1-custom.12] - 2026-07-09
 
 ### Sửa lỗi

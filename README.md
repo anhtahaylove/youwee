@@ -16,7 +16,7 @@
   
   **Personal Windows-focused Youwee fork with upstream tracking, custom downloader fixes, and signed custom releases**
 
-  [![Custom Releases](https://img.shields.io/github/downloads/anhtahaylove/youwee-releases/total?label=Custom%20Downloads)](https://github.com/anhtahaylove/youwee-releases/releases)
+  [![Custom Releases](https://img.shields.io/github/downloads/anhtahaylove/youwee/total?label=Custom%20Downloads)](https://github.com/anhtahaylove/youwee/releases)
   [![Source Fork](https://img.shields.io/badge/source-anhtahaylove%2Fyouwee-0EA5E9?logo=github)](https://github.com/anhtahaylove/youwee)
   [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
   [![Reddit](https://img.shields.io/badge/Reddit-r%2Fyouwee-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/r/youwee)
@@ -32,11 +32,11 @@
 
 This repository is the `anhtahaylove/youwee` custom fork of [vanloctech/youwee](https://github.com/vanloctech/youwee). It stays close to upstream, but carries Windows-first fixes and experiments that are useful for daily use before they are accepted upstream.
 
-Custom release binaries live separately at [anhtahaylove/youwee-releases](https://github.com/anhtahaylove/youwee-releases), so the source fork and updater assets can be managed cleanly.
+Custom release binaries now live on the same [anhtahaylove/youwee](https://github.com/anhtahaylove/youwee/releases) fork, so source, issues, releases, and updater metadata share one canonical repo.
 
 ### Custom Highlights
 
-- **Custom updater channel** — Uses `anhtahaylove/youwee-releases` instead of upstream release prompts.
+- **Custom updater channel** — Uses `anhtahaylove/youwee` instead of upstream release prompts.
 - **Facebook Reels core fallback** — Keeps Reels downloads inside the core download path with better Library/history metadata.
 - **Unicode-safe download titles on Windows** — Preserves Vietnamese and other Unicode titles in Logs and Library when yt-dlp stdout loses characters.
 - **Browser extension branding** — Chromium/Firefox extension UI uses the custom fork identity and keeps unsupported actions hidden.
@@ -117,12 +117,12 @@ Use Youwee only with content you own, have permission to use, or are legally all
 
 | Platform | Download                                                                                                                                                                                                                                   |
 |----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Windows** (x64, custom fork) | [Download latest custom installer](https://github.com/anhtahaylove/youwee-releases/releases/latest) |
+| **Windows** (x64, custom fork) | [Download latest custom installer](https://github.com/anhtahaylove/youwee/releases/latest) |
 | **macOS** (Apple Silicon) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
 | **macOS** (Intel) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
 | **Linux** (x64) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
 
-> See custom Windows releases at [anhtahaylove/youwee-releases](https://github.com/anhtahaylove/youwee-releases/releases). For official cross-platform releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
+> See custom Windows releases at [anhtahaylove/youwee](https://github.com/anhtahaylove/youwee/releases). For official cross-platform releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
 
 ### Browser Extension (Chromium + Firefox)
 

@@ -7,6 +7,11 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.19.1-custom.13] - 2026-07-09
+
+### 变更
+- **自定义发布渠道** - 将自定义 updater 元数据、安装包下载和扩展下载链接从 `anhtahaylove/youwee-releases` 迁移到主 fork `anhtahaylove/youwee` 的 release 页面
+
 ## [0.19.1-custom.12] - 2026-07-09
 
 ### 修复
