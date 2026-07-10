@@ -4,8 +4,9 @@ use crate::database::{
     get_tiktok_live_jobs_internal, get_tiktok_live_watch_entry_by_active_job_internal,
     get_tiktok_live_watch_entry_by_target_internal, get_tiktok_live_watch_entry_internal,
     get_tiktok_live_watchlist_internal, save_tiktok_live_job_internal,
-    save_tiktok_live_watch_entry_internal, upsert_history_with_id_internal, TikTokLiveJob,
-    TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
+    save_tiktok_live_watch_entry_internal, update_tiktok_live_watch_entry_internal,
+    upsert_history_with_id_internal, TikTokLiveJob, TikTokLiveJobStatus, TikTokLiveRecordMode,
+    TikTokLiveWatchEntry, TikTokLiveWatchStatus,
 };
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
@@ -317,6 +318,18 @@ fn persist_watch_entry(app: &AppHandle, entry: &mut TikTokLiveWatchEntry) -> Res
     save_tiktok_live_watch_entry_internal(entry)?;
     emit_watchlist_updated(app, &entry.id);
     Ok(())
+}
+
+fn persist_existing_watch_entry(
+    app: &AppHandle,
+    entry: &mut TikTokLiveWatchEntry,
+) -> Result<bool, String> {
+    entry.updated_at = Utc::now().timestamp();
+    let updated = update_tiktok_live_watch_entry_internal(entry)?;
+    if updated {
+        emit_watchlist_updated(app, &entry.id);
+    }
+    Ok(updated)
 }
 
 fn schedule_watch_entry(entry: &mut TikTokLiveWatchEntry, now: i64, use_backoff: bool) {
@@ -3016,7 +3029,9 @@ async fn inspect_watch_entry(
                 entry.status = TikTokLiveWatchStatus::Online;
                 schedule_watch_entry(entry, now, false);
             }
-            persist_watch_entry(app, entry)?;
+            if !persist_existing_watch_entry(app, entry)? {
+                return Ok(false);
+            }
             return Ok(false);
         }
         entry.active_job_id = None;
@@ -3032,7 +3047,9 @@ async fn inspect_watch_entry(
     let previous_status = entry.status;
     entry.status = TikTokLiveWatchStatus::Checking;
     entry.last_error = None;
-    persist_watch_entry(app, entry)?;
+    if !persist_existing_watch_entry(app, entry)? {
+        return Ok(false);
+    }
     let network = crate::services::polling::get_network_config();
     let inspect_result = inspect_tiktok_live(
         app.clone(),
@@ -3048,6 +3065,9 @@ async fn inspect_watch_entry(
         network.proxy_url,
     )
     .await;
+    if get_tiktok_live_watch_entry_internal(&entry.id)?.is_none() {
+        return Ok(false);
+    }
     let now = Utc::now().timestamp();
     entry.last_checked_at = Some(now);
 
@@ -3104,7 +3124,7 @@ async fn inspect_watch_entry(
             schedule_watch_entry(entry, now, true);
         }
     }
-    persist_watch_entry(app, entry)?;
+    persist_existing_watch_entry(app, entry)?;
     Ok(false)
 }
 

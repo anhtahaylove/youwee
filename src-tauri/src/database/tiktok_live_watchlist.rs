@@ -259,15 +259,17 @@ fn watch_entry_from_row(row: &Row<'_>) -> rusqlite::Result<TikTokLiveWatchEntry>
     })
 }
 
-pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Result<(), String> {
-    let conn = get_db()?;
-    let persisted_target_input = if entry.target_input.starts_with("http://")
-        || entry.target_input.starts_with("https://")
-    {
+fn persisted_target_input(entry: &TikTokLiveWatchEntry) -> &str {
+    if entry.target_input.starts_with("http://") || entry.target_input.starts_with("https://") {
         &entry.target_url
     } else {
         &entry.target_input
-    };
+    }
+}
+
+pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Result<(), String> {
+    let conn = get_db()?;
+    let persisted_target_input = persisted_target_input(entry);
     conn.execute(
         "INSERT INTO tiktok_live_watchlist (
             id, target_input, target_url, username, enabled, auto_record, output_dir,
@@ -362,6 +364,95 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
     )
     .map_err(|error| format!("Failed to save TikTok Live watchlist entry: {error}"))?;
     Ok(())
+}
+
+pub fn update_tiktok_live_watch_entry_internal(
+    entry: &TikTokLiveWatchEntry,
+) -> Result<bool, String> {
+    let conn = get_db()?;
+    let persisted_target_input = persisted_target_input(entry);
+    let changed = conn
+        .execute(
+            "UPDATE tiktok_live_watchlist SET
+                target_input = ?2,
+                target_url = ?3,
+                username = ?4,
+                enabled = ?5,
+                auto_record = ?6,
+                output_dir = ?7,
+                preferred_quality = ?8,
+                preferred_transport = ?9,
+                duration_seconds = ?10,
+                cookie_mode = ?11,
+                cookie_browser = ?12,
+                cookie_browser_profile = ?13,
+                cookie_file_path = ?14,
+                poll_interval_seconds = ?15,
+                backoff_attempt = ?16,
+                next_check_at = ?17,
+                status = ?18,
+                active_job_id = ?19,
+                last_error = ?20,
+                last_checked_at = ?21,
+                last_online_at = ?22,
+                last_recording_at = ?23,
+                created_at = ?24,
+                updated_at = ?25,
+                record_mode = ?26,
+                cooldown_seconds = ?27,
+                filename_template = ?28,
+                last_session_id = ?29,
+                last_outcome = ?30,
+                last_completed_at = ?31,
+                last_started_job_id = ?32,
+                last_segment_count = ?33,
+                last_refresh_count = ?34,
+                last_reconnect_count = ?35,
+                last_file_size = ?36
+             WHERE id = ?1",
+            params![
+                entry.id,
+                persisted_target_input,
+                entry.target_url,
+                entry.username,
+                i64::from(entry.enabled),
+                i64::from(entry.auto_record),
+                entry.output_dir,
+                entry.preferred_quality,
+                entry.preferred_transport,
+                entry.duration_seconds.map(i64::from),
+                entry.cookie_mode,
+                entry.cookie_browser,
+                entry.cookie_browser_profile,
+                entry.cookie_file_path,
+                i64::from(entry.poll_interval_seconds),
+                i64::from(entry.backoff_attempt),
+                entry.next_check_at,
+                entry.status.as_str(),
+                entry.active_job_id,
+                entry.last_error,
+                entry.last_checked_at,
+                entry.last_online_at,
+                entry.last_recording_at,
+                entry.created_at,
+                entry.updated_at,
+                entry.record_mode.as_str(),
+                i64::from(entry.cooldown_seconds),
+                entry.filename_template,
+                entry.last_session_id,
+                entry.last_outcome,
+                entry.last_completed_at,
+                entry.last_started_job_id,
+                i64::from(entry.last_segment_count),
+                i64::from(entry.last_refresh_count),
+                i64::from(entry.last_reconnect_count),
+                entry
+                    .last_file_size
+                    .and_then(|value| i64::try_from(value).ok()),
+            ],
+        )
+        .map_err(|error| format!("Failed to update TikTok Live watchlist entry: {error}"))?;
+    Ok(changed > 0)
 }
 
 pub fn get_tiktok_live_watch_entry_internal(
@@ -575,6 +666,23 @@ mod tests {
                 .map(|entry| entry.id),
             Some(linked.id)
         );
+    }
+
+    #[test]
+    fn watchlist_update_does_not_resurrect_deleted_entry() {
+        let _guard = db_test_guard();
+        ensure_test_table();
+        let mut entry = sample_entry("watch-deleted", "https://www.tiktok.com/@deleted/live");
+        save_tiktok_live_watch_entry_internal(&entry).expect("save watch entry");
+        delete_tiktok_live_watch_entry_internal(&entry.id).expect("delete watch entry");
+
+        entry.status = TikTokLiveWatchStatus::Checking;
+        entry.updated_at += 1;
+        assert!(!update_tiktok_live_watch_entry_internal(&entry)
+            .expect("update deleted watch entry returns false"));
+        assert!(get_tiktok_live_watch_entry_internal(&entry.id)
+            .expect("query deleted watch entry")
+            .is_none());
     }
 
     #[test]

@@ -8,6 +8,12 @@ Youwee 的所有重要更改都将记录在此文件中。
 ## [Unreleased]
 
 ### 新增
+
+### 修复
+
+## [0.19.1-custom.15] - 2026-07-11
+
+### 新增
 - **TikTok Live Recorder Phase 2A** - 新增有界 FFmpeg 自动重连、带退避的元数据重试、部分录制恢复和详细录制生命周期状态
 - **TikTok Live Recorder Phase 2B** - 刷新过期的签名直播 URL，继续写入编号分段，无需转码地合并分段，并在合并失败时保留已录制片段
 - **TikTok Live Recorder Phase 2C** - 使用崩溃安全的 Matroska 分段录制，无需转码地重封装为 MP4，并在最终处理失败时保留可播放的 MKV 文件
@@ -15,6 +21,7 @@ Youwee 的所有重要更改都将记录在此文件中。
 - **TikTok Live Recorder Phase 3A** - 新增持久化主播监控列表，支持有界轮询退避、每位主播独立录制规则、离线转直播时自动录制、全局防重复以及重启后的安全状态协调
 
 ### 修复
+- **TikTok Live 监控列表删除** - 防止后台元数据轮询在通过 Telegram 或界面删除后重新写回已删除的监控项
 - **TikTok Live 错误与取消** - 解包嵌套后端 wire error，清晰提示离线直播，并允许在准备元数据时取消
 
 ## [0.19.1-custom.14] - 2026-07-10

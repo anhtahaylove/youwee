@@ -8,6 +8,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thêm mới
+
+### Sửa lỗi
+
+## [0.19.1-custom.15] - 2026-07-11
+
+### Thêm mới
 - **TikTok Live Recorder Phase 2A** - Thêm tự động kết nối lại FFmpeg có giới hạn, retry metadata với backoff, giữ bản ghi partial và trạng thái vòng đời ghi chi tiết
 - **TikTok Live Recorder Phase 2B** - Làm mới signed stream URL hết hạn, ghi tiếp vào segment đánh số, ghép segment không transcode và giữ các phần đã ghi nếu ghép lỗi
 - **TikTok Live Recorder Phase 2C** - Ghi segment Matroska an toàn khi crash, remux sang MP4 không transcode và giữ file MKV phát được nếu finalize thất bại
@@ -15,6 +21,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TikTok Live Recorder Phase 3A** - Thêm watchlist streamer lưu bền vững với polling backoff có giới hạn, rule ghi riêng từng streamer, tự ghi khi chuyển từ offline sang live, chống ghi trùng toàn cục và đối chiếu an toàn sau khi khởi động lại
 
 ### Sửa lỗi
+- **Xóa watchlist TikTok Live** - Ngăn polling metadata nền ghi lại streamer đã bị xóa từ Telegram hoặc UI
 - **Lỗi và hủy TikTok Live** - Gỡ wire error backend bị lồng, báo stream offline rõ ràng và cho hủy ngay khi metadata còn đang chuẩn bị
 
 ## [0.19.1-custom.14] - 2026-07-10
