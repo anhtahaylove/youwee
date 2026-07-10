@@ -439,6 +439,54 @@
       "label": "Reconexión automática",
       "description": "Continúa grabando durante interrupciones temporales de red o transmisión."
     },
+    "watchlist": {
+      "title": "Lista de seguimiento",
+      "description": "Supervisa cuentas de TikTok y graba automáticamente cuando inicien un LIVE.",
+      "empty": "Usa el objetivo y las reglas de grabación anteriores para añadir la primera cuenta.",
+      "enabled": "Activar supervisión automática",
+      "pollInterval": "Intervalo de comprobación (segundos)",
+      "intervalValue": "Comprobar cada {{seconds}} segundos",
+      "lastChecked": "Última comprobación",
+      "nextCheck": "Próxima comprobación",
+      "added": "Cuenta de TikTok Live añadida a la lista.",
+      "updated": "Reglas de seguimiento actualizadas.",
+      "deleted": "Entrada eliminada. Las grabaciones existentes se conservaron.",
+      "inspected": "Cuenta comprobada.",
+      "recordingStarted": "Grabación iniciada desde la lista.",
+      "status": {
+        "offline": "Sin conexión",
+        "checking": "Comprobando",
+        "online": "En directo",
+        "recording": "Grabando",
+        "backoff": "En espera",
+        "recoverable": "Recuperable",
+        "error": "Error"
+      },
+      "actions": {
+        "add": "Añadir a la lista",
+        "update": "Actualizar",
+        "cancelEdit": "Cancelar edición",
+        "inspect": "Comprobar ahora",
+        "record": "Grabar ahora",
+        "stop": "Detener",
+        "edit": "Editar reglas",
+        "remove": "Eliminar"
+      },
+      "errors": {
+        "recordingRecoverable": "La grabación se detuvo con contenido recuperable. Continúa o finalízala abajo.",
+        "recordingFailed": "La grabación falló. Youwee volverá a comprobar más tarde.",
+        "recordingBusy": "Ya hay otra grabación de TikTok Live activa. Esta cuenta se comprobará de nuevo.",
+        "metadataFailed": "Falló la comprobación de metadatos. Consulta Logs.",
+        "restartRecoverable": "La grabación fue interrumpida y puede continuarse o finalizarse.",
+        "missingJob": "No se encontró el trabajo anterior. Youwee volverá a comprobar."
+      },
+      "deleteDialog": {
+        "title": "¿Eliminar de la lista?",
+        "description": "¿Dejar de supervisar “{{target}}”? Se conservarán las grabaciones y archivos de recuperación.",
+        "cancel": "Cancelar",
+        "confirm": "Eliminar"
+      }
+    },
     "recovery": {
       "title": "Grabaciones interrumpidas",
       "description": "Recupera grabaciones activas cuando Youwee se cerró inesperadamente.",

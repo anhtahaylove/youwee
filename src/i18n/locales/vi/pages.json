@@ -439,6 +439,54 @@
       "label": "Tự động kết nối lại",
       "description": "Tiếp tục ghi khi mạng hoặc luồng phát bị gián đoạn tạm thời."
     },
+    "watchlist": {
+      "title": "Danh sách theo dõi",
+      "description": "Theo dõi tài khoản TikTok và tự động ghi khi streamer bắt đầu LIVE.",
+      "empty": "Dùng mục tiêu và cấu hình ghi phía trên để thêm tài khoản đầu tiên.",
+      "enabled": "Bật theo dõi tự động",
+      "pollInterval": "Chu kỳ kiểm tra (giây)",
+      "intervalValue": "Kiểm tra mỗi {{seconds}} giây",
+      "lastChecked": "Kiểm tra gần nhất",
+      "nextCheck": "Lần kiểm tra tiếp theo",
+      "added": "Đã thêm tài khoản TikTok Live vào danh sách theo dõi.",
+      "updated": "Đã cập nhật quy tắc theo dõi.",
+      "deleted": "Đã bỏ mục theo dõi. Các bản ghi hiện có vẫn được giữ.",
+      "inspected": "Đã kiểm tra tài khoản trong danh sách theo dõi.",
+      "recordingStarted": "Đã bắt đầu ghi từ danh sách theo dõi.",
+      "status": {
+        "offline": "Ngoại tuyến",
+        "checking": "Đang kiểm tra",
+        "online": "Đang LIVE",
+        "recording": "Đang ghi",
+        "backoff": "Đang chờ thử lại",
+        "recoverable": "Có thể khôi phục",
+        "error": "Lỗi"
+      },
+      "actions": {
+        "add": "Thêm vào theo dõi",
+        "update": "Cập nhật theo dõi",
+        "cancelEdit": "Hủy chỉnh sửa",
+        "inspect": "Kiểm tra ngay",
+        "record": "Ghi ngay",
+        "stop": "Dừng",
+        "edit": "Sửa quy tắc",
+        "remove": "Bỏ theo dõi"
+      },
+      "errors": {
+        "recordingRecoverable": "Bản ghi dừng nhưng còn dữ liệu có thể khôi phục. Hãy tiếp tục hoặc hoàn tất bên dưới.",
+        "recordingFailed": "Ghi thất bại. Youwee sẽ kiểm tra lại sau.",
+        "recordingBusy": "Một TikTok Live khác đang được ghi. Tài khoản này sẽ được kiểm tra lại.",
+        "metadataFailed": "Kiểm tra metadata thất bại. Xem Logs để biết chi tiết.",
+        "restartRecoverable": "Bản ghi bị gián đoạn và có thể tiếp tục hoặc hoàn tất.",
+        "missingJob": "Không tìm thấy job ghi trước đó. Youwee sẽ kiểm tra lại."
+      },
+      "deleteDialog": {
+        "title": "Bỏ khỏi danh sách theo dõi?",
+        "description": "Ngừng theo dõi “{{target}}”? Các bản ghi và file khôi phục hiện có vẫn được giữ.",
+        "cancel": "Hủy",
+        "confirm": "Bỏ theo dõi"
+      }
+    },
     "recovery": {
       "title": "Bản ghi bị gián đoạn",
       "description": "Khôi phục các bản ghi đang chạy khi Youwee đóng đột ngột.",

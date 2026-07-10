@@ -439,6 +439,54 @@
       "label": "自动重连",
       "description": "在网络或直播流暂时中断时继续录制。"
     },
+    "watchlist": {
+      "title": "监控列表",
+      "description": "监控 TikTok 账号，并在主播开播时自动录制。",
+      "empty": "使用上方的目标和录制规则添加第一个监控账号。",
+      "enabled": "启用自动监控",
+      "pollInterval": "检查间隔（秒）",
+      "intervalValue": "每 {{seconds}} 秒检查",
+      "lastChecked": "上次检查",
+      "nextCheck": "下次检查",
+      "added": "已将 TikTok Live 账号添加到监控列表。",
+      "updated": "已更新监控规则。",
+      "deleted": "已移除监控项，现有录制仍会保留。",
+      "inspected": "已检查监控账号。",
+      "recordingStarted": "已从监控列表开始录制。",
+      "status": {
+        "offline": "离线",
+        "checking": "检查中",
+        "online": "直播中",
+        "recording": "录制中",
+        "backoff": "等待重试",
+        "recoverable": "可恢复",
+        "error": "错误"
+      },
+      "actions": {
+        "add": "添加到监控",
+        "update": "更新监控",
+        "cancelEdit": "取消编辑",
+        "inspect": "立即检查",
+        "record": "立即录制",
+        "stop": "停止",
+        "edit": "编辑规则",
+        "remove": "移除"
+      },
+      "errors": {
+        "recordingRecoverable": "录制已停止，但存在可恢复媒体。请在下方继续或完成。",
+        "recordingFailed": "录制失败，Youwee 稍后会重新检查。",
+        "recordingBusy": "另一个 TikTok Live 正在录制，此账号稍后会重新检查。",
+        "metadataFailed": "元数据检查失败，请查看 Logs。",
+        "restartRecoverable": "录制被中断，可以继续或完成。",
+        "missingJob": "找不到之前的录制任务，Youwee 将重新检查。"
+      },
+      "deleteDialog": {
+        "title": "从监控列表移除？",
+        "description": "停止监控“{{target}}”？现有录制和恢复文件会保留。",
+        "cancel": "取消",
+        "confirm": "移除"
+      }
+    },
     "recovery": {
       "title": "中断的录制",
       "description": "恢复 Youwee 意外关闭时仍在进行的录制。",

@@ -283,8 +283,14 @@ pub fn run() {
             // Initialize the database
             if let Err(error) = database::init_database(&app.handle()) {
                 log::error!("Failed to initialize database: {}", error);
-            } else if let Err(error) = commands::reconcile_tiktok_live_jobs_after_restart() {
-                log::error!("Failed to reconcile TikTok Live jobs: {}", error);
+            } else {
+                if let Err(error) = commands::reconcile_tiktok_live_jobs_after_restart() {
+                    log::error!("Failed to reconcile TikTok Live jobs: {}", error);
+                }
+                if let Err(error) = commands::reconcile_tiktok_live_watchlist_after_restart() {
+                    log::error!("Failed to reconcile TikTok Live watchlist: {}", error);
+                }
+                commands::start_tiktok_live_watchlist(app.handle().clone());
             }
 
             // Start background channel polling
@@ -457,6 +463,12 @@ pub fn run() {
             commands::finalize_tiktok_live_recovery,
             commands::continue_tiktok_live_recovery,
             commands::delete_tiktok_live_recovery,
+            commands::list_tiktok_live_watchlist,
+            commands::save_tiktok_live_watch_entry,
+            commands::set_tiktok_live_watch_entry_enabled,
+            commands::inspect_tiktok_live_watch_entry,
+            commands::record_tiktok_live_watch_entry,
+            commands::delete_tiktok_live_watch_entry,
             commands::update_plugin_config_values,
             commands::set_plugin_provider,
             commands::set_plugin_timeout,

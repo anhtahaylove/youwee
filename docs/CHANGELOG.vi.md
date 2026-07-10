@@ -12,6 +12,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **TikTok Live Recorder Phase 2B** - Làm mới signed stream URL hết hạn, ghi tiếp vào segment đánh số, ghép segment không transcode và giữ các phần đã ghi nếu ghép lỗi
 - **TikTok Live Recorder Phase 2C** - Ghi segment Matroska an toàn khi crash, remux sang MP4 không transcode và giữ file MKV phát được nếu finalize thất bại
 - **TikTok Live Recorder Phase 2D** - Lưu metadata job an toàn trong SQLite, đối chiếu phiên bị gián đoạn khi khởi động và cung cấp Ghi tiếp, Hoàn tất, Xóa có xác nhận mà không lưu signed URL hoặc giá trị cookie
+- **TikTok Live Recorder Phase 3A** - Thêm watchlist streamer lưu bền vững với polling backoff có giới hạn, rule ghi riêng từng streamer, tự ghi khi chuyển từ offline sang live, chống ghi trùng toàn cục và đối chiếu an toàn sau khi khởi động lại
 
 ### Sửa lỗi
 - **Lỗi và hủy TikTok Live** - Gỡ wire error backend bị lồng, báo stream offline rõ ràng và cho hủy ngay khi metadata còn đang chuẩn bị

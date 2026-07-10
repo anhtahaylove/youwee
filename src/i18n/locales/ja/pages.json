@@ -439,6 +439,54 @@
       "label": "自動再接続",
       "description": "一時的なネットワークや配信の中断後も録画を継続します。"
     },
+    "watchlist": {
+      "title": "ウォッチリスト",
+      "description": "TikTok アカウントを監視し、LIVE 開始時に自動録画します。",
+      "empty": "上の配信先と録画設定を使って最初のアカウントを追加してください。",
+      "enabled": "自動監視を有効にする",
+      "pollInterval": "確認間隔（秒）",
+      "intervalValue": "{{seconds}} 秒ごとに確認",
+      "lastChecked": "最終確認",
+      "nextCheck": "次回確認",
+      "added": "TikTok Live アカウントを追加しました。",
+      "updated": "監視ルールを更新しました。",
+      "deleted": "監視項目を削除しました。既存の録画は保持されます。",
+      "inspected": "アカウントを確認しました。",
+      "recordingStarted": "ウォッチリストから録画を開始しました。",
+      "status": {
+        "offline": "オフライン",
+        "checking": "確認中",
+        "online": "配信中",
+        "recording": "録画中",
+        "backoff": "再試行待ち",
+        "recoverable": "復旧可能",
+        "error": "エラー"
+      },
+      "actions": {
+        "add": "ウォッチリストに追加",
+        "update": "更新",
+        "cancelEdit": "編集をキャンセル",
+        "inspect": "今すぐ確認",
+        "record": "今すぐ録画",
+        "stop": "停止",
+        "edit": "ルール編集",
+        "remove": "削除"
+      },
+      "errors": {
+        "recordingRecoverable": "復旧可能な録画データがあります。下で続行または確定してください。",
+        "recordingFailed": "録画に失敗しました。後でもう一度確認します。",
+        "recordingBusy": "別の TikTok Live を録画中です。このアカウントは後で再確認します。",
+        "metadataFailed": "メタデータ確認に失敗しました。Logs を確認してください。",
+        "restartRecoverable": "録画が中断されました。続行または確定できます。",
+        "missingJob": "以前の録画ジョブが見つかりません。再確認します。"
+      },
+      "deleteDialog": {
+        "title": "ウォッチリストから削除しますか？",
+        "description": "「{{target}}」の監視を停止しますか？既存の録画と復旧ファイルは保持されます。",
+        "cancel": "キャンセル",
+        "confirm": "削除"
+      }
+    },
     "recovery": {
       "title": "中断された録画",
       "description": "Youwee が予期せず終了したときに録画中だったジョブを復旧します。",

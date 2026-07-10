@@ -471,6 +471,7 @@ pub fn init_database(app: &AppHandle) -> Result<(), String> {
     .map_err(|e| format!("Failed to create download_queues table: {}", e))?;
 
     super::tiktok_live_jobs::init_tiktok_live_jobs_table(&conn)?;
+    super::tiktok_live_watchlist::init_tiktok_live_watchlist_table(&conn)?;
 
     // Migration: Add download_threads column if it doesn't exist
     conn.execute(

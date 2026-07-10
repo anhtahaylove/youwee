@@ -436,6 +436,54 @@
       "label": "Reconnexion automatique",
       "description": "Poursuit l’enregistrement après une interruption temporaire du réseau ou du flux."
     },
+    "watchlist": {
+      "title": "Liste de surveillance",
+      "description": "Surveille les comptes TikTok et enregistre automatiquement au démarrage d’un LIVE.",
+      "empty": "Utilisez la cible et les règles ci-dessus pour ajouter le premier compte.",
+      "enabled": "Activer la surveillance automatique",
+      "pollInterval": "Intervalle de vérification (secondes)",
+      "intervalValue": "Check every {{seconds}} seconds",
+      "lastChecked": "Dernière vérification",
+      "nextCheck": "Prochaine vérification",
+      "added": "TikTok Live account added to the watchlist.",
+      "updated": "Watchlist rules updated.",
+      "deleted": "Watchlist entry removed. Existing recordings were not deleted.",
+      "inspected": "Watchlist account checked.",
+      "recordingStarted": "Watchlist recording started.",
+      "status": {
+        "offline": "Offline",
+        "checking": "Checking",
+        "online": "Online",
+        "recording": "Recording",
+        "backoff": "Backoff",
+        "recoverable": "Recoverable",
+        "error": "Error"
+      },
+      "actions": {
+        "add": "Add to watchlist",
+        "update": "Update watchlist",
+        "cancelEdit": "Cancel edit",
+        "inspect": "Inspect now",
+        "record": "Record now",
+        "stop": "Stop",
+        "edit": "Edit rules",
+        "remove": "Remove"
+      },
+      "errors": {
+        "recordingRecoverable": "Recording stopped with recoverable media. Continue or finalize it below.",
+        "recordingFailed": "Recording failed. Youwee will check again later.",
+        "recordingBusy": "Another TikTok Live recording is active. This account will be checked again.",
+        "metadataFailed": "Metadata check failed. See Logs for details.",
+        "restartRecoverable": "Recording was interrupted and can be continued or finalized.",
+        "missingJob": "The previous recording job was not found. Youwee will check again."
+      },
+      "deleteDialog": {
+        "title": "Remove from watchlist?",
+        "description": "Stop monitoring “{{target}}”? Existing recordings and recovery files are kept.",
+        "cancel": "Cancel",
+        "confirm": "Remove"
+      }
+    },
     "recovery": {
       "title": "Enregistrements interrompus",
       "description": "Récupérez les enregistrements actifs lors de la fermeture inattendue de Youwee.",

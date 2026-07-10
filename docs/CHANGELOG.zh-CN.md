@@ -12,6 +12,7 @@ Youwee 的所有重要更改都将记录在此文件中。
 - **TikTok Live Recorder Phase 2B** - 刷新过期的签名直播 URL，继续写入编号分段，无需转码地合并分段，并在合并失败时保留已录制片段
 - **TikTok Live Recorder Phase 2C** - 使用崩溃安全的 Matroska 分段录制，无需转码地重封装为 MP4，并在最终处理失败时保留可播放的 MKV 文件
 - **TikTok Live Recorder Phase 2D** - 在 SQLite 中安全持久化录制任务元数据，启动时协调中断会话，并提供继续、完成和确认删除操作，同时不保存签名 URL 或 Cookie 值
+- **TikTok Live Recorder Phase 3A** - 新增持久化主播监控列表，支持有界轮询退避、每位主播独立录制规则、离线转直播时自动录制、全局防重复以及重启后的安全状态协调
 
 ### 修复
 - **TikTok Live 错误与取消** - 解包嵌套后端 wire error，清晰提示离线直播，并允许在准备元数据时取消

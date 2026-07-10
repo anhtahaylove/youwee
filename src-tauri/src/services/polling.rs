@@ -28,17 +28,26 @@ static POLLING_NETWORK_CONFIG: Mutex<PollingNetworkConfig> = Mutex::new(PollingN
     cookie_skip_patterns: None,
     proxy_url: None,
 });
+static POLLING_NETWORK_CONFIG_READY: AtomicBool = AtomicBool::new(false);
 
 /// Update the cookie/proxy config used by the background polling loop.
 /// Called from the frontend whenever settings change.
 pub fn set_network_config(config: PollingNetworkConfig) {
     if let Ok(mut guard) = POLLING_NETWORK_CONFIG.lock() {
         *guard = config;
+        POLLING_NETWORK_CONFIG_READY.store(true, Ordering::SeqCst);
     }
 }
 
+/// Whether the frontend has restored and synced its persisted network settings.
+/// Fast background pollers must not issue a request before this becomes true,
+/// otherwise a configured proxy could be bypassed during app startup.
+pub(crate) fn network_config_ready() -> bool {
+    POLLING_NETWORK_CONFIG_READY.load(Ordering::SeqCst)
+}
+
 /// Read a snapshot of the current network config.
-fn get_network_config() -> PollingNetworkConfig {
+pub(crate) fn get_network_config() -> PollingNetworkConfig {
     POLLING_NETWORK_CONFIG
         .lock()
         .map(|g| g.clone())

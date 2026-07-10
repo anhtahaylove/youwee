@@ -436,6 +436,54 @@
       "label": "เชื่อมต่อใหม่อัตโนมัติ",
       "description": "บันทึกต่อเมื่อเครือข่ายหรือสตรีมขัดข้องชั่วคราว"
     },
+    "watchlist": {
+      "title": "รายการเฝ้าดู",
+      "description": "ติดตามบัญชี TikTok และบันทึกอัตโนมัติเมื่อเริ่ม LIVE",
+      "empty": "ใช้เป้าหมายและกฎการบันทึกด้านบนเพื่อเพิ่มบัญชีแรก",
+      "enabled": "เปิดการติดตามอัตโนมัติ",
+      "pollInterval": "ช่วงเวลาตรวจสอบ (วินาที)",
+      "intervalValue": "Check every {{seconds}} seconds",
+      "lastChecked": "ตรวจสอบล่าสุด",
+      "nextCheck": "ตรวจสอบครั้งถัดไป",
+      "added": "TikTok Live account added to the watchlist.",
+      "updated": "Watchlist rules updated.",
+      "deleted": "Watchlist entry removed. Existing recordings were not deleted.",
+      "inspected": "Watchlist account checked.",
+      "recordingStarted": "Watchlist recording started.",
+      "status": {
+        "offline": "Offline",
+        "checking": "Checking",
+        "online": "Online",
+        "recording": "Recording",
+        "backoff": "Backoff",
+        "recoverable": "Recoverable",
+        "error": "Error"
+      },
+      "actions": {
+        "add": "Add to watchlist",
+        "update": "Update watchlist",
+        "cancelEdit": "Cancel edit",
+        "inspect": "Inspect now",
+        "record": "Record now",
+        "stop": "Stop",
+        "edit": "Edit rules",
+        "remove": "Remove"
+      },
+      "errors": {
+        "recordingRecoverable": "Recording stopped with recoverable media. Continue or finalize it below.",
+        "recordingFailed": "Recording failed. Youwee will check again later.",
+        "recordingBusy": "Another TikTok Live recording is active. This account will be checked again.",
+        "metadataFailed": "Metadata check failed. See Logs for details.",
+        "restartRecoverable": "Recording was interrupted and can be continued or finalized.",
+        "missingJob": "The previous recording job was not found. Youwee will check again."
+      },
+      "deleteDialog": {
+        "title": "Remove from watchlist?",
+        "description": "Stop monitoring “{{target}}”? Existing recordings and recovery files are kept.",
+        "cancel": "Cancel",
+        "confirm": "Remove"
+      }
+    },
     "recovery": {
       "title": "การบันทึกที่ถูกขัดจังหวะ",
       "description": "กู้คืนงานบันทึกที่กำลังทำงานเมื่อ Youwee ปิดโดยไม่คาดคิด",

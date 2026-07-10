@@ -112,11 +112,27 @@ Thêm trang/section nhỏ:
 - Continue lấy metadata/signed URL mới rồi ghi segment kế tiếp; Finalize remux các segment còn lại và giữ MKV nếu MP4 lỗi.
 - Mỗi session dùng history ID ổn định để retry finalize chỉ upsert một Library/history row, không tạo bản ghi trùng.
 
-## Phase 3 (deferred)
+## Phase 3A: watchlist and safe auto-record
 
-- Watchlist/polling chờ streamer online.
-- Schedule auto-record.
+Đã triển khai trong custom worktree:
+
+- Watchlist lưu bền vững trong SQLite, nhận username hoặc TikTok Live URL và chuẩn hóa target để chống trùng.
+- Mỗi streamer có rule riêng cho output folder, chất lượng, transport, thời lượng tối đa, cookie source/browser/profile/file và chu kỳ kiểm tra.
+- Scheduler chỉ xử lý entry được bật, dùng chu kỳ tối thiểu 30 giây và exponential backoff có jitter, giới hạn 30 phút khi offline hoặc metadata lỗi.
+- Auto-record chỉ kích hoạt khi entry chuyển từ offline sang live; trạng thái online đang biết không tạo job lặp lại.
+- Toàn ứng dụng chỉ cho một TikTok Live recording hoạt động cùng lúc trong Phase 3A, bao gồm cả record thủ công và auto-record; slot được reserve nguyên tử và chỉ nhả sau khi cancel thực sự kết thúc.
+- Watchlist liên kết active job với persisted recovery: restart không tạo duplicate, job còn media được đánh dấu Recoverable và chờ người dùng Continue/Finalize.
+- Continue, Finalize và Delete từ khu Recovery đồng bộ lại liên kết/trạng thái watchlist ngay trong cùng phiên app.
+- Cookie value, signed URL, raw URL query/fragment, proxy URL và secret header không được lưu vào watchlist; scheduler chỉ lưu target canonical, tham chiếu profile/file và đọc proxy/cookie-skip hiện hành trong bộ nhớ.
+- Scheduler không gửi request lúc startup cho đến khi frontend đã restore và sync network/auth settings, tránh bỏ qua proxy đã cấu hình.
+- UI hỗ trợ Add/Update, Enable/Disable, Inspect now, Record now, Stop, Edit và Remove có xác nhận, đồng thời hiển thị status, last/next check và mã lỗi an toàn.
+
+## Phase 3B+ (deferred)
+
+- Schedule/rule nâng cao theo khung giờ, dung lượng và lịch riêng.
 - Telegram Remote Download command cho TikTok Live.
+- Telemetry bitrate/dung lượng/reconnect/segment theo thời gian thực.
+- Multi-room recording với giới hạn CPU và băng thông.
 - Mở rộng native TikTok API/page resolver nếu cần username → room_id không phụ thuộc yt-dlp.
 
 ## Không làm trong Phase 1
@@ -157,6 +173,12 @@ Thêm trang/section nhỏ:
   - Startup reconciliation phân biệt `Recoverable` khi còn media và `Interrupted` khi file chưa được tạo.
   - Stable history ID upsert nhiều lần vẫn chỉ có một Library/history row.
   - Delete chỉ chấp nhận output/segment/fallback/manifest đúng mẫu do job sinh trong output folder.
+- Watchlist/auto-record:
+  - SQLite round-trip và JSON serialization không chứa signed URL, cookie value, proxy URL hoặc secret header.
+  - Canonical target unique constraint chặn cùng một streamer được thêm hai lần.
+  - Backoff tăng có giới hạn và jitter xác định, không poll dồn dập khi offline/lỗi.
+  - Auto-record chỉ chạy ở cạnh chuyển offline → live, khi entry bật, auto-record bật, chưa có active job và global recorder đang rảnh.
+  - Startup reconciliation giữ liên kết Recoverable và không tạo recording trùng.
 
 ### Manual acceptance
 
@@ -189,6 +211,13 @@ Thêm trang/section nhỏ:
     - Continue lấy signed URL mới và ghi thêm segment, không nối byte trực tiếp vào file cũ.
     - Finalize tạo một MP4 hoặc giữ MKV phát được; Library/history chỉ có một bản ghi cho session.
     - Delete hỏi xác nhận, xóa đúng file recovery và không xóa output folder/file không thuộc job.
+12. Thêm một streamer đang offline vào Watchlist, bật Auto-record và xác nhận polling giãn theo backoff mà không tạo job.
+13. Khi streamer chuyển sang live, xác nhận chỉ một job bắt đầu, status thành Recording và không tạo job thứ hai ở các vòng poll sau.
+14. Khi một job thủ công hoặc auto-record khác đang chạy, entry live còn lại phải chờ/backoff thay vì ghi song song.
+15. Restart app khi watchlist job có segment dang dở:
+    - Entry liên kết đúng job Recoverable.
+    - Không tự khởi tạo recording trùng.
+    - Cookie/signed URL/proxy không xuất hiện trong SQLite, UI hoặc log.
 
 ## Required checks
 

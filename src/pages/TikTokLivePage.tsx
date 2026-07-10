@@ -3,9 +3,12 @@ import { listen } from '@tauri-apps/api/event';
 import { downloadDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
 import {
+  BookmarkPlus,
+  Eye,
   FileCheck2,
   Folder,
   Loader2,
+  Pencil,
   Play,
   Radio,
   RefreshCw,
@@ -101,6 +104,48 @@ type TikTokLiveRecoveryJob = {
   errorMessage?: string;
 };
 
+type TikTokLiveWatchStatus =
+  | 'offline'
+  | 'checking'
+  | 'online'
+  | 'recording'
+  | 'backoff'
+  | 'recoverable'
+  | 'error';
+
+type TikTokLiveWatchEntry = {
+  id: string;
+  targetInput: string;
+  targetUrl: string;
+  username?: string;
+  enabled: boolean;
+  autoRecord: boolean;
+  outputDir: string;
+  preferredQuality?: string;
+  preferredTransport?: string;
+  durationSeconds?: number;
+  cookieMode?: string;
+  cookieBrowser?: string;
+  cookieBrowserProfile?: string;
+  cookieFilePath?: string;
+  pollIntervalSeconds: number;
+  backoffAttempt: number;
+  nextCheckAt: number;
+  status: TikTokLiveWatchStatus;
+  activeJobId?: string;
+  lastError?: string;
+  lastCheckedAt?: number;
+  lastOnlineAt?: number;
+  lastRecordingAt?: number;
+  createdAt: number;
+  updatedAt: number;
+};
+
+type TikTokLiveWatchAuthSnapshot = Pick<
+  TikTokLiveWatchEntry,
+  'cookieMode' | 'cookieBrowser' | 'cookieBrowserProfile' | 'cookieFilePath'
+>;
+
 const QUALITY_OPTIONS = ['auto', 'origin', 'uhd_60', 'uhd', 'hd_60', 'hd', 'sd', 'ld', 'ao'];
 const TRANSPORT_OPTIONS = ['auto', 'hls', 'flv', 'lls'];
 
@@ -135,6 +180,19 @@ function variantLabel(variant?: TikTokLiveVariant): string {
     .join(' · ');
 }
 
+function watchStatusClass(status: TikTokLiveWatchStatus): string {
+  if (status === 'online' || status === 'recording') {
+    return 'bg-green-500/10 text-green-600 dark:text-green-400';
+  }
+  if (status === 'recoverable' || status === 'backoff') {
+    return 'bg-amber-500/10 text-amber-600 dark:text-amber-400';
+  }
+  if (status === 'error') {
+    return 'bg-red-500/10 text-red-500';
+  }
+  return 'bg-blue-500/10 text-blue-600 dark:text-blue-400';
+}
+
 function isCancellationError(error: unknown): boolean {
   return extractBackendError(error).code === 'DOWNLOAD_CANCELLED';
 }
@@ -157,6 +215,16 @@ export function TikTokLivePage() {
   const [recoveryJobs, setRecoveryJobs] = useState<TikTokLiveRecoveryJob[]>([]);
   const [recoveryActionId, setRecoveryActionId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<TikTokLiveRecoveryJob | null>(null);
+  const [watchEntries, setWatchEntries] = useState<TikTokLiveWatchEntry[]>([]);
+  const [watchPollInterval, setWatchPollInterval] = useState('60');
+  const [watchActionId, setWatchActionId] = useState<string | null>(null);
+  const [editingWatchId, setEditingWatchId] = useState<string | null>(null);
+  const [editingWatchAuth, setEditingWatchAuth] = useState<TikTokLiveWatchAuthSnapshot | null>(
+    null,
+  );
+  const [watchDeleteCandidate, setWatchDeleteCandidate] = useState<TikTokLiveWatchEntry | null>(
+    null,
+  );
   const activeInspectJobIdRef = useRef<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
@@ -218,9 +286,28 @@ export function TikTokLivePage() {
     }
   }, []);
 
+  const refreshWatchlist = useCallback(async () => {
+    try {
+      setWatchEntries(await invoke<TikTokLiveWatchEntry[]>('list_tiktok_live_watchlist'));
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+    }
+  }, []);
+
   useEffect(() => {
     void refreshRecoveryJobs();
-  }, [refreshRecoveryJobs]);
+    void refreshWatchlist();
+  }, [refreshRecoveryJobs, refreshWatchlist]);
+
+  useEffect(() => {
+    const unlistenPromise = listen('tiktok-live-watchlist-updated', () => {
+      void refreshWatchlist();
+      void refreshRecoveryJobs();
+    });
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [refreshRecoveryJobs, refreshWatchlist]);
 
   const updateInput = useCallback((value: string) => {
     setInput(value);
@@ -424,9 +511,169 @@ export function TikTokLivePage() {
     }
   }, [deleteCandidate, refreshRecoveryJobs, t]);
 
+  const saveWatchEntry = useCallback(async () => {
+    if (!input.trim() || !outputDir) return;
+    const actionId = editingWatchId || 'new';
+    setWatchActionId(actionId);
+    setError('');
+    try {
+      const durationValue = Number.parseInt(duration, 10);
+      const pollIntervalValue = Number.parseInt(watchPollInterval, 10);
+      const watchAuth = editingWatchAuth ?? invokeOptions;
+      await invoke<TikTokLiveWatchEntry>('save_tiktok_live_watch_entry', {
+        entry: {
+          id: editingWatchId,
+          input: input.trim(),
+          outputDir,
+          preferredQuality: quality,
+          preferredTransport: transport,
+          durationSeconds:
+            Number.isFinite(durationValue) && durationValue > 0 ? durationValue : null,
+          cookieMode: watchAuth.cookieMode,
+          cookieBrowser: watchAuth.cookieBrowser,
+          cookieBrowserProfile: watchAuth.cookieBrowserProfile,
+          cookieFilePath: watchAuth.cookieFilePath,
+          pollIntervalSeconds:
+            Number.isFinite(pollIntervalValue) && pollIntervalValue > 0 ? pollIntervalValue : 60,
+        },
+      });
+      setStatus(t(editingWatchId ? 'tiktokLive.watchlist.updated' : 'tiktokLive.watchlist.added'));
+      setEditingWatchId(null);
+      setEditingWatchAuth(null);
+      await refreshWatchlist();
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+      setStatus(t('tiktokLive.status.failed'));
+    } finally {
+      setWatchActionId(null);
+    }
+  }, [
+    duration,
+    editingWatchAuth,
+    editingWatchId,
+    input,
+    invokeOptions,
+    outputDir,
+    quality,
+    refreshWatchlist,
+    t,
+    transport,
+    watchPollInterval,
+  ]);
+
+  const editWatchEntry = useCallback((entry: TikTokLiveWatchEntry) => {
+    setEditingWatchId(entry.id);
+    setInput(entry.targetInput);
+    setOutputDir(entry.outputDir);
+    setDuration(entry.durationSeconds?.toString() || '0');
+    setQuality(entry.preferredQuality || 'auto');
+    setTransport(entry.preferredTransport || 'auto');
+    setWatchPollInterval(entry.pollIntervalSeconds.toString());
+    setEditingWatchAuth({
+      cookieMode: entry.cookieMode,
+      cookieBrowser: entry.cookieBrowser,
+      cookieBrowserProfile: entry.cookieBrowserProfile,
+      cookieFilePath: entry.cookieFilePath,
+    });
+    setInspectResult(null);
+    setRecordResult(null);
+    setError('');
+    setStatus('');
+  }, []);
+
+  const toggleWatchEntry = useCallback(
+    async (entry: TikTokLiveWatchEntry, enabled: boolean) => {
+      setWatchActionId(entry.id);
+      setError('');
+      try {
+        await invoke('set_tiktok_live_watch_entry_enabled', { id: entry.id, enabled });
+        await refreshWatchlist();
+      } catch (err) {
+        setError(localizeBackendError(extractBackendError(err)));
+      } finally {
+        setWatchActionId(null);
+      }
+    },
+    [refreshWatchlist],
+  );
+
+  const inspectWatchEntry = useCallback(
+    async (entry: TikTokLiveWatchEntry) => {
+      setWatchActionId(entry.id);
+      setError('');
+      try {
+        await invoke('inspect_tiktok_live_watch_entry', { id: entry.id });
+        setStatus(t('tiktokLive.watchlist.inspected'));
+        await refreshWatchlist();
+      } catch (err) {
+        setError(localizeBackendError(extractBackendError(err)));
+      } finally {
+        setWatchActionId(null);
+      }
+    },
+    [refreshWatchlist, t],
+  );
+
+  const recordWatchEntry = useCallback(
+    async (entry: TikTokLiveWatchEntry) => {
+      setWatchActionId(entry.id);
+      setError('');
+      try {
+        await invoke('record_tiktok_live_watch_entry', { id: entry.id });
+        setStatus(t('tiktokLive.watchlist.recordingStarted'));
+        await refreshWatchlist();
+      } catch (err) {
+        setError(localizeBackendError(extractBackendError(err)));
+      } finally {
+        setWatchActionId(null);
+      }
+    },
+    [refreshWatchlist, t],
+  );
+
+  const cancelWatchRecording = useCallback(
+    async (entry: TikTokLiveWatchEntry) => {
+      if (!entry.activeJobId) return;
+      setWatchActionId(entry.id);
+      setError('');
+      try {
+        await invoke('cancel_tiktok_live_recording', { jobId: entry.activeJobId });
+        setStatus(t('tiktokLive.status.cancelling'));
+      } catch (err) {
+        setError(localizeBackendError(extractBackendError(err)));
+      } finally {
+        setWatchActionId(null);
+      }
+    },
+    [t],
+  );
+
+  const deleteWatchEntry = useCallback(async () => {
+    if (!watchDeleteCandidate) return;
+    const id = watchDeleteCandidate.id;
+    setWatchActionId(id);
+    setWatchDeleteCandidate(null);
+    setError('');
+    try {
+      await invoke('delete_tiktok_live_watch_entry', { id });
+      if (editingWatchId === id) {
+        setEditingWatchId(null);
+        setEditingWatchAuth(null);
+      }
+      setStatus(t('tiktokLive.watchlist.deleted'));
+      await refreshWatchlist();
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+    } finally {
+      setWatchActionId(null);
+    }
+  }, [editingWatchId, refreshWatchlist, t, watchDeleteCandidate]);
+
   const busy = isInspecting || isRecording || recoveryActionId !== null;
   const canSubmit = input.trim().length > 0 && !busy;
   const canCancel = isRecording && !isCancelling;
+  const watchBusy = watchActionId !== null;
+  const canSaveWatch = input.trim().length > 0 && outputDir.length > 0 && !busy && !watchBusy;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -554,7 +801,7 @@ export function TikTokLivePage() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {!isRecording ? (
               <Button onClick={() => void startRecording()} disabled={!canSubmit} className="gap-2">
                 <Radio className="w-4 h-4" />
@@ -580,6 +827,50 @@ export function TikTokLivePage() {
                 {status}
               </output>
             )}
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <Input
+                type="number"
+                min="30"
+                max="3600"
+                step="1"
+                inputMode="numeric"
+                value={watchPollInterval}
+                onChange={(event) => setWatchPollInterval(event.target.value)}
+                className="h-9 w-24"
+                disabled={busy || watchBusy}
+                aria-label={t('tiktokLive.watchlist.pollInterval')}
+                title={t('tiktokLive.watchlist.pollInterval')}
+              />
+              <Button
+                variant="outline"
+                onClick={() => void saveWatchEntry()}
+                disabled={!canSaveWatch}
+                className="gap-2"
+              >
+                {watchActionId === (editingWatchId || 'new') ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <BookmarkPlus className="h-4 w-4" />
+                )}
+                {t(
+                  editingWatchId
+                    ? 'tiktokLive.watchlist.actions.update'
+                    : 'tiktokLive.watchlist.actions.add',
+                )}
+              </Button>
+              {editingWatchId && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setEditingWatchId(null);
+                    setEditingWatchAuth(null);
+                  }}
+                  disabled={watchBusy}
+                >
+                  {t('tiktokLive.watchlist.actions.cancelEdit')}
+                </Button>
+              )}
+            </div>
           </div>
 
           {error && (
@@ -588,6 +879,147 @@ export function TikTokLivePage() {
               role="alert"
             >
               {error}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium">{t('tiktokLive.watchlist.title')}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('tiktokLive.watchlist.description')}
+              </p>
+            </div>
+            <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              {watchEntries.length}
+            </Badge>
+          </div>
+
+          {watchEntries.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border/60 px-3 py-4 text-center text-xs text-muted-foreground">
+              {t('tiktokLive.watchlist.empty')}
+            </p>
+          ) : (
+            <div className="grid gap-3">
+              {watchEntries.map((entry) => {
+                const actionPending = watchActionId === entry.id;
+                const recording = entry.status === 'recording';
+                const recoverable = entry.status === 'recoverable';
+                return (
+                  <div key={entry.id} className="rounded-xl border border-border/60 bg-card/50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {entry.username ? `@${entry.username}` : entry.targetInput}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                          {entry.targetUrl}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Badge className={watchStatusClass(entry.status)}>
+                          {t(`tiktokLive.watchlist.status.${entry.status}`)}
+                        </Badge>
+                        <Switch
+                          checked={entry.enabled}
+                          onCheckedChange={(enabled) => void toggleWatchEntry(entry, enabled)}
+                          disabled={watchBusy}
+                          aria-label={t('tiktokLive.watchlist.enabled')}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
+                      <span className="truncate" title={entry.outputDir}>
+                        {t('tiktokLive.output.label')}: {entry.outputDir}
+                      </span>
+                      <span>
+                        {t('tiktokLive.watchlist.intervalValue', {
+                          seconds: entry.pollIntervalSeconds,
+                        })}
+                      </span>
+                      {entry.lastCheckedAt && (
+                        <span>
+                          {t('tiktokLive.watchlist.lastChecked')}:{' '}
+                          {new Date(entry.lastCheckedAt * 1000).toLocaleString()}
+                        </span>
+                      )}
+                      {entry.enabled && !recoverable && (
+                        <span>
+                          {t('tiktokLive.watchlist.nextCheck')}:{' '}
+                          {new Date(entry.nextCheckAt * 1000).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    {entry.lastError && (
+                      <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                        {t(`tiktokLive.watchlist.errors.${entry.lastError}`, {
+                          defaultValue: entry.lastError,
+                        })}
+                      </p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={watchBusy || recording || recoverable}
+                        onClick={() => void inspectWatchEntry(entry)}
+                      >
+                        {actionPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                        {t('tiktokLive.watchlist.actions.inspect')}
+                      </Button>
+                      {recording ? (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="gap-2"
+                          disabled={watchBusy || !entry.activeJobId}
+                          onClick={() => void cancelWatchRecording(entry)}
+                        >
+                          <Square className="h-4 w-4" />
+                          {t('tiktokLive.watchlist.actions.stop')}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          disabled={busy || watchBusy || recoverable}
+                          onClick={() => void recordWatchEntry(entry)}
+                        >
+                          <Radio className="h-4 w-4" />
+                          {t('tiktokLive.watchlist.actions.record')}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={watchBusy || recording || recoverable}
+                        onClick={() => editWatchEntry(entry)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        {t('tiktokLive.watchlist.actions.edit')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                        disabled={watchBusy || recording}
+                        onClick={() => setWatchDeleteCandidate(entry)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t('tiktokLive.watchlist.actions.remove')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -770,6 +1202,31 @@ export function TikTokLivePage() {
               onClick={() => void deleteRecovery()}
             >
               {t('tiktokLive.recovery.deleteDialog.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={watchDeleteCandidate !== null}
+        onOpenChange={(open) => !open && setWatchDeleteCandidate(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('tiktokLive.watchlist.deleteDialog.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('tiktokLive.watchlist.deleteDialog.description', {
+                target: watchDeleteCandidate?.targetInput || '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('tiktokLive.watchlist.deleteDialog.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => void deleteWatchEntry()}
+            >
+              {t('tiktokLive.watchlist.deleteDialog.confirm')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
