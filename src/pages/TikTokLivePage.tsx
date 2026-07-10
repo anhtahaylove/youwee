@@ -60,7 +60,7 @@ type TikTokLiveRecordResult = {
 
 type TikTokLiveStatusEvent = {
   jobId: string;
-  state: 'metadata-retry' | 'recording';
+  state: 'metadata-retry' | 'recording' | 'refreshing-stream' | 'merging-segments';
   attempt?: number;
   total?: number;
   autoReconnect?: boolean;
@@ -142,6 +142,15 @@ export function TikTokLivePage() {
             total: payload.total,
           }),
         );
+      } else if (payload.state === 'refreshing-stream') {
+        setStatus(
+          t('tiktokLive.status.refreshingStream', {
+            attempt: payload.attempt,
+            total: payload.total,
+          }),
+        );
+      } else if (payload.state === 'merging-segments') {
+        setStatus(t('tiktokLive.status.mergingSegments'));
       } else if (payload.state === 'recording') {
         setStatus(
           t(

@@ -17,7 +17,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::time::{sleep, timeout};
+use tokio::time::{sleep, timeout, Instant};
 
 static ACTIVE_RECORDINGS: LazyLock<Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -27,6 +27,7 @@ const METADATA_RETRY_BASE_DELAY_MS: u64 = 750;
 const RECONNECT_MAX_RETRIES: u32 = 20;
 const RECONNECT_DELAY_MAX_SECONDS: u32 = 5;
 const RECONNECT_DELAY_TOTAL_MAX_SECONDS: u32 = 120;
+const STREAM_URL_REFRESH_ATTEMPTS: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TikTokLiveTargetKind {
@@ -208,6 +209,43 @@ fn output_path_for_recording(output_dir: &Path, title: &str) -> PathBuf {
     let title = sanitize_filename_part(title, "TikTok LIVE");
     let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
     output_dir.join(format!("{title}_{timestamp}.mp4"))
+}
+
+fn segment_path_for_recording(output_path: &Path, index: usize) -> PathBuf {
+    let stem = output_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("TikTok LIVE");
+    output_path.with_file_name(format!("{stem}.part-{index:03}.mp4"))
+}
+
+fn concat_list_path_for_recording(output_path: &Path) -> PathBuf {
+    let stem = output_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("TikTok LIVE");
+    output_path.with_file_name(format!("{stem}.ffconcat"))
+}
+
+fn ffconcat_content(paths: &[PathBuf]) -> String {
+    paths
+        .iter()
+        .map(|path| {
+            let escaped = path
+                .to_string_lossy()
+                .replace('\\', "/")
+                .replace('\'', "'\\''");
+            format!("file '{escaped}'")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
+fn remaining_recording_seconds(started_at: Instant, duration_seconds: Option<u32>) -> Option<u32> {
+    duration_seconds.map(|total| {
+        total.saturating_sub(started_at.elapsed().as_secs().min(u64::from(u32::MAX)) as u32)
+    })
 }
 
 fn quality_rank(quality: Option<&str>) -> i64 {
@@ -920,7 +958,7 @@ fn append_reconnect_args(args: &mut Vec<String>, enabled: bool) {
         "-reconnect_on_network_error".to_string(),
         "1".to_string(),
         "-reconnect_on_http_error".to_string(),
-        "4xx,5xx".to_string(),
+        "408,429,5xx".to_string(),
         "-reconnect_max_retries".to_string(),
         RECONNECT_MAX_RETRIES.to_string(),
         "-reconnect_delay_max".to_string(),
@@ -928,6 +966,169 @@ fn append_reconnect_args(args: &mut Vec<String>, enabled: bool) {
         "-reconnect_delay_total_max".to_string(),
         RECONNECT_DELAY_TOTAL_MAX_SECONDS.to_string(),
     ]);
+}
+
+fn build_ffmpeg_record_args(
+    selected: &TikTokLiveFormat,
+    cookie_header: Option<&str>,
+    duration_seconds: Option<u32>,
+    auto_reconnect: bool,
+    output_path: &Path,
+) -> Vec<String> {
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-nostdin".to_string(),
+        "-y".to_string(),
+    ];
+    if let Some(seconds) = duration_seconds.filter(|seconds| *seconds > 0) {
+        args.extend(["-t".to_string(), seconds.to_string()]);
+    }
+
+    let mut selected_headers = selected.http_headers.clone();
+    if let Some(cookie) = cookie_header.filter(|value| !value.trim().is_empty()) {
+        insert_header_if_missing(&mut selected_headers, "Cookie", cookie);
+    }
+    let ffmpeg_headers = tiktok_ffmpeg_headers(&selected_headers);
+    if let Some(user_agent) =
+        header_value(&ffmpeg_headers, "User-Agent").filter(|value| !value.trim().is_empty())
+    {
+        args.extend(["-user_agent".to_string(), user_agent]);
+    }
+    if let Some(referer) =
+        header_value(&ffmpeg_headers, "Referer").filter(|value| !value.trim().is_empty())
+    {
+        args.extend(["-referer".to_string(), referer]);
+    }
+    if let Some(headers) = ffmpeg_header_block(&ffmpeg_headers) {
+        args.extend(["-headers".to_string(), headers]);
+    }
+    append_reconnect_args(&mut args, auto_reconnect);
+    args.extend([
+        "-i".to_string(),
+        selected.url.clone(),
+        "-c".to_string(),
+        "copy".to_string(),
+        "-movflags".to_string(),
+        "+faststart".to_string(),
+        output_path.to_string_lossy().to_string(),
+    ]);
+    args
+}
+
+async fn remove_recording_paths(paths: &[PathBuf]) {
+    for path in paths {
+        tokio::fs::remove_file(path).await.ok();
+    }
+}
+
+async fn preserve_first_segment(segment_paths: &[PathBuf], output_path: &Path) -> PathBuf {
+    let first = segment_paths[0].clone();
+    tokio::fs::remove_file(output_path).await.ok();
+    if tokio::fs::rename(&first, output_path).await.is_ok() {
+        output_path.to_path_buf()
+    } else {
+        first
+    }
+}
+
+async fn finalize_recording_segments(
+    ffmpeg_path: &Path,
+    segment_paths: &[PathBuf],
+    output_path: &Path,
+    cancel_rx: &mut tokio::sync::oneshot::Receiver<()>,
+) -> Result<(PathBuf, bool), String> {
+    if segment_paths.is_empty() {
+        return Err(BackendError::from_message(
+            "TikTok Live recording produced no media segments.",
+        )
+        .to_wire_string());
+    }
+
+    if segment_paths.len() == 1 {
+        let first = &segment_paths[0];
+        tokio::fs::remove_file(output_path).await.ok();
+        return match tokio::fs::rename(first, output_path).await {
+            Ok(()) => Ok((output_path.to_path_buf(), false)),
+            Err(_) => Ok((first.clone(), false)),
+        };
+    }
+
+    let concat_path = concat_list_path_for_recording(output_path);
+    if tokio::fs::write(&concat_path, ffconcat_content(segment_paths))
+        .await
+        .is_err()
+    {
+        return Ok((
+            preserve_first_segment(segment_paths, output_path).await,
+            true,
+        ));
+    }
+
+    let mut cmd = Command::new(ffmpeg_path);
+    cmd.args([
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        "-fflags",
+        "+genpts",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+    ])
+    .arg(&concat_path)
+    .args([
+        "-c",
+        "copy",
+        "-avoid_negative_ts",
+        "make_zero",
+        "-movflags",
+        "+faststart",
+    ])
+    .arg(output_path)
+    .stdout(Stdio::null())
+    .stderr(Stdio::null());
+    crate::utils::CommandExt::hide_window(&mut cmd);
+
+    let mut child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(_) => {
+            tokio::fs::remove_file(&concat_path).await.ok();
+            return Ok((
+                preserve_first_segment(segment_paths, output_path).await,
+                true,
+            ));
+        }
+    };
+
+    let status = tokio::select! {
+        status = child.wait() => status.ok(),
+        _ = &mut *cancel_rx => {
+            child.kill().await.ok();
+            tokio::fs::remove_file(output_path).await.ok();
+            tokio::fs::remove_file(&concat_path).await.ok();
+            remove_recording_paths(segment_paths).await;
+            return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
+        }
+    };
+
+    let merged = status.is_some_and(|status| status.success())
+        && tokio::fs::metadata(output_path)
+            .await
+            .is_ok_and(|metadata| metadata.len() > 0);
+    tokio::fs::remove_file(&concat_path).await.ok();
+
+    if merged {
+        remove_recording_paths(segment_paths).await;
+        Ok((output_path.to_path_buf(), false))
+    } else {
+        tokio::fs::remove_file(output_path).await.ok();
+        Ok((
+            preserve_first_segment(segment_paths, output_path).await,
+            true,
+        ))
+    }
 }
 
 async fn fetch_tiktok_live_json(
@@ -1189,6 +1390,19 @@ fn tiktok_live_title(json: &serde_json::Value, username: Option<&str>) -> String
         .unwrap_or_else(|| "TikTok LIVE".to_string())
 }
 
+fn tiktok_live_metadata_is_offline(json: &serde_json::Value) -> bool {
+    json.get("is_live").and_then(|value| value.as_bool()) == Some(false)
+        || json
+            .get("live_status")
+            .and_then(|value| value.as_str())
+            .is_some_and(|status| {
+                matches!(
+                    status.to_ascii_lowercase().as_str(),
+                    "offline" | "not_live" | "ended"
+                )
+            })
+}
+
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn inspect_tiktok_live(
@@ -1300,7 +1514,7 @@ pub async fn record_tiktok_live(
     }
 
     let result: Result<TikTokLiveRecordResult, String> = async {
-        let (json, target_url) = tokio::select! {
+        let (mut json, mut target_url) = tokio::select! {
             result = fetch_tiktok_target_json_with_retry(
                 &app,
                 &target,
@@ -1318,7 +1532,7 @@ pub async fn record_tiktok_live(
         };
 
         let formats = formats_from_ytdlp_json(&json);
-        let selected = select_format(&formats, &preferred_quality, &preferred_transport)
+        let mut selected = select_format(&formats, &preferred_quality, &preferred_transport)
             .ok_or_else(|| {
                 BackendError::from_message("No TikTok Live stream variants found.")
                     .to_wire_string()
@@ -1345,103 +1559,245 @@ pub async fn record_tiktok_live(
 
         let title = tiktok_live_title(&json, target.username.as_deref());
         let output_path = output_path_for_recording(&output_dir, &title);
-        let output_path_str = output_path.to_string_lossy().to_string();
+        let history_target_url = target_url.clone();
+        let started_at = Instant::now();
+        let mut segment_paths = Vec::new();
+        let mut segment_number = 1usize;
+        let mut refresh_attempts = 0u32;
+        let mut partial = false;
 
-        let mut args = vec![
-            "-hide_banner".to_string(),
-            "-nostdin".to_string(),
-            "-y".to_string(),
-        ];
-        if let Some(seconds) = duration_seconds.filter(|seconds| *seconds > 0) {
-            args.extend(["-t".to_string(), seconds.to_string()]);
-        }
-        let mut selected_headers = selected.http_headers.clone();
-        if let Some(cookie) = tiktok_cookie_header(
-            &target_url,
-            cookie_mode.as_deref(),
-            cookie_browser.as_deref(),
-            cookie_browser_profile.as_deref(),
-            cookie_file_path.as_deref(),
-            cookie_skip_patterns.as_deref(),
-        ) {
-            insert_header_if_missing(&mut selected_headers, "Cookie", &cookie);
-        }
-        let ffmpeg_headers = tiktok_ffmpeg_headers(&selected_headers);
-        if let Some(user_agent) =
-            header_value(&ffmpeg_headers, "User-Agent").filter(|value| !value.trim().is_empty())
-        {
-            args.extend(["-user_agent".to_string(), user_agent]);
-        }
-        if let Some(referer) =
-            header_value(&ffmpeg_headers, "Referer").filter(|value| !value.trim().is_empty())
-        {
-            args.extend(["-referer".to_string(), referer]);
-        }
-        if let Some(headers) = ffmpeg_header_block(&ffmpeg_headers) {
-            args.extend(["-headers".to_string(), headers]);
-        }
-        append_reconnect_args(&mut args, auto_reconnect);
-        args.extend([
-            "-i".to_string(),
-            selected.url,
-            "-c".to_string(),
-            "copy".to_string(),
-            "-movflags".to_string(),
-            "+faststart".to_string(),
-            output_path_str.clone(),
-        ]);
-
-        add_log_internal(
-            "info",
-            &format!(
-                "Recording TikTok Live: {} ({}, auto-reconnect: {})",
-                title, selected.variant.format_id, auto_reconnect
-            ),
-            None,
-            Some(&target_url),
-        )
-        .ok();
-
-        let mut cmd = Command::new(ffmpeg_path);
-        cmd.args(&args).stdout(Stdio::null()).stderr(Stdio::null());
-        crate::utils::CommandExt::hide_window(&mut cmd);
-        let mut child = cmd.spawn().map_err(|error| {
-            BackendError::from_message(format!("Failed to start FFmpeg: {error}"))
-                .to_wire_string()
-        })?;
-
-        emit_tiktok_live_status(
-            &app,
-            Some(&job_id),
-            "recording",
-            None,
-            None,
-            Some(auto_reconnect),
-        );
-
-        let status = tokio::select! {
-            status = child.wait() => status.map_err(|e| BackendError::from_message(format!("FFmpeg process error: {e}")).to_wire_string()),
-            _ = &mut cancel_rx => {
-                child.kill().await.ok();
-                tokio::fs::remove_file(&output_path).await.ok();
-                Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string())
+        loop {
+            let remaining_seconds = remaining_recording_seconds(started_at, duration_seconds);
+            if duration_seconds.is_some() && remaining_seconds == Some(0) {
+                break;
             }
-        }?;
 
-        let filesize = tokio::fs::metadata(&output_path)
+            let segment_path = segment_path_for_recording(&output_path, segment_number);
+            let cookie_header = tiktok_cookie_header(
+                &target_url,
+                cookie_mode.as_deref(),
+                cookie_browser.as_deref(),
+                cookie_browser_profile.as_deref(),
+                cookie_file_path.as_deref(),
+                cookie_skip_patterns.as_deref(),
+            );
+            let args = build_ffmpeg_record_args(
+                &selected,
+                cookie_header.as_deref(),
+                remaining_seconds,
+                auto_reconnect,
+                &segment_path,
+            );
+
+            add_log_internal(
+                "info",
+                &format!(
+                    "Recording TikTok Live segment {segment_number}: {} ({}, auto-reconnect: {})",
+                    title, selected.variant.format_id, auto_reconnect
+                ),
+                None,
+                Some(&target_url),
+            )
+            .ok();
+
+            let mut cmd = Command::new(&ffmpeg_path);
+            cmd.args(&args).stdout(Stdio::null()).stderr(Stdio::null());
+            crate::utils::CommandExt::hide_window(&mut cmd);
+            let mut child = match cmd.spawn() {
+                Ok(child) => child,
+                Err(error) if !segment_paths.is_empty() => {
+                    add_log_internal(
+                        "info",
+                        &format!("Could not start the next TikTok Live segment: {error}"),
+                        None,
+                        Some(&target_url),
+                    )
+                    .ok();
+                    partial = true;
+                    break;
+                }
+                Err(error) => {
+                    return Err(BackendError::from_message(format!(
+                        "Failed to start FFmpeg: {error}"
+                    ))
+                    .to_wire_string());
+                }
+            };
+
+            emit_tiktok_live_status(
+                &app,
+                Some(&job_id),
+                "recording",
+                None,
+                None,
+                Some(auto_reconnect),
+            );
+
+            let status = tokio::select! {
+                status = child.wait() => status.ok(),
+                _ = &mut cancel_rx => {
+                    child.kill().await.ok();
+                    tokio::fs::remove_file(&segment_path).await.ok();
+                    remove_recording_paths(&segment_paths).await;
+                    tokio::fs::remove_file(&output_path).await.ok();
+                    return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
+                }
+            };
+
+            let segment_size = tokio::fs::metadata(&segment_path)
+                .await
+                .ok()
+                .map(|metadata| metadata.len())
+                .unwrap_or(0);
+            if segment_size > 0 {
+                segment_paths.push(segment_path.clone());
+            } else {
+                tokio::fs::remove_file(&segment_path).await.ok();
+            }
+
+            if status.is_some_and(|status| status.success()) {
+                if segment_paths.is_empty() {
+                    return Err(BackendError::from_message(
+                        "FFmpeg completed without recording TikTok Live media.",
+                    )
+                    .to_wire_string());
+                }
+                break;
+            }
+
+            if duration_seconds.is_some() && remaining_recording_seconds(started_at, duration_seconds) == Some(0) {
+                if segment_paths.is_empty() {
+                    return Err(BackendError::from_message(
+                        "TikTok Live recording ended without media.",
+                    )
+                    .to_wire_string());
+                }
+                break;
+            }
+
+            if !auto_reconnect {
+                remove_recording_paths(&segment_paths).await;
+                return Err(BackendError::from_message(format!(
+                    "FFmpeg exited with code: {:?}",
+                    status.and_then(|status| status.code())
+                ))
+                .to_wire_string());
+            }
+
+            if refresh_attempts >= STREAM_URL_REFRESH_ATTEMPTS {
+                if segment_paths.is_empty() {
+                    return Err(BackendError::from_message(
+                        "TikTok Live stream URL refresh attempts were exhausted without media.",
+                    )
+                    .to_wire_string());
+                }
+                partial = true;
+                break;
+            }
+
+            refresh_attempts += 1;
+            emit_tiktok_live_status(
+                &app,
+                Some(&job_id),
+                "refreshing-stream",
+                Some(refresh_attempts),
+                Some(STREAM_URL_REFRESH_ATTEMPTS),
+                Some(auto_reconnect),
+            );
+            add_log_internal(
+                "info",
+                &format!(
+                    "Refreshing TikTok Live signed stream URL ({refresh_attempts}/{STREAM_URL_REFRESH_ATTEMPTS})"
+                ),
+                None,
+                Some(&target_url),
+            )
+            .ok();
+
+            let refreshed = tokio::select! {
+                result = fetch_tiktok_target_json_with_retry(
+                    &app,
+                    &target,
+                    cookie_mode.as_deref(),
+                    cookie_browser.as_deref(),
+                    cookie_browser_profile.as_deref(),
+                    cookie_file_path.as_deref(),
+                    cookie_skip_patterns.as_deref(),
+                    proxy_url.as_deref(),
+                    Some(&job_id),
+                ) => result,
+                _ = &mut cancel_rx => {
+                    remove_recording_paths(&segment_paths).await;
+                    tokio::fs::remove_file(&output_path).await.ok();
+                    return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
+                }
+            };
+
+            let (refreshed_json, refreshed_target_url) = match refreshed {
+                Ok(result) => result,
+                Err(error) if !segment_paths.is_empty() => {
+                    let backend_error = BackendError::from_message(&error);
+                    let stream_ended = backend_error.code() == code::TIKTOK_LIVE_OFFLINE;
+                    let message = backend_error.message().to_string();
+                    add_log_internal(
+                        "info",
+                        &format!("TikTok Live URL refresh stopped: {message}"),
+                        None,
+                        Some(&target_url),
+                    )
+                    .ok();
+                    partial = !stream_ended;
+                    break;
+                }
+                Err(error) => return Err(error),
+            };
+
+            let refreshed_formats = formats_from_ytdlp_json(&refreshed_json);
+            let Some(refreshed_selected) =
+                select_format(&refreshed_formats, &preferred_quality, &preferred_transport)
+            else {
+                if segment_paths.is_empty() {
+                    return Err(BackendError::from_message(
+                        "No TikTok Live stream variants found after URL refresh.",
+                    )
+                    .to_wire_string());
+                }
+                partial = !tiktok_live_metadata_is_offline(&refreshed_json);
+                break;
+            };
+
+            json = refreshed_json;
+            target_url = refreshed_target_url;
+            selected = refreshed_selected;
+            segment_number += 1;
+        }
+
+        if segment_paths.len() > 1 {
+            emit_tiktok_live_status(
+                &app,
+                Some(&job_id),
+                "merging-segments",
+                None,
+                None,
+                Some(auto_reconnect),
+            );
+        }
+
+        let segment_count = segment_paths.len();
+        let (final_path, merge_failed) = finalize_recording_segments(
+            &ffmpeg_path,
+            &segment_paths,
+            &output_path,
+            &mut cancel_rx,
+        )
+        .await?;
+        partial |= merge_failed;
+
+        let output_path_str = final_path.to_string_lossy().to_string();
+        let filesize = tokio::fs::metadata(&final_path)
             .await
             .ok()
             .map(|metadata| metadata.len());
-        let partial = !status.success();
-        if partial && (!auto_reconnect || filesize.unwrap_or(0) == 0) {
-            tokio::fs::remove_file(&output_path).await.ok();
-            return Err(BackendError::from_message(format!(
-                "FFmpeg exited with code: {:?}",
-                status.code()
-            ))
-            .to_wire_string());
-        }
-
         let thumbnail = string_at(
             &json,
             &[
@@ -1451,7 +1807,7 @@ pub async fn record_tiktok_live(
             ],
         );
         let history_id = add_history_internal(
-            target_url.clone(),
+            history_target_url.clone(),
             title.clone(),
             thumbnail,
             output_path_str.clone(),
@@ -1472,14 +1828,24 @@ pub async fn record_tiktok_live(
             &format!(
                 "Recorded TikTok Live: {}{}",
                 title,
-                if partial {
-                    " (partial recording preserved after reconnect timeout)"
+                if merge_failed {
+                    format!(
+                        " ({segment_count} segments preserved because automatic merge failed)"
+                    )
+                } else if partial {
+                    format!(
+                        " (partial recording merged after {refresh_attempts} signed URL refresh attempts)"
+                    )
+                } else if segment_count > 1 {
+                    format!(
+                        " ({segment_count} segments merged after {refresh_attempts} signed URL refreshes)"
+                    )
                 } else {
-                    ""
+                    String::new()
                 }
             ),
             Some(&output_path_str),
-            Some(&target_url),
+            Some(&history_target_url),
         )
         .ok();
 
@@ -1837,6 +2203,15 @@ mod tests {
         assert!(!should_retry_metadata_error(&offline));
         assert_eq!(metadata_retry_delay(1), Duration::from_millis(750));
         assert_eq!(metadata_retry_delay(2), Duration::from_millis(1500));
+        assert!(tiktok_live_metadata_is_offline(
+            &serde_json::json!({ "is_live": false })
+        ));
+        assert!(tiktok_live_metadata_is_offline(
+            &serde_json::json!({ "live_status": "ended" })
+        ));
+        assert!(!tiktok_live_metadata_is_offline(
+            &serde_json::json!({ "is_live": true, "live_status": "is_live" })
+        ));
     }
 
     #[test]
@@ -1851,6 +2226,9 @@ mod tests {
         assert!(enabled
             .windows(2)
             .any(|args| args == ["-reconnect_delay_total_max", "120"]));
+        assert!(enabled
+            .windows(2)
+            .any(|args| args == ["-reconnect_on_http_error", "408,429,5xx"]));
 
         let mut disabled = Vec::new();
         append_reconnect_args(&mut disabled, false);
@@ -1985,5 +2363,26 @@ mod tests {
             "TikTok _LIVE__ test_"
         );
         assert_eq!(sanitize_filename_part("...", "fallback"), "fallback");
+    }
+
+    #[test]
+    fn creates_ordered_segment_paths_and_escaped_concat_manifest() {
+        let output = PathBuf::from(r"C:\Videos\creator's live.mp4");
+        let first = segment_path_for_recording(&output, 1);
+        let second = segment_path_for_recording(&output, 2);
+
+        assert_eq!(
+            first.file_name().and_then(|value| value.to_str()),
+            Some("creator's live.part-001.mp4")
+        );
+        assert_eq!(
+            second.file_name().and_then(|value| value.to_str()),
+            Some("creator's live.part-002.mp4")
+        );
+
+        let manifest = ffconcat_content(&[first, second]);
+        assert!(manifest.contains("creator'\\''s live.part-001.mp4"));
+        assert!(manifest.contains("creator'\\''s live.part-002.mp4"));
+        assert_eq!(manifest.lines().count(), 2);
     }
 }

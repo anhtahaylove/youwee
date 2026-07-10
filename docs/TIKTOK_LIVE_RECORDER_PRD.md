@@ -72,7 +72,19 @@ Thêm trang/section nhỏ:
 - UI phân biệt Preparing, retry metadata, Recording, Cancelling và partial recording.
 - Lỗi backend wire được unwrap/sanitize, không hiện hoặc lưu raw `__YOUWEE_ERR__` trong log TikTok Live.
 
-## Phase 2B (deferred)
+## Phase 2B: signed URL refresh + segmented reconnect
+
+Đã triển khai trong custom worktree:
+
+- Khi FFmpeg hết native reconnect, lấy lại metadata để nhận signed stream URL mới thay vì retry URL hết hạn vô hạn.
+- Không giữ retry 401/403/404 trên cùng URL; các lỗi đó chuyển nhanh sang luồng refresh metadata.
+- Mỗi URL mới ghi vào một file `.part-NNN.mp4`, giữ giới hạn duration trên toàn bộ phiên ghi.
+- Khi hoàn tất, dùng FFmpeg concat demuxer để ghép segment bằng `-c copy`, không transcode.
+- Nếu ghép lỗi, giữ segment đầu làm file chính và giữ các part còn lại để không mất dữ liệu.
+- Cancel xóa segment, concat manifest và output dở ở cả lúc ghi, refresh metadata và merge.
+- UI hiển thị trạng thái làm mới stream URL và ghép segment; signed URL/cookie vẫn không đi ra frontend/log/database.
+
+## Phase 3 (deferred)
 
 - Watchlist/polling chờ streamer online.
 - Schedule auto-record.
@@ -106,6 +118,10 @@ Thêm trang/section nhỏ:
   - Cookie header nội bộ đọc được từ Firefox profile/cookie file cho FFmpeg khi cần.
 - Secret redaction:
   - Log/result không chứa signed URL/cookie.
+- Segment recovery:
+  - Part filename tăng theo thứ tự `part-001`, `part-002`.
+  - Concat manifest escape được path Windows, khoảng trắng và dấu nháy đơn.
+  - Native reconnect không giữ retry 401/403/404 trên signed URL đã hết hạn.
 
 ### Manual acceptance
 
@@ -125,6 +141,10 @@ Thêm trang/section nhỏ:
    - status là cancelled
    - không để file dở.
 8. Logs không có cookie hoặc signed stream URL.
+9. Ngắt mạng hoặc để signed URL hết hạn:
+   - UI chuyển sang trạng thái refresh URL.
+   - Bản ghi tiếp tục ở segment mới.
+   - Khi dừng, file cuối phát được và Library/history chỉ có một bản ghi.
 
 ## Required checks
 

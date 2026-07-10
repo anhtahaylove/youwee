@@ -9,6 +9,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 - **TikTok Live Recorder Phase 2A** - Thêm tự động kết nối lại FFmpeg có giới hạn, retry metadata với backoff, giữ bản ghi partial và trạng thái vòng đời ghi chi tiết
+- **TikTok Live Recorder Phase 2B** - Làm mới signed stream URL hết hạn, ghi tiếp vào segment đánh số, ghép segment không transcode và giữ các phần đã ghi nếu ghép lỗi
 
 ### Sửa lỗi
 - **Lỗi và hủy TikTok Live** - Gỡ wire error backend bị lồng, báo stream offline rõ ràng và cho hủy ngay khi metadata còn đang chuẩn bị

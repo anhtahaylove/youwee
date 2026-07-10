@@ -9,6 +9,7 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ### 新增
 - **TikTok Live Recorder Phase 2A** - 新增有界 FFmpeg 自动重连、带退避的元数据重试、部分录制恢复和详细录制生命周期状态
+- **TikTok Live Recorder Phase 2B** - 刷新过期的签名直播 URL，继续写入编号分段，无需转码地合并分段，并在合并失败时保留已录制片段
 
 ### 修复
 - **TikTok Live 错误与取消** - 解包嵌套后端 wire error，清晰提示离线直播，并允许在准备元数据时取消
