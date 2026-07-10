@@ -78,11 +78,32 @@ Thêm trang/section nhỏ:
 
 - Khi FFmpeg hết native reconnect, lấy lại metadata để nhận signed stream URL mới thay vì retry URL hết hạn vô hạn.
 - Không giữ retry 401/403/404 trên cùng URL; các lỗi đó chuyển nhanh sang luồng refresh metadata.
-- Mỗi URL mới ghi vào một file `.part-NNN.mp4`, giữ giới hạn duration trên toàn bộ phiên ghi.
+- Mỗi URL mới ghi vào một file segment đánh số, giữ giới hạn duration trên toàn bộ phiên ghi.
 - Khi hoàn tất, dùng FFmpeg concat demuxer để ghép segment bằng `-c copy`, không transcode.
 - Nếu ghép lỗi, giữ segment đầu làm file chính và giữ các part còn lại để không mất dữ liệu.
 - Cancel xóa segment, concat manifest và output dở ở cả lúc ghi, refresh metadata và merge.
 - UI hiển thị trạng thái làm mới stream URL và ghép segment; signed URL/cookie vẫn không đi ra frontend/log/database.
+
+## Phase 2C: crash-safe Matroska segments
+
+Đã triển khai trong custom worktree:
+
+- Bundled FFmpeg trên Windows được kiểm tra bằng hard-kill với MP4, MKV và MPEG-TS:
+  - MP4 trực tiếp mất `moov atom`, không đọc hoặc remux được.
+  - MKV và MPEG-TS vẫn đọc và remux sang MP4 được sau hard-kill.
+  - Hai MKV bị hard-kill vẫn concat/remux thành một MP4 đọc được; FFmpeg chỉ báo phần cuối file bị ngắt và sửa DTS không đơn điệu.
+- Chọn MKV làm container segment mặc định vì vừa sống sót sau hard-kill vừa chứa được nhiều codec TikTok hơn MPEG-TS.
+- Mỗi lần ghi hoặc refresh signed URL tạo `.part-NNN.mkv` với cluster tối đa 2 giây để dữ liệu được chốt đều hơn.
+- Cả một segment và nhiều segment đều được remux/concat sang MP4 bằng `-c copy`; không transcode mặc định.
+- Nếu MP4 finalize không tương thích hoặc FFmpeg lỗi, segment đầu được giữ bằng đúng đuôi `.mkv`, các segment còn lại không bị xóa, và Library/history trỏ tới file MKV thực tế.
+- Cancel chủ động vẫn xóa file của job; app/FFmpeg bị kill không có cleanup tự động nên segment crash-safe còn nguyên trên disk cho Phase recovery tiếp theo.
+- Signed URL, cookie và HTTP header không được ghi vào manifest, Library/history hoặc log.
+
+## Phase 2D (planned): persisted jobs and app restart recovery
+
+- Lưu metadata job và danh sách segment trong SQLite nhưng không lưu cookie value hoặc signed stream URL.
+- Khi mở app, đổi job đang Recording/Reconnecting thành Interrupted/Recoverable nếu còn segment trên disk.
+- Cho phép Finalize, Continue bằng signed URL mới, hoặc Delete; mỗi session chỉ tạo một Library/history record cuối.
 
 ## Phase 3 (deferred)
 
@@ -119,9 +140,11 @@ Thêm trang/section nhỏ:
 - Secret redaction:
   - Log/result không chứa signed URL/cookie.
 - Segment recovery:
-  - Part filename tăng theo thứ tự `part-001`, `part-002`.
+  - Part filename tăng theo thứ tự `part-001.mkv`, `part-002.mkv`.
   - Concat manifest escape được path Windows, khoảng trắng và dấu nháy đơn.
   - Native reconnect không giữ retry 401/403/404 trên signed URL đã hết hạn.
+  - FFmpeg args ghi segment dùng Matroska và không dùng MP4 `+faststart`.
+  - Fallback history extension lấy từ filepath thực tế thay vì hard-code MP4.
 
 ### Manual acceptance
 
@@ -145,6 +168,10 @@ Thêm trang/section nhỏ:
    - UI chuyển sang trạng thái refresh URL.
    - Bản ghi tiếp tục ở segment mới.
    - Khi dừng, file cuối phát được và Library/history chỉ có một bản ghi.
+10. Hard-kill FFmpeg hoặc Youwee khi đang ghi:
+   - `.part-NNN.mkv` còn trên disk và đọc được.
+   - Segment remux được sang MP4 bằng `-c copy`.
+   - Mở lại app không tự xóa segment dang dở.
 
 ## Required checks
 

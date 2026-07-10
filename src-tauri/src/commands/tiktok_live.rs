@@ -28,6 +28,7 @@ const RECONNECT_MAX_RETRIES: u32 = 20;
 const RECONNECT_DELAY_MAX_SECONDS: u32 = 5;
 const RECONNECT_DELAY_TOTAL_MAX_SECONDS: u32 = 120;
 const STREAM_URL_REFRESH_ATTEMPTS: u32 = 3;
+const RECORDING_SEGMENT_EXTENSION: &str = "mkv";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TikTokLiveTargetKind {
@@ -216,7 +217,21 @@ fn segment_path_for_recording(output_path: &Path, index: usize) -> PathBuf {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("TikTok LIVE");
-    output_path.with_file_name(format!("{stem}.part-{index:03}.mp4"))
+    output_path.with_file_name(format!(
+        "{stem}.part-{index:03}.{RECORDING_SEGMENT_EXTENSION}"
+    ))
+}
+
+fn recoverable_output_path_for_recording(output_path: &Path) -> PathBuf {
+    output_path.with_extension(RECORDING_SEGMENT_EXTENSION)
+}
+
+fn media_extension(path: &Path) -> String {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or(RECORDING_SEGMENT_EXTENSION)
+        .to_ascii_lowercase()
 }
 
 fn concat_list_path_for_recording(output_path: &Path) -> PathBuf {
@@ -1008,8 +1023,10 @@ fn build_ffmpeg_record_args(
         selected.url.clone(),
         "-c".to_string(),
         "copy".to_string(),
-        "-movflags".to_string(),
-        "+faststart".to_string(),
+        "-f".to_string(),
+        "matroska".to_string(),
+        "-cluster_time_limit".to_string(),
+        "2000".to_string(),
         output_path.to_string_lossy().to_string(),
     ]);
     args
@@ -1024,8 +1041,9 @@ async fn remove_recording_paths(paths: &[PathBuf]) {
 async fn preserve_first_segment(segment_paths: &[PathBuf], output_path: &Path) -> PathBuf {
     let first = segment_paths[0].clone();
     tokio::fs::remove_file(output_path).await.ok();
-    if tokio::fs::rename(&first, output_path).await.is_ok() {
-        output_path.to_path_buf()
+    let recoverable_path = recoverable_output_path_for_recording(output_path);
+    if !recoverable_path.exists() && tokio::fs::rename(&first, &recoverable_path).await.is_ok() {
+        recoverable_path
     } else {
         first
     }
@@ -1044,41 +1062,28 @@ async fn finalize_recording_segments(
         .to_wire_string());
     }
 
-    if segment_paths.len() == 1 {
-        let first = &segment_paths[0];
-        tokio::fs::remove_file(output_path).await.ok();
-        return match tokio::fs::rename(first, output_path).await {
-            Ok(()) => Ok((output_path.to_path_buf(), false)),
-            Err(_) => Ok((first.clone(), false)),
-        };
-    }
-
-    let concat_path = concat_list_path_for_recording(output_path);
-    if tokio::fs::write(&concat_path, ffconcat_content(segment_paths))
-        .await
-        .is_err()
-    {
-        return Ok((
-            preserve_first_segment(segment_paths, output_path).await,
-            true,
-        ));
+    let concat_path =
+        (segment_paths.len() > 1).then(|| concat_list_path_for_recording(output_path));
+    if let Some(path) = concat_path.as_ref() {
+        if tokio::fs::write(path, ffconcat_content(segment_paths))
+            .await
+            .is_err()
+        {
+            return Ok((
+                preserve_first_segment(segment_paths, output_path).await,
+                true,
+            ));
+        }
     }
 
     let mut cmd = Command::new(ffmpeg_path);
+    cmd.args(["-hide_banner", "-nostdin", "-y", "-fflags", "+genpts"]);
+    if let Some(path) = concat_path.as_ref() {
+        cmd.args(["-f", "concat", "-safe", "0", "-i"]).arg(path);
+    } else {
+        cmd.arg("-i").arg(&segment_paths[0]);
+    }
     cmd.args([
-        "-hide_banner",
-        "-nostdin",
-        "-y",
-        "-fflags",
-        "+genpts",
-        "-f",
-        "concat",
-        "-safe",
-        "0",
-        "-i",
-    ])
-    .arg(&concat_path)
-    .args([
         "-c",
         "copy",
         "-avoid_negative_ts",
@@ -1094,7 +1099,9 @@ async fn finalize_recording_segments(
     let mut child = match cmd.spawn() {
         Ok(child) => child,
         Err(_) => {
-            tokio::fs::remove_file(&concat_path).await.ok();
+            if let Some(path) = concat_path.as_ref() {
+                tokio::fs::remove_file(path).await.ok();
+            }
             return Ok((
                 preserve_first_segment(segment_paths, output_path).await,
                 true,
@@ -1107,7 +1114,9 @@ async fn finalize_recording_segments(
         _ = &mut *cancel_rx => {
             child.kill().await.ok();
             tokio::fs::remove_file(output_path).await.ok();
-            tokio::fs::remove_file(&concat_path).await.ok();
+            if let Some(path) = concat_path.as_ref() {
+                tokio::fs::remove_file(path).await.ok();
+            }
             remove_recording_paths(segment_paths).await;
             return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
         }
@@ -1117,7 +1126,9 @@ async fn finalize_recording_segments(
         && tokio::fs::metadata(output_path)
             .await
             .is_ok_and(|metadata| metadata.len() > 0);
-    tokio::fs::remove_file(&concat_path).await.ok();
+    if let Some(path) = concat_path.as_ref() {
+        tokio::fs::remove_file(path).await.ok();
+    }
 
     if merged {
         remove_recording_paths(segment_paths).await;
@@ -1784,14 +1795,14 @@ pub async fn record_tiktok_live(
         }
 
         let segment_count = segment_paths.len();
-        let (final_path, merge_failed) = finalize_recording_segments(
+        let (final_path, finalization_failed) = finalize_recording_segments(
             &ffmpeg_path,
             &segment_paths,
             &output_path,
             &mut cancel_rx,
         )
         .await?;
-        partial |= merge_failed;
+        partial |= finalization_failed;
 
         let output_path_str = final_path.to_string_lossy().to_string();
         let filesize = tokio::fs::metadata(&final_path)
@@ -1818,7 +1829,7 @@ pub async fn record_tiktok_live(
                 duration_seconds.map(u64::from)
             },
             Some(selected.variant.format_id),
-            Some("mp4".to_string()),
+            Some(media_extension(&final_path)),
             Some("tiktok-live".to_string()),
             None,
         )?;
@@ -1828,9 +1839,9 @@ pub async fn record_tiktok_live(
             &format!(
                 "Recorded TikTok Live: {}{}",
                 title,
-                if merge_failed {
+                if finalization_failed {
                     format!(
-                        " ({segment_count} segments preserved because automatic merge failed)"
+                        " ({segment_count} segments preserved because automatic MP4 finalization failed)"
                     )
                 } else if partial {
                     format!(
@@ -2373,16 +2384,93 @@ mod tests {
 
         assert_eq!(
             first.file_name().and_then(|value| value.to_str()),
-            Some("creator's live.part-001.mp4")
+            Some("creator's live.part-001.mkv")
         );
         assert_eq!(
             second.file_name().and_then(|value| value.to_str()),
-            Some("creator's live.part-002.mp4")
+            Some("creator's live.part-002.mkv")
         );
 
         let manifest = ffconcat_content(&[first, second]);
-        assert!(manifest.contains("creator'\\''s live.part-001.mp4"));
-        assert!(manifest.contains("creator'\\''s live.part-002.mp4"));
+        assert!(manifest.contains("creator'\\''s live.part-001.mkv"));
+        assert!(manifest.contains("creator'\\''s live.part-002.mkv"));
         assert_eq!(manifest.lines().count(), 2);
+    }
+
+    #[test]
+    fn records_crash_safe_matroska_segments_before_mp4_finalization() {
+        let selected = TikTokLiveFormat {
+            variant: TikTokLiveVariant {
+                format_id: "best".to_string(),
+                ext: Some("m3u8".to_string()),
+                protocol: Some("m3u8_native".to_string()),
+                quality: None,
+                resolution: None,
+                width: None,
+                height: None,
+                fps: None,
+                vcodec: Some("h264".to_string()),
+                acodec: Some("aac".to_string()),
+                tbr: None,
+                note: None,
+            },
+            url: "https://signed.example/live.m3u8".to_string(),
+            http_headers: serde_json::Map::new(),
+        };
+        let output = PathBuf::from(r"C:\Videos\live.part-001.mkv");
+        let args = build_ffmpeg_record_args(&selected, None, None, true, &output);
+
+        assert!(args.windows(2).any(|args| args == ["-c", "copy"]));
+        assert!(args.windows(2).any(|args| args == ["-f", "matroska"]));
+        assert!(args
+            .windows(2)
+            .any(|args| args == ["-cluster_time_limit", "2000"]));
+        assert!(!args.iter().any(|arg| arg == "+faststart"));
+        assert_eq!(args.last().map(String::as_str), output.to_str());
+    }
+
+    #[test]
+    fn keeps_recoverable_container_extension_when_mp4_finalization_fails() {
+        let output = PathBuf::from(r"C:\Videos\creator live.mp4");
+        let recoverable = recoverable_output_path_for_recording(&output);
+
+        assert_eq!(recoverable, PathBuf::from(r"C:\Videos\creator live.mkv"));
+        assert_eq!(media_extension(&recoverable), "mkv");
+        assert_eq!(media_extension(&output), "mp4");
+    }
+
+    #[tokio::test]
+    async fn finalization_failure_preserves_recoverable_mkv_segments() {
+        let dir = std::env::temp_dir().join(format!(
+            "youwee-tiktok-finalize-fallback-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp directory");
+        let output = dir.join("creator live.mp4");
+        let first = segment_path_for_recording(&output, 1);
+        let second = segment_path_for_recording(&output, 2);
+        std::fs::write(&first, b"first recoverable segment").expect("write first segment");
+        std::fs::write(&second, b"second recoverable segment").expect("write second segment");
+        let (_cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+
+        let (final_path, partial) = finalize_recording_segments(
+            &dir.join("missing-ffmpeg.exe"),
+            &[first.clone(), second.clone()],
+            &output,
+            &mut cancel_rx,
+        )
+        .await
+        .expect("preserve fallback");
+
+        assert!(partial);
+        assert_eq!(final_path, recoverable_output_path_for_recording(&output));
+        assert_eq!(
+            std::fs::read(&final_path).ok().as_deref(),
+            Some(&b"first recoverable segment"[..])
+        );
+        assert!(second.exists());
+        assert!(!output.exists());
+        assert!(!concat_list_path_for_recording(&output).exists());
+        std::fs::remove_dir_all(dir).ok();
     }
 }
