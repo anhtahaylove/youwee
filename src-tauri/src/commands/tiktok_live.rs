@@ -476,11 +476,24 @@ fn output_path_for_recording_with_template(
     output_dir.join(format!("{title}.mp4"))
 }
 
-fn segment_path_for_recording(output_path: &Path, index: usize) -> PathBuf {
-    let stem = output_path
-        .file_stem()
+fn portable_file_stem(path: &Path) -> String {
+    let filename = path
+        .file_name()
         .and_then(|value| value.to_str())
+        .unwrap_or("TikTok LIVE")
+        .rsplit(['/', '\\'])
+        .next()
         .unwrap_or("TikTok LIVE");
+    filename
+        .rsplit_once('.')
+        .map(|(stem, _)| stem)
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(filename)
+        .to_string()
+}
+
+fn segment_path_for_recording(output_path: &Path, index: usize) -> PathBuf {
+    let stem = portable_file_stem(output_path);
     output_path.with_file_name(format!(
         "{stem}.part-{index:03}.{RECORDING_SEGMENT_EXTENSION}"
     ))
@@ -499,10 +512,7 @@ fn media_extension(path: &Path) -> String {
 }
 
 fn concat_list_path_for_recording(output_path: &Path) -> PathBuf {
-    let stem = output_path
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("TikTok LIVE");
+    let stem = portable_file_stem(output_path);
     output_path.with_file_name(format!("{stem}.ffconcat"))
 }
 
