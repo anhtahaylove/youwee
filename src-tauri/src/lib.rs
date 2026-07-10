@@ -463,6 +463,8 @@ pub fn run() {
             commands::finalize_tiktok_live_recovery,
             commands::continue_tiktok_live_recovery,
             commands::delete_tiktok_live_recovery,
+            commands::get_tiktok_live_recorder_config,
+            commands::set_tiktok_live_recorder_config,
             commands::list_tiktok_live_watchlist,
             commands::save_tiktok_live_watch_entry,
             commands::set_tiktok_live_watch_entry_enabled,

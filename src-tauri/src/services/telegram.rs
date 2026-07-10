@@ -77,6 +77,16 @@ struct TelegramDownloadCommandEvent {
     message_thread_id: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TelegramTikTokLiveCommandEvent {
+    command: String,
+    target: Option<String>,
+    chat_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message_thread_id: Option<i64>,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum TelegramCommand {
     Add {
@@ -91,6 +101,10 @@ pub enum TelegramCommand {
     Queue,
     Run,
     Stop,
+    TikTokLive {
+        command: String,
+        target: Option<String>,
+    },
     Help,
     Unsupported,
 }
@@ -269,6 +283,30 @@ pub async fn send_reply(
     .await
 }
 
+pub fn send_notification(text: String) {
+    let Ok(config) = TELEGRAM_CONFIG.lock().map(|guard| guard.clone()) else {
+        return;
+    };
+    if !config.enabled || config.bot_token.is_empty() {
+        return;
+    }
+    let Some(chat_id) = config.allowed_chat_ids.first().cloned() else {
+        return;
+    };
+    let bot_token = config.bot_token;
+    let message_thread_id = config.message_thread_id;
+    tauri::async_runtime::spawn(async move {
+        let _ = send_message_with_keyboard(
+            &Client::new(),
+            &bot_token,
+            &chat_id,
+            message_thread_id,
+            &text,
+        )
+        .await;
+    });
+}
+
 fn sanitize_config(config: TelegramConfig) -> TelegramConfig {
     let mut seen = HashSet::new();
     let allowed_chat_ids = config
@@ -445,6 +483,15 @@ async fn handle_update(
         TelegramCommand::Stop => {
             emit_simple_command(app, "stop", &chat_id, message_thread_id);
         }
+        TelegramCommand::TikTokLive { command, target } => {
+            emit_tiktok_live_command(
+                app,
+                &command,
+                target.as_deref(),
+                &chat_id,
+                message_thread_id,
+            );
+        }
         TelegramCommand::Help => {
             let _ = send_message_with_keyboard(
                 client,
@@ -500,6 +547,24 @@ fn emit_simple_command(
             command: command.to_string(),
             url: None,
             quality: None,
+            chat_id: chat_id.to_string(),
+            message_thread_id,
+        },
+    );
+}
+
+fn emit_tiktok_live_command(
+    app: &AppHandle,
+    command: &str,
+    target: Option<&str>,
+    chat_id: &str,
+    message_thread_id: Option<i64>,
+) {
+    let _ = app.emit(
+        "telegram-tiktok-live-command",
+        TelegramTikTokLiveCommandEvent {
+            command: command.to_string(),
+            target: target.map(ToString::to_string),
             chat_id: chat_id.to_string(),
             message_thread_id,
         },
@@ -575,6 +640,14 @@ fn command_keyboard() -> ReplyKeyboardMarkup {
                 },
                 KeyboardButton { text: "⏹ Stop" },
             ],
+            vec![
+                KeyboardButton {
+                    text: "📡 TL Status",
+                },
+                KeyboardButton {
+                    text: "📺 TL Watchlist",
+                },
+            ],
             vec![KeyboardButton { text: "💡 Help" }],
         ],
         resize_keyboard: true,
@@ -617,6 +690,22 @@ async fn set_my_commands(client: &Client, bot_token: &str) -> Result<(), String>
                     description: "Stop the current download",
                 },
                 BotCommand {
+                    command: "tl_watchlist",
+                    description: "Show TikTok Live watchlist",
+                },
+                BotCommand {
+                    command: "tl_status",
+                    description: "Show TikTok Live recorder status",
+                },
+                BotCommand {
+                    command: "tl_record",
+                    description: "Record a TikTok Live target",
+                },
+                BotCommand {
+                    command: "tl_stop",
+                    description: "Stop a TikTok Live recording",
+                },
+                BotCommand {
                     command: "help",
                     description: "Show available commands",
                 },
@@ -652,7 +741,7 @@ fn set_status(state: TelegramStatusState, message: Option<String>) -> bool {
 }
 
 fn help_text() -> &'static str {
-    "Youwee Telegram commands:\n/start - Show command keyboard.\n/add <url> [quality] - Add a URL to the queue.\n/download <url> [quality] - Add a URL and start downloading when idle.\n/status - Show download status.\n/queue - Show recent queue items.\n/run - Start pending downloads.\n/stop - Stop the current download.\n/help - Show this help.\n\nYou can also send a link directly.\nQuality: best, 8k, 4k, 2k, 1080, 720, 480, 360, audio, mp3."
+    "Youwee Telegram commands:\n/start - Show command keyboard.\n/add <url> [quality] - Add a URL to the queue.\n/download <url> [quality] - Add a URL and start downloading when idle.\n/status - Show download status.\n/queue - Show recent queue items.\n/run - Start pending downloads.\n/stop - Stop the current download.\n\nTikTok Live:\n/tl_watchlist - Show TikTok Live watchlist.\n/tl_status [target] - Show recorder or target status.\n/tl_add <target> - Add a TikTok Live target to watchlist.\n/tl_remove <target> - Remove target from watchlist.\n/tl_enable <target> - Enable monitoring.\n/tl_disable <target> - Disable monitoring.\n/tl_inspect <target> - Inspect now.\n/tl_record <target> - Record now.\n/tl_stop <target> - Stop target recording.\n/help - Show this help.\n\nYou can also send a link directly.\nQuality: best, 8k, 4k, 2k, 1080, 720, 480, 360, audio, mp3."
 }
 
 pub fn parse_command(text: &str) -> TelegramCommand {
@@ -681,6 +770,24 @@ fn parse_command_with_plain_url_action(
         "/queue" | "queue" => TelegramCommand::Queue,
         "/run" | "run" => TelegramCommand::Run,
         "/stop" | "stop" => TelegramCommand::Stop,
+        "/tl" | "tl" | "/live" | "live" => {
+            parse_tiktok_live_subcommand(parts).unwrap_or(TelegramCommand::Unsupported)
+        }
+        "/tl_watchlist" | "tl_watchlist" => TelegramCommand::TikTokLive {
+            command: "watchlist".to_string(),
+            target: None,
+        },
+        "/tl_status" | "tl_status" => TelegramCommand::TikTokLive {
+            command: "status".to_string(),
+            target: parts.next().map(|target| target.to_string()),
+        },
+        "/tl_add" | "tl_add" => tiktok_live_target_command("add", parts.next()),
+        "/tl_remove" | "tl_remove" => tiktok_live_target_command("remove", parts.next()),
+        "/tl_enable" | "tl_enable" => tiktok_live_target_command("enable", parts.next()),
+        "/tl_disable" | "tl_disable" => tiktok_live_target_command("disable", parts.next()),
+        "/tl_inspect" | "tl_inspect" => tiktok_live_target_command("inspect", parts.next()),
+        "/tl_record" | "tl_record" => tiktok_live_target_command("record", parts.next()),
+        "/tl_stop" | "tl_stop" => tiktok_live_target_command("stop", parts.next()),
         "/add" | "add" => parts
             .next()
             .map(|url| TelegramCommand::Add {
@@ -698,6 +805,39 @@ fn parse_command_with_plain_url_action(
         _ => parse_plain_url_command(trimmed, plain_url_action)
             .unwrap_or(TelegramCommand::Unsupported),
     }
+}
+
+fn parse_tiktok_live_subcommand<'a>(
+    mut parts: impl Iterator<Item = &'a str>,
+) -> Option<TelegramCommand> {
+    let action = parts.next()?.to_ascii_lowercase();
+    match action.as_str() {
+        "watchlist" | "list" => Some(TelegramCommand::TikTokLive {
+            command: "watchlist".to_string(),
+            target: None,
+        }),
+        "status" => Some(TelegramCommand::TikTokLive {
+            command: "status".to_string(),
+            target: parts.next().map(|target| target.to_string()),
+        }),
+        "add" => Some(tiktok_live_target_command("add", parts.next())),
+        "remove" | "delete" => Some(tiktok_live_target_command("remove", parts.next())),
+        "enable" => Some(tiktok_live_target_command("enable", parts.next())),
+        "disable" | "pause" => Some(tiktok_live_target_command("disable", parts.next())),
+        "inspect" | "check" => Some(tiktok_live_target_command("inspect", parts.next())),
+        "record" | "rec" => Some(tiktok_live_target_command("record", parts.next())),
+        "stop" => Some(tiktok_live_target_command("stop", parts.next())),
+        _ => None,
+    }
+}
+
+fn tiktok_live_target_command(command: &str, target: Option<&str>) -> TelegramCommand {
+    target
+        .map(|target| TelegramCommand::TikTokLive {
+            command: command.to_string(),
+            target: Some(target.to_string()),
+        })
+        .unwrap_or(TelegramCommand::Unsupported)
 }
 
 fn parse_plain_url_command(
@@ -761,6 +901,53 @@ mod tests {
         assert_eq!(parse_command("▶️ Run Queue"), TelegramCommand::Run);
         assert_eq!(parse_command("⏹ Stop"), TelegramCommand::Stop);
         assert_eq!(parse_command("stop"), TelegramCommand::Stop);
+    }
+
+    #[test]
+    fn parses_tiktok_live_commands() {
+        assert_eq!(
+            parse_command("/tl_watchlist"),
+            TelegramCommand::TikTokLive {
+                command: "watchlist".to_string(),
+                target: None,
+            }
+        );
+        assert_eq!(
+            parse_command("📺 TL Watchlist"),
+            TelegramCommand::TikTokLive {
+                command: "watchlist".to_string(),
+                target: None,
+            }
+        );
+        assert_eq!(
+            parse_command("/tl_status @creator"),
+            TelegramCommand::TikTokLive {
+                command: "status".to_string(),
+                target: Some("@creator".to_string()),
+            }
+        );
+        assert_eq!(
+            parse_command("📡 TL Status"),
+            TelegramCommand::TikTokLive {
+                command: "status".to_string(),
+                target: None,
+            }
+        );
+        assert_eq!(
+            parse_command("/tl record @creator"),
+            TelegramCommand::TikTokLive {
+                command: "record".to_string(),
+                target: Some("@creator".to_string()),
+            }
+        );
+        assert_eq!(
+            parse_command("/tl_stop https://www.tiktok.com/@creator/live"),
+            TelegramCommand::TikTokLive {
+                command: "stop".to_string(),
+                target: Some("https://www.tiktok.com/@creator/live".to_string()),
+            }
+        );
+        assert_eq!(parse_command("/tl_record"), TelegramCommand::Unsupported);
     }
 
     #[test]

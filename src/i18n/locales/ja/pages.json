@@ -470,7 +470,8 @@
         "record": "今すぐ録画",
         "stop": "停止",
         "edit": "ルール編集",
-        "remove": "削除"
+        "remove": "削除",
+        "apply": "適用"
       },
       "errors": {
         "recordingRecoverable": "復旧可能な録画データがあります。下で続行または確定してください。",
@@ -485,6 +486,20 @@
         "description": "「{{target}}」の監視を停止しますか？既存の録画と復旧ファイルは保持されます。",
         "cancel": "キャンセル",
         "confirm": "削除"
+      },
+      "recorderLimitUpdated": "TikTok Live の同時録画上限を更新しました。",
+      "maxRooms": "最大ルーム",
+      "cooldownSeconds": "クールダウン（秒）",
+      "cooldownValue": "クールダウン: {{seconds}} 秒",
+      "filenameTemplate": "ファイル名テンプレート",
+      "lastOutcome": "最新結果",
+      "lastSize": "最新サイズ",
+      "telemetry": "セグメント: {{segments}} · 更新: {{refreshes}} · 再接続: {{reconnects}}",
+      "recordMode": {
+        "label": "録画モード",
+        "oncePerLive": "ライブごとに1回",
+        "alwaysAfterCooldown": "クールダウン後",
+        "manualOnly": "手動のみ"
       }
     },
     "recovery": {

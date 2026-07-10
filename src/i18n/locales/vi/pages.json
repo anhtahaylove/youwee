@@ -470,7 +470,8 @@
         "record": "Ghi ngay",
         "stop": "Dừng",
         "edit": "Sửa quy tắc",
-        "remove": "Bỏ theo dõi"
+        "remove": "Bỏ theo dõi",
+        "apply": "Áp dụng"
       },
       "errors": {
         "recordingRecoverable": "Bản ghi dừng nhưng còn dữ liệu có thể khôi phục. Hãy tiếp tục hoặc hoàn tất bên dưới.",
@@ -485,6 +486,20 @@
         "description": "Ngừng theo dõi “{{target}}”? Các bản ghi và file khôi phục hiện có vẫn được giữ.",
         "cancel": "Hủy",
         "confirm": "Bỏ theo dõi"
+      },
+      "recorderLimitUpdated": "Đã cập nhật giới hạn phòng ghi TikTok Live.",
+      "maxRooms": "Số phòng tối đa",
+      "cooldownSeconds": "Cooldown (giây)",
+      "cooldownValue": "Cooldown: {{seconds}} giây",
+      "filenameTemplate": "Mẫu tên file",
+      "lastOutcome": "Kết quả gần nhất",
+      "lastSize": "Dung lượng gần nhất",
+      "telemetry": "Segment: {{segments}} · Refresh: {{refreshes}} · Reconnect: {{reconnects}}",
+      "recordMode": {
+        "label": "Chế độ ghi",
+        "oncePerLive": "Một lần mỗi live",
+        "alwaysAfterCooldown": "Sau cooldown",
+        "manualOnly": "Chỉ thủ công"
       }
     },
     "recovery": {

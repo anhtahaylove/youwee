@@ -470,7 +470,8 @@
         "record": "Grabar ahora",
         "stop": "Detener",
         "edit": "Editar reglas",
-        "remove": "Eliminar"
+        "remove": "Eliminar",
+        "apply": "Aplicar"
       },
       "errors": {
         "recordingRecoverable": "La grabación se detuvo con contenido recuperable. Continúa o finalízala abajo.",
@@ -485,6 +486,20 @@
         "description": "¿Dejar de supervisar “{{target}}”? Se conservarán las grabaciones y archivos de recuperación.",
         "cancel": "Cancelar",
         "confirm": "Eliminar"
+      },
+      "recorderLimitUpdated": "Límite de salas de TikTok Live actualizado.",
+      "maxRooms": "Salas máx.",
+      "cooldownSeconds": "Espera (segundos)",
+      "cooldownValue": "Espera: {{seconds}} segundos",
+      "filenameTemplate": "Plantilla de archivo",
+      "lastOutcome": "Último resultado",
+      "lastSize": "Último tamaño",
+      "telemetry": "Segmentos: {{segments}} · Actualizaciones: {{refreshes}} · Reconexiones: {{reconnects}}",
+      "recordMode": {
+        "label": "Modo de grabación",
+        "oncePerLive": "Una vez por live",
+        "alwaysAfterCooldown": "Tras la espera",
+        "manualOnly": "Solo manual"
       }
     },
     "recovery": {

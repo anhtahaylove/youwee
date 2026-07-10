@@ -467,7 +467,8 @@
         "record": "Record now",
         "stop": "Stop",
         "edit": "Edit rules",
-        "remove": "Remove"
+        "remove": "Remove",
+        "apply": "Apply"
       },
       "errors": {
         "recordingRecoverable": "Recording stopped with recoverable media. Continue or finalize it below.",
@@ -482,6 +483,20 @@
         "description": "Stop monitoring “{{target}}”? Existing recordings and recovery files are kept.",
         "cancel": "Cancel",
         "confirm": "Remove"
+      },
+      "recorderLimitUpdated": "TikTok Live recorder room limit updated.",
+      "maxRooms": "Max rooms",
+      "cooldownSeconds": "Cooldown (seconds)",
+      "cooldownValue": "Cooldown: {{seconds}} seconds",
+      "filenameTemplate": "Filename template",
+      "lastOutcome": "Last outcome",
+      "lastSize": "Last size",
+      "telemetry": "Segments: {{segments}} · Refreshes: {{refreshes}} · Reconnects: {{reconnects}}",
+      "recordMode": {
+        "label": "Record mode",
+        "oncePerLive": "Once per live",
+        "alwaysAfterCooldown": "After cooldown",
+        "manualOnly": "Manual only"
       }
     },
     "recovery": {

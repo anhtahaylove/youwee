@@ -16,6 +16,56 @@ interface TelegramDownloadCommandEvent {
   messageThreadId?: number | null;
 }
 
+interface TelegramTikTokLiveCommandEvent {
+  command:
+    | 'watchlist'
+    | 'status'
+    | 'add'
+    | 'remove'
+    | 'enable'
+    | 'disable'
+    | 'inspect'
+    | 'record'
+    | 'stop';
+  target?: string | null;
+  chatId: string;
+  messageThreadId?: number | null;
+}
+
+type TikTokLiveWatchStatus =
+  | 'offline'
+  | 'checking'
+  | 'online'
+  | 'recording'
+  | 'backoff'
+  | 'recoverable'
+  | 'error';
+
+interface TikTokLiveWatchEntry {
+  id: string;
+  targetInput: string;
+  targetUrl: string;
+  username?: string | null;
+  enabled: boolean;
+  autoRecord: boolean;
+  status: TikTokLiveWatchStatus;
+  activeJobId?: string | null;
+  lastError?: string | null;
+  lastCheckedAt?: number | null;
+  lastOnlineAt?: number | null;
+  lastRecordingAt?: number | null;
+  lastOutcome?: string | null;
+  lastSegmentCount?: number | null;
+  lastRefreshCount?: number | null;
+  lastReconnectCount?: number | null;
+}
+
+interface TikTokLiveRecorderConfig {
+  maxConcurrentRecordings: number;
+  activeRecordings: number;
+  hardLimit: number;
+}
+
 type StartLockRef = MutableRefObject<{
   youtube: boolean;
   universal: boolean;
@@ -75,6 +125,96 @@ function formatQueueEntry(entry: QueueEntry, displayIndex: number) {
     `${displayIndex}. ${statusIcon(item.status)} ${formatStatusLabel(item.status)}${progress}`,
     `${source} #${index + 1}`,
     title,
+  ].join('\n');
+}
+
+function formatTimestamp(seconds?: number | null) {
+  if (!seconds) return 'never';
+  return new Date(seconds * 1000).toLocaleString();
+}
+
+function tiktokLiveStatusIcon(status: TikTokLiveWatchStatus) {
+  if (status === 'recording') return '🔴';
+  if (status === 'online') return '🟢';
+  if (status === 'backoff' || status === 'recoverable') return '🟡';
+  if (status === 'error') return '❌';
+  if (status === 'checking') return '🔎';
+  return '⚫';
+}
+
+function formatTikTokLiveTarget(entry: TikTokLiveWatchEntry) {
+  return entry.username ? `@${entry.username}` : entry.targetInput || entry.targetUrl;
+}
+
+function formatTikTokLiveEntry(entry: TikTokLiveWatchEntry, index: number) {
+  const details = [
+    `${index + 1}. ${tiktokLiveStatusIcon(entry.status)} ${formatTikTokLiveTarget(entry)}`,
+    `Status: ${entry.status}${entry.enabled ? '' : ' · disabled'}`,
+    entry.lastOutcome ? `Last outcome: ${entry.lastOutcome}` : undefined,
+    entry.lastSegmentCount ? `Segments: ${entry.lastSegmentCount}` : undefined,
+    entry.lastReconnectCount ? `Reconnects: ${entry.lastReconnectCount}` : undefined,
+  ].filter(Boolean);
+  return details.join('\n');
+}
+
+function tiktokTargetMatches(entry: TikTokLiveWatchEntry, target: string) {
+  const raw = target.trim();
+  const normalized = raw.toLowerCase();
+  const username = raw.replace(/^@/, '').toLowerCase();
+  return (
+    entry.id === raw ||
+    entry.targetInput.toLowerCase() === normalized ||
+    entry.targetUrl.toLowerCase() === normalized ||
+    entry.username?.toLowerCase() === username ||
+    entry.targetUrl.toLowerCase().includes(`/@${username}/live`)
+  );
+}
+
+function buildTikTokLiveWatchlistReply(entries: TikTokLiveWatchEntry[]) {
+  if (entries.length === 0) {
+    return '📭 TikTok Live watchlist is empty.\nUse /tl_add @username to add one.';
+  }
+
+  return [
+    `📺 TikTok Live watchlist (${entries.length})`,
+    '',
+    entries.slice(0, 8).map(formatTikTokLiveEntry).join('\n\n'),
+  ].join('\n');
+}
+
+function buildTikTokLiveStatusReply(
+  entries: TikTokLiveWatchEntry[],
+  config: TikTokLiveRecorderConfig,
+  target?: string | null,
+) {
+  if (target) {
+    const entry = entries.find((item) => tiktokTargetMatches(item, target));
+    if (!entry) return `TikTok Live target not found: ${target}`;
+    return [
+      `${tiktokLiveStatusIcon(entry.status)} ${formatTikTokLiveTarget(entry)}`,
+      `Status: ${entry.status}`,
+      `Enabled: ${entry.enabled ? 'yes' : 'no'}`,
+      `Auto-record: ${entry.autoRecord ? 'yes' : 'no'}`,
+      `Last checked: ${formatTimestamp(entry.lastCheckedAt)}`,
+      `Last online: ${formatTimestamp(entry.lastOnlineAt)}`,
+      `Last recording: ${formatTimestamp(entry.lastRecordingAt)}`,
+      entry.lastOutcome ? `Last outcome: ${entry.lastOutcome}` : undefined,
+      entry.lastError ? `Last error: ${entry.lastError}` : undefined,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  const recording = entries.filter((entry) => entry.status === 'recording').length;
+  const online = entries.filter((entry) => entry.status === 'online').length;
+  const enabled = entries.filter((entry) => entry.enabled).length;
+  return [
+    '📡 TikTok Live Recorder',
+    `Active rooms: ${config.activeRecordings}/${config.maxConcurrentRecordings}`,
+    `Configured hard limit: ${config.hardLimit}`,
+    `Watchlist: ${entries.length} total · ${enabled} enabled`,
+    `Online: ${online}`,
+    `Recording: ${recording}`,
   ].join('\n');
 }
 
@@ -345,6 +485,137 @@ export function useTelegramRemoteCommands(
     [sendTelegramReply, startLockRef],
   );
 
+  const handleTelegramTikTokLiveCommand = useCallback(
+    async (payload: TelegramTikTokLiveCommandEvent) => {
+      const { setCurrentPage } = latestRef.current;
+      const reply = (text: string) =>
+        sendTelegramReply(payload.chatId, payload.messageThreadId, text);
+      const listEntries = () => invoke<TikTokLiveWatchEntry[]>('list_tiktok_live_watchlist');
+      const getConfig = () => invoke<TikTokLiveRecorderConfig>('get_tiktok_live_recorder_config');
+      const findEntry = async (target?: string | null) => {
+        const entries = await listEntries();
+        return {
+          entries,
+          entry: target ? entries.find((item) => tiktokTargetMatches(item, target)) : undefined,
+        };
+      };
+      const ensureEntry = async (target: string) => {
+        const { entry } = await findEntry(target);
+        if (entry) return entry;
+        return invoke<TikTokLiveWatchEntry>('save_tiktok_live_watch_entry', {
+          entry: {
+            id: null,
+            input: target,
+            outputDir: '',
+            preferredQuality: 'auto',
+            preferredTransport: 'auto',
+            durationSeconds: null,
+            cookieMode: null,
+            cookieBrowser: null,
+            cookieBrowserProfile: null,
+            cookieFilePath: null,
+            pollIntervalSeconds: 60,
+            recordMode: 'oncePerLive',
+            cooldownSeconds: 3600,
+            filenameTemplate: null,
+          },
+        });
+      };
+
+      try {
+        setCurrentPage('tiktok-live');
+
+        if (payload.command === 'watchlist') {
+          await reply(buildTikTokLiveWatchlistReply(await listEntries()));
+          return;
+        }
+
+        if (payload.command === 'status') {
+          const [entries, config] = await Promise.all([listEntries(), getConfig()]);
+          await reply(buildTikTokLiveStatusReply(entries, config, payload.target));
+          return;
+        }
+
+        if (!payload.target?.trim()) {
+          await reply(`Missing TikTok Live target. Example: /tl_${payload.command} @username`);
+          return;
+        }
+
+        const target = payload.target.trim();
+
+        if (payload.command === 'add') {
+          const entry = await ensureEntry(target);
+          await reply(`Added TikTok Live target: ${formatTikTokLiveTarget(entry)}`);
+          return;
+        }
+
+        if (payload.command === 'remove') {
+          const { entry } = await findEntry(target);
+          if (!entry) {
+            await reply(`TikTok Live target not found: ${target}`);
+            return;
+          }
+          await invoke('delete_tiktok_live_watch_entry', { id: entry.id });
+          await reply(`Removed TikTok Live target: ${formatTikTokLiveTarget(entry)}`);
+          return;
+        }
+
+        if (payload.command === 'enable' || payload.command === 'disable') {
+          const { entry } = await findEntry(target);
+          if (!entry) {
+            await reply(`TikTok Live target not found: ${target}`);
+            return;
+          }
+          const enabled = payload.command === 'enable';
+          await invoke('set_tiktok_live_watch_entry_enabled', { id: entry.id, enabled });
+          await reply(
+            `${enabled ? 'Enabled' : 'Disabled'} TikTok Live target: ${formatTikTokLiveTarget(
+              entry,
+            )}`,
+          );
+          return;
+        }
+
+        if (payload.command === 'inspect') {
+          const entry = await ensureEntry(target);
+          await invoke('inspect_tiktok_live_watch_entry', { id: entry.id });
+          const updated = (await findEntry(entry.id)).entry ?? entry;
+          await reply(
+            `Checked ${formatTikTokLiveTarget(updated)}: ${updated.status}${
+              updated.lastError ? ` (${updated.lastError})` : ''
+            }`,
+          );
+          return;
+        }
+
+        if (payload.command === 'record') {
+          const entry = await ensureEntry(target);
+          await invoke('record_tiktok_live_watch_entry', { id: entry.id });
+          await reply(`Started TikTok Live recording: ${formatTikTokLiveTarget(entry)}`);
+          return;
+        }
+
+        if (payload.command === 'stop') {
+          const { entry } = await findEntry(target);
+          if (!entry) {
+            await reply(`TikTok Live target not found: ${target}`);
+            return;
+          }
+          if (!entry.activeJobId) {
+            await reply(`No active TikTok Live recording for ${formatTikTokLiveTarget(entry)}.`);
+            return;
+          }
+          await invoke('cancel_tiktok_live_recording', { jobId: entry.activeJobId });
+          await reply(`Stopping TikTok Live recording: ${formatTikTokLiveTarget(entry)}`);
+        }
+      } catch (error) {
+        console.error('Failed to handle Telegram TikTok Live command:', error);
+        await reply('Failed to handle that TikTok Live command.');
+      }
+    },
+    [sendTelegramReply],
+  );
+
   useEffect(() => {
     let disposed = false;
     const unlistenPromise = listen<TelegramDownloadCommandEvent>(
@@ -365,4 +636,25 @@ export function useTelegramRemoteCommands(
       unlistenPromise.then((unlisten) => unlisten());
     };
   }, [handleTelegramDownloadCommand]);
+
+  useEffect(() => {
+    let disposed = false;
+    const unlistenPromise = listen<TelegramTikTokLiveCommandEvent>(
+      'telegram-tiktok-live-command',
+      (event) => {
+        void handleTelegramTikTokLiveCommand(event.payload);
+      },
+    );
+
+    unlistenPromise.then((unlisten) => {
+      if (disposed) {
+        unlisten();
+      }
+    });
+
+    return () => {
+      disposed = true;
+      unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [handleTelegramTikTokLiveCommand]);
 }

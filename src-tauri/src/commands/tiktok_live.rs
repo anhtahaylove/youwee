@@ -5,7 +5,7 @@ use crate::database::{
     get_tiktok_live_watch_entry_by_target_internal, get_tiktok_live_watch_entry_internal,
     get_tiktok_live_watchlist_internal, save_tiktok_live_job_internal,
     save_tiktok_live_watch_entry_internal, upsert_history_with_id_internal, TikTokLiveJob,
-    TikTokLiveJobStatus, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
+    TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
 };
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
@@ -21,7 +21,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     LazyLock,
 };
 use std::time::Duration;
@@ -34,6 +34,7 @@ static ACTIVE_RECORDINGS: LazyLock<
     Mutex<HashMap<String, Option<tokio::sync::oneshot::Sender<()>>>>,
 > = LazyLock::new(|| Mutex::new(HashMap::new()));
 static TIKTOK_LIVE_WATCHLIST_ACTIVE: AtomicBool = AtomicBool::new(false);
+static TIKTOK_LIVE_MAX_RECORDINGS: AtomicUsize = AtomicUsize::new(1);
 
 const METADATA_FETCH_ATTEMPTS: u32 = 3;
 const METADATA_RETRY_BASE_DELAY_MS: u64 = 750;
@@ -45,12 +46,35 @@ const RECORDING_SEGMENT_EXTENSION: &str = "mkv";
 const WATCHLIST_LOOP_TICK_SECONDS: u64 = 10;
 const WATCHLIST_MIN_POLL_SECONDS: u32 = 30;
 const WATCHLIST_MAX_POLL_SECONDS: u32 = 3600;
+const WATCHLIST_DEFAULT_COOLDOWN_SECONDS: u32 = 3600;
+const WATCHLIST_MAX_COOLDOWN_SECONDS: u32 = 604_800;
 const WATCHLIST_MAX_BACKOFF_SECONDS: u32 = 1800;
 const WATCHLIST_PAUSED_CHECK_AT: i64 = 253_402_300_799;
+const TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT: usize = 4;
 const TIKTOK_LIVE_ALREADY_ACTIVE_MESSAGE: &str =
     "This TikTok Live recording job is already active.";
 const TIKTOK_LIVE_ONE_ROOM_MESSAGE: &str =
-    "Another TikTok Live recording is active. This version records one room at a time.";
+    "The TikTok Live recorder is at its configured room limit.";
+
+fn clamp_tiktok_live_recording_limit(value: Option<usize>) -> usize {
+    value
+        .unwrap_or(1)
+        .clamp(1, TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT)
+}
+
+fn configured_tiktok_live_recording_limit() -> usize {
+    clamp_tiktok_live_recording_limit(Some(TIKTOK_LIVE_MAX_RECORDINGS.load(Ordering::SeqCst)))
+}
+
+fn clamp_watchlist_cooldown(seconds: Option<u32>) -> u32 {
+    seconds
+        .unwrap_or(WATCHLIST_DEFAULT_COOLDOWN_SECONDS)
+        .min(WATCHLIST_MAX_COOLDOWN_SECONDS)
+}
+
+async fn tiktok_live_recorder_at_limit() -> bool {
+    ACTIVE_RECORDINGS.lock().await.len() >= configured_tiktok_live_recording_limit()
+}
 
 async fn reserve_tiktok_live_recording(
     job_id: &str,
@@ -62,7 +86,7 @@ async fn reserve_tiktok_live_recording(
             BackendError::from_message(TIKTOK_LIVE_ALREADY_ACTIVE_MESSAGE).to_wire_string(),
         );
     }
-    if !recordings.is_empty() {
+    if recordings.len() >= configured_tiktok_live_recording_limit() {
         return Err(BackendError::from_message(TIKTOK_LIVE_ONE_ROOM_MESSAGE).to_wire_string());
     }
     recordings.insert(job_id.to_string(), Some(cancel_tx));
@@ -111,6 +135,7 @@ pub struct TikTokLiveVariant {
 pub struct TikTokLiveInspectResult {
     pub input: String,
     pub target_url: String,
+    pub session_id: Option<String>,
     pub title: String,
     pub uploader: Option<String>,
     pub thumbnail: Option<String>,
@@ -148,6 +173,14 @@ pub struct TikTokLiveRecoveryJob {
     pub error_message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TikTokLiveRecorderConfig {
+    pub max_concurrent_recordings: usize,
+    pub active_recordings: usize,
+    pub hard_limit: usize,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveTikTokLiveWatchEntryInput {
@@ -164,6 +197,9 @@ pub struct SaveTikTokLiveWatchEntryInput {
     pub cookie_browser_profile: Option<String>,
     pub cookie_file_path: Option<String>,
     pub poll_interval_seconds: Option<u32>,
+    pub record_mode: Option<TikTokLiveRecordMode>,
+    pub cooldown_seconds: Option<u32>,
+    pub filename_template: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -247,14 +283,23 @@ fn should_auto_record_watch_entry(
     previous_status: TikTokLiveWatchStatus,
     entry: &TikTokLiveWatchEntry,
     is_live: bool,
-    recorder_busy: bool,
+    session_id: Option<&str>,
+    now: i64,
 ) -> bool {
-    entry.enabled
-        && entry.auto_record
-        && is_live
-        && entry.active_job_id.is_none()
-        && !recorder_busy
-        && !watch_status_represents_live_session(previous_status)
+    if !entry.enabled || !entry.auto_record || !is_live || entry.active_job_id.is_some() {
+        return false;
+    }
+
+    match entry.record_mode {
+        TikTokLiveRecordMode::ManualOnly => false,
+        TikTokLiveRecordMode::OncePerLive => {
+            !watch_status_represents_live_session(previous_status)
+                && session_id.is_none_or(|id| entry.last_session_id.as_deref() != Some(id))
+        }
+        TikTokLiveRecordMode::AlwaysAfterCooldown => entry
+            .last_recording_at
+            .is_none_or(|last| now.saturating_sub(last) >= i64::from(entry.cooldown_seconds)),
+    }
 }
 
 fn emit_watchlist_updated(app: &AppHandle, watch_id: &str) {
@@ -292,6 +337,18 @@ fn mark_watch_entry_live_but_busy(entry: &mut TikTokLiveWatchEntry, now: i64) {
     entry.backoff_attempt = 0;
     entry.last_error = Some("recordingBusy".to_string());
     schedule_watch_entry(entry, now, false);
+}
+
+fn watch_entry_label(entry: &TikTokLiveWatchEntry) -> String {
+    entry
+        .username
+        .as_deref()
+        .map(|username| format!("@{username}"))
+        .unwrap_or_else(|| entry.target_input.clone())
+}
+
+fn notify_tiktok_live_watchlist(message: String) {
+    crate::services::telegram::send_notification(message);
 }
 
 fn normalize_tiktok_username(value: &str) -> Option<String> {
@@ -393,9 +450,30 @@ fn sanitize_filename_part(value: &str, fallback: &str) -> String {
 }
 
 fn output_path_for_recording(output_dir: &Path, title: &str) -> PathBuf {
-    let title = sanitize_filename_part(title, "TikTok LIVE");
-    let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
-    output_dir.join(format!("{title}_{timestamp}.mp4"))
+    output_path_for_recording_with_template(output_dir, title, None, None)
+}
+
+fn output_path_for_recording_with_template(
+    output_dir: &Path,
+    title: &str,
+    username: Option<&str>,
+    template: Option<&str>,
+) -> PathBuf {
+    let timestamp = chrono::Local::now();
+    let raw_name = template
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|template| {
+            template
+                .replace("{title}", title)
+                .replace("{username}", username.unwrap_or("tiktok-live"))
+                .replace("{date}", &timestamp.format("%Y%m%d").to_string())
+                .replace("{time}", &timestamp.format("%H%M%S").to_string())
+        })
+        .unwrap_or_else(|| format!("{}_{}", title, timestamp.format("%Y%m%d_%H%M%S")));
+    let title = sanitize_filename_part(&raw_name, "TikTok LIVE");
+    let title = title.strip_suffix(".mp4").unwrap_or(&title);
+    output_dir.join(format!("{title}.mp4"))
 }
 
 fn segment_path_for_recording(output_path: &Path, index: usize) -> PathBuf {
@@ -1819,6 +1897,41 @@ fn string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
     })
 }
 
+fn scalar_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
+    paths.iter().find_map(|path| {
+        let value = json.pointer(path)?;
+        value
+            .as_str()
+            .filter(|text| !text.trim().is_empty())
+            .map(str::to_string)
+            .or_else(|| value.as_i64().map(|number| number.to_string()))
+            .or_else(|| value.as_u64().map(|number| number.to_string()))
+    })
+}
+
+fn tiktok_live_session_id(
+    json: &serde_json::Value,
+    target_url: &str,
+    title: &str,
+) -> Option<String> {
+    scalar_string_at(
+        json,
+        &[
+            "/id",
+            "/room_id",
+            "/display_id",
+            "/webpage_url_basename",
+            "/data/id",
+            "/data/room_id",
+            "/data/live_room_id",
+        ],
+    )
+    .or_else(|| {
+        let title = title.trim();
+        (!title.is_empty()).then(|| format!("{target_url}#{title}"))
+    })
+}
+
 fn room_owner_username(json: &serde_json::Value) -> Option<String> {
     string_at(json, &["/data/owner/display_id"])
         .or_else(|| string_at(json, &["/data/owner/unique_id"]))
@@ -1896,10 +2009,14 @@ pub async fn inspect_tiktok_live(
     let variants = variants_from_ytdlp_json(&json);
     let selected_variant = select_variant(&variants, &preferred_quality, &preferred_transport);
     let title = tiktok_live_title(&json, target.username.as_deref());
+    let session_id = (!variants.is_empty())
+        .then(|| tiktok_live_session_id(&json, &target_url, &title))
+        .flatten();
 
     Ok(TikTokLiveInspectResult {
         input: target.input,
         target_url,
+        session_id,
         title,
         uploader: string_at(
             &json,
@@ -1965,6 +2082,7 @@ pub async fn record_tiktok_live(
         proxy_url,
         auto_reconnect,
         None,
+        None,
     )
     .await
 }
@@ -1985,6 +2103,7 @@ async fn record_tiktok_live_inner(
     cookie_skip_patterns: Option<Vec<String>>,
     proxy_url: Option<String>,
     auto_reconnect: Option<bool>,
+    filename_template: Option<String>,
     reserved_cancel_rx: Option<tokio::sync::oneshot::Receiver<()>>,
 ) -> Result<TikTokLiveRecordResult, String> {
     let target = parse_tiktok_live_target(&input)
@@ -2113,7 +2232,14 @@ async fn record_tiktok_live_inner(
             .output_path
             .as_deref()
             .map(PathBuf::from)
-            .unwrap_or_else(|| output_path_for_recording(&output_dir, &job.title));
+            .unwrap_or_else(|| {
+                output_path_for_recording_with_template(
+                    &output_dir,
+                    &job.title,
+                    job.username.as_deref(),
+                    filename_template.as_deref(),
+                )
+            });
         job.output_path = Some(output_path.to_string_lossy().to_string());
         save_job_status(&mut job, TikTokLiveJobStatus::Recording)?;
 
@@ -2479,6 +2605,31 @@ pub fn list_tiktok_live_watchlist() -> Result<Vec<TikTokLiveWatchEntry>, String>
 }
 
 #[tauri::command]
+pub async fn get_tiktok_live_recorder_config() -> TikTokLiveRecorderConfig {
+    TikTokLiveRecorderConfig {
+        max_concurrent_recordings: configured_tiktok_live_recording_limit(),
+        active_recordings: ACTIVE_RECORDINGS.lock().await.len(),
+        hard_limit: TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT,
+    }
+}
+
+#[tauri::command]
+pub fn set_tiktok_live_recorder_config(
+    max_concurrent_recordings: Option<usize>,
+) -> TikTokLiveRecorderConfig {
+    let limit = clamp_tiktok_live_recording_limit(max_concurrent_recordings);
+    TIKTOK_LIVE_MAX_RECORDINGS.store(limit, Ordering::SeqCst);
+    TikTokLiveRecorderConfig {
+        max_concurrent_recordings: limit,
+        active_recordings: ACTIVE_RECORDINGS
+            .try_lock()
+            .map(|recordings| recordings.len())
+            .unwrap_or_default(),
+        hard_limit: TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT,
+    }
+}
+
+#[tauri::command]
 pub fn save_tiktok_live_watch_entry(
     app: AppHandle,
     entry: SaveTikTokLiveWatchEntryInput,
@@ -2538,6 +2689,9 @@ pub fn save_tiktok_live_watch_entry(
         cookie_browser_profile: None,
         cookie_file_path: None,
         poll_interval_seconds: 60,
+        record_mode: TikTokLiveRecordMode::OncePerLive,
+        cooldown_seconds: WATCHLIST_DEFAULT_COOLDOWN_SECONDS,
+        filename_template: None,
         backoff_attempt: 0,
         next_check_at: now,
         status: TikTokLiveWatchStatus::Offline,
@@ -2546,6 +2700,14 @@ pub fn save_tiktok_live_watch_entry(
         last_checked_at: None,
         last_online_at: None,
         last_recording_at: None,
+        last_session_id: None,
+        last_outcome: None,
+        last_completed_at: None,
+        last_started_job_id: None,
+        last_segment_count: 0,
+        last_refresh_count: 0,
+        last_reconnect_count: 0,
+        last_file_size: None,
         created_at: now,
         updated_at: now,
     });
@@ -2563,12 +2725,19 @@ pub fn save_tiktok_live_watch_entry(
     saved.cookie_browser_profile = entry.cookie_browser_profile;
     saved.cookie_file_path = entry.cookie_file_path;
     saved.poll_interval_seconds = clamp_watchlist_poll_interval(entry.poll_interval_seconds);
+    saved.record_mode = entry.record_mode.unwrap_or(saved.record_mode);
+    saved.cooldown_seconds = clamp_watchlist_cooldown(entry.cooldown_seconds);
+    saved.filename_template = entry
+        .filename_template
+        .map(|template| template.trim().to_string())
+        .filter(|template| !template.is_empty());
     if target_changed {
         saved.status = TikTokLiveWatchStatus::Offline;
         saved.backoff_attempt = 0;
         saved.last_error = None;
         saved.last_checked_at = None;
         saved.last_online_at = None;
+        saved.last_session_id = None;
     }
     if saved.enabled && saved.active_job_id.is_none() {
         saved.next_check_at = now;
@@ -2627,20 +2796,41 @@ async fn finish_watchlist_recording(
 
     let now = Utc::now().timestamp();
     let persisted_job = get_tiktok_live_job_internal(job_id).ok().flatten();
+    entry.last_started_job_id = Some(job_id.to_string());
+    if let Some(job) = persisted_job.as_ref() {
+        entry.last_segment_count = job.segment_paths.len() as u32;
+        entry.last_refresh_count = job.refresh_count;
+        entry.last_reconnect_count = job.reconnect_count;
+        entry.last_completed_at = job.completed_at;
+        entry.last_file_size = job
+            .final_path
+            .as_deref()
+            .and_then(|path| fs::metadata(path).ok())
+            .map(|metadata| metadata.len())
+            .or_else(|| result.as_ref().ok().and_then(|value| value.filesize));
+    }
     if persisted_job
         .as_ref()
         .is_some_and(|job| job.status.can_resume())
     {
         entry.status = TikTokLiveWatchStatus::Recoverable;
         entry.last_error = Some("recordingRecoverable".to_string());
+        entry.last_outcome = Some("recoverable".to_string());
         entry.next_check_at = WATCHLIST_PAUSED_CHECK_AT;
     } else {
         entry.active_job_id = None;
         match result {
-            Ok(_) => {
+            Ok(record_result) => {
                 entry.status = TikTokLiveWatchStatus::Online;
                 entry.backoff_attempt = 0;
                 entry.last_error = None;
+                entry.last_outcome = Some(if record_result.partial {
+                    "partial".to_string()
+                } else {
+                    "completed".to_string()
+                });
+                entry.last_completed_at = Some(now);
+                entry.last_file_size = record_result.filesize.or(entry.last_file_size);
                 schedule_watch_entry(&mut entry, now, false);
             }
             Err(error) => {
@@ -2648,19 +2838,40 @@ async fn finish_watchlist_recording(
                 if backend_error.code() == code::TIKTOK_LIVE_OFFLINE {
                     entry.status = TikTokLiveWatchStatus::Offline;
                     entry.last_error = None;
+                    entry.last_outcome = Some("offline".to_string());
                 } else if backend_error.code() == code::DOWNLOAD_CANCELLED {
                     entry.status = TikTokLiveWatchStatus::Online;
                     entry.last_error = None;
+                    entry.last_outcome = Some("cancelled".to_string());
                 } else {
                     entry.status = TikTokLiveWatchStatus::Backoff;
                     entry.last_error = Some("recordingFailed".to_string());
+                    entry.last_outcome = Some("failed".to_string());
                 }
                 entry.backoff_attempt = entry.backoff_attempt.saturating_add(1);
                 schedule_watch_entry(&mut entry, now, true);
             }
         }
     }
-    persist_watch_entry(app, &mut entry).ok();
+    let notification = entry.last_outcome.as_deref().map(|outcome| {
+        let icon = match outcome {
+            "completed" => "✅",
+            "partial" => "🟡",
+            "recoverable" => "🛟",
+            "cancelled" => "⏹",
+            "offline" => "⚫",
+            _ => "❌",
+        };
+        format!(
+            "{icon} TikTok Live recording {outcome}: {}",
+            watch_entry_label(&entry)
+        )
+    });
+    if persist_watch_entry(app, &mut entry).is_ok() {
+        if let Some(notification) = notification {
+            notify_tiktok_live_watchlist(notification);
+        }
+    }
 }
 
 async fn finish_linked_watchlist_recording(
@@ -2692,6 +2903,7 @@ fn detach_linked_watchlist_job(app: &AppHandle, job_id: &str) -> Result<(), Stri
 async fn start_watchlist_recording(
     app: &AppHandle,
     entry: &mut TikTokLiveWatchEntry,
+    session_id: Option<String>,
 ) -> Result<String, String> {
     if !crate::services::polling::network_config_ready() {
         return Err(BackendError::from_message(
@@ -2712,12 +2924,22 @@ async fn start_watchlist_recording(
     entry.status = TikTokLiveWatchStatus::Recording;
     entry.active_job_id = Some(job_id.clone());
     entry.last_recording_at = Some(now);
+    entry.last_started_job_id = Some(job_id.clone());
+    if let Some(session_id) = session_id.filter(|value| !value.trim().is_empty()) {
+        entry.last_session_id = Some(session_id);
+    }
+    entry.last_outcome = Some("recording".to_string());
+    entry.last_completed_at = None;
     entry.last_error = None;
     schedule_watch_entry(entry, now, false);
     if let Err(error) = persist_watch_entry(app, entry) {
         release_tiktok_live_recording(&job_id).await;
         return Err(error);
     }
+    notify_tiktok_live_watchlist(format!(
+        "🔴 TikTok Live recording started: {}",
+        watch_entry_label(entry)
+    ));
 
     let app_handle = app.clone();
     let watch_id = entry.id.clone();
@@ -2730,6 +2952,7 @@ async fn start_watchlist_recording(
     let cookie_browser = entry.cookie_browser.clone();
     let cookie_browser_profile = entry.cookie_browser_profile.clone();
     let cookie_file_path = entry.cookie_file_path.clone();
+    let filename_template = entry.filename_template.clone();
     let network = crate::services::polling::get_network_config();
     let spawned_job_id = job_id.clone();
     tauri::async_runtime::spawn(async move {
@@ -2748,6 +2971,7 @@ async fn start_watchlist_recording(
             network.cookie_skip_patterns,
             network.proxy_url,
             Some(true),
+            filename_template,
             Some(cancel_rx),
         )
         .await;
@@ -2822,11 +3046,16 @@ async fn inspect_watch_entry(
             entry.last_online_at = Some(now);
             entry.backoff_attempt = 0;
             entry.last_error = None;
-            let recorder_busy = !ACTIVE_RECORDINGS.lock().await.is_empty();
-            if allow_auto_record
-                && should_auto_record_watch_entry(previous_status, entry, true, recorder_busy)
-            {
-                match start_watchlist_recording(app, entry).await {
+            let should_auto_record = allow_auto_record
+                && should_auto_record_watch_entry(
+                    previous_status,
+                    entry,
+                    true,
+                    result.session_id.as_deref(),
+                    now,
+                );
+            if should_auto_record {
+                match start_watchlist_recording(app, entry, result.session_id.clone()).await {
                     Ok(_) => return Ok(true),
                     Err(error)
                         if BackendError::from_message(&error).message()
@@ -2837,15 +3066,7 @@ async fn inspect_watch_entry(
                     Err(error) => return Err(error),
                 }
             }
-            if entry.status != TikTokLiveWatchStatus::Online
-                && allow_auto_record
-                && entry.enabled
-                && entry.auto_record
-                && !watch_status_represents_live_session(previous_status)
-                && recorder_busy
-            {
-                mark_watch_entry_live_but_busy(entry, now);
-            } else {
+            if entry.status != TikTokLiveWatchStatus::Online {
                 entry.status = TikTokLiveWatchStatus::Online;
                 schedule_watch_entry(entry, now, false);
             }
@@ -2896,7 +3117,7 @@ pub async fn record_tiktok_live_watch_entry(
 ) -> Result<TikTokLiveWatchEntry, String> {
     let mut entry = get_tiktok_live_watch_entry_internal(&id)?
         .ok_or_else(|| BackendError::from_message("Watchlist entry not found.").to_wire_string())?;
-    start_watchlist_recording(&app, &mut entry).await?;
+    start_watchlist_recording(&app, &mut entry, None).await?;
     Ok(entry)
 }
 
@@ -2909,7 +3130,9 @@ async fn poll_due_tiktok_live_watchlist(app: &AppHandle) -> Result<(), String> {
         if !entry.enabled {
             continue;
         }
-        if inspect_watch_entry(app, &mut entry, true).await? {
+        if inspect_watch_entry(app, &mut entry, true).await?
+            && tiktok_live_recorder_at_limit().await
+        {
             break;
         }
         sleep(Duration::from_secs(1)).await;
@@ -3188,6 +3411,9 @@ pub async fn cancel_tiktok_live_recording(job_id: String) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    static RECORDING_LIMIT_TEST_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
 
     #[test]
     fn parses_username_and_live_url_targets() {
@@ -3932,6 +4158,9 @@ mod tests {
             cookie_browser_profile: Some("i879pxds.default-release".to_string()),
             cookie_file_path: None,
             poll_interval_seconds: 60,
+            record_mode: TikTokLiveRecordMode::OncePerLive,
+            cooldown_seconds: WATCHLIST_DEFAULT_COOLDOWN_SECONDS,
+            filename_template: None,
             backoff_attempt: 0,
             next_check_at: 100,
             status,
@@ -3940,6 +4169,14 @@ mod tests {
             last_checked_at: None,
             last_online_at: None,
             last_recording_at: None,
+            last_session_id: None,
+            last_outcome: None,
+            last_completed_at: None,
+            last_started_job_id: None,
+            last_segment_count: 0,
+            last_refresh_count: 0,
+            last_reconnect_count: 0,
+            last_file_size: None,
             created_at: 100,
             updated_at: 100,
         }
@@ -3964,26 +4201,24 @@ mod tests {
             TikTokLiveWatchStatus::Offline,
             &entry,
             true,
-            false
+            Some("session-1"),
+            1_000
         ));
         assert!(!should_auto_record_watch_entry(
             TikTokLiveWatchStatus::Online,
             &entry,
             true,
-            false
+            Some("session-1"),
+            1_000
         ));
-        assert!(!should_auto_record_watch_entry(
-            TikTokLiveWatchStatus::Offline,
-            &entry,
-            true,
-            true
-        ));
+        entry.last_session_id = Some("session-1".to_string());
         entry.enabled = false;
         assert!(!should_auto_record_watch_entry(
             TikTokLiveWatchStatus::Offline,
             &entry,
             true,
-            false
+            Some("session-1"),
+            1_000
         ));
         entry.enabled = true;
         entry.active_job_id = Some("existing-job".to_string());
@@ -3991,7 +4226,55 @@ mod tests {
             TikTokLiveWatchStatus::Offline,
             &entry,
             true,
-            false
+            Some("session-2"),
+            1_000
+        ));
+    }
+
+    #[test]
+    fn watchlist_record_modes_dedupe_by_session_and_cooldown() {
+        let mut entry = sample_watch_entry(TikTokLiveWatchStatus::Offline);
+        entry.last_session_id = Some("session-1".to_string());
+        assert!(!should_auto_record_watch_entry(
+            TikTokLiveWatchStatus::Offline,
+            &entry,
+            true,
+            Some("session-1"),
+            2_000
+        ));
+        assert!(should_auto_record_watch_entry(
+            TikTokLiveWatchStatus::Offline,
+            &entry,
+            true,
+            Some("session-2"),
+            2_000
+        ));
+
+        entry.record_mode = TikTokLiveRecordMode::AlwaysAfterCooldown;
+        entry.last_recording_at = Some(1_000);
+        entry.cooldown_seconds = 600;
+        assert!(!should_auto_record_watch_entry(
+            TikTokLiveWatchStatus::Online,
+            &entry,
+            true,
+            Some("session-1"),
+            1_500
+        ));
+        assert!(should_auto_record_watch_entry(
+            TikTokLiveWatchStatus::Online,
+            &entry,
+            true,
+            Some("session-1"),
+            1_600
+        ));
+
+        entry.record_mode = TikTokLiveRecordMode::ManualOnly;
+        assert!(!should_auto_record_watch_entry(
+            TikTokLiveWatchStatus::Offline,
+            &entry,
+            true,
+            Some("session-3"),
+            3_000
         ));
     }
 
@@ -4006,12 +4289,17 @@ mod tests {
             entry.status,
             &entry,
             true,
-            false
+            Some("session-1"),
+            1_000
         ));
     }
 
     #[tokio::test]
     async fn global_tiktok_live_reservation_is_atomic() {
+        let _limit_guard = RECORDING_LIMIT_TEST_LOCK
+            .lock()
+            .expect("lock recording limit");
+        TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
         let first_id = format!("watch-reservation-first-{}", uuid::Uuid::new_v4());
         let second_id = format!("watch-reservation-second-{}", uuid::Uuid::new_v4());
         let first_cancel = reserve_tiktok_live_recording(&first_id)
@@ -4023,7 +4311,7 @@ mod tests {
             .expect_err("reject concurrent recording reservation");
         assert!(BackendError::from_message(&second_error)
             .message()
-            .contains("one room at a time"));
+            .contains("configured room limit"));
 
         cancel_tiktok_live_recording(first_id.clone())
             .await
@@ -4034,7 +4322,7 @@ mod tests {
             .expect_err("keep slot reserved while cancellation finishes");
         assert!(BackendError::from_message(&while_stopping_error)
             .message()
-            .contains("one room at a time"));
+            .contains("configured room limit"));
 
         release_tiktok_live_recording(&first_id).await;
         let second_cancel = reserve_tiktok_live_recording(&second_id)
@@ -4042,6 +4330,37 @@ mod tests {
             .expect("reserve after first releases");
         release_tiktok_live_recording(&second_id).await;
         drop(second_cancel);
+        TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
+    }
+
+    #[tokio::test]
+    async fn global_tiktok_live_reservation_allows_configured_multi_room_limit() {
+        let _limit_guard = RECORDING_LIMIT_TEST_LOCK
+            .lock()
+            .expect("lock recording limit");
+        TIKTOK_LIVE_MAX_RECORDINGS.store(2, Ordering::SeqCst);
+        let first_id = format!("watch-multi-first-{}", uuid::Uuid::new_v4());
+        let second_id = format!("watch-multi-second-{}", uuid::Uuid::new_v4());
+        let third_id = format!("watch-multi-third-{}", uuid::Uuid::new_v4());
+
+        let first_cancel = reserve_tiktok_live_recording(&first_id)
+            .await
+            .expect("reserve first recording");
+        let second_cancel = reserve_tiktok_live_recording(&second_id)
+            .await
+            .expect("reserve second recording");
+        let third_error = reserve_tiktok_live_recording(&third_id)
+            .await
+            .expect_err("reject over configured limit");
+        assert!(BackendError::from_message(&third_error)
+            .message()
+            .contains("configured room limit"));
+
+        release_tiktok_live_recording(&first_id).await;
+        release_tiktok_live_recording(&second_id).await;
+        drop(first_cancel);
+        drop(second_cancel);
+        TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
     }
 
     #[test]

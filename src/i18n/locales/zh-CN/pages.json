@@ -470,7 +470,8 @@
         "record": "立即录制",
         "stop": "停止",
         "edit": "编辑规则",
-        "remove": "移除"
+        "remove": "移除",
+        "apply": "应用"
       },
       "errors": {
         "recordingRecoverable": "录制已停止，但存在可恢复媒体。请在下方继续或完成。",
@@ -485,6 +486,20 @@
         "description": "停止监控“{{target}}”？现有录制和恢复文件会保留。",
         "cancel": "取消",
         "confirm": "移除"
+      },
+      "recorderLimitUpdated": "已更新 TikTok Live 录制房间限制。",
+      "maxRooms": "最大房间数",
+      "cooldownSeconds": "冷却时间（秒）",
+      "cooldownValue": "冷却：{{seconds}} 秒",
+      "filenameTemplate": "文件名模板",
+      "lastOutcome": "最近结果",
+      "lastSize": "最近大小",
+      "telemetry": "分段：{{segments}} · 刷新：{{refreshes}} · 重连：{{reconnects}}",
+      "recordMode": {
+        "label": "录制模式",
+        "oncePerLive": "每场直播一次",
+        "alwaysAfterCooldown": "冷却后再次录制",
+        "manualOnly": "仅手动"
       }
     },
     "recovery": {

@@ -45,6 +45,43 @@ impl TryFrom<&str> for TikTokLiveWatchStatus {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TikTokLiveRecordMode {
+    OncePerLive,
+    AlwaysAfterCooldown,
+    ManualOnly,
+}
+
+impl TikTokLiveRecordMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::OncePerLive => "once_per_live",
+            Self::AlwaysAfterCooldown => "always_after_cooldown",
+            Self::ManualOnly => "manual_only",
+        }
+    }
+}
+
+impl Default for TikTokLiveRecordMode {
+    fn default() -> Self {
+        Self::OncePerLive
+    }
+}
+
+impl TryFrom<&str> for TikTokLiveRecordMode {
+    type Error = String;
+
+    fn try_from(value: &str) -> Result<Self, String> {
+        match value {
+            "once_per_live" => Ok(Self::OncePerLive),
+            "always_after_cooldown" => Ok(Self::AlwaysAfterCooldown),
+            "manual_only" => Ok(Self::ManualOnly),
+            _ => Err(format!("Unknown TikTok Live record mode: {value}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TikTokLiveWatchEntry {
@@ -63,6 +100,9 @@ pub struct TikTokLiveWatchEntry {
     pub cookie_browser_profile: Option<String>,
     pub cookie_file_path: Option<String>,
     pub poll_interval_seconds: u32,
+    pub record_mode: TikTokLiveRecordMode,
+    pub cooldown_seconds: u32,
+    pub filename_template: Option<String>,
     pub backoff_attempt: u32,
     pub next_check_at: i64,
     pub status: TikTokLiveWatchStatus,
@@ -71,11 +111,19 @@ pub struct TikTokLiveWatchEntry {
     pub last_checked_at: Option<i64>,
     pub last_online_at: Option<i64>,
     pub last_recording_at: Option<i64>,
+    pub last_session_id: Option<String>,
+    pub last_outcome: Option<String>,
+    pub last_completed_at: Option<i64>,
+    pub last_started_job_id: Option<String>,
+    pub last_segment_count: u32,
+    pub last_refresh_count: u32,
+    pub last_reconnect_count: u32,
+    pub last_file_size: Option<u64>,
     pub created_at: i64,
     pub updated_at: i64,
 }
 
-const WATCH_COLUMNS: &str = "id, target_input, target_url, username, enabled, auto_record, output_dir, preferred_quality, preferred_transport, duration_seconds, cookie_mode, cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds, backoff_attempt, next_check_at, status, active_job_id, last_error, last_checked_at, last_online_at, last_recording_at, created_at, updated_at";
+const WATCH_COLUMNS: &str = "id, target_input, target_url, username, enabled, auto_record, output_dir, preferred_quality, preferred_transport, duration_seconds, cookie_mode, cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds, backoff_attempt, next_check_at, status, active_job_id, last_error, last_checked_at, last_online_at, last_recording_at, created_at, updated_at, record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome, last_completed_at, last_started_job_id, last_segment_count, last_refresh_count, last_reconnect_count, last_file_size";
 
 pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), String> {
     conn.execute(
@@ -95,6 +143,9 @@ pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), 
             cookie_browser_profile TEXT,
             cookie_file_path TEXT,
             poll_interval_seconds INTEGER NOT NULL DEFAULT 60,
+            record_mode TEXT NOT NULL DEFAULT 'once_per_live',
+            cooldown_seconds INTEGER NOT NULL DEFAULT 3600,
+            filename_template TEXT,
             backoff_attempt INTEGER NOT NULL DEFAULT 0,
             next_check_at INTEGER NOT NULL,
             status TEXT NOT NULL DEFAULT 'offline',
@@ -103,12 +154,35 @@ pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), 
             last_checked_at INTEGER,
             last_online_at INTEGER,
             last_recording_at INTEGER,
+            last_session_id TEXT,
+            last_outcome TEXT,
+            last_completed_at INTEGER,
+            last_started_job_id TEXT,
+            last_segment_count INTEGER NOT NULL DEFAULT 0,
+            last_refresh_count INTEGER NOT NULL DEFAULT 0,
+            last_reconnect_count INTEGER NOT NULL DEFAULT 0,
+            last_file_size INTEGER,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
         [],
     )
     .map_err(|error| format!("Failed to create TikTok Live watchlist table: {error}"))?;
+    for migration in [
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN record_mode TEXT NOT NULL DEFAULT 'once_per_live'",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN cooldown_seconds INTEGER NOT NULL DEFAULT 3600",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN filename_template TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_session_id TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_outcome TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_completed_at INTEGER",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_started_job_id TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_segment_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_refresh_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_reconnect_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_file_size INTEGER",
+    ] {
+        let _ = conn.execute(migration, []);
+    }
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_tiktok_live_watchlist_target
          ON tiktok_live_watchlist(target_url COLLATE NOCASE)",
@@ -133,6 +207,15 @@ fn watch_entry_from_row(row: &Row<'_>) -> rusqlite::Result<TikTokLiveWatchEntry>
             Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, error)),
         )
     })?;
+    let raw_record_mode: String = row.get(25)?;
+    let record_mode =
+        TikTokLiveRecordMode::try_from(raw_record_mode.as_str()).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                25,
+                Type::Text,
+                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, error)),
+            )
+        })?;
 
     Ok(TikTokLiveWatchEntry {
         id: row.get(0)?,
@@ -150,6 +233,9 @@ fn watch_entry_from_row(row: &Row<'_>) -> rusqlite::Result<TikTokLiveWatchEntry>
         cookie_browser_profile: row.get(12)?,
         cookie_file_path: row.get(13)?,
         poll_interval_seconds: row.get::<_, i64>(14)? as u32,
+        record_mode,
+        cooldown_seconds: row.get::<_, i64>(26)? as u32,
+        filename_template: row.get(27)?,
         backoff_attempt: row.get::<_, i64>(15)? as u32,
         next_check_at: row.get(16)?,
         status,
@@ -158,6 +244,16 @@ fn watch_entry_from_row(row: &Row<'_>) -> rusqlite::Result<TikTokLiveWatchEntry>
         last_checked_at: row.get(20)?,
         last_online_at: row.get(21)?,
         last_recording_at: row.get(22)?,
+        last_session_id: row.get(28)?,
+        last_outcome: row.get(29)?,
+        last_completed_at: row.get(30)?,
+        last_started_job_id: row.get(31)?,
+        last_segment_count: row.get::<_, i64>(32)? as u32,
+        last_refresh_count: row.get::<_, i64>(33)? as u32,
+        last_reconnect_count: row.get::<_, i64>(34)? as u32,
+        last_file_size: row
+            .get::<_, Option<i64>>(35)?
+            .map(|value| value.max(0) as u64),
         created_at: row.get(23)?,
         updated_at: row.get(24)?,
     })
@@ -178,10 +274,14 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             preferred_quality, preferred_transport, duration_seconds, cookie_mode,
             cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds,
             backoff_attempt, next_check_at, status, active_job_id, last_error,
-            last_checked_at, last_online_at, last_recording_at, created_at, updated_at
+            last_checked_at, last_online_at, last_recording_at, created_at, updated_at,
+            record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome,
+            last_completed_at, last_started_job_id, last_segment_count, last_refresh_count,
+            last_reconnect_count, last_file_size
          ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-            ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25
+            ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28,
+            ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36
          )
          ON CONFLICT(id) DO UPDATE SET
             target_input = excluded.target_input,
@@ -206,6 +306,17 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             last_checked_at = excluded.last_checked_at,
             last_online_at = excluded.last_online_at,
             last_recording_at = excluded.last_recording_at,
+            record_mode = excluded.record_mode,
+            cooldown_seconds = excluded.cooldown_seconds,
+            filename_template = excluded.filename_template,
+            last_session_id = excluded.last_session_id,
+            last_outcome = excluded.last_outcome,
+            last_completed_at = excluded.last_completed_at,
+            last_started_job_id = excluded.last_started_job_id,
+            last_segment_count = excluded.last_segment_count,
+            last_refresh_count = excluded.last_refresh_count,
+            last_reconnect_count = excluded.last_reconnect_count,
+            last_file_size = excluded.last_file_size,
             created_at = excluded.created_at,
             updated_at = excluded.updated_at",
         params![
@@ -234,6 +345,19 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             entry.last_recording_at,
             entry.created_at,
             entry.updated_at,
+            entry.record_mode.as_str(),
+            i64::from(entry.cooldown_seconds),
+            entry.filename_template,
+            entry.last_session_id,
+            entry.last_outcome,
+            entry.last_completed_at,
+            entry.last_started_job_id,
+            i64::from(entry.last_segment_count),
+            i64::from(entry.last_refresh_count),
+            i64::from(entry.last_reconnect_count),
+            entry
+                .last_file_size
+                .and_then(|value| i64::try_from(value).ok()),
         ],
     )
     .map_err(|error| format!("Failed to save TikTok Live watchlist entry: {error}"))?;
@@ -359,6 +483,9 @@ mod tests {
             cookie_browser_profile: Some("i879pxds.default-release".to_string()),
             cookie_file_path: None,
             poll_interval_seconds: 60,
+            record_mode: TikTokLiveRecordMode::OncePerLive,
+            cooldown_seconds: 3600,
+            filename_template: None,
             backoff_attempt: 0,
             next_check_at: 100,
             status: TikTokLiveWatchStatus::Offline,
@@ -367,6 +494,14 @@ mod tests {
             last_checked_at: None,
             last_online_at: None,
             last_recording_at: None,
+            last_session_id: None,
+            last_outcome: None,
+            last_completed_at: None,
+            last_started_job_id: None,
+            last_segment_count: 0,
+            last_refresh_count: 0,
+            last_reconnect_count: 0,
+            last_file_size: None,
             created_at: 100,
             updated_at: 100,
         }
@@ -386,6 +521,8 @@ mod tests {
             .expect("watch entry exists");
         assert_eq!(loaded.cookie_browser_profile, entry.cookie_browser_profile);
         assert_eq!(loaded.poll_interval_seconds, 60);
+        assert_eq!(loaded.record_mode, TikTokLiveRecordMode::OncePerLive);
+        assert_eq!(loaded.cooldown_seconds, 3600);
         assert_eq!(loaded.target_input, entry.target_url);
         assert!(
             get_tiktok_live_watch_entry_by_active_job_internal("missing-job")

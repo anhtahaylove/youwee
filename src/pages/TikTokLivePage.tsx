@@ -63,6 +63,7 @@ type TikTokLiveVariant = {
 type TikTokLiveInspectResult = {
   input: string;
   targetUrl: string;
+  sessionId?: string;
   title: string;
   uploader?: string;
   thumbnail?: string;
@@ -113,6 +114,8 @@ type TikTokLiveWatchStatus =
   | 'recoverable'
   | 'error';
 
+type TikTokLiveRecordMode = 'oncePerLive' | 'alwaysAfterCooldown' | 'manualOnly';
+
 type TikTokLiveWatchEntry = {
   id: string;
   targetInput: string;
@@ -129,6 +132,9 @@ type TikTokLiveWatchEntry = {
   cookieBrowserProfile?: string;
   cookieFilePath?: string;
   pollIntervalSeconds: number;
+  recordMode: TikTokLiveRecordMode;
+  cooldownSeconds: number;
+  filenameTemplate?: string;
   backoffAttempt: number;
   nextCheckAt: number;
   status: TikTokLiveWatchStatus;
@@ -137,8 +143,22 @@ type TikTokLiveWatchEntry = {
   lastCheckedAt?: number;
   lastOnlineAt?: number;
   lastRecordingAt?: number;
+  lastSessionId?: string;
+  lastOutcome?: string;
+  lastCompletedAt?: number;
+  lastStartedJobId?: string;
+  lastSegmentCount: number;
+  lastRefreshCount: number;
+  lastReconnectCount: number;
+  lastFileSize?: number;
   createdAt: number;
   updatedAt: number;
+};
+
+type TikTokLiveRecorderConfig = {
+  maxConcurrentRecordings: number;
+  activeRecordings: number;
+  hardLimit: number;
 };
 
 type TikTokLiveWatchAuthSnapshot = Pick<
@@ -148,6 +168,11 @@ type TikTokLiveWatchAuthSnapshot = Pick<
 
 const QUALITY_OPTIONS = ['auto', 'origin', 'uhd_60', 'uhd', 'hd_60', 'hd', 'sd', 'ld', 'ao'];
 const TRANSPORT_OPTIONS = ['auto', 'hls', 'flv', 'lls'];
+const RECORD_MODE_OPTIONS: TikTokLiveRecordMode[] = [
+  'oncePerLive',
+  'alwaysAfterCooldown',
+  'manualOnly',
+];
 
 function isAbsolutePath(path: string): boolean {
   return path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
@@ -217,6 +242,11 @@ export function TikTokLivePage() {
   const [deleteCandidate, setDeleteCandidate] = useState<TikTokLiveRecoveryJob | null>(null);
   const [watchEntries, setWatchEntries] = useState<TikTokLiveWatchEntry[]>([]);
   const [watchPollInterval, setWatchPollInterval] = useState('60');
+  const [watchRecordMode, setWatchRecordMode] = useState<TikTokLiveRecordMode>('oncePerLive');
+  const [watchCooldown, setWatchCooldown] = useState('3600');
+  const [watchFilenameTemplate, setWatchFilenameTemplate] = useState('');
+  const [recorderConfig, setRecorderConfig] = useState<TikTokLiveRecorderConfig | null>(null);
+  const [maxConcurrentRecordings, setMaxConcurrentRecordings] = useState('1');
   const [watchActionId, setWatchActionId] = useState<string | null>(null);
   const [editingWatchId, setEditingWatchId] = useState<string | null>(null);
   const [editingWatchAuth, setEditingWatchAuth] = useState<TikTokLiveWatchAuthSnapshot | null>(
@@ -294,20 +324,32 @@ export function TikTokLivePage() {
     }
   }, []);
 
+  const refreshRecorderConfig = useCallback(async () => {
+    try {
+      const config = await invoke<TikTokLiveRecorderConfig>('get_tiktok_live_recorder_config');
+      setRecorderConfig(config);
+      setMaxConcurrentRecordings(config.maxConcurrentRecordings.toString());
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+    }
+  }, []);
+
   useEffect(() => {
     void refreshRecoveryJobs();
     void refreshWatchlist();
-  }, [refreshRecoveryJobs, refreshWatchlist]);
+    void refreshRecorderConfig();
+  }, [refreshRecoveryJobs, refreshRecorderConfig, refreshWatchlist]);
 
   useEffect(() => {
     const unlistenPromise = listen('tiktok-live-watchlist-updated', () => {
       void refreshWatchlist();
       void refreshRecoveryJobs();
+      void refreshRecorderConfig();
     });
     return () => {
       void unlistenPromise.then((unlisten) => unlisten());
     };
-  }, [refreshRecoveryJobs, refreshWatchlist]);
+  }, [refreshRecorderConfig, refreshRecoveryJobs, refreshWatchlist]);
 
   const updateInput = useCallback((value: string) => {
     setInput(value);
@@ -511,6 +553,20 @@ export function TikTokLivePage() {
     }
   }, [deleteCandidate, refreshRecoveryJobs, t]);
 
+  const updateRecorderLimit = useCallback(async () => {
+    const limitValue = Number.parseInt(maxConcurrentRecordings, 10);
+    try {
+      const config = await invoke<TikTokLiveRecorderConfig>('set_tiktok_live_recorder_config', {
+        maxConcurrentRecordings: Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 1,
+      });
+      setRecorderConfig(config);
+      setMaxConcurrentRecordings(config.maxConcurrentRecordings.toString());
+      setStatus(t('tiktokLive.watchlist.recorderLimitUpdated'));
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+    }
+  }, [maxConcurrentRecordings, t]);
+
   const saveWatchEntry = useCallback(async () => {
     if (!input.trim() || !outputDir) return;
     const actionId = editingWatchId || 'new';
@@ -519,6 +575,7 @@ export function TikTokLivePage() {
     try {
       const durationValue = Number.parseInt(duration, 10);
       const pollIntervalValue = Number.parseInt(watchPollInterval, 10);
+      const cooldownValue = Number.parseInt(watchCooldown, 10);
       const watchAuth = editingWatchAuth ?? invokeOptions;
       await invoke<TikTokLiveWatchEntry>('save_tiktok_live_watch_entry', {
         entry: {
@@ -535,6 +592,10 @@ export function TikTokLivePage() {
           cookieFilePath: watchAuth.cookieFilePath,
           pollIntervalSeconds:
             Number.isFinite(pollIntervalValue) && pollIntervalValue > 0 ? pollIntervalValue : 60,
+          recordMode: watchRecordMode,
+          cooldownSeconds:
+            Number.isFinite(cooldownValue) && cooldownValue >= 0 ? cooldownValue : 3600,
+          filenameTemplate: watchFilenameTemplate.trim() || null,
         },
       });
       setStatus(t(editingWatchId ? 'tiktokLive.watchlist.updated' : 'tiktokLive.watchlist.added'));
@@ -558,7 +619,10 @@ export function TikTokLivePage() {
     refreshWatchlist,
     t,
     transport,
+    watchCooldown,
+    watchFilenameTemplate,
     watchPollInterval,
+    watchRecordMode,
   ]);
 
   const editWatchEntry = useCallback((entry: TikTokLiveWatchEntry) => {
@@ -569,6 +633,9 @@ export function TikTokLivePage() {
     setQuality(entry.preferredQuality || 'auto');
     setTransport(entry.preferredTransport || 'auto');
     setWatchPollInterval(entry.pollIntervalSeconds.toString());
+    setWatchRecordMode(entry.recordMode || 'oncePerLive');
+    setWatchCooldown((entry.cooldownSeconds ?? 3600).toString());
+    setWatchFilenameTemplate(entry.filenameTemplate || '');
     setEditingWatchAuth({
       cookieMode: entry.cookieMode,
       cookieBrowser: entry.cookieBrowser,
@@ -801,6 +868,71 @@ export function TikTokLivePage() {
             />
           </div>
 
+          <div className="grid gap-3 md:grid-cols-4">
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">
+                {t('tiktokLive.watchlist.pollInterval')}
+              </p>
+              <Input
+                type="number"
+                min="30"
+                max="3600"
+                step="1"
+                inputMode="numeric"
+                value={watchPollInterval}
+                onChange={(event) => setWatchPollInterval(event.target.value)}
+                disabled={busy || watchBusy}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">
+                {t('tiktokLive.watchlist.recordMode.label')}
+              </p>
+              <Select
+                value={watchRecordMode}
+                onValueChange={(value) => setWatchRecordMode(value as TikTokLiveRecordMode)}
+                disabled={busy || watchBusy}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {RECORD_MODE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {t(`tiktokLive.watchlist.recordMode.${option}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">
+                {t('tiktokLive.watchlist.cooldownSeconds')}
+              </p>
+              <Input
+                type="number"
+                min="0"
+                max="604800"
+                step="1"
+                inputMode="numeric"
+                value={watchCooldown}
+                onChange={(event) => setWatchCooldown(event.target.value)}
+                disabled={busy || watchBusy}
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-muted-foreground">
+                {t('tiktokLive.watchlist.filenameTemplate')}
+              </p>
+              <Input
+                value={watchFilenameTemplate}
+                onChange={(event) => setWatchFilenameTemplate(event.target.value)}
+                disabled={busy || watchBusy}
+                placeholder="{username}_{date}_{time}"
+              />
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {!isRecording ? (
               <Button onClick={() => void startRecording()} disabled={!canSubmit} className="gap-2">
@@ -828,19 +960,6 @@ export function TikTokLivePage() {
               </output>
             )}
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <Input
-                type="number"
-                min="30"
-                max="3600"
-                step="1"
-                inputMode="numeric"
-                value={watchPollInterval}
-                onChange={(event) => setWatchPollInterval(event.target.value)}
-                className="h-9 w-24"
-                disabled={busy || watchBusy}
-                aria-label={t('tiktokLive.watchlist.pollInterval')}
-                title={t('tiktokLive.watchlist.pollInterval')}
-              />
               <Button
                 variant="outline"
                 onClick={() => void saveWatchEntry()}
@@ -891,9 +1010,35 @@ export function TikTokLivePage() {
                 {t('tiktokLive.watchlist.description')}
               </p>
             </div>
-            <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              {watchEntries.length}
-            </Badge>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              <div className="flex items-center gap-2 rounded-xl bg-muted/25 px-2 py-1">
+                <span className="text-xs text-muted-foreground">
+                  {t('tiktokLive.watchlist.maxRooms')}
+                </span>
+                <Input
+                  type="number"
+                  min="1"
+                  max={recorderConfig?.hardLimit ?? 4}
+                  value={maxConcurrentRecordings}
+                  onChange={(event) => setMaxConcurrentRecordings(event.target.value)}
+                  className="h-8 w-16"
+                  disabled={watchBusy}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void updateRecorderLimit()}
+                  disabled={watchBusy}
+                >
+                  {t('tiktokLive.watchlist.actions.apply')}
+                </Button>
+              </div>
+              <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                {recorderConfig
+                  ? `${recorderConfig.activeRecordings}/${recorderConfig.maxConcurrentRecordings}`
+                  : watchEntries.length}
+              </Badge>
+            </div>
           </div>
 
           {watchEntries.length === 0 ? (
@@ -938,6 +1083,15 @@ export function TikTokLivePage() {
                           seconds: entry.pollIntervalSeconds,
                         })}
                       </span>
+                      <span>
+                        {t('tiktokLive.watchlist.recordMode.label')}:{' '}
+                        {t(`tiktokLive.watchlist.recordMode.${entry.recordMode}`)}
+                      </span>
+                      <span>
+                        {t('tiktokLive.watchlist.cooldownValue', {
+                          seconds: entry.cooldownSeconds,
+                        })}
+                      </span>
                       {entry.lastCheckedAt && (
                         <span>
                           {t('tiktokLive.watchlist.lastChecked')}:{' '}
@@ -948,6 +1102,27 @@ export function TikTokLivePage() {
                         <span>
                           {t('tiktokLive.watchlist.nextCheck')}:{' '}
                           {new Date(entry.nextCheckAt * 1000).toLocaleString()}
+                        </span>
+                      )}
+                      {entry.lastOutcome && (
+                        <span>
+                          {t('tiktokLive.watchlist.lastOutcome')}: {entry.lastOutcome}
+                        </span>
+                      )}
+                      {(entry.lastSegmentCount > 0 ||
+                        entry.lastRefreshCount > 0 ||
+                        entry.lastReconnectCount > 0) && (
+                        <span>
+                          {t('tiktokLive.watchlist.telemetry', {
+                            segments: entry.lastSegmentCount,
+                            refreshes: entry.lastRefreshCount,
+                            reconnects: entry.lastReconnectCount,
+                          })}
+                        </span>
+                      )}
+                      {entry.lastFileSize && (
+                        <span>
+                          {t('tiktokLive.watchlist.lastSize')}: {formatSize(entry.lastFileSize)}
                         </span>
                       )}
                     </div>
