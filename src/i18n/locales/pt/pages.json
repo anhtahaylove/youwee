@@ -435,6 +435,32 @@
     "autoReconnect": {
       "label": "Reconexão automática",
       "description": "Continua gravando durante interrupções temporárias da rede ou transmissão."
+    },
+    "recovery": {
+      "title": "Gravações interrompidas",
+      "description": "Recupere gravações ativas quando o Youwee foi fechado inesperadamente.",
+      "segments": "Segmentos: {{count}}",
+      "reconnects": "Reconexões: {{count}}",
+      "finalizing": "Finalizando a gravação recuperada...",
+      "finalized": "Gravação recuperada finalizada e adicionada à Biblioteca.",
+      "continuing": "Atualizando a live e continuando em um novo segmento...",
+      "deleted": "Arquivos e dados de recuperação excluídos.",
+      "status": {
+        "interrupted": "Interrompida",
+        "recoverable": "Recuperável",
+        "failed": "Falhou"
+      },
+      "actions": {
+        "continue": "Continuar",
+        "finalize": "Finalizar",
+        "delete": "Excluir"
+      },
+      "deleteDialog": {
+        "title": "Excluir dados de recuperação?",
+        "description": "Isso exclui permanentemente os segmentos salvos de “{{title}}”.",
+        "cancel": "Cancelar",
+        "confirm": "Excluir"
+      }
     }
   }
 }

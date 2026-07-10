@@ -438,6 +438,32 @@
     "autoReconnect": {
       "label": "Auto-reconnect",
       "description": "Keep recording through temporary network or stream interruptions."
+    },
+    "recovery": {
+      "title": "Interrupted recordings",
+      "description": "Recover recordings that were active when Youwee closed unexpectedly.",
+      "segments": "Segments: {{count}}",
+      "reconnects": "Reconnects: {{count}}",
+      "finalizing": "Finalizing recovered recording...",
+      "finalized": "Recovered recording finalized and added to Library.",
+      "continuing": "Refreshing the live stream and continuing in a new segment...",
+      "deleted": "Recovery files and job data deleted.",
+      "status": {
+        "interrupted": "Interrupted",
+        "recoverable": "Recoverable",
+        "failed": "Failed"
+      },
+      "actions": {
+        "continue": "Continue",
+        "finalize": "Finalize",
+        "delete": "Delete"
+      },
+      "deleteDialog": {
+        "title": "Delete recovery data?",
+        "description": "This permanently deletes the saved segments for “{{title}}”.",
+        "cancel": "Cancel",
+        "confirm": "Delete"
+      }
     }
   }
 }

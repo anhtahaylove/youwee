@@ -627,14 +627,60 @@ pub fn add_history_internal(
     source: Option<String>,
     time_range: Option<String>,
 ) -> Result<String, String> {
+    upsert_history_with_id_internal(
+        uuid::Uuid::new_v4().to_string(),
+        url,
+        title,
+        thumbnail,
+        filepath,
+        filesize,
+        duration,
+        quality,
+        format,
+        source,
+        time_range,
+    )
+}
+
+/// Add or replace one history entry using a stable caller-owned ID.
+///
+/// Recovery workflows use this to make their final history write idempotent
+/// after an app crash. Ordinary downloads should keep using
+/// [`add_history_internal`].
+#[allow(clippy::too_many_arguments)]
+pub fn upsert_history_with_id_internal(
+    id: String,
+    url: String,
+    title: String,
+    thumbnail: Option<String>,
+    filepath: String,
+    filesize: Option<u64>,
+    duration: Option<u64>,
+    quality: Option<String>,
+    format: Option<String>,
+    source: Option<String>,
+    time_range: Option<String>,
+) -> Result<String, String> {
     let conn = get_db()?;
-    let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
     let (media_id, canonical_url) = build_history_identity(&url, source.as_deref());
 
     conn.execute(
-        "INSERT OR REPLACE INTO history (id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, time_range, media_id, canonical_url)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+        "INSERT INTO history (id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, time_range, media_id, canonical_url)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
+         ON CONFLICT(id) DO UPDATE SET
+            url = excluded.url,
+            title = excluded.title,
+            thumbnail = excluded.thumbnail,
+            filepath = excluded.filepath,
+            filesize = excluded.filesize,
+            duration = excluded.duration,
+            quality = excluded.quality,
+            format = excluded.format,
+            source = excluded.source,
+            time_range = excluded.time_range,
+            media_id = excluded.media_id,
+            canonical_url = excluded.canonical_url",
         params![
             id,
             url,
@@ -1464,7 +1510,58 @@ mod tests {
             "INSERT INTO history (id, url, title, filepath, downloaded_at, summary) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![id, "https://example.com/v", title, "", 0_i64, summary],
         )
-        .expect("insert searchable history row");
+            .expect("insert searchable history row");
+    }
+
+    #[test]
+    fn stable_history_id_upsert_is_idempotent_for_recovery() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        let history_id = "tiktok-live:recovery-job".to_string();
+
+        for (index, (title, filepath)) in [("First write", "first.mp4"), ("Recovered", "final.mp4")]
+            .into_iter()
+            .enumerate()
+        {
+            upsert_history_with_id_internal(
+                history_id.clone(),
+                "https://www.tiktok.com/@creator/live".to_string(),
+                title.to_string(),
+                None,
+                filepath.to_string(),
+                Some(42),
+                None,
+                Some("best".to_string()),
+                Some("mp4".to_string()),
+                Some("tiktok-live".to_string()),
+                None,
+            )
+            .expect("upsert recovery history");
+            if index == 0 {
+                update_history_summary(history_id.clone(), "keep this summary".to_string())
+                    .expect("add summary before recovery retry");
+            }
+        }
+
+        let conn = get_db().expect("get db");
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM history WHERE id = ?1",
+                params![history_id.clone()],
+                |row| row.get(0),
+            )
+            .expect("count stable history rows");
+        let (title, filepath, summary): (String, String, Option<String>) = conn
+            .query_row(
+                "SELECT title, filepath, summary FROM history WHERE id = ?1",
+                params![history_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("read stable history row");
+        assert_eq!(count, 1);
+        assert_eq!(title, "Recovered");
+        assert_eq!(filepath, "final.mp4");
+        assert_eq!(summary.as_deref(), Some("keep this summary"));
     }
 
     #[test]

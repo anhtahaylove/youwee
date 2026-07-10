@@ -99,11 +99,18 @@ Thêm trang/section nhỏ:
 - Cancel chủ động vẫn xóa file của job; app/FFmpeg bị kill không có cleanup tự động nên segment crash-safe còn nguyên trên disk cho Phase recovery tiếp theo.
 - Signed URL, cookie và HTTP header không được ghi vào manifest, Library/history hoặc log.
 
-## Phase 2D (planned): persisted jobs and app restart recovery
+## Phase 2D: persisted jobs and app restart recovery
 
-- Lưu metadata job và danh sách segment trong SQLite nhưng không lưu cookie value hoặc signed stream URL.
-- Khi mở app, đổi job đang Recording/Reconnecting thành Interrupted/Recoverable nếu còn segment trên disk.
-- Cho phép Finalize, Continue bằng signed URL mới, hoặc Delete; mỗi session chỉ tạo một Library/history record cuối.
+Đã triển khai trong custom worktree:
+
+- Lưu job ID, target canonical, title/thumbnail, output folder, quality/transport, duration, tham chiếu cookie profile, segment, counters và trạng thái vòng đời trong SQLite.
+- Không lưu signed stream URL, cookie value, secret HTTP header hoặc proxy URL; Continue luôn lấy lại signed URL mới và dùng proxy hiện tại trong Settings.
+- Ghi trạng thái `Preparing`, `Recording`, `Reconnecting`, `Interrupted`, `Recoverable`, `Finalizing`, `Completed`, `Partial`, `Cancelled`, `Failed` xuyên suốt vòng đời.
+- Persist đường dẫn segment trước khi spawn FFmpeg để hard-kill vẫn để lại record có thể đối chiếu với file crash-safe trên disk.
+- Khi app mở lại, job active cũ được chuyển thành `Recoverable` nếu còn media hoặc `Interrupted` nếu chưa ghi được dữ liệu.
+- UI hiển thị danh sách recovery và các thao tác Continue, Finalize, Delete; Delete dùng hộp thoại xác nhận và chỉ xóa đúng file do job sinh ra.
+- Continue lấy metadata/signed URL mới rồi ghi segment kế tiếp; Finalize remux các segment còn lại và giữ MKV nếu MP4 lỗi.
+- Mỗi session dùng history ID ổn định để retry finalize chỉ upsert một Library/history row, không tạo bản ghi trùng.
 
 ## Phase 3 (deferred)
 
@@ -145,6 +152,11 @@ Thêm trang/section nhỏ:
   - Native reconnect không giữ retry 401/403/404 trên signed URL đã hết hạn.
   - FFmpeg args ghi segment dùng Matroska và không dùng MP4 `+faststart`.
   - Fallback history extension lấy từ filepath thực tế thay vì hard-code MP4.
+- Persisted recovery:
+  - SQLite round-trip giữ đủ metadata recovery nhưng serialized job không có signed URL, cookie value hoặc proxy URL.
+  - Startup reconciliation phân biệt `Recoverable` khi còn media và `Interrupted` khi file chưa được tạo.
+  - Stable history ID upsert nhiều lần vẫn chỉ có một Library/history row.
+  - Delete chỉ chấp nhận output/segment/fallback/manifest đúng mẫu do job sinh trong output folder.
 
 ### Manual acceptance
 
@@ -171,13 +183,22 @@ Thêm trang/section nhỏ:
 10. Hard-kill FFmpeg hoặc Youwee khi đang ghi:
    - `.part-NNN.mkv` còn trên disk và đọc được.
    - Segment remux được sang MP4 bằng `-c copy`.
-   - Mở lại app không tự xóa segment dang dở.
+    - Mở lại app không tự xóa segment dang dở.
+11. Mở lại Youwee:
+    - Job xuất hiện trong Interrupted recordings với trạng thái và số segment đúng.
+    - Continue lấy signed URL mới và ghi thêm segment, không nối byte trực tiếp vào file cũ.
+    - Finalize tạo một MP4 hoặc giữ MKV phát được; Library/history chỉ có một bản ghi cho session.
+    - Delete hỏi xác nhận, xóa đúng file recovery và không xóa output folder/file không thuộc job.
 
 ## Required checks
 
 - `bun run biome check --write .`
 - `bun run tsc -b`
 - `cargo check` trong `src-tauri`
-- Targeted Rust tests cho TikTok Live helper
+- `bun test`
+- `cargo test --lib`
+- Targeted Rust tests cho TikTok Live persistence/reconciliation/history/delete safety
+- FFmpeg hard-kill smoke với bundled binary để xác nhận MKV còn probe/remux được
+- `bun run build`
 - Full NSIS build chỉ chạy khi cần đóng gói.
 

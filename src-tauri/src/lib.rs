@@ -281,8 +281,10 @@ pub fn run() {
             }
 
             // Initialize the database
-            if let Err(e) = database::init_database(&app.handle()) {
-                log::error!("Failed to initialize database: {}", e);
+            if let Err(error) = database::init_database(&app.handle()) {
+                log::error!("Failed to initialize database: {}", error);
+            } else if let Err(error) = commands::reconcile_tiktok_live_jobs_after_restart() {
+                log::error!("Failed to reconcile TikTok Live jobs: {}", error);
             }
 
             // Start background channel polling
@@ -451,6 +453,10 @@ pub fn run() {
             commands::inspect_tiktok_live,
             commands::record_tiktok_live,
             commands::cancel_tiktok_live_recording,
+            commands::list_tiktok_live_recovery_jobs,
+            commands::finalize_tiktok_live_recovery,
+            commands::continue_tiktok_live_recovery,
+            commands::delete_tiktok_live_recovery,
             commands::update_plugin_config_values,
             commands::set_plugin_provider,
             commands::set_plugin_timeout,

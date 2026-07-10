@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TikTok Live Recorder Phase 2A** - Add bounded FFmpeg auto-reconnect, metadata retry with backoff, partial-recording recovery, and detailed recording lifecycle states
 - **TikTok Live Recorder Phase 2B** - Refresh expired signed stream URLs, resume into numbered segments, merge segments without transcoding, and preserve recorded parts when merging fails
 - **TikTok Live Recorder Phase 2C** - Record crash-safe Matroska segments, remux them to MP4 without transcoding, and preserve playable MKV files when finalization fails
+- **TikTok Live Recorder Phase 2D** - Persist safe recording job metadata in SQLite, reconcile interrupted sessions at startup, and provide Continue, Finalize, and confirmed Delete recovery actions without storing signed URLs or cookie values
 
 ### Fixed
 - **TikTok Live errors and cancellation** - Unwrap nested backend wire errors, report offline streams cleanly, and allow cancellation while metadata is still being prepared

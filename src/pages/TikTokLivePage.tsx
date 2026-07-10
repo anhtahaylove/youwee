@@ -2,10 +2,30 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { downloadDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
-import { Folder, Loader2, Radio, RefreshCw, Search, Square } from 'lucide-react';
+import {
+  FileCheck2,
+  Folder,
+  Loader2,
+  Play,
+  Radio,
+  RefreshCw,
+  Search,
+  Square,
+  Trash2,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ThemePicker } from '@/components/settings/ThemePicker';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +86,21 @@ type TikTokLiveStatusEvent = {
   autoReconnect?: boolean;
 };
 
+type TikTokLiveRecoveryJob = {
+  id: string;
+  target: string;
+  title: string;
+  outputDir: string;
+  status: 'interrupted' | 'recoverable' | 'failed';
+  segmentCount: number;
+  hasMedia: boolean;
+  refreshCount: number;
+  reconnectCount: number;
+  startedAt: number;
+  updatedAt: number;
+  errorMessage?: string;
+};
+
 const QUALITY_OPTIONS = ['auto', 'origin', 'uhd_60', 'uhd', 'hd_60', 'hd', 'sd', 'ld', 'ao'];
 const TRANSPORT_OPTIONS = ['auto', 'hls', 'flv', 'lls'];
 
@@ -119,6 +154,9 @@ export function TikTokLivePage() {
   const [isInspecting, setIsInspecting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [recoveryJobs, setRecoveryJobs] = useState<TikTokLiveRecoveryJob[]>([]);
+  const [recoveryActionId, setRecoveryActionId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<TikTokLiveRecoveryJob | null>(null);
   const activeInspectJobIdRef = useRef<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
@@ -171,6 +209,18 @@ export function TikTokLivePage() {
     const { cookieSettings, proxySettings } = loadNetworkSettings();
     return buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
   }, []);
+
+  const refreshRecoveryJobs = useCallback(async () => {
+    try {
+      setRecoveryJobs(await invoke<TikTokLiveRecoveryJob[]>('list_tiktok_live_recovery_jobs'));
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRecoveryJobs();
+  }, [refreshRecoveryJobs]);
 
   const updateInput = useCallback((value: string) => {
     setInput(value);
@@ -269,8 +319,19 @@ export function TikTokLivePage() {
       activeJobIdRef.current = null;
       setIsRecording(false);
       setIsCancelling(false);
+      void refreshRecoveryJobs();
     }
-  }, [autoReconnect, duration, input, invokeOptions, outputDir, quality, t, transport]);
+  }, [
+    autoReconnect,
+    duration,
+    input,
+    invokeOptions,
+    outputDir,
+    quality,
+    refreshRecoveryJobs,
+    t,
+    transport,
+  ]);
 
   const cancelRecording = useCallback(async () => {
     const jobId = activeJobIdRef.current;
@@ -287,7 +348,83 @@ export function TikTokLivePage() {
     }
   }, [t]);
 
-  const busy = isInspecting || isRecording;
+  const finalizeRecovery = useCallback(
+    async (job: TikTokLiveRecoveryJob) => {
+      setRecoveryActionId(job.id);
+      setError('');
+      setStatus(t('tiktokLive.recovery.finalizing'));
+      try {
+        const result = await invoke<TikTokLiveRecordResult>('finalize_tiktok_live_recovery', {
+          jobId: job.id,
+        });
+        setRecordResult(result);
+        setStatus(t('tiktokLive.recovery.finalized'));
+      } catch (err) {
+        setError(localizeBackendError(extractBackendError(err)));
+        setStatus(t('tiktokLive.status.failed'));
+      } finally {
+        setRecoveryActionId(null);
+        void refreshRecoveryJobs();
+      }
+    },
+    [refreshRecoveryJobs, t],
+  );
+
+  const continueRecovery = useCallback(
+    async (job: TikTokLiveRecoveryJob) => {
+      activeJobIdRef.current = job.id;
+      setRecoveryActionId(job.id);
+      setIsRecording(true);
+      setError('');
+      setRecordResult(null);
+      setStatus(t('tiktokLive.recovery.continuing'));
+      try {
+        const result = await invoke<TikTokLiveRecordResult>('continue_tiktok_live_recovery', {
+          jobId: job.id,
+          cookieSkipPatterns: invokeOptions.cookieSkipPatterns,
+          proxyUrl: invokeOptions.proxyUrl,
+        });
+        setRecordResult(result);
+        setStatus(
+          t(result.partial ? 'tiktokLive.status.partialSaved' : 'tiktokLive.status.recorded'),
+        );
+      } catch (err) {
+        if (isCancellationError(err)) {
+          setStatus(t('tiktokLive.status.cancelled'));
+        } else {
+          setError(localizeBackendError(extractBackendError(err)));
+          setStatus(t('tiktokLive.status.failed'));
+        }
+      } finally {
+        activeJobIdRef.current = null;
+        setRecoveryActionId(null);
+        setIsRecording(false);
+        setIsCancelling(false);
+        void refreshRecoveryJobs();
+      }
+    },
+    [invokeOptions.cookieSkipPatterns, invokeOptions.proxyUrl, refreshRecoveryJobs, t],
+  );
+
+  const deleteRecovery = useCallback(async () => {
+    if (!deleteCandidate) return;
+    const jobId = deleteCandidate.id;
+    setRecoveryActionId(jobId);
+    setDeleteCandidate(null);
+    setError('');
+    try {
+      await invoke('delete_tiktok_live_recovery', { jobId });
+      setStatus(t('tiktokLive.recovery.deleted'));
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+      setStatus(t('tiktokLive.status.failed'));
+    } finally {
+      setRecoveryActionId(null);
+      void refreshRecoveryJobs();
+    }
+  }, [deleteCandidate, refreshRecoveryJobs, t]);
+
+  const busy = isInspecting || isRecording || recoveryActionId !== null;
   const canSubmit = input.trim().length > 0 && !busy;
   const canCancel = isRecording && !isCancelling;
 
@@ -455,6 +592,87 @@ export function TikTokLivePage() {
           )}
         </section>
 
+        {recoveryJobs.length > 0 && (
+          <section className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-medium">{t('tiktokLive.recovery.title')}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('tiktokLive.recovery.description')}
+              </p>
+            </div>
+            <div className="grid gap-3">
+              {recoveryJobs.map((job) => {
+                const actionPending = recoveryActionId === job.id;
+                return (
+                  <div key={job.id} className="rounded-xl border border-border/60 bg-card/50 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{job.title}</p>
+                        <p className="mt-1 truncate text-xs text-muted-foreground">{job.target}</p>
+                        <p
+                          className="mt-1 truncate text-xs text-muted-foreground"
+                          title={job.outputDir}
+                        >
+                          {t('tiktokLive.output.label')}: {job.outputDir}
+                        </p>
+                      </div>
+                      <Badge className="shrink-0 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                        {t(`tiktokLive.recovery.status.${job.status}`)}
+                      </Badge>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>{t('tiktokLive.recovery.segments', { count: job.segmentCount })}</span>
+                      <span>
+                        {t('tiktokLive.recovery.reconnects', { count: job.reconnectCount })}
+                      </span>
+                      <span>{new Date(job.updatedAt * 1000).toLocaleString()}</span>
+                    </div>
+                    {job.errorMessage && (
+                      <p className="mt-2 text-xs text-muted-foreground">{job.errorMessage}</p>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={busy}
+                        onClick={() => void continueRecovery(job)}
+                      >
+                        {actionPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Play className="h-4 w-4" />
+                        )}
+                        {t('tiktokLive.recovery.actions.continue')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={busy || !job.hasMedia}
+                        onClick={() => void finalizeRecovery(job)}
+                      >
+                        <FileCheck2 className="h-4 w-4" />
+                        {t('tiktokLive.recovery.actions.finalize')}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2 border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500"
+                        disabled={busy}
+                        onClick={() => setDeleteCandidate(job)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t('tiktokLive.recovery.actions.delete')}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         {inspectResult && (
           <section className="rounded-2xl border border-white/[0.08] bg-card/30 p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
@@ -531,6 +749,31 @@ export function TikTokLivePage() {
           </section>
         )}
       </main>
+
+      <AlertDialog
+        open={deleteCandidate !== null}
+        onOpenChange={(open) => !open && setDeleteCandidate(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('tiktokLive.recovery.deleteDialog.title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('tiktokLive.recovery.deleteDialog.description', {
+                title: deleteCandidate?.title || '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('tiktokLive.recovery.deleteDialog.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={() => void deleteRecovery()}
+            >
+              {t('tiktokLive.recovery.deleteDialog.confirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

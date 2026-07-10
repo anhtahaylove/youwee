@@ -1,10 +1,14 @@
-use crate::database::add_history_internal;
-use crate::database::add_log_internal;
+use crate::database::{
+    add_log_internal, delete_tiktok_live_job_internal, get_tiktok_live_job_internal,
+    get_tiktok_live_jobs_internal, save_tiktok_live_job_internal, upsert_history_with_id_internal,
+    TikTokLiveJob, TikTokLiveJobStatus,
+};
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
 };
 use crate::types::{code, BackendError};
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
+use chrono::Utc;
 use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -86,6 +90,42 @@ pub struct TikTokLiveRecordResult {
     pub title: String,
     pub filesize: Option<u64>,
     pub partial: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TikTokLiveRecoveryJob {
+    pub id: String,
+    pub target: String,
+    pub title: String,
+    pub output_dir: String,
+    pub status: TikTokLiveJobStatus,
+    pub segment_count: usize,
+    pub has_media: bool,
+    pub refresh_count: u32,
+    pub reconnect_count: u32,
+    pub started_at: i64,
+    pub updated_at: i64,
+    pub error_message: Option<String>,
+}
+
+impl From<&TikTokLiveJob> for TikTokLiveRecoveryJob {
+    fn from(job: &TikTokLiveJob) -> Self {
+        Self {
+            id: job.id.clone(),
+            target: job.target_input.clone(),
+            title: job.title.clone(),
+            output_dir: job.output_dir.clone(),
+            status: job.status,
+            segment_count: recoverable_segment_paths(job).len(),
+            has_media: job_has_recoverable_media(job),
+            refresh_count: job.refresh_count,
+            reconnect_count: job.reconnect_count,
+            started_at: job.started_at,
+            updated_at: job.updated_at,
+            error_message: job.error_message.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -240,6 +280,181 @@ fn concat_list_path_for_recording(output_path: &Path) -> PathBuf {
         .and_then(|value| value.to_str())
         .unwrap_or("TikTok LIVE");
     output_path.with_file_name(format!("{stem}.ffconcat"))
+}
+
+fn path_has_media(path: &Path) -> bool {
+    fs::metadata(path).is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+}
+
+fn existing_segment_paths(job: &TikTokLiveJob) -> Vec<PathBuf> {
+    job.segment_paths
+        .iter()
+        .map(PathBuf::from)
+        .filter(|path| path_has_media(path))
+        .collect()
+}
+
+fn recoverable_segment_paths(job: &TikTokLiveJob) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    if let Some(path) = job.final_path.as_deref().map(PathBuf::from).filter(|path| {
+        path_has_media(path) && path.extension().and_then(|value| value.to_str()) != Some("mp4")
+    }) {
+        paths.push(path);
+    }
+    for path in existing_segment_paths(job) {
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+    paths
+}
+
+fn persisted_history_id(job_id: &str) -> String {
+    format!("tiktok-live:{job_id}")
+}
+
+fn initial_live_title(target: &TikTokLiveTarget) -> String {
+    target
+        .username
+        .as_deref()
+        .map(|username| format!("TikTok LIVE @{username}"))
+        .unwrap_or_else(|| "TikTok LIVE".to_string())
+}
+
+fn resolve_recording_output_dir(app: &AppHandle, requested: &str) -> Result<PathBuf, String> {
+    if requested.trim().is_empty() {
+        app.path().download_dir().map_err(|error| {
+            BackendError::from_message(format!("Failed to resolve Downloads folder: {error}"))
+                .to_wire_string()
+        })
+    } else {
+        Ok(PathBuf::from(requested.trim()))
+    }
+}
+
+fn save_job_status(job: &mut TikTokLiveJob, status: TikTokLiveJobStatus) -> Result<(), String> {
+    job.status = status;
+    job.touch();
+    save_tiktok_live_job_internal(job)
+}
+
+fn recovery_error_message() -> String {
+    "TikTok Live recording stopped unexpectedly. Review Logs for details.".to_string()
+}
+
+fn job_has_recoverable_media(job: &TikTokLiveJob) -> bool {
+    !existing_segment_paths(job).is_empty()
+        || job
+            .final_path
+            .as_deref()
+            .is_some_and(|path| path_has_media(Path::new(path)))
+        || job
+            .output_path
+            .as_deref()
+            .is_some_and(|path| path_has_media(Path::new(path)))
+}
+
+fn recording_output_name_is_safe(path: &Path) -> bool {
+    if path.extension().and_then(|value| value.to_str()) != Some("mp4") {
+        return false;
+    }
+    let Some(stem) = path.file_stem().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    let Some((_, timestamp)) = stem.rsplit_once('_') else {
+        return false;
+    };
+    timestamp.len() == 6
+        && timestamp
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        && stem
+            .strip_suffix(timestamp)
+            .and_then(|prefix| prefix.strip_suffix('_'))
+            .and_then(|prefix| prefix.rsplit_once('_'))
+            .is_some_and(|(_, date)| {
+                date.len() == 8 && date.chars().all(|character| character.is_ascii_digit())
+            })
+}
+
+fn job_owned_paths(job: &TikTokLiveJob) -> Result<Vec<PathBuf>, String> {
+    let output_dir = Path::new(&job.output_dir);
+    let output_path = job
+        .output_path
+        .as_deref()
+        .map(PathBuf::from)
+        .ok_or_else(|| "TikTok Live job has no generated output path.".to_string())?;
+    if output_path.parent() != Some(output_dir) || !recording_output_name_is_safe(&output_path) {
+        return Err("Refusing to remove an unrecognized TikTok Live output path.".to_string());
+    }
+
+    let output_stem = output_path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "TikTok Live output filename is invalid.".to_string())?;
+    let mut paths = vec![
+        output_path.clone(),
+        concat_list_path_for_recording(&output_path),
+    ];
+    for value in &job.segment_paths {
+        let path = PathBuf::from(value);
+        let filename = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        let valid_name = (filename.starts_with(&format!("{output_stem}.part-"))
+            && filename.ends_with(&format!(".{RECORDING_SEGMENT_EXTENSION}")))
+            || path == recoverable_output_path_for_recording(&output_path);
+        if path.parent() != Some(output_dir) || !valid_name {
+            return Err("Refusing to remove an unrecognized TikTok Live segment path.".to_string());
+        }
+        paths.push(path);
+    }
+    if let Some(value) = job.final_path.as_deref() {
+        let path = PathBuf::from(value);
+        let valid_final = path == output_path
+            || path == recoverable_output_path_for_recording(&output_path)
+            || job
+                .segment_paths
+                .iter()
+                .any(|segment| Path::new(segment) == path);
+        if path.parent() != Some(output_dir) || !valid_final {
+            return Err("Refusing to remove an unrecognized TikTok Live final path.".to_string());
+        }
+        paths.push(path);
+    }
+    paths.sort();
+    paths.dedup();
+    Ok(paths)
+}
+
+/// Reconcile stale active jobs after the database is initialized.
+/// Signed stream URLs and request headers are intentionally never persisted.
+pub fn reconcile_tiktok_live_jobs_after_restart() -> Result<usize, String> {
+    let mut reconciled = 0usize;
+    for mut job in get_tiktok_live_jobs_internal()?
+        .into_iter()
+        .filter(|job| job.status.is_restart_candidate())
+    {
+        job.segment_paths = existing_segment_paths(&job)
+            .into_iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+        job.error_message = Some(
+            if job_has_recoverable_media(&job) {
+                job.status = TikTokLiveJobStatus::Recoverable;
+                "Recording was interrupted when Youwee closed. The saved media can be continued or finalized."
+            } else {
+                job.status = TikTokLiveJobStatus::Interrupted;
+                "Recording was interrupted before any recoverable media was written."
+            }
+            .to_string(),
+        );
+        job.touch();
+        save_tiktok_live_job_internal(&job)?;
+        reconciled += 1;
+    }
+    Ok(reconciled)
 }
 
 fn ffconcat_content(paths: &[PathBuf]) -> String {
@@ -1038,15 +1253,36 @@ async fn remove_recording_paths(paths: &[PathBuf]) {
     }
 }
 
-async fn preserve_first_segment(segment_paths: &[PathBuf], output_path: &Path) -> PathBuf {
-    let first = segment_paths[0].clone();
+async fn preserve_single_segment(segment_path: &Path, output_path: &Path) -> PathBuf {
     tokio::fs::remove_file(output_path).await.ok();
     let recoverable_path = recoverable_output_path_for_recording(output_path);
-    if !recoverable_path.exists() && tokio::fs::rename(&first, &recoverable_path).await.is_ok() {
+    if !recoverable_path.exists()
+        && tokio::fs::rename(segment_path, &recoverable_path)
+            .await
+            .is_ok()
+    {
         recoverable_path
     } else {
-        first
+        segment_path.to_path_buf()
     }
+}
+
+async fn finalization_failure(
+    segment_paths: &[PathBuf],
+    output_path: &Path,
+) -> Result<(PathBuf, bool), String> {
+    tokio::fs::remove_file(output_path).await.ok();
+    if segment_paths.len() == 1 {
+        return Ok((
+            preserve_single_segment(&segment_paths[0], output_path).await,
+            true,
+        ));
+    }
+
+    Err(BackendError::from_message(
+        "TikTok Live segments could not be merged. All recorded segments were preserved for recovery.",
+    )
+    .to_wire_string())
 }
 
 async fn finalize_recording_segments(
@@ -1069,10 +1305,7 @@ async fn finalize_recording_segments(
             .await
             .is_err()
         {
-            return Ok((
-                preserve_first_segment(segment_paths, output_path).await,
-                true,
-            ));
+            return finalization_failure(segment_paths, output_path).await;
         }
     }
 
@@ -1102,10 +1335,7 @@ async fn finalize_recording_segments(
             if let Some(path) = concat_path.as_ref() {
                 tokio::fs::remove_file(path).await.ok();
             }
-            return Ok((
-                preserve_first_segment(segment_paths, output_path).await,
-                true,
-            ));
+            return finalization_failure(segment_paths, output_path).await;
         }
     };
 
@@ -1134,12 +1364,70 @@ async fn finalize_recording_segments(
         remove_recording_paths(segment_paths).await;
         Ok((output_path.to_path_buf(), false))
     } else {
-        tokio::fs::remove_file(output_path).await.ok();
-        Ok((
-            preserve_first_segment(segment_paths, output_path).await,
-            true,
-        ))
+        finalization_failure(segment_paths, output_path).await
     }
+}
+
+async fn complete_tiktok_live_job(
+    job: &mut TikTokLiveJob,
+    final_path: PathBuf,
+    partial: bool,
+    duration: Option<u64>,
+) -> Result<TikTokLiveRecordResult, String> {
+    let filepath = final_path.to_string_lossy().to_string();
+    let filesize = tokio::fs::metadata(&final_path)
+        .await
+        .ok()
+        .map(|metadata| metadata.len());
+    if filesize == Some(0) || filesize.is_none() {
+        return Err(BackendError::from_message(
+            "TikTok Live final media file is missing or empty.",
+        )
+        .to_wire_string());
+    }
+
+    job.final_path = Some(filepath.clone());
+    job.status = TikTokLiveJobStatus::Finalizing;
+    job.touch();
+    save_tiktok_live_job_internal(job)?;
+
+    let history_id = job
+        .history_id
+        .clone()
+        .unwrap_or_else(|| persisted_history_id(&job.id));
+    upsert_history_with_id_internal(
+        history_id.clone(),
+        job.target_url.clone(),
+        job.title.clone(),
+        job.thumbnail.clone(),
+        filepath.clone(),
+        filesize,
+        duration,
+        job.format_id.clone(),
+        Some(media_extension(&final_path)),
+        Some("tiktok-live".to_string()),
+        None,
+    )?;
+
+    job.history_id = Some(history_id.clone());
+    job.status = if partial {
+        TikTokLiveJobStatus::Partial
+    } else {
+        TikTokLiveJobStatus::Completed
+    };
+    job.completed_at = Some(Utc::now().timestamp());
+    job.error_message = None;
+    job.touch();
+    save_tiktok_live_job_internal(job)?;
+
+    Ok(TikTokLiveRecordResult {
+        job_id: job.id.clone(),
+        history_id,
+        filepath,
+        title: job.title.clone(),
+        filesize,
+        partial,
+    })
 }
 
 async fn fetch_tiktok_live_json(
@@ -1516,12 +1804,93 @@ pub async fn record_tiktok_live(
     auto_reconnect: Option<bool>,
 ) -> Result<TikTokLiveRecordResult, String> {
     let target = parse_tiktok_live_target(&input)
-        .map_err(|e| BackendError::from_message(e).to_wire_string())?;
+        .map_err(|error| BackendError::from_message(error).to_wire_string())?;
+    let target_url = tiktok_target_url(&target)
+        .ok_or_else(|| BackendError::from_message("Missing TikTok Live target").to_wire_string())?;
     let auto_reconnect = auto_reconnect.unwrap_or(true);
+    let output_dir = resolve_recording_output_dir(&app, &output_dir)?;
+    tokio::fs::create_dir_all(&output_dir)
+        .await
+        .map_err(|error| {
+            BackendError::from_message(format!("Failed to create output folder: {error}"))
+                .to_wire_string()
+        })?;
+
+    let existing_job = get_tiktok_live_job_internal(&job_id)?;
+    if existing_job
+        .as_ref()
+        .is_some_and(|job| !job.status.can_resume())
+    {
+        return Err(BackendError::from_message(
+            "This TikTok Live recording job cannot be resumed.",
+        )
+        .to_wire_string());
+    }
+
+    let now = Utc::now().timestamp();
+    let mut job = existing_job.unwrap_or_else(|| TikTokLiveJob {
+        id: job_id.clone(),
+        target_input: target.input.clone(),
+        target_url: target_url.clone(),
+        username: target.username.clone(),
+        title: initial_live_title(&target),
+        thumbnail: None,
+        output_dir: output_dir.to_string_lossy().to_string(),
+        output_path: None,
+        final_path: None,
+        preferred_quality: preferred_quality.clone(),
+        preferred_transport: preferred_transport.clone(),
+        duration_seconds,
+        cookie_mode: cookie_mode.clone(),
+        cookie_browser: cookie_browser.clone(),
+        cookie_browser_profile: cookie_browser_profile.clone(),
+        cookie_file_path: cookie_file_path.clone(),
+        auto_reconnect,
+        status: TikTokLiveJobStatus::Preparing,
+        segment_paths: Vec::new(),
+        refresh_count: 0,
+        reconnect_count: 0,
+        format_id: None,
+        history_id: Some(persisted_history_id(&job_id)),
+        error_message: None,
+        started_at: now,
+        updated_at: now,
+        completed_at: None,
+    });
+    job.target_input = target.input.clone();
+    job.target_url = target_url;
+    job.username = target.username.clone();
+    job.output_dir = output_dir.to_string_lossy().to_string();
+    job.preferred_quality = preferred_quality.clone();
+    job.preferred_transport = preferred_transport.clone();
+    job.duration_seconds = duration_seconds;
+    job.cookie_mode = cookie_mode.clone();
+    job.cookie_browser = cookie_browser.clone();
+    job.cookie_browser_profile = cookie_browser_profile.clone();
+    job.cookie_file_path = cookie_file_path.clone();
+    job.auto_reconnect = auto_reconnect;
+    job.segment_paths = recoverable_segment_paths(&job)
+        .into_iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect();
+    job.final_path = None;
+    job.completed_at = None;
+    job.error_message = None;
+
     let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
     {
         let mut recordings = ACTIVE_RECORDINGS.lock().await;
+        if recordings.contains_key(&job_id) {
+            return Err(BackendError::from_message(
+                "This TikTok Live recording job is already active.",
+            )
+            .to_wire_string());
+        }
         recordings.insert(job_id.clone(), cancel_tx);
+    }
+    if let Err(error) = save_job_status(&mut job, TikTokLiveJobStatus::Preparing) {
+        ACTIVE_RECORDINGS.lock().await.remove(&job_id);
+        return Err(error);
     }
 
     let result: Result<TikTokLiveRecordResult, String> = async {
@@ -1548,34 +1917,34 @@ pub async fn record_tiktok_live(
                 BackendError::from_message("No TikTok Live stream variants found.")
                     .to_wire_string()
             })?;
-
         let ffmpeg_path = get_ffmpeg_path(&app)
             .await
             .ok_or_else(|| BackendError::from_message("FFmpeg not found.").to_wire_string())?;
 
-        let output_dir = if output_dir.trim().is_empty() {
-            app.path().download_dir().map_err(|e| {
-                BackendError::from_message(format!("Failed to resolve Downloads folder: {e}"))
-                    .to_wire_string()
-            })?
-        } else {
-            PathBuf::from(output_dir.trim())
-        };
-        tokio::fs::create_dir_all(&output_dir)
-            .await
-            .map_err(|e| {
-                BackendError::from_message(format!("Failed to create output folder: {e}"))
-                    .to_wire_string()
-            })?;
+        job.target_url = target_url.clone();
+        job.title = tiktok_live_title(&json, target.username.as_deref());
+        job.thumbnail = string_at(
+            &json,
+            &[
+                "/thumbnail",
+                "/data/cover/url_list/0",
+                "/data/owner/avatar_thumb/url_list/0",
+            ],
+        );
+        job.format_id = Some(selected.variant.format_id.clone());
+        let output_path = job
+            .output_path
+            .as_deref()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| output_path_for_recording(&output_dir, &job.title));
+        job.output_path = Some(output_path.to_string_lossy().to_string());
+        save_job_status(&mut job, TikTokLiveJobStatus::Recording)?;
 
-        let title = tiktok_live_title(&json, target.username.as_deref());
-        let output_path = output_path_for_recording(&output_dir, &title);
-        let history_target_url = target_url.clone();
         let started_at = Instant::now();
-        let mut segment_paths = Vec::new();
-        let mut segment_number = 1usize;
-        let mut refresh_attempts = 0u32;
-        let mut partial = false;
+        let mut segment_paths = existing_segment_paths(&job);
+        let mut segment_number = segment_paths.len() + 1;
+        let mut session_refresh_attempts = 0u32;
+        let mut partial = !segment_paths.is_empty();
 
         loop {
             let remaining_seconds = remaining_recording_seconds(started_at, duration_seconds);
@@ -1583,7 +1952,15 @@ pub async fn record_tiktok_live(
                 break;
             }
 
-            let segment_path = segment_path_for_recording(&output_path, segment_number);
+            let mut segment_path = segment_path_for_recording(&output_path, segment_number);
+            while segment_path.exists() {
+                segment_number += 1;
+                segment_path = segment_path_for_recording(&output_path, segment_number);
+            }
+            job.segment_paths
+                .push(segment_path.to_string_lossy().to_string());
+            save_job_status(&mut job, TikTokLiveJobStatus::Recording)?;
+
             let cookie_header = tiktok_cookie_header(
                 &target_url,
                 cookie_mode.as_deref(),
@@ -1604,7 +1981,7 @@ pub async fn record_tiktok_live(
                 "info",
                 &format!(
                     "Recording TikTok Live segment {segment_number}: {} ({}, auto-reconnect: {})",
-                    title, selected.variant.format_id, auto_reconnect
+                    job.title, selected.variant.format_id, auto_reconnect
                 ),
                 None,
                 Some(&target_url),
@@ -1617,6 +1994,7 @@ pub async fn record_tiktok_live(
             let mut child = match cmd.spawn() {
                 Ok(child) => child,
                 Err(error) if !segment_paths.is_empty() => {
+                    job.segment_paths.retain(|path| path != &segment_path.to_string_lossy());
                     add_log_internal(
                         "info",
                         &format!("Could not start the next TikTok Live segment: {error}"),
@@ -1628,6 +2006,7 @@ pub async fn record_tiktok_live(
                     break;
                 }
                 Err(error) => {
+                    job.segment_paths.retain(|path| path != &segment_path.to_string_lossy());
                     return Err(BackendError::from_message(format!(
                         "Failed to start FFmpeg: {error}"
                     ))
@@ -1651,6 +2030,7 @@ pub async fn record_tiktok_live(
                     tokio::fs::remove_file(&segment_path).await.ok();
                     remove_recording_paths(&segment_paths).await;
                     tokio::fs::remove_file(&output_path).await.ok();
+                    job.segment_paths.clear();
                     return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
                 }
             };
@@ -1664,7 +2044,14 @@ pub async fn record_tiktok_live(
                 segment_paths.push(segment_path.clone());
             } else {
                 tokio::fs::remove_file(&segment_path).await.ok();
+                job.segment_paths
+                    .retain(|path| path != &segment_path.to_string_lossy());
             }
+            job.segment_paths = segment_paths
+                .iter()
+                .map(|path| path.to_string_lossy().to_string())
+                .collect();
+            save_tiktok_live_job_internal(&job)?;
 
             if status.is_some_and(|status| status.success()) {
                 if segment_paths.is_empty() {
@@ -1676,7 +2063,9 @@ pub async fn record_tiktok_live(
                 break;
             }
 
-            if duration_seconds.is_some() && remaining_recording_seconds(started_at, duration_seconds) == Some(0) {
+            if duration_seconds.is_some()
+                && remaining_recording_seconds(started_at, duration_seconds) == Some(0)
+            {
                 if segment_paths.is_empty() {
                     return Err(BackendError::from_message(
                         "TikTok Live recording ended without media.",
@@ -1687,15 +2076,18 @@ pub async fn record_tiktok_live(
             }
 
             if !auto_reconnect {
-                remove_recording_paths(&segment_paths).await;
-                return Err(BackendError::from_message(format!(
-                    "FFmpeg exited with code: {:?}",
-                    status.and_then(|status| status.code())
-                ))
-                .to_wire_string());
+                if segment_paths.is_empty() {
+                    return Err(BackendError::from_message(format!(
+                        "FFmpeg exited with code: {:?}",
+                        status.and_then(|status| status.code())
+                    ))
+                    .to_wire_string());
+                }
+                partial = true;
+                break;
             }
 
-            if refresh_attempts >= STREAM_URL_REFRESH_ATTEMPTS {
+            if session_refresh_attempts >= STREAM_URL_REFRESH_ATTEMPTS {
                 if segment_paths.is_empty() {
                     return Err(BackendError::from_message(
                         "TikTok Live stream URL refresh attempts were exhausted without media.",
@@ -1706,19 +2098,22 @@ pub async fn record_tiktok_live(
                 break;
             }
 
-            refresh_attempts += 1;
+            session_refresh_attempts += 1;
+            job.refresh_count += 1;
+            job.reconnect_count += 1;
+            save_job_status(&mut job, TikTokLiveJobStatus::Reconnecting)?;
             emit_tiktok_live_status(
                 &app,
                 Some(&job_id),
                 "refreshing-stream",
-                Some(refresh_attempts),
+                Some(session_refresh_attempts),
                 Some(STREAM_URL_REFRESH_ATTEMPTS),
                 Some(auto_reconnect),
             );
             add_log_internal(
                 "info",
                 &format!(
-                    "Refreshing TikTok Live signed stream URL ({refresh_attempts}/{STREAM_URL_REFRESH_ATTEMPTS})"
+                    "Refreshing TikTok Live signed stream URL ({session_refresh_attempts}/{STREAM_URL_REFRESH_ATTEMPTS})"
                 ),
                 None,
                 Some(&target_url),
@@ -1740,6 +2135,7 @@ pub async fn record_tiktok_live(
                 _ = &mut cancel_rx => {
                     remove_recording_paths(&segment_paths).await;
                     tokio::fs::remove_file(&output_path).await.ok();
+                    job.segment_paths.clear();
                     return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
                 }
             };
@@ -1749,10 +2145,9 @@ pub async fn record_tiktok_live(
                 Err(error) if !segment_paths.is_empty() => {
                     let backend_error = BackendError::from_message(&error);
                     let stream_ended = backend_error.code() == code::TIKTOK_LIVE_OFFLINE;
-                    let message = backend_error.message().to_string();
                     add_log_internal(
                         "info",
-                        &format!("TikTok Live URL refresh stopped: {message}"),
+                        &format!("TikTok Live URL refresh stopped: {}", backend_error.message()),
                         None,
                         Some(&target_url),
                     )
@@ -1780,6 +2175,18 @@ pub async fn record_tiktok_live(
             json = refreshed_json;
             target_url = refreshed_target_url;
             selected = refreshed_selected;
+            job.target_url = target_url.clone();
+            job.thumbnail = string_at(
+                &json,
+                &[
+                    "/thumbnail",
+                    "/data/cover/url_list/0",
+                    "/data/owner/avatar_thumb/url_list/0",
+                ],
+            )
+            .or(job.thumbnail.clone());
+            job.format_id = Some(selected.variant.format_id.clone());
+            save_job_status(&mut job, TikTokLiveJobStatus::Recording)?;
             segment_number += 1;
         }
 
@@ -1794,6 +2201,12 @@ pub async fn record_tiktok_live(
             );
         }
 
+        job.final_path = Some(
+            recoverable_output_path_for_recording(&output_path)
+                .to_string_lossy()
+                .to_string(),
+        );
+        save_job_status(&mut job, TikTokLiveJobStatus::Finalizing)?;
         let segment_count = segment_paths.len();
         let (final_path, finalization_failed) = finalize_recording_segments(
             &ffmpeg_path,
@@ -1803,92 +2216,269 @@ pub async fn record_tiktok_live(
         )
         .await?;
         partial |= finalization_failed;
-
-        let output_path_str = final_path.to_string_lossy().to_string();
-        let filesize = tokio::fs::metadata(&final_path)
-            .await
-            .ok()
-            .map(|metadata| metadata.len());
-        let thumbnail = string_at(
-            &json,
-            &[
-                "/thumbnail",
-                "/data/cover/url_list/0",
-                "/data/owner/avatar_thumb/url_list/0",
-            ],
-        );
-        let history_id = add_history_internal(
-            history_target_url.clone(),
-            title.clone(),
-            thumbnail,
-            output_path_str.clone(),
-            filesize,
+        job.segment_paths = existing_segment_paths(&job)
+            .into_iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+        let result = complete_tiktok_live_job(
+            &mut job,
+            final_path,
+            partial,
             if partial {
                 None
             } else {
                 duration_seconds.map(u64::from)
             },
-            Some(selected.variant.format_id),
-            Some(media_extension(&final_path)),
-            Some("tiktok-live".to_string()),
-            None,
-        )?;
+        )
+        .await?;
 
         add_log_internal(
             "success",
             &format!(
                 "Recorded TikTok Live: {}{}",
-                title,
+                job.title,
                 if finalization_failed {
                     format!(
                         " ({segment_count} segments preserved because automatic MP4 finalization failed)"
                     )
                 } else if partial {
                     format!(
-                        " (partial recording merged after {refresh_attempts} signed URL refresh attempts)"
+                        " (partial recording merged after {session_refresh_attempts} signed URL refresh attempts)"
                     )
                 } else if segment_count > 1 {
                     format!(
-                        " ({segment_count} segments merged after {refresh_attempts} signed URL refreshes)"
+                        " ({segment_count} segments merged after {session_refresh_attempts} signed URL refreshes)"
                     )
                 } else {
                     String::new()
                 }
             ),
-            Some(&output_path_str),
-            Some(&history_target_url),
+            Some(&result.filepath),
+            Some(&job.target_url),
         )
         .ok();
 
-        Ok(TikTokLiveRecordResult {
-            job_id: job_id.clone(),
-            history_id,
-            filepath: output_path_str,
-            title,
-            filesize,
-            partial,
-        })
+        Ok(result)
     }
     .await;
 
     if let Err(error) = &result {
         let backend_error = BackendError::from_message(error.as_str());
-        let target_url = tiktok_target_url(&target).unwrap_or_else(|| target.input.clone());
+        let cancelled = backend_error.code() == code::DOWNLOAD_CANCELLED;
+        job.segment_paths = existing_segment_paths(&job)
+            .into_iter()
+            .map(|path| path.to_string_lossy().to_string())
+            .collect();
+        job.status = if cancelled {
+            TikTokLiveJobStatus::Cancelled
+        } else if job_has_recoverable_media(&job) {
+            TikTokLiveJobStatus::Recoverable
+        } else {
+            TikTokLiveJobStatus::Failed
+        };
+        job.error_message = (!cancelled).then(recovery_error_message);
+        job.completed_at = cancelled.then(|| Utc::now().timestamp());
+        job.touch();
+        if let Err(save_error) = save_tiktok_live_job_internal(&job) {
+            log::error!("Failed to persist TikTok Live failure state: {save_error}");
+        }
+
         add_log_internal(
-            if backend_error.code() == code::DOWNLOAD_CANCELLED {
-                "info"
-            } else {
-                "error"
-            },
+            if cancelled { "info" } else { "error" },
             backend_error.message(),
             None,
-            Some(&target_url),
+            Some(&job.target_url),
         )
         .ok();
     }
 
     ACTIVE_RECORDINGS.lock().await.remove(&job_id);
     result
+}
+
+#[tauri::command]
+pub fn list_tiktok_live_recovery_jobs() -> Result<Vec<TikTokLiveRecoveryJob>, String> {
+    Ok(get_tiktok_live_jobs_internal()?
+        .iter()
+        .filter(|job| job.status.can_resume())
+        .map(TikTokLiveRecoveryJob::from)
+        .collect())
+}
+
+#[tauri::command]
+pub async fn finalize_tiktok_live_recovery(
+    app: AppHandle,
+    job_id: String,
+) -> Result<TikTokLiveRecordResult, String> {
+    if ACTIVE_RECORDINGS.lock().await.contains_key(&job_id) {
+        return Err(BackendError::from_message(
+            "Stop the active TikTok Live recording before finalizing it.",
+        )
+        .to_wire_string());
+    }
+    let mut job = get_tiktok_live_job_internal(&job_id)?
+        .ok_or_else(|| BackendError::from_message("TikTok Live job not found.").to_wire_string())?;
+    if !job.status.can_resume() {
+        return Err(BackendError::from_message(
+            "This TikTok Live recording no longer needs recovery.",
+        )
+        .to_wire_string());
+    }
+
+    let output_path = job
+        .output_path
+        .as_deref()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| output_path_for_recording(Path::new(&job.output_dir), &job.title));
+    job.output_path = Some(output_path.to_string_lossy().to_string());
+    let existing_final = job
+        .final_path
+        .as_deref()
+        .map(PathBuf::from)
+        .filter(|path| {
+            path_has_media(path) && path.extension().and_then(|value| value.to_str()) == Some("mp4")
+        })
+        .or_else(|| path_has_media(&output_path).then(|| output_path.clone()));
+    let segments = recoverable_segment_paths(&job);
+    if existing_final.is_none() && segments.is_empty() {
+        save_job_status(&mut job, TikTokLiveJobStatus::Interrupted)?;
+        return Err(BackendError::from_message(
+            "No recoverable TikTok Live media was found on disk.",
+        )
+        .to_wire_string());
+    }
+
+    job.final_path = Some(
+        recoverable_output_path_for_recording(&output_path)
+            .to_string_lossy()
+            .to_string(),
+    );
+    save_job_status(&mut job, TikTokLiveJobStatus::Finalizing)?;
+    let finalization = if let Some(path) = existing_final {
+        Ok((path, false))
+    } else {
+        match get_ffmpeg_path(&app).await {
+            Some(ffmpeg_path) => {
+                let (_cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
+                finalize_recording_segments(&ffmpeg_path, &segments, &output_path, &mut cancel_rx)
+                    .await
+            }
+            None => Err(BackendError::from_message("FFmpeg not found.").to_wire_string()),
+        }
+    };
+    let (final_path, finalization_failed) = match finalization {
+        Ok(result) => result,
+        Err(error) => {
+            job.status = TikTokLiveJobStatus::Recoverable;
+            job.error_message = Some(recovery_error_message());
+            job.touch();
+            save_tiktok_live_job_internal(&job).ok();
+            return Err(error);
+        }
+    };
+
+    job.segment_paths = existing_segment_paths(&job)
+        .into_iter()
+        .map(|path| path.to_string_lossy().to_string())
+        .collect();
+    let result = complete_tiktok_live_job(&mut job, final_path, true, None).await;
+    if result.is_err() {
+        job.status = TikTokLiveJobStatus::Recoverable;
+        job.error_message = Some(recovery_error_message());
+        job.touch();
+        save_tiktok_live_job_internal(&job).ok();
+    } else {
+        add_log_internal(
+            "success",
+            &format!(
+                "Recovered TikTok Live recording: {}{}",
+                job.title,
+                if finalization_failed {
+                    " (MKV preserved because MP4 finalization failed)"
+                } else {
+                    ""
+                }
+            ),
+            result.as_ref().ok().map(|value| value.filepath.as_str()),
+            Some(&job.target_url),
+        )
+        .ok();
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn continue_tiktok_live_recovery(
+    app: AppHandle,
+    job_id: String,
+    cookie_skip_patterns: Option<Vec<String>>,
+    proxy_url: Option<String>,
+) -> Result<TikTokLiveRecordResult, String> {
+    let job = get_tiktok_live_job_internal(&job_id)?
+        .ok_or_else(|| BackendError::from_message("TikTok Live job not found.").to_wire_string())?;
+    if !job.status.can_resume() {
+        return Err(BackendError::from_message(
+            "This TikTok Live recording no longer needs recovery.",
+        )
+        .to_wire_string());
+    }
+
+    record_tiktok_live(
+        app,
+        job.id,
+        job.target_input,
+        job.output_dir,
+        job.duration_seconds,
+        job.preferred_quality,
+        job.preferred_transport,
+        job.cookie_mode,
+        job.cookie_browser,
+        job.cookie_browser_profile,
+        job.cookie_file_path,
+        cookie_skip_patterns,
+        proxy_url,
+        Some(job.auto_reconnect),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn delete_tiktok_live_recovery(job_id: String) -> Result<(), String> {
+    if ACTIVE_RECORDINGS.lock().await.contains_key(&job_id) {
+        return Err(BackendError::from_message(
+            "Stop the active TikTok Live recording before deleting recovery data.",
+        )
+        .to_wire_string());
+    }
+    let job = get_tiktok_live_job_internal(&job_id)?
+        .ok_or_else(|| BackendError::from_message("TikTok Live job not found.").to_wire_string())?;
+    if !job.status.can_resume() {
+        return Err(BackendError::from_message(
+            "Completed TikTok Live recordings must be managed from Library.",
+        )
+        .to_wire_string());
+    }
+
+    if job.output_path.is_some() {
+        for path in job_owned_paths(&job)? {
+            if path.exists() {
+                tokio::fs::remove_file(&path).await.map_err(|error| {
+                    BackendError::from_message(format!(
+                        "Failed to remove TikTok Live recovery file {}: {error}",
+                        path.display()
+                    ))
+                    .to_wire_string()
+                })?;
+            }
+        }
+    } else if job_has_recoverable_media(&job) {
+        return Err(BackendError::from_message(
+            "Refusing to delete recovery media without its generated output identity.",
+        )
+        .to_wire_string());
+    }
+    delete_tiktok_live_job_internal(&job_id)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -2440,7 +3030,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn finalization_failure_preserves_recoverable_mkv_segments() {
+    async fn multi_segment_finalization_failure_keeps_every_segment_recoverable() {
         let dir = std::env::temp_dir().join(format!(
             "youwee-tiktok-finalize-fallback-{}",
             uuid::Uuid::new_v4()
@@ -2453,24 +3043,178 @@ mod tests {
         std::fs::write(&second, b"second recoverable segment").expect("write second segment");
         let (_cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
 
-        let (final_path, partial) = finalize_recording_segments(
+        let error = finalize_recording_segments(
             &dir.join("missing-ffmpeg.exe"),
             &[first.clone(), second.clone()],
             &output,
             &mut cancel_rx,
         )
         .await
-        .expect("preserve fallback");
+        .expect_err("keep multi-segment job recoverable");
+
+        assert!(BackendError::from_message(&error)
+            .message()
+            .contains("preserved for recovery"));
+        assert_eq!(
+            std::fs::read(&first).ok().as_deref(),
+            Some(&b"first recoverable segment"[..])
+        );
+        assert!(second.exists());
+        assert!(!output.exists());
+        assert!(!recoverable_output_path_for_recording(&output).exists());
+        assert!(!concat_list_path_for_recording(&output).exists());
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[tokio::test]
+    async fn single_segment_finalization_failure_surfaces_the_whole_mkv() {
+        let dir = std::env::temp_dir().join(format!(
+            "youwee-tiktok-single-finalize-fallback-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp directory");
+        let output = dir.join("creator live.mp4");
+        let segment = segment_path_for_recording(&output, 1);
+        std::fs::write(&segment, b"complete recoverable segment").expect("write segment");
+        let (_cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel();
+
+        let (final_path, partial) = finalize_recording_segments(
+            &dir.join("missing-ffmpeg.exe"),
+            &[segment],
+            &output,
+            &mut cancel_rx,
+        )
+        .await
+        .expect("surface complete fallback");
 
         assert!(partial);
         assert_eq!(final_path, recoverable_output_path_for_recording(&output));
         assert_eq!(
             std::fs::read(&final_path).ok().as_deref(),
-            Some(&b"first recoverable segment"[..])
+            Some(&b"complete recoverable segment"[..])
         );
-        assert!(second.exists());
-        assert!(!output.exists());
-        assert!(!concat_list_path_for_recording(&output).exists());
         std::fs::remove_dir_all(dir).ok();
+    }
+
+    fn sample_recovery_job(output_dir: &Path, status: TikTokLiveJobStatus) -> TikTokLiveJob {
+        let output_path = output_dir.join("creator_20260710_120000.mp4");
+        TikTokLiveJob {
+            id: uuid::Uuid::new_v4().to_string(),
+            target_input: "@creator".to_string(),
+            target_url: "https://www.tiktok.com/@creator/live".to_string(),
+            username: Some("creator".to_string()),
+            title: "TikTok LIVE @creator".to_string(),
+            thumbnail: None,
+            output_dir: output_dir.to_string_lossy().to_string(),
+            output_path: Some(output_path.to_string_lossy().to_string()),
+            final_path: None,
+            preferred_quality: Some("auto".to_string()),
+            preferred_transport: Some("auto".to_string()),
+            duration_seconds: None,
+            cookie_mode: Some("browser".to_string()),
+            cookie_browser: Some("firefox".to_string()),
+            cookie_browser_profile: Some("i879pxds.default-release".to_string()),
+            cookie_file_path: None,
+            auto_reconnect: true,
+            status,
+            segment_paths: vec![segment_path_for_recording(&output_path, 1)
+                .to_string_lossy()
+                .to_string()],
+            refresh_count: 2,
+            reconnect_count: 2,
+            format_id: Some("best".to_string()),
+            history_id: Some("tiktok-live:test".to_string()),
+            error_message: None,
+            started_at: 1,
+            updated_at: 2,
+            completed_at: None,
+        }
+    }
+
+    #[test]
+    fn recovery_keeps_fallback_mkv_before_remaining_numbered_segments() {
+        let dir = std::env::temp_dir().join(format!(
+            "youwee-tiktok-fallback-order-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp directory");
+        let mut job = sample_recovery_job(&dir, TikTokLiveJobStatus::Finalizing);
+        let output = PathBuf::from(job.output_path.as_deref().expect("output path"));
+        let fallback = recoverable_output_path_for_recording(&output);
+        let second = segment_path_for_recording(&output, 2);
+        job.segment_paths.push(second.to_string_lossy().to_string());
+        job.final_path = Some(fallback.to_string_lossy().to_string());
+        std::fs::write(&fallback, b"first segment").expect("write fallback");
+        std::fs::write(&second, b"second segment").expect("write second");
+
+        assert_eq!(recoverable_segment_paths(&job), vec![fallback, second]);
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn startup_reconciliation_marks_stale_jobs_by_media_presence() {
+        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
+        use std::sync::Mutex as StdMutex;
+
+        let _guard = db_test_guard();
+        if DB_CONNECTION.get().is_none() {
+            let connection = Connection::open_in_memory().expect("open in-memory database");
+            let _ = DB_CONNECTION.set(StdMutex::new(connection));
+        }
+        let connection = get_db().expect("get database");
+        crate::database::init_tiktok_live_jobs_table(&connection).expect("create jobs table");
+        connection
+            .execute("DELETE FROM tiktok_live_jobs", [])
+            .expect("clear jobs");
+        drop(connection);
+
+        let dir = std::env::temp_dir().join(format!(
+            "youwee-tiktok-reconcile-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp directory");
+        let recoverable = sample_recovery_job(&dir, TikTokLiveJobStatus::Recording);
+        std::fs::write(&recoverable.segment_paths[0], b"recoverable media")
+            .expect("write recoverable segment");
+        let interrupted =
+            sample_recovery_job(&dir.join("missing"), TikTokLiveJobStatus::Reconnecting);
+        save_tiktok_live_job_internal(&recoverable).expect("save recoverable job");
+        save_tiktok_live_job_internal(&interrupted).expect("save interrupted job");
+
+        assert_eq!(
+            reconcile_tiktok_live_jobs_after_restart().expect("reconcile"),
+            2
+        );
+        assert_eq!(
+            get_tiktok_live_job_internal(&recoverable.id)
+                .expect("load recoverable")
+                .expect("recoverable exists")
+                .status,
+            TikTokLiveJobStatus::Recoverable
+        );
+        assert_eq!(
+            get_tiktok_live_job_internal(&interrupted.id)
+                .expect("load interrupted")
+                .expect("interrupted exists")
+                .status,
+            TikTokLiveJobStatus::Interrupted
+        );
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn recovery_delete_paths_are_limited_to_generated_job_files() {
+        let dir = std::env::temp_dir().join(format!(
+            "youwee-tiktok-delete-safety-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let mut job = sample_recovery_job(&dir, TikTokLiveJobStatus::Recoverable);
+        let paths = job_owned_paths(&job).expect("generated paths are accepted");
+        assert!(paths
+            .iter()
+            .all(|path| path.parent() == Some(dir.as_path())));
+
+        job.segment_paths = vec![dir.join(r"..\unrelated.mkv").to_string_lossy().to_string()];
+        assert!(job_owned_paths(&job).is_err());
     }
 }

@@ -435,6 +435,32 @@
     "autoReconnect": {
       "label": "Reconnexion automatique",
       "description": "Poursuit l’enregistrement après une interruption temporaire du réseau ou du flux."
+    },
+    "recovery": {
+      "title": "Enregistrements interrompus",
+      "description": "Récupérez les enregistrements actifs lors de la fermeture inattendue de Youwee.",
+      "segments": "Segments : {{count}}",
+      "reconnects": "Reconnexions : {{count}}",
+      "finalizing": "Finalisation de l’enregistrement récupéré...",
+      "finalized": "Enregistrement récupéré finalisé et ajouté à la bibliothèque.",
+      "continuing": "Actualisation du direct et poursuite dans un nouveau segment...",
+      "deleted": "Fichiers et données de récupération supprimés.",
+      "status": {
+        "interrupted": "Interrompu",
+        "recoverable": "Récupérable",
+        "failed": "Échec"
+      },
+      "actions": {
+        "continue": "Continuer",
+        "finalize": "Finaliser",
+        "delete": "Supprimer"
+      },
+      "deleteDialog": {
+        "title": "Supprimer les données de récupération ?",
+        "description": "Cette action supprime définitivement les segments enregistrés de « {{title}} ».",
+        "cancel": "Annuler",
+        "confirm": "Supprimer"
+      }
     }
   }
 }

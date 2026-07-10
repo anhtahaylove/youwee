@@ -438,6 +438,32 @@
     "autoReconnect": {
       "label": "Tự động kết nối lại",
       "description": "Tiếp tục ghi khi mạng hoặc luồng phát bị gián đoạn tạm thời."
+    },
+    "recovery": {
+      "title": "Bản ghi bị gián đoạn",
+      "description": "Khôi phục các bản ghi đang chạy khi Youwee đóng đột ngột.",
+      "segments": "Phân đoạn: {{count}}",
+      "reconnects": "Số lần kết nối lại: {{count}}",
+      "finalizing": "Đang hoàn tất bản ghi khôi phục...",
+      "finalized": "Đã hoàn tất bản ghi khôi phục và thêm vào Thư viện.",
+      "continuing": "Đang làm mới luồng live và ghi tiếp sang phân đoạn mới...",
+      "deleted": "Đã xóa file và dữ liệu job khôi phục.",
+      "status": {
+        "interrupted": "Bị gián đoạn",
+        "recoverable": "Có thể khôi phục",
+        "failed": "Thất bại"
+      },
+      "actions": {
+        "continue": "Ghi tiếp",
+        "finalize": "Hoàn tất",
+        "delete": "Xóa"
+      },
+      "deleteDialog": {
+        "title": "Xóa dữ liệu khôi phục?",
+        "description": "Thao tác này sẽ xóa vĩnh viễn các phân đoạn đã lưu của “{{title}}”.",
+        "cancel": "Hủy",
+        "confirm": "Xóa"
+      }
     }
   }
 }

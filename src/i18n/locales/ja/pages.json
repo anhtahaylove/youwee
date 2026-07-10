@@ -438,6 +438,32 @@
     "autoReconnect": {
       "label": "自動再接続",
       "description": "一時的なネットワークや配信の中断後も録画を継続します。"
+    },
+    "recovery": {
+      "title": "中断された録画",
+      "description": "Youwee が予期せず終了したときに録画中だったジョブを復旧します。",
+      "segments": "セグメント: {{count}}",
+      "reconnects": "再接続: {{count}}",
+      "finalizing": "復旧した録画を確定しています...",
+      "finalized": "復旧した録画を確定し、ライブラリに追加しました。",
+      "continuing": "ライブ URL を更新し、新しいセグメントへ録画を続けています...",
+      "deleted": "復旧ファイルとジョブデータを削除しました。",
+      "status": {
+        "interrupted": "中断",
+        "recoverable": "復旧可能",
+        "failed": "失敗"
+      },
+      "actions": {
+        "continue": "録画を続ける",
+        "finalize": "確定",
+        "delete": "削除"
+      },
+      "deleteDialog": {
+        "title": "復旧データを削除しますか？",
+        "description": "「{{title}}」の保存済みセグメントを完全に削除します。",
+        "cancel": "キャンセル",
+        "confirm": "削除"
+      }
     }
   }
 }
