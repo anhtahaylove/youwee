@@ -20,6 +20,7 @@ pub mod code {
     pub const YT_SKIPPED_LIVE: &str = "YT_SKIPPED_LIVE";
     pub const YT_SKIPPED_FILTER: &str = "YT_SKIPPED_FILTER";
     pub const YT_UPCOMING_LIVE: &str = "YT_UPCOMING_LIVE";
+    pub const TIKTOK_LIVE_OFFLINE: &str = "TIKTOK_LIVE_OFFLINE";
     pub const YT_COOKIE_DB_LOCKED: &str = "YT_COOKIE_DB_LOCKED";
     pub const YT_FRESH_COOKIES_REQUIRED: &str = "YT_FRESH_COOKIES_REQUIRED";
     pub const NETWORK_TIMEOUT: &str = "NETWORK_TIMEOUT";
@@ -80,6 +81,9 @@ impl BackendError {
 
     pub fn from_message(message: impl Into<String>) -> Self {
         let message = message.into();
+        if let Some(wire) = unwrap_wire_error_string(&message) {
+            return Self { wire };
+        }
         let code = infer_error_code(&message);
         Self::new(code, message)
     }
@@ -147,6 +151,22 @@ pub fn parse_wire_error_string(raw: &str) -> Option<BackendErrorWire> {
     serde_json::from_str(payload).ok()
 }
 
+fn unwrap_wire_error_string(raw: &str) -> Option<BackendErrorWire> {
+    let mut current = parse_wire_error_string(raw)?;
+
+    // Older command paths could wrap an already serialized backend error.
+    // Unwrap a bounded number of layers so neither the UI nor app logs receive
+    // a raw __YOUWEE_ERR__ payload as the human-readable message.
+    for _ in 0..4 {
+        let Some(nested) = parse_wire_error_string(&current.message) else {
+            break;
+        };
+        current = nested;
+    }
+
+    Some(current)
+}
+
 pub fn infer_error_code(message: &str) -> &'static str {
     let m = message.to_lowercase();
 
@@ -199,6 +219,11 @@ pub fn infer_error_code(message: &str) -> &'static str {
         || m.contains("live event has not started")
     {
         return code::YT_UPCOMING_LIVE;
+    }
+    if m.contains("tiktok")
+        && (m.contains("not currently live") || m.contains("live stream is offline"))
+    {
+        return code::TIKTOK_LIVE_OFFLINE;
     }
     if m.contains("does not pass filter") || m.contains("skipped by filter") {
         return code::YT_SKIPPED_FILTER;
@@ -319,7 +344,7 @@ fn escape_json_string(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{code, default_retryable, infer_error_code};
+    use super::{code, default_retryable, infer_error_code, BackendError};
 
     #[test]
     fn yt_dlp_match_filter_skips_are_not_retryable() {
@@ -327,5 +352,32 @@ mod tests {
 
         assert_eq!(code, code::YT_SKIPPED_FILTER);
         assert!(!default_retryable(code));
+    }
+
+    #[test]
+    fn from_message_preserves_existing_wire_errors() {
+        let original = BackendError::new(code::NETWORK_TIMEOUT, "temporary timeout")
+            .with_retryable(true)
+            .to_wire_string();
+        let parsed = BackendError::from_message(original).to_wire();
+
+        assert_eq!(parsed.code, code::NETWORK_TIMEOUT);
+        assert_eq!(parsed.message, "temporary timeout");
+        assert_eq!(parsed.retryable, Some(true));
+    }
+
+    #[test]
+    fn from_message_unwraps_nested_wire_errors() {
+        let inner = BackendError::new(code::NETWORK_TIMEOUT, "temporary timeout")
+            .with_retryable(true)
+            .to_wire_string();
+        let outer = BackendError::new(code::BACKEND_UNKNOWN, inner)
+            .with_retryable(false)
+            .to_wire_string();
+        let parsed = BackendError::from_message(outer).to_wire();
+
+        assert_eq!(parsed.code, code::NETWORK_TIMEOUT);
+        assert_eq!(parsed.message, "temporary timeout");
+        assert_eq!(parsed.retryable, Some(true));
     }
 }

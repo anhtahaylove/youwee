@@ -25,6 +25,7 @@ const NON_RETRYABLE_CODES = new Set([
   'YT_SKIPPED_LIVE',
   'YT_SKIPPED_FILTER',
   'YT_UPCOMING_LIVE',
+  'TIKTOK_LIVE_OFFLINE',
   'YT_AGE_RESTRICTED',
   'YT_MEMBERS_ONLY',
   'YT_SIGNIN_REQUIRED',
@@ -84,6 +85,12 @@ export function inferBackendErrorCode(message: string): string {
     m.includes('live event has not started')
   ) {
     return 'YT_UPCOMING_LIVE';
+  }
+  if (
+    m.includes('tiktok') &&
+    (m.includes('not currently live') || m.includes('live stream is offline'))
+  ) {
+    return 'TIKTOK_LIVE_OFFLINE';
   }
   if (m.includes('skipped live video')) return 'YT_SKIPPED_LIVE';
   if (m.includes('does not pass filter') || m.includes('skipped by filter')) {
@@ -156,9 +163,24 @@ function parseWireMessage(message: string): BackendErrorPayload | null {
   }
 }
 
+function unwrapWireMessage(message: string): BackendErrorPayload | null {
+  let current = parseWireMessage(message);
+
+  // Backend helpers can receive an already serialized wire error. Unwrap a
+  // bounded number of legacy nested payloads so raw __YOUWEE_ERR__ data never
+  // leaks into the UI while malformed/cyclic input remains harmless.
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    const nested = parseWireMessage(current.message);
+    if (!nested) break;
+    current = nested;
+  }
+
+  return current;
+}
+
 export function extractBackendError(error: unknown): BackendErrorPayload {
   const message = asMessage(error);
-  const parsed = parseWireMessage(message);
+  const parsed = unwrapWireMessage(message);
   if (parsed) return parsed;
   const inferredCode = inferBackendErrorCode(message);
   return {

@@ -102,6 +102,7 @@
     "AI_NO_TRANSCRIPT": "No transcript available.",
     "WHISPER_API_ERROR": "Whisper API error.",
     "WHISPER_NO_API_KEY": "Whisper API key not configured.",
-    "WHISPER_UNSUPPORTED_FORMAT": "Unsupported audio format for Whisper."
+    "WHISPER_UNSUPPORTED_FORMAT": "Unsupported audio format for Whisper.",
+    "TIKTOK_LIVE_OFFLINE": "This TikTok Live is not currently active."
   }
 }

@@ -398,7 +398,8 @@
     "title": "Ghi TikTok Live",
     "subtitle": "Kiểm tra và ghi TikTok Live bằng xác thực trình duyệt của Youwee.",
     "input": {
-      "placeholder": "Nhập @username, room ID hoặc URL TikTok Live..."
+      "placeholder": "Nhập @username, room ID hoặc URL TikTok Live...",
+      "label": "Tên người dùng, room ID hoặc URL TikTok Live"
     },
     "quality": "Chất lượng",
     "transport": "Transport",
@@ -419,13 +420,22 @@
       "inspecting": "Đang kiểm tra TikTok Live...",
       "inspectReady": "Tìm thấy {{count}} biến thể stream.",
       "notLive": "TikTok Live này chưa hoạt động.",
+      "preparing": "Đang chuẩn bị ghi TikTok Live...",
+      "retryingMetadata": "Đang thử lại metadata ({{attempt}}/{{total}})...",
       "recording": "Đang ghi TikTok Live...",
+      "recordingReconnect": "Đang ghi TikTok Live với tự động kết nối lại...",
+      "cancelling": "Đang dừng bản ghi...",
       "recorded": "Đã lưu bản ghi và thêm vào Library.",
+      "partialSaved": "Luồng phát đã kết thúc sau các lần kết nối lại. Đã lưu phần ghi được.",
       "cancelled": "Đã hủy ghi.",
       "failed": "Thao tác TikTok Live thất bại."
     },
     "recordResult": {
       "title": "Ghi xong"
+    },
+    "autoReconnect": {
+      "label": "Tự động kết nối lại",
+      "description": "Tiếp tục ghi khi mạng hoặc luồng phát bị gián đoạn tạm thời."
     }
   }
 }

@@ -102,6 +102,7 @@
     "AI_NO_TRANSCRIPT": "ไม่มีทรานสคริปต์",
     "WHISPER_API_ERROR": "ข้อผิดพลาดของ Whisper API",
     "WHISPER_NO_API_KEY": "ยังไม่ได้ตั้งค่า Whisper API key",
-    "WHISPER_UNSUPPORTED_FORMAT": "รูปแบบเสียงนี้ยังไม่รองรับสำหรับ Whisper"
+    "WHISPER_UNSUPPORTED_FORMAT": "รูปแบบเสียงนี้ยังไม่รองรับสำหรับ Whisper",
+    "TIKTOK_LIVE_OFFLINE": "TikTok Live นี้ไม่ได้ถ่ายทอดสดอยู่ในขณะนี้"
   }
 }

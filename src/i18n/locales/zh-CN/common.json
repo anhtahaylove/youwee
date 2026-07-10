@@ -102,6 +102,7 @@
     "AI_NO_TRANSCRIPT": "没有可用转录文本。",
     "WHISPER_API_ERROR": "Whisper API 错误。",
     "WHISPER_NO_API_KEY": "未配置 Whisper API Key。",
-    "WHISPER_UNSUPPORTED_FORMAT": "Whisper 不支持该音频格式。"
+    "WHISPER_UNSUPPORTED_FORMAT": "Whisper 不支持该音频格式。",
+    "TIKTOK_LIVE_OFFLINE": "此 TikTok 直播当前未开播。"
   }
 }

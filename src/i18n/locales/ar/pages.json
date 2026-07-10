@@ -395,7 +395,8 @@
     "title": "TikTok Live Recorder",
     "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
     "input": {
-      "placeholder": "Enter @username, room ID, or TikTok Live URL..."
+      "placeholder": "Enter @username, room ID, or TikTok Live URL...",
+      "label": "اسم مستخدم TikTok Live أو معرّف الغرفة أو الرابط"
     },
     "quality": "Quality",
     "transport": "Transport",
@@ -416,13 +417,22 @@
       "inspecting": "Inspecting TikTok Live...",
       "inspectReady": "{{count}} variant(s) found.",
       "notLive": "This TikTok Live is not active.",
+      "preparing": "جارٍ تجهيز تسجيل TikTok Live...",
+      "retryingMetadata": "إعادة محاولة جلب البيانات ({{attempt}}/{{total}})...",
       "recording": "Recording TikTok Live...",
+      "recordingReconnect": "جارٍ تسجيل TikTok Live مع إعادة الاتصال تلقائيًا...",
+      "cancelling": "جارٍ إيقاف التسجيل...",
       "recorded": "Recording saved and added to Library.",
+      "partialSaved": "انتهى البث بعد محاولات إعادة الاتصال. تم حفظ التسجيل الجزئي.",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
     },
     "recordResult": {
       "title": "Recording complete"
+    },
+    "autoReconnect": {
+      "label": "إعادة الاتصال تلقائيًا",
+      "description": "متابعة التسجيل خلال انقطاعات الشبكة أو البث المؤقتة."
     }
   }
 }

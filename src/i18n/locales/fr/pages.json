@@ -395,7 +395,8 @@
     "title": "TikTok Live Recorder",
     "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
     "input": {
-      "placeholder": "Enter @username, room ID, or TikTok Live URL..."
+      "placeholder": "Enter @username, room ID, or TikTok Live URL...",
+      "label": "Nom TikTok Live, ID de salon ou URL"
     },
     "quality": "Quality",
     "transport": "Transport",
@@ -416,13 +417,22 @@
       "inspecting": "Inspecting TikTok Live...",
       "inspectReady": "{{count}} variant(s) found.",
       "notLive": "This TikTok Live is not active.",
+      "preparing": "Préparation de l’enregistrement TikTok Live...",
+      "retryingMetadata": "Nouvelle tentative de métadonnées ({{attempt}}/{{total}})...",
       "recording": "Recording TikTok Live...",
+      "recordingReconnect": "Enregistrement TikTok Live avec reconnexion automatique...",
+      "cancelling": "Arrêt de l’enregistrement...",
       "recorded": "Recording saved and added to Library.",
+      "partialSaved": "Le flux s’est terminé après les reconnexions. L’enregistrement partiel a été conservé.",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
     },
     "recordResult": {
       "title": "Recording complete"
+    },
+    "autoReconnect": {
+      "label": "Reconnexion automatique",
+      "description": "Poursuit l’enregistrement après une interruption temporaire du réseau ou du flux."
     }
   }
 }

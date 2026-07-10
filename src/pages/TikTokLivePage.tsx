@@ -1,7 +1,8 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { downloadDir } from '@tauri-apps/api/path';
 import { open } from '@tauri-apps/plugin-dialog';
-import { Folder, Loader2, Radio, Search, Square } from 'lucide-react';
+import { Folder, Loader2, Radio, RefreshCw, Search, Square } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ThemePicker } from '@/components/settings/ThemePicker';
@@ -15,6 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { openFileLocation } from '@/lib/open-file-location';
 import { cn } from '@/lib/utils';
@@ -52,6 +55,15 @@ type TikTokLiveRecordResult = {
   filepath: string;
   title: string;
   filesize?: number;
+  partial: boolean;
+};
+
+type TikTokLiveStatusEvent = {
+  jobId: string;
+  state: 'metadata-retry' | 'recording';
+  attempt?: number;
+  total?: number;
+  autoReconnect?: boolean;
 };
 
 const QUALITY_OPTIONS = ['auto', 'origin', 'uhd_60', 'uhd', 'hd_60', 'hd', 'sd', 'ld', 'ao'];
@@ -89,8 +101,7 @@ function variantLabel(variant?: TikTokLiveVariant): string {
 }
 
 function isCancellationError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.toLowerCase().includes('cancelled');
+  return extractBackendError(error).code === 'DOWNLOAD_CANCELLED';
 }
 
 export function TikTokLivePage() {
@@ -100,21 +111,64 @@ export function TikTokLivePage() {
   const [duration, setDuration] = useState('60');
   const [quality, setQuality] = useState('auto');
   const [transport, setTransport] = useState('auto');
+  const [autoReconnect, setAutoReconnect] = useState(true);
   const [inspectResult, setInspectResult] = useState<TikTokLiveInspectResult | null>(null);
   const [recordResult, setRecordResult] = useState<TikTokLiveRecordResult | null>(null);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   const [isInspecting, setIsInspecting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const activeInspectJobIdRef = useRef<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     void resolveDefaultOutputPath().then(setOutputDir);
   }, []);
 
+  useEffect(() => {
+    const unlistenPromise = listen<TikTokLiveStatusEvent>('tiktok-live-status', ({ payload }) => {
+      if (
+        payload.jobId !== activeInspectJobIdRef.current &&
+        payload.jobId !== activeJobIdRef.current
+      ) {
+        return;
+      }
+
+      if (payload.state === 'metadata-retry') {
+        setStatus(
+          t('tiktokLive.status.retryingMetadata', {
+            attempt: payload.attempt,
+            total: payload.total,
+          }),
+        );
+      } else if (payload.state === 'recording') {
+        setStatus(
+          t(
+            payload.autoReconnect
+              ? 'tiktokLive.status.recordingReconnect'
+              : 'tiktokLive.status.recording',
+          ),
+        );
+      }
+    });
+
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [t]);
+
   const invokeOptions = useMemo(() => {
     const { cookieSettings, proxySettings } = loadNetworkSettings();
     return buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
+  }, []);
+
+  const updateInput = useCallback((value: string) => {
+    setInput(value);
+    setInspectResult(null);
+    setRecordResult(null);
+    setStatus('');
+    setError('');
   }, []);
 
   const selectOutputFolder = useCallback(async () => {
@@ -130,13 +184,16 @@ export function TikTokLivePage() {
 
   const inspectLive = useCallback(async () => {
     if (!input.trim()) return;
+    const jobId = crypto.randomUUID();
+    activeInspectJobIdRef.current = jobId;
     setIsInspecting(true);
     setError('');
     setRecordResult(null);
     setStatus(t('tiktokLive.status.inspecting'));
     try {
       const result = await invoke<TikTokLiveInspectResult>('inspect_tiktok_live', {
-        input,
+        jobId,
+        input: input.trim(),
         preferredQuality: quality,
         preferredTransport: transport,
         ...invokeOptions,
@@ -148,9 +205,16 @@ export function TikTokLivePage() {
           : t('tiktokLive.status.inspectReady', { count: result.variants.length }),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus(t('tiktokLive.status.failed'));
+      const backendError = extractBackendError(err);
+      setInspectResult(null);
+      if (backendError.code === 'TIKTOK_LIVE_OFFLINE') {
+        setStatus(t('tiktokLive.status.notLive'));
+      } else {
+        setError(localizeBackendError(backendError));
+        setStatus(t('tiktokLive.status.failed'));
+      }
     } finally {
+      activeInspectJobIdRef.current = null;
       setIsInspecting(false);
     }
   }, [input, invokeOptions, quality, t, transport]);
@@ -160,44 +224,63 @@ export function TikTokLivePage() {
     const jobId = crypto.randomUUID();
     activeJobIdRef.current = jobId;
     setIsRecording(true);
+    setIsCancelling(false);
     setError('');
     setRecordResult(null);
-    setStatus(t('tiktokLive.status.recording'));
+    setStatus(t('tiktokLive.status.preparing'));
     try {
       const seconds = Number.parseInt(duration, 10);
       const result = await invoke<TikTokLiveRecordResult>('record_tiktok_live', {
         jobId,
-        input,
+        input: input.trim(),
         outputDir,
         durationSeconds: Number.isFinite(seconds) && seconds > 0 ? seconds : null,
         preferredQuality: quality,
         preferredTransport: transport,
+        autoReconnect,
         ...invokeOptions,
       });
       setRecordResult(result);
-      setStatus(t('tiktokLive.status.recorded'));
+      setStatus(
+        t(result.partial ? 'tiktokLive.status.partialSaved' : 'tiktokLive.status.recorded'),
+      );
     } catch (err) {
       if (isCancellationError(err)) {
         setStatus(t('tiktokLive.status.cancelled'));
         return;
       }
-      setError(err instanceof Error ? err.message : String(err));
-      setStatus(t('tiktokLive.status.failed'));
+      const backendError = extractBackendError(err);
+      if (backendError.code === 'TIKTOK_LIVE_OFFLINE') {
+        setStatus(t('tiktokLive.status.notLive'));
+      } else {
+        setError(localizeBackendError(backendError));
+        setStatus(t('tiktokLive.status.failed'));
+      }
     } finally {
       activeJobIdRef.current = null;
       setIsRecording(false);
+      setIsCancelling(false);
     }
-  }, [duration, input, invokeOptions, outputDir, quality, t, transport]);
+  }, [autoReconnect, duration, input, invokeOptions, outputDir, quality, t, transport]);
 
   const cancelRecording = useCallback(async () => {
     const jobId = activeJobIdRef.current;
     if (!jobId) return;
-    await invoke('cancel_tiktok_live_recording', { jobId }).catch(() => {});
-    setStatus(t('tiktokLive.status.cancelled'));
+    setIsCancelling(true);
+    setError('');
+    setStatus(t('tiktokLive.status.cancelling'));
+    try {
+      await invoke('cancel_tiktok_live_recording', { jobId });
+    } catch (err) {
+      setIsCancelling(false);
+      setError(localizeBackendError(extractBackendError(err)));
+      setStatus(t('tiktokLive.status.failed'));
+    }
   }, [t]);
 
   const busy = isInspecting || isRecording;
   const canSubmit = input.trim().length > 0 && !busy;
+  const canCancel = isRecording && !isCancelling;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -218,9 +301,10 @@ export function TikTokLivePage() {
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
             <Input
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => updateInput(event.target.value)}
               disabled={busy}
               placeholder={t('tiktokLive.input.placeholder')}
+              aria-label={t('tiktokLive.input.label')}
             />
             <Button onClick={() => void inspectLive()} disabled={!canSubmit} className="gap-2">
               {isInspecting ? (
@@ -235,7 +319,15 @@ export function TikTokLivePage() {
           <div className="grid gap-3 md:grid-cols-4">
             <div>
               <p className="mb-1 text-xs text-muted-foreground">{t('tiktokLive.quality')}</p>
-              <Select value={quality} onValueChange={setQuality} disabled={busy}>
+              <Select
+                value={quality}
+                onValueChange={(value) => {
+                  setQuality(value);
+                  setInspectResult(null);
+                  setStatus('');
+                }}
+                disabled={busy}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -250,7 +342,15 @@ export function TikTokLivePage() {
             </div>
             <div>
               <p className="mb-1 text-xs text-muted-foreground">{t('tiktokLive.transport')}</p>
-              <Select value={transport} onValueChange={setTransport} disabled={busy}>
+              <Select
+                value={transport}
+                onValueChange={(value) => {
+                  setTransport(value);
+                  setInspectResult(null);
+                  setStatus('');
+                }}
+                disabled={busy}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -268,6 +368,8 @@ export function TikTokLivePage() {
               <Input
                 type="number"
                 min="0"
+                step="1"
+                inputMode="numeric"
                 value={duration}
                 onChange={(event) => setDuration(event.target.value)}
                 disabled={busy}
@@ -280,11 +382,30 @@ export function TikTokLivePage() {
                 className="w-full justify-start gap-2"
                 onClick={() => void selectOutputFolder()}
                 disabled={busy}
+                title={outputDir || t('tiktokLive.output.empty')}
               >
                 <Folder className="w-4 h-4" />
                 <span className="truncate">{outputDir || t('tiktokLive.output.empty')}</span>
               </Button>
             </div>
+          </div>
+
+          <div className="flex items-start justify-between gap-4 rounded-xl bg-muted/25 px-3 py-2.5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <RefreshCw className="h-4 w-4 text-blue-500" />
+                {t('tiktokLive.autoReconnect.label')}
+              </div>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t('tiktokLive.autoReconnect.description')}
+              </p>
+            </div>
+            <Switch
+              checked={autoReconnect}
+              onCheckedChange={setAutoReconnect}
+              disabled={busy}
+              aria-label={t('tiktokLive.autoReconnect.label')}
+            />
           </div>
 
           <div className="flex items-center gap-2">
@@ -298,16 +419,28 @@ export function TikTokLivePage() {
                 variant="destructive"
                 onClick={() => void cancelRecording()}
                 className="gap-2"
+                disabled={!canCancel}
               >
-                <Square className="w-4 h-4" />
+                {isCancelling ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Square className="h-4 w-4" />
+                )}
                 {t('tiktokLive.actions.cancel')}
               </Button>
             )}
-            {status && <span className="text-sm text-muted-foreground">{status}</span>}
+            {status && (
+              <output className="text-sm text-muted-foreground" aria-live="polite">
+                {status}
+              </output>
+            )}
           </div>
 
           {error && (
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+            <div
+              className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-500"
+              role="alert"
+            >
               {error}
             </div>
           )}
@@ -316,11 +449,20 @@ export function TikTokLivePage() {
         {inspectResult && (
           <section className="rounded-2xl border border-white/[0.08] bg-card/30 p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-medium">{inspectResult.title}</h2>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  {inspectResult.uploader || inspectResult.targetUrl}
-                </p>
+              <div className="flex min-w-0 items-center gap-3">
+                {inspectResult.thumbnail && (
+                  <img
+                    src={inspectResult.thumbnail.replace(/^http:\/\//, 'https://')}
+                    alt=""
+                    className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                  />
+                )}
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-medium">{inspectResult.title}</h2>
+                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                    {inspectResult.uploader || inspectResult.targetUrl}
+                  </p>
+                </div>
               </div>
               <Badge
                 className={cn(
@@ -353,7 +495,14 @@ export function TikTokLivePage() {
         )}
 
         {recordResult && (
-          <section className="rounded-2xl border border-green-500/20 bg-green-500/5 p-4 space-y-3">
+          <section
+            className={cn(
+              'rounded-2xl border p-4 space-y-3',
+              recordResult.partial
+                ? 'border-amber-500/20 bg-amber-500/5'
+                : 'border-green-500/20 bg-green-500/5',
+            )}
+          >
             <div>
               <h2 className="text-sm font-medium">{t('tiktokLive.recordResult.title')}</h2>
               <p className="mt-1 truncate text-xs text-muted-foreground">{recordResult.filepath}</p>

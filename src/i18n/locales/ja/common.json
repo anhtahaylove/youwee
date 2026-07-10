@@ -102,6 +102,7 @@
     "AI_NO_TRANSCRIPT": "利用可能な文字起こしがありません。",
     "WHISPER_API_ERROR": "Whisper API エラー。",
     "WHISPER_NO_API_KEY": "Whisper API キーが設定されていません。",
-    "WHISPER_UNSUPPORTED_FORMAT": "Whisper でサポートされていない音声フォーマットです。"
+    "WHISPER_UNSUPPORTED_FORMAT": "Whisper でサポートされていない音声フォーマットです。",
+    "TIKTOK_LIVE_OFFLINE": "この TikTok Live は現在配信されていません。"
   }
 }

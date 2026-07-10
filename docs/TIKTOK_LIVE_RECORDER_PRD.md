@@ -60,9 +60,21 @@ Thêm trang/section nhỏ:
 - Buttons: Inspect Live, Start Recording, Cancel.
 - Status: live/offline, selected variant, file output, lỗi đã sanitize.
 
-## Phase 2
+## Phase 2A: resilience + auto-reconnect
 
-- Watchlist/polling.
+Đã triển khai trong custom worktree:
+
+- Retry metadata tối đa 3 lần với backoff ngắn cho timeout, lỗi mạng/process và JSON tạm lỗi.
+- Không retry trạng thái TikTok Live đang offline hoặc lỗi không retryable.
+- FFmpeg auto-reconnect mặc định bật, giới hạn 20 lần và tổng thời gian chờ 120 giây.
+- Giữ file ghi được và ghi Library/history dạng partial nếu reconnect hết hạn sau khi đã có dữ liệu.
+- Cancel hoạt động cả khi đang chuẩn bị metadata, không chỉ sau khi FFmpeg đã chạy.
+- UI phân biệt Preparing, retry metadata, Recording, Cancelling và partial recording.
+- Lỗi backend wire được unwrap/sanitize, không hiện hoặc lưu raw `__YOUWEE_ERR__` trong log TikTok Live.
+
+## Phase 2B (deferred)
+
+- Watchlist/polling chờ streamer online.
 - Schedule auto-record.
 - Telegram Remote Download command cho TikTok Live.
 - Mở rộng native TikTok API/page resolver nếu cần username → room_id không phụ thuộc yt-dlp.

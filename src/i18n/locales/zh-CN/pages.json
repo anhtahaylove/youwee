@@ -398,7 +398,8 @@
     "title": "TikTok Live Recorder",
     "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
     "input": {
-      "placeholder": "输入 @username、room ID 或 TikTok Live URL..."
+      "placeholder": "输入 @username、room ID 或 TikTok Live URL...",
+      "label": "TikTok 直播用户名、房间 ID 或 URL"
     },
     "quality": "Quality",
     "transport": "Transport",
@@ -419,13 +420,22 @@
       "inspecting": "Inspecting TikTok Live...",
       "inspectReady": "{{count}} variant(s) found.",
       "notLive": "This TikTok Live is not active.",
+      "preparing": "正在准备录制 TikTok 直播...",
+      "retryingMetadata": "正在重试元数据（{{attempt}}/{{total}}）...",
       "recording": "Recording TikTok Live...",
+      "recordingReconnect": "正在录制 TikTok 直播（已启用自动重连）...",
+      "cancelling": "正在停止录制...",
       "recorded": "Recording saved and added to Library.",
+      "partialSaved": "重连尝试后直播流已结束，已保存部分录制。",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
     },
     "recordResult": {
       "title": "Recording complete"
+    },
+    "autoReconnect": {
+      "label": "自动重连",
+      "description": "在网络或直播流暂时中断时继续录制。"
     }
   }
 }

@@ -472,6 +472,19 @@ pub async fn run_ytdlp_with_stderr(app: &AppHandle, args: &[&str]) -> Result<Ytd
 pub fn parse_ytdlp_error(stderr: &str) -> Option<BackendError> {
     let stderr_lower = stderr.to_lowercase();
 
+    if stderr_lower.contains("tiktok")
+        && (stderr_lower.contains("not currently live")
+            || stderr_lower.contains("live stream is offline"))
+    {
+        return Some(
+            BackendError::new(
+                crate::types::code::TIKTOK_LIVE_OFFLINE,
+                "This TikTok Live is not currently active.",
+            )
+            .with_retryable(false),
+        );
+    }
+
     if is_upcoming_live_error(stderr) {
         return Some(
             BackendError::new(
@@ -1256,6 +1269,16 @@ mod tests {
         .expect("upcoming live error should be parsed");
 
         assert_eq!(error.code(), crate::types::code::YT_UPCOMING_LIVE);
+        assert_eq!(error.to_wire().retryable, Some(false));
+    }
+
+    #[test]
+    fn parse_ytdlp_error_detects_offline_tiktok_live() {
+        let error =
+            parse_ytdlp_error("ERROR: [tiktok:live] someuser: The channel is not currently live")
+                .expect("offline live error should be parsed");
+
+        assert_eq!(error.code(), crate::types::code::TIKTOK_LIVE_OFFLINE);
         assert_eq!(error.to_wire().retryable, Some(false));
     }
 

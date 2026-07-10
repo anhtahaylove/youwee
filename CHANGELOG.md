@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **TikTok Live Recorder Phase 2A** - Add bounded FFmpeg auto-reconnect, metadata retry with backoff, partial-recording recovery, and detailed recording lifecycle states
+
+### Fixed
+- **TikTok Live errors and cancellation** - Unwrap nested backend wire errors, report offline streams cleanly, and allow cancellation while metadata is still being prepared
+
 ## [0.19.1-custom.14] - 2026-07-10
 
 ### Added

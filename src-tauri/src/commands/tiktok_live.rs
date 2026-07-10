@@ -3,7 +3,7 @@ use crate::database::add_log_internal;
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
 };
-use crate::types::BackendError;
+use crate::types::{code, BackendError};
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
 use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
@@ -14,13 +14,19 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::LazyLock;
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 
 static ACTIVE_RECORDINGS: LazyLock<Mutex<HashMap<String, tokio::sync::oneshot::Sender<()>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+const METADATA_FETCH_ATTEMPTS: u32 = 3;
+const METADATA_RETRY_BASE_DELAY_MS: u64 = 750;
+const RECONNECT_MAX_RETRIES: u32 = 20;
+const RECONNECT_DELAY_MAX_SECONDS: u32 = 5;
+const RECONNECT_DELAY_TOTAL_MAX_SECONDS: u32 = 120;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TikTokLiveTargetKind {
@@ -77,6 +83,17 @@ pub struct TikTokLiveRecordResult {
     pub filepath: String,
     pub title: String,
     pub filesize: Option<u64>,
+    pub partial: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct TikTokLiveStatusEvent {
+    job_id: String,
+    state: String,
+    attempt: Option<u32>,
+    total: Option<u32>,
+    auto_reconnect: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -854,6 +871,65 @@ fn tiktok_cookie_header(
     }
 }
 
+fn emit_tiktok_live_status(
+    app: &AppHandle,
+    job_id: Option<&str>,
+    state: &str,
+    attempt: Option<u32>,
+    total: Option<u32>,
+    auto_reconnect: Option<bool>,
+) {
+    let Some(job_id) = job_id else {
+        return;
+    };
+
+    app.emit(
+        "tiktok-live-status",
+        TikTokLiveStatusEvent {
+            job_id: job_id.to_string(),
+            state: state.to_string(),
+            attempt,
+            total,
+            auto_reconnect,
+        },
+    )
+    .ok();
+}
+
+fn should_retry_metadata_error(error: &str) -> bool {
+    let wire = BackendError::from_message(error).to_wire();
+    wire.retryable.unwrap_or(false)
+        || wire.code == code::PARSE_FAILED
+        || wire.code == code::BACKEND_UNKNOWN && wire.message.contains("yt-dlp command failed")
+}
+
+fn metadata_retry_delay(attempt: u32) -> Duration {
+    Duration::from_millis(METADATA_RETRY_BASE_DELAY_MS * u64::from(attempt))
+}
+
+fn append_reconnect_args(args: &mut Vec<String>, enabled: bool) {
+    if !enabled {
+        return;
+    }
+
+    args.extend([
+        "-reconnect".to_string(),
+        "1".to_string(),
+        "-reconnect_streamed".to_string(),
+        "1".to_string(),
+        "-reconnect_on_network_error".to_string(),
+        "1".to_string(),
+        "-reconnect_on_http_error".to_string(),
+        "4xx,5xx".to_string(),
+        "-reconnect_max_retries".to_string(),
+        RECONNECT_MAX_RETRIES.to_string(),
+        "-reconnect_delay_max".to_string(),
+        RECONNECT_DELAY_MAX_SECONDS.to_string(),
+        "-reconnect_delay_total_max".to_string(),
+        RECONNECT_DELAY_TOTAL_MAX_SECONDS.to_string(),
+    ]);
+}
+
 async fn fetch_tiktok_live_json(
     app: &AppHandle,
     target_url: &str,
@@ -895,6 +971,9 @@ async fn fetch_tiktok_live_json(
         Err(_) => Err("Timed out inspecting TikTok Live metadata.".to_string()),
     }
     .map_err(|error| {
+        if crate::types::parse_wire_error_string(&error).is_some() {
+            return error;
+        }
         parse_ytdlp_error(&error)
             .unwrap_or_else(|| BackendError::from_message(error))
             .to_wire_string()
@@ -1023,6 +1102,68 @@ async fn fetch_tiktok_target_json(
     Ok((json, target_url))
 }
 
+#[allow(clippy::too_many_arguments)]
+async fn fetch_tiktok_target_json_with_retry(
+    app: &AppHandle,
+    target: &TikTokLiveTarget,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+    job_id: Option<&str>,
+) -> Result<(serde_json::Value, String), String> {
+    let target_url = tiktok_target_url(target).unwrap_or_else(|| target.input.clone());
+    let mut last_error = None;
+
+    for attempt in 1..=METADATA_FETCH_ATTEMPTS {
+        match fetch_tiktok_target_json(
+            app,
+            target,
+            cookie_mode,
+            cookie_browser,
+            cookie_browser_profile,
+            cookie_file_path,
+            cookie_skip_patterns,
+            proxy_url,
+        )
+        .await
+        {
+            Ok(result) => return Ok(result),
+            Err(error)
+                if attempt < METADATA_FETCH_ATTEMPTS && should_retry_metadata_error(&error) =>
+            {
+                let next_attempt = attempt + 1;
+                add_log_internal(
+                    "info",
+                    &format!(
+                        "Retrying TikTok Live metadata ({next_attempt}/{METADATA_FETCH_ATTEMPTS})"
+                    ),
+                    None,
+                    Some(&target_url),
+                )
+                .ok();
+                emit_tiktok_live_status(
+                    app,
+                    job_id,
+                    "metadata-retry",
+                    Some(next_attempt),
+                    Some(METADATA_FETCH_ATTEMPTS),
+                    None,
+                );
+                last_error = Some(error);
+                sleep(metadata_retry_delay(attempt)).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| {
+        BackendError::from_message("Failed to fetch TikTok Live metadata.").to_wire_string()
+    }))
+}
+
 fn string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
     paths.iter().find_map(|path| {
         json.pointer(path)
@@ -1052,6 +1193,7 @@ fn tiktok_live_title(json: &serde_json::Value, username: Option<&str>) -> String
 #[allow(clippy::too_many_arguments)]
 pub async fn inspect_tiktok_live(
     app: AppHandle,
+    job_id: Option<String>,
     input: String,
     preferred_quality: Option<String>,
     preferred_transport: Option<String>,
@@ -1075,7 +1217,7 @@ pub async fn inspect_tiktok_live(
     )
     .ok();
 
-    let (json, target_url) = fetch_tiktok_target_json(
+    let (json, target_url) = fetch_tiktok_target_json_with_retry(
         &app,
         &target,
         cookie_mode.as_deref(),
@@ -1084,10 +1226,12 @@ pub async fn inspect_tiktok_live(
         cookie_file_path.as_deref(),
         cookie_skip_patterns.as_deref(),
         proxy_url.as_deref(),
+        job_id.as_deref(),
     )
     .await
     .inspect_err(|error| {
-        add_log_internal("error", error, None, Some(&target_url)).ok();
+        let message = BackendError::from_message(error).message().to_string();
+        add_log_internal("error", &message, None, Some(&target_url)).ok();
     })?;
 
     let variants = variants_from_ytdlp_json(&json);
@@ -1144,187 +1288,230 @@ pub async fn record_tiktok_live(
     cookie_file_path: Option<String>,
     cookie_skip_patterns: Option<Vec<String>>,
     proxy_url: Option<String>,
+    auto_reconnect: Option<bool>,
 ) -> Result<TikTokLiveRecordResult, String> {
     let target = parse_tiktok_live_target(&input)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
-
-    let (json, target_url) = fetch_tiktok_target_json(
-        &app,
-        &target,
-        cookie_mode.as_deref(),
-        cookie_browser.as_deref(),
-        cookie_browser_profile.as_deref(),
-        cookie_file_path.as_deref(),
-        cookie_skip_patterns.as_deref(),
-        proxy_url.as_deref(),
-    )
-    .await?;
-
-    let formats = formats_from_ytdlp_json(&json);
-    let selected =
-        select_format(&formats, &preferred_quality, &preferred_transport).ok_or_else(|| {
-            BackendError::from_message("No TikTok Live stream variants found.").to_wire_string()
-        })?;
-
-    let ffmpeg_path = get_ffmpeg_path(&app)
-        .await
-        .ok_or_else(|| BackendError::from_message("FFmpeg not found.").to_wire_string())?;
-
-    let output_dir = if output_dir.trim().is_empty() {
-        app.path().download_dir().map_err(|e| {
-            BackendError::from_message(format!("Failed to resolve Downloads folder: {e}"))
-                .to_wire_string()
-        })?
-    } else {
-        PathBuf::from(output_dir.trim())
-    };
-    tokio::fs::create_dir_all(&output_dir).await.map_err(|e| {
-        BackendError::from_message(format!("Failed to create output folder: {e}")).to_wire_string()
-    })?;
-
-    let title = tiktok_live_title(&json, target.username.as_deref());
-    let output_path = output_path_for_recording(&output_dir, &title);
-    let output_path_str = output_path.to_string_lossy().to_string();
-
-    let mut args = vec![
-        "-hide_banner".to_string(),
-        "-nostdin".to_string(),
-        "-y".to_string(),
-    ];
-    if let Some(seconds) = duration_seconds.filter(|seconds| *seconds > 0) {
-        args.extend(["-t".to_string(), seconds.to_string()]);
-    }
-    let mut selected_headers = selected.http_headers.clone();
-    if let Some(cookie) = tiktok_cookie_header(
-        &target_url,
-        cookie_mode.as_deref(),
-        cookie_browser.as_deref(),
-        cookie_browser_profile.as_deref(),
-        cookie_file_path.as_deref(),
-        cookie_skip_patterns.as_deref(),
-    ) {
-        insert_header_if_missing(&mut selected_headers, "Cookie", &cookie);
-    }
-    let ffmpeg_headers = tiktok_ffmpeg_headers(&selected_headers);
-    if let Some(user_agent) =
-        header_value(&ffmpeg_headers, "User-Agent").filter(|value| !value.trim().is_empty())
-    {
-        args.extend(["-user_agent".to_string(), user_agent]);
-    }
-    if let Some(referer) =
-        header_value(&ffmpeg_headers, "Referer").filter(|value| !value.trim().is_empty())
-    {
-        args.extend(["-referer".to_string(), referer]);
-    }
-    if let Some(headers) = ffmpeg_header_block(&ffmpeg_headers) {
-        args.extend(["-headers".to_string(), headers]);
-    }
-    args.extend([
-        "-i".to_string(),
-        selected.url,
-        "-c".to_string(),
-        "copy".to_string(),
-        "-movflags".to_string(),
-        "+faststart".to_string(),
-        output_path_str.clone(),
-    ]);
-
+    let auto_reconnect = auto_reconnect.unwrap_or(true);
     let (cancel_tx, mut cancel_rx) = tokio::sync::oneshot::channel::<()>();
     {
         let mut recordings = ACTIVE_RECORDINGS.lock().await;
         recordings.insert(job_id.clone(), cancel_tx);
     }
 
-    add_log_internal(
-        "info",
-        &format!(
-            "Recording TikTok Live: {} ({})",
-            title, selected.variant.format_id
-        ),
-        None,
-        Some(&target_url),
-    )
-    .ok();
+    let result: Result<TikTokLiveRecordResult, String> = async {
+        let (json, target_url) = tokio::select! {
+            result = fetch_tiktok_target_json_with_retry(
+                &app,
+                &target,
+                cookie_mode.as_deref(),
+                cookie_browser.as_deref(),
+                cookie_browser_profile.as_deref(),
+                cookie_file_path.as_deref(),
+                cookie_skip_patterns.as_deref(),
+                proxy_url.as_deref(),
+                Some(&job_id),
+            ) => result?,
+            _ = &mut cancel_rx => {
+                return Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string());
+            }
+        };
 
-    let mut cmd = Command::new(ffmpeg_path);
-    cmd.args(&args).stdout(Stdio::null()).stderr(Stdio::null());
-    crate::utils::CommandExt::hide_window(&mut cmd);
-    let mut child = match cmd.spawn() {
-        Ok(child) => child,
-        Err(error) => {
-            let mut recordings = ACTIVE_RECORDINGS.lock().await;
-            recordings.remove(&job_id);
-            return Err(
-                BackendError::from_message(format!("Failed to start FFmpeg: {error}"))
-                    .to_wire_string(),
-            );
+        let formats = formats_from_ytdlp_json(&json);
+        let selected = select_format(&formats, &preferred_quality, &preferred_transport)
+            .ok_or_else(|| {
+                BackendError::from_message("No TikTok Live stream variants found.")
+                    .to_wire_string()
+            })?;
+
+        let ffmpeg_path = get_ffmpeg_path(&app)
+            .await
+            .ok_or_else(|| BackendError::from_message("FFmpeg not found.").to_wire_string())?;
+
+        let output_dir = if output_dir.trim().is_empty() {
+            app.path().download_dir().map_err(|e| {
+                BackendError::from_message(format!("Failed to resolve Downloads folder: {e}"))
+                    .to_wire_string()
+            })?
+        } else {
+            PathBuf::from(output_dir.trim())
+        };
+        tokio::fs::create_dir_all(&output_dir)
+            .await
+            .map_err(|e| {
+                BackendError::from_message(format!("Failed to create output folder: {e}"))
+                    .to_wire_string()
+            })?;
+
+        let title = tiktok_live_title(&json, target.username.as_deref());
+        let output_path = output_path_for_recording(&output_dir, &title);
+        let output_path_str = output_path.to_string_lossy().to_string();
+
+        let mut args = vec![
+            "-hide_banner".to_string(),
+            "-nostdin".to_string(),
+            "-y".to_string(),
+        ];
+        if let Some(seconds) = duration_seconds.filter(|seconds| *seconds > 0) {
+            args.extend(["-t".to_string(), seconds.to_string()]);
         }
-    };
+        let mut selected_headers = selected.http_headers.clone();
+        if let Some(cookie) = tiktok_cookie_header(
+            &target_url,
+            cookie_mode.as_deref(),
+            cookie_browser.as_deref(),
+            cookie_browser_profile.as_deref(),
+            cookie_file_path.as_deref(),
+            cookie_skip_patterns.as_deref(),
+        ) {
+            insert_header_if_missing(&mut selected_headers, "Cookie", &cookie);
+        }
+        let ffmpeg_headers = tiktok_ffmpeg_headers(&selected_headers);
+        if let Some(user_agent) =
+            header_value(&ffmpeg_headers, "User-Agent").filter(|value| !value.trim().is_empty())
+        {
+            args.extend(["-user_agent".to_string(), user_agent]);
+        }
+        if let Some(referer) =
+            header_value(&ffmpeg_headers, "Referer").filter(|value| !value.trim().is_empty())
+        {
+            args.extend(["-referer".to_string(), referer]);
+        }
+        if let Some(headers) = ffmpeg_header_block(&ffmpeg_headers) {
+            args.extend(["-headers".to_string(), headers]);
+        }
+        append_reconnect_args(&mut args, auto_reconnect);
+        args.extend([
+            "-i".to_string(),
+            selected.url,
+            "-c".to_string(),
+            "copy".to_string(),
+            "-movflags".to_string(),
+            "+faststart".to_string(),
+            output_path_str.clone(),
+        ]);
 
-    let status = tokio::select! {
-        status = child.wait() => status.map_err(|e| BackendError::from_message(format!("FFmpeg process error: {e}")).to_wire_string()),
-        _ = &mut cancel_rx => {
-            child.kill().await.ok();
+        add_log_internal(
+            "info",
+            &format!(
+                "Recording TikTok Live: {} ({}, auto-reconnect: {})",
+                title, selected.variant.format_id, auto_reconnect
+            ),
+            None,
+            Some(&target_url),
+        )
+        .ok();
+
+        let mut cmd = Command::new(ffmpeg_path);
+        cmd.args(&args).stdout(Stdio::null()).stderr(Stdio::null());
+        crate::utils::CommandExt::hide_window(&mut cmd);
+        let mut child = cmd.spawn().map_err(|error| {
+            BackendError::from_message(format!("Failed to start FFmpeg: {error}"))
+                .to_wire_string()
+        })?;
+
+        emit_tiktok_live_status(
+            &app,
+            Some(&job_id),
+            "recording",
+            None,
+            None,
+            Some(auto_reconnect),
+        );
+
+        let status = tokio::select! {
+            status = child.wait() => status.map_err(|e| BackendError::from_message(format!("FFmpeg process error: {e}")).to_wire_string()),
+            _ = &mut cancel_rx => {
+                child.kill().await.ok();
+                tokio::fs::remove_file(&output_path).await.ok();
+                Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string())
+            }
+        }?;
+
+        let filesize = tokio::fs::metadata(&output_path)
+            .await
+            .ok()
+            .map(|metadata| metadata.len());
+        let partial = !status.success();
+        if partial && (!auto_reconnect || filesize.unwrap_or(0) == 0) {
             tokio::fs::remove_file(&output_path).await.ok();
-            Err(BackendError::from_message("TikTok Live recording cancelled.").to_wire_string())
+            return Err(BackendError::from_message(format!(
+                "FFmpeg exited with code: {:?}",
+                status.code()
+            ))
+            .to_wire_string());
         }
-    };
 
-    {
-        let mut recordings = ACTIVE_RECORDINGS.lock().await;
-        recordings.remove(&job_id);
+        let thumbnail = string_at(
+            &json,
+            &[
+                "/thumbnail",
+                "/data/cover/url_list/0",
+                "/data/owner/avatar_thumb/url_list/0",
+            ],
+        );
+        let history_id = add_history_internal(
+            target_url.clone(),
+            title.clone(),
+            thumbnail,
+            output_path_str.clone(),
+            filesize,
+            if partial {
+                None
+            } else {
+                duration_seconds.map(u64::from)
+            },
+            Some(selected.variant.format_id),
+            Some("mp4".to_string()),
+            Some("tiktok-live".to_string()),
+            None,
+        )?;
+
+        add_log_internal(
+            "success",
+            &format!(
+                "Recorded TikTok Live: {}{}",
+                title,
+                if partial {
+                    " (partial recording preserved after reconnect timeout)"
+                } else {
+                    ""
+                }
+            ),
+            Some(&output_path_str),
+            Some(&target_url),
+        )
+        .ok();
+
+        Ok(TikTokLiveRecordResult {
+            job_id: job_id.clone(),
+            history_id,
+            filepath: output_path_str,
+            title,
+            filesize,
+            partial,
+        })
+    }
+    .await;
+
+    if let Err(error) = &result {
+        let backend_error = BackendError::from_message(error.as_str());
+        let target_url = tiktok_target_url(&target).unwrap_or_else(|| target.input.clone());
+        add_log_internal(
+            if backend_error.code() == code::DOWNLOAD_CANCELLED {
+                "info"
+            } else {
+                "error"
+            },
+            backend_error.message(),
+            None,
+            Some(&target_url),
+        )
+        .ok();
     }
 
-    let status = status?;
-    if !status.success() {
-        tokio::fs::remove_file(&output_path).await.ok();
-        return Err(BackendError::from_message(format!(
-            "FFmpeg exited with code: {:?}",
-            status.code()
-        ))
-        .to_wire_string());
-    }
-
-    let filesize = tokio::fs::metadata(&output_path)
-        .await
-        .ok()
-        .map(|metadata| metadata.len());
-    let thumbnail = string_at(
-        &json,
-        &[
-            "/thumbnail",
-            "/data/cover/url_list/0",
-            "/data/owner/avatar_thumb/url_list/0",
-        ],
-    );
-    let history_id = add_history_internal(
-        target_url.clone(),
-        title.clone(),
-        thumbnail,
-        output_path_str.clone(),
-        filesize,
-        duration_seconds.map(u64::from),
-        Some(selected.variant.format_id),
-        Some("mp4".to_string()),
-        Some("tiktok-live".to_string()),
-        None,
-    )?;
-
-    add_log_internal(
-        "success",
-        &format!("Recorded TikTok Live: {}", title),
-        Some(&output_path_str),
-        Some(&target_url),
-    )
-    .ok();
-
-    Ok(TikTokLiveRecordResult {
-        job_id,
-        history_id,
-        filepath: output_path_str,
-        title,
-        filesize,
-    })
+    ACTIVE_RECORDINGS.lock().await.remove(&job_id);
+    result
 }
 
 #[tauri::command]
@@ -1332,10 +1519,8 @@ pub async fn cancel_tiktok_live_recording(job_id: String) -> Result<(), String> 
     let mut recordings = ACTIVE_RECORDINGS.lock().await;
     if let Some(cancel_tx) = recordings.remove(&job_id) {
         cancel_tx.send(()).ok();
-        Ok(())
-    } else {
-        Err("TikTok Live recording not found".to_string())
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -1637,6 +1822,39 @@ mod tests {
         .expect("selected");
 
         assert_eq!(selected.variant.format_id, "hd-muxed");
+    }
+
+    #[test]
+    fn retries_transient_metadata_errors_but_not_offline_streams() {
+        let timeout = BackendError::new(code::NETWORK_TIMEOUT, "temporary timeout")
+            .with_retryable(true)
+            .to_wire_string();
+        let offline = BackendError::new(code::TIKTOK_LIVE_OFFLINE, "offline")
+            .with_retryable(false)
+            .to_wire_string();
+
+        assert!(should_retry_metadata_error(&timeout));
+        assert!(!should_retry_metadata_error(&offline));
+        assert_eq!(metadata_retry_delay(1), Duration::from_millis(750));
+        assert_eq!(metadata_retry_delay(2), Duration::from_millis(1500));
+    }
+
+    #[test]
+    fn auto_reconnect_adds_bounded_ffmpeg_http_retries() {
+        let mut enabled = Vec::new();
+        append_reconnect_args(&mut enabled, true);
+
+        assert!(enabled.windows(2).any(|args| args == ["-reconnect", "1"]));
+        assert!(enabled
+            .windows(2)
+            .any(|args| args == ["-reconnect_max_retries", "20"]));
+        assert!(enabled
+            .windows(2)
+            .any(|args| args == ["-reconnect_delay_total_max", "120"]));
+
+        let mut disabled = Vec::new();
+        append_reconnect_args(&mut disabled, false);
+        assert!(disabled.is_empty());
     }
 
     #[test]
