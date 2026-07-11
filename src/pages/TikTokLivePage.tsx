@@ -135,6 +135,10 @@ type TikTokLiveWatchEntry = {
   recordMode: TikTokLiveRecordMode;
   cooldownSeconds: number;
   filenameTemplate?: string;
+  scheduleEnabled: boolean;
+  scheduleDays?: string;
+  scheduleStartMinute?: number;
+  scheduleEndMinute?: number;
   backoffAttempt: number;
   nextCheckAt: number;
   status: TikTokLiveWatchStatus;
@@ -159,6 +163,19 @@ type TikTokLiveRecorderConfig = {
   maxConcurrentRecordings: number;
   activeRecordings: number;
   hardLimit: number;
+};
+
+type TikTokLiveTelemetrySnapshot = {
+  activeRecordings: number;
+  maxConcurrentRecordings: number;
+  watchedStreamers: number;
+  enabledWatchers: number;
+  recoverableJobs: number;
+  totalSegments: number;
+  totalRefreshes: number;
+  totalReconnects: number;
+  totalRecordedBytes: number;
+  resourceWarning?: 'limitHigh' | 'multiRoomActive';
 };
 
 type TikTokLiveWatchAuthSnapshot = Pick<
@@ -191,6 +208,23 @@ function formatSize(bytes?: number): string {
   if (!bytes) return '';
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function minuteToTime(minute?: number): string {
+  if (!Number.isFinite(minute)) return '';
+  const safeMinute = Math.max(0, Math.min(1439, minute || 0));
+  const hour = Math.floor(safeMinute / 60)
+    .toString()
+    .padStart(2, '0');
+  const value = (safeMinute % 60).toString().padStart(2, '0');
+  return `${hour}:${value}`;
+}
+
+function timeToMinute(value: string): number | null {
+  const [hour, minute] = value.split(':').map((part) => Number.parseInt(part, 10));
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  const total = hour * 60 + minute;
+  return total >= 0 && total < 24 * 60 ? total : null;
 }
 
 function variantLabel(variant?: TikTokLiveVariant): string {
@@ -245,7 +279,14 @@ export function TikTokLivePage() {
   const [watchRecordMode, setWatchRecordMode] = useState<TikTokLiveRecordMode>('oncePerLive');
   const [watchCooldown, setWatchCooldown] = useState('3600');
   const [watchFilenameTemplate, setWatchFilenameTemplate] = useState('');
+  const [watchScheduleEnabled, setWatchScheduleEnabled] = useState(false);
+  const [watchScheduleDays, setWatchScheduleDays] = useState('');
+  const [watchScheduleStart, setWatchScheduleStart] = useState('00:00');
+  const [watchScheduleEnd, setWatchScheduleEnd] = useState('23:59');
   const [recorderConfig, setRecorderConfig] = useState<TikTokLiveRecorderConfig | null>(null);
+  const [telemetrySnapshot, setTelemetrySnapshot] = useState<TikTokLiveTelemetrySnapshot | null>(
+    null,
+  );
   const [maxConcurrentRecordings, setMaxConcurrentRecordings] = useState('1');
   const [watchActionId, setWatchActionId] = useState<string | null>(null);
   const [editingWatchId, setEditingWatchId] = useState<string | null>(null);
@@ -334,22 +375,32 @@ export function TikTokLivePage() {
     }
   }, []);
 
+  const refreshTelemetry = useCallback(async () => {
+    try {
+      setTelemetrySnapshot(await invoke<TikTokLiveTelemetrySnapshot>('get_tiktok_live_telemetry'));
+    } catch (err) {
+      setError(localizeBackendError(extractBackendError(err)));
+    }
+  }, []);
+
   useEffect(() => {
     void refreshRecoveryJobs();
     void refreshWatchlist();
     void refreshRecorderConfig();
-  }, [refreshRecoveryJobs, refreshRecorderConfig, refreshWatchlist]);
+    void refreshTelemetry();
+  }, [refreshRecoveryJobs, refreshRecorderConfig, refreshTelemetry, refreshWatchlist]);
 
   useEffect(() => {
     const unlistenPromise = listen('tiktok-live-watchlist-updated', () => {
       void refreshWatchlist();
       void refreshRecoveryJobs();
       void refreshRecorderConfig();
+      void refreshTelemetry();
     });
     return () => {
       void unlistenPromise.then((unlisten) => unlisten());
     };
-  }, [refreshRecorderConfig, refreshRecoveryJobs, refreshWatchlist]);
+  }, [refreshRecorderConfig, refreshRecoveryJobs, refreshTelemetry, refreshWatchlist]);
 
   const updateInput = useCallback((value: string) => {
     setInput(value);
@@ -561,11 +612,12 @@ export function TikTokLivePage() {
       });
       setRecorderConfig(config);
       setMaxConcurrentRecordings(config.maxConcurrentRecordings.toString());
+      await refreshTelemetry();
       setStatus(t('tiktokLive.watchlist.recorderLimitUpdated'));
     } catch (err) {
       setError(localizeBackendError(extractBackendError(err)));
     }
-  }, [maxConcurrentRecordings, t]);
+  }, [maxConcurrentRecordings, refreshTelemetry, t]);
 
   const saveWatchEntry = useCallback(async () => {
     if (!input.trim() || !outputDir) return;
@@ -596,6 +648,10 @@ export function TikTokLivePage() {
           cooldownSeconds:
             Number.isFinite(cooldownValue) && cooldownValue >= 0 ? cooldownValue : 3600,
           filenameTemplate: watchFilenameTemplate.trim() || null,
+          scheduleEnabled: watchScheduleEnabled,
+          scheduleDays: watchScheduleDays.trim() || null,
+          scheduleStartMinute: watchScheduleEnabled ? timeToMinute(watchScheduleStart) : null,
+          scheduleEndMinute: watchScheduleEnabled ? timeToMinute(watchScheduleEnd) : null,
         },
       });
       setStatus(t(editingWatchId ? 'tiktokLive.watchlist.updated' : 'tiktokLive.watchlist.added'));
@@ -623,6 +679,10 @@ export function TikTokLivePage() {
     watchFilenameTemplate,
     watchPollInterval,
     watchRecordMode,
+    watchScheduleDays,
+    watchScheduleEnabled,
+    watchScheduleEnd,
+    watchScheduleStart,
   ]);
 
   const editWatchEntry = useCallback((entry: TikTokLiveWatchEntry) => {
@@ -636,6 +696,10 @@ export function TikTokLivePage() {
     setWatchRecordMode(entry.recordMode || 'oncePerLive');
     setWatchCooldown((entry.cooldownSeconds ?? 3600).toString());
     setWatchFilenameTemplate(entry.filenameTemplate || '');
+    setWatchScheduleEnabled(entry.scheduleEnabled);
+    setWatchScheduleDays(entry.scheduleDays || '');
+    setWatchScheduleStart(minuteToTime(entry.scheduleStartMinute) || '00:00');
+    setWatchScheduleEnd(minuteToTime(entry.scheduleEndMinute) || '23:59');
     setEditingWatchAuth({
       cookieMode: entry.cookieMode,
       cookieBrowser: entry.cookieBrowser,
@@ -741,6 +805,43 @@ export function TikTokLivePage() {
   const canCancel = isRecording && !isCancelling;
   const watchBusy = watchActionId !== null;
   const canSaveWatch = input.trim().length > 0 && outputDir.length > 0 && !busy && !watchBusy;
+  const localTelemetry = useMemo(() => {
+    const watchStats = watchEntries.reduce(
+      (totals, entry) => ({
+        segments: totals.segments + entry.lastSegmentCount,
+        refreshes: totals.refreshes + entry.lastRefreshCount,
+        reconnects: totals.reconnects + entry.lastReconnectCount,
+        fileSize: totals.fileSize + (entry.lastFileSize || 0),
+      }),
+      { segments: 0, refreshes: 0, reconnects: 0, fileSize: 0 },
+    );
+    return {
+      active: recorderConfig?.activeRecordings ?? 0,
+      watched: watchEntries.length,
+      enabled: watchEntries.filter((entry) => entry.enabled).length,
+      recoverable: recoveryJobs.length,
+      ...watchStats,
+      resourceWarning: (recorderConfig?.maxConcurrentRecordings ?? 1) > 1 ? 'limitHigh' : null,
+    };
+  }, [
+    recorderConfig?.activeRecordings,
+    recorderConfig?.maxConcurrentRecordings,
+    recoveryJobs.length,
+    watchEntries,
+  ]);
+  const telemetry = telemetrySnapshot
+    ? {
+        active: telemetrySnapshot.activeRecordings,
+        watched: telemetrySnapshot.watchedStreamers,
+        enabled: telemetrySnapshot.enabledWatchers,
+        recoverable: telemetrySnapshot.recoverableJobs,
+        segments: telemetrySnapshot.totalSegments,
+        refreshes: telemetrySnapshot.totalRefreshes,
+        reconnects: telemetrySnapshot.totalReconnects,
+        fileSize: telemetrySnapshot.totalRecordedBytes,
+        resourceWarning: telemetrySnapshot.resourceWarning || null,
+      }
+    : localTelemetry;
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -757,6 +858,39 @@ export function TikTokLivePage() {
       <div className="mx-4 sm:mx-6 h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4">
+        <section className="grid gap-2 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-muted-foreground sm:grid-cols-4">
+          <div>
+            <p className="font-medium text-foreground">{t('tiktokLive.telemetry.title')}</p>
+            <p>{t('tiktokLive.telemetry.active', { count: telemetry.active })}</p>
+          </div>
+          <div>
+            <p>
+              {t('tiktokLive.telemetry.watched', {
+                count: telemetry.watched,
+                enabled: telemetry.enabled,
+              })}
+            </p>
+            <p>{t('tiktokLive.telemetry.recoverable', { count: telemetry.recoverable })}</p>
+          </div>
+          <div>
+            <p>{t('tiktokLive.telemetry.segments', { count: telemetry.segments })}</p>
+            <p>{t('tiktokLive.telemetry.refreshes', { count: telemetry.refreshes })}</p>
+          </div>
+          <div>
+            <p>{t('tiktokLive.telemetry.reconnects', { count: telemetry.reconnects })}</p>
+            <p>
+              {t('tiktokLive.telemetry.recordedSize', {
+                size: formatSize(telemetry.fileSize) || '0 KB',
+              })}
+            </p>
+          </div>
+          {telemetry.resourceWarning && (
+            <p className="sm:col-span-4 rounded-lg bg-amber-500/10 px-2 py-1 text-amber-600 dark:text-amber-400">
+              {t(`tiktokLive.telemetry.warnings.${telemetry.resourceWarning}`)}
+            </p>
+          )}
+        </section>
+
         <section className="rounded-2xl border border-white/[0.08] bg-card/40 p-4 space-y-4">
           <div className="grid gap-3 md:grid-cols-[1fr_auto]">
             <Input
@@ -933,6 +1067,62 @@ export function TikTokLivePage() {
             </div>
           </div>
 
+          <div className="rounded-xl bg-muted/25 px-3 py-2.5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="text-sm font-medium">
+                  {t('tiktokLive.watchlist.schedule.enabled')}
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t('tiktokLive.watchlist.schedule.description')}
+                </p>
+              </div>
+              <Switch
+                checked={watchScheduleEnabled}
+                onCheckedChange={setWatchScheduleEnabled}
+                disabled={busy || watchBusy}
+                aria-label={t('tiktokLive.watchlist.schedule.enabled')}
+              />
+            </div>
+            {watchScheduleEnabled && (
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t('tiktokLive.watchlist.schedule.days')}
+                  </p>
+                  <Input
+                    value={watchScheduleDays}
+                    onChange={(event) => setWatchScheduleDays(event.target.value)}
+                    disabled={busy || watchBusy}
+                    placeholder={t('tiktokLive.watchlist.schedule.daysPlaceholder')}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t('tiktokLive.watchlist.schedule.start')}
+                  </p>
+                  <Input
+                    type="time"
+                    value={watchScheduleStart}
+                    onChange={(event) => setWatchScheduleStart(event.target.value)}
+                    disabled={busy || watchBusy}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t('tiktokLive.watchlist.schedule.end')}
+                  </p>
+                  <Input
+                    type="time"
+                    value={watchScheduleEnd}
+                    onChange={(event) => setWatchScheduleEnd(event.target.value)}
+                    disabled={busy || watchBusy}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {!isRecording ? (
               <Button onClick={() => void startRecording()} disabled={!canSubmit} className="gap-2">
@@ -1092,6 +1282,15 @@ export function TikTokLivePage() {
                           seconds: entry.cooldownSeconds,
                         })}
                       </span>
+                      {entry.scheduleEnabled && (
+                        <span>
+                          {t('tiktokLive.watchlist.schedule.value', {
+                            days: entry.scheduleDays || t('tiktokLive.watchlist.schedule.everyDay'),
+                            start: minuteToTime(entry.scheduleStartMinute) || '00:00',
+                            end: minuteToTime(entry.scheduleEndMinute) || '23:59',
+                          })}
+                        </span>
+                      )}
                       {entry.lastCheckedAt && (
                         <span>
                           {t('tiktokLive.watchlist.lastChecked')}:{' '}

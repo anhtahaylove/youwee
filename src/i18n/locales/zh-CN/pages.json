@@ -500,6 +500,16 @@
         "oncePerLive": "每场直播一次",
         "alwaysAfterCooldown": "冷却后再次录制",
         "manualOnly": "仅手动"
+      },
+      "schedule": {
+        "enabled": "录制时间窗口",
+        "description": "仅在所选本地日期和时间范围内自动录制该主播。",
+        "days": "日期 (0=周一, 6=周日)",
+        "daysPlaceholder": "留空 = 每天，例如 0,1,2,3,4",
+        "start": "开始时间",
+        "end": "结束时间",
+        "value": "计划：{{days}} · {{start}}-{{end}}",
+        "everyDay": "每天"
       }
     },
     "recovery": {
@@ -526,6 +536,20 @@
         "description": "这将永久删除“{{title}}”已保存的分段。",
         "cancel": "取消",
         "confirm": "删除"
+      }
+    },
+    "telemetry": {
+      "title": "遥测",
+      "active": "活动房间：{{count}}",
+      "watched": "监听列表：{{count}}",
+      "recoverable": "可恢复：{{count}}",
+      "segments": "分段：{{count}}",
+      "refreshes": "刷新：{{count}}",
+      "reconnects": "重连：{{count}}",
+      "recordedSize": "已录制：{{size}}",
+      "warnings": {
+        "limitHigh": "已启用多房间模式。如果录制卡顿，请留意 CPU、磁盘和带宽。",
+        "multiRoomActive": "当前正在录制多个房间。如果 CPU、磁盘或带宽升高，请降低房间限制。"
       }
     }
   }

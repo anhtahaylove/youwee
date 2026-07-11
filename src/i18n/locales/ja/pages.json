@@ -500,6 +500,16 @@
         "oncePerLive": "ライブごとに1回",
         "alwaysAfterCooldown": "クールダウン後",
         "manualOnly": "手動のみ"
+      },
+      "schedule": {
+        "enabled": "録画時間帯",
+        "description": "選択したローカル曜日と時間帯だけ、この配信者を自動録画します。",
+        "days": "曜日 (0=月, 6=日)",
+        "daysPlaceholder": "空 = 毎日、例 0,1,2,3,4",
+        "start": "開始時刻",
+        "end": "終了時刻",
+        "value": "スケジュール: {{days}} · {{start}}-{{end}}",
+        "everyDay": "毎日"
       }
     },
     "recovery": {
@@ -526,6 +536,20 @@
         "description": "「{{title}}」の保存済みセグメントを完全に削除します。",
         "cancel": "キャンセル",
         "confirm": "削除"
+      }
+    },
+    "telemetry": {
+      "title": "テレメトリ",
+      "active": "録画中ルーム: {{count}}",
+      "watched": "ウォッチリスト: {{count}}",
+      "recoverable": "復元可能: {{count}}",
+      "segments": "セグメント: {{count}}",
+      "refreshes": "更新: {{count}}",
+      "reconnects": "再接続: {{count}}",
+      "recordedSize": "録画済み: {{size}}",
+      "warnings": {
+        "limitHigh": "複数ルームモードが有効です。録画が途切れる場合は CPU、ディスク、帯域を確認してください。",
+        "multiRoomActive": "複数ルームを録画中です。CPU、ディスク、帯域が上がる場合はルーム上限を下げてください。"
       }
     }
   }

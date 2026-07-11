@@ -500,6 +500,16 @@
         "oncePerLive": "Một lần mỗi live",
         "alwaysAfterCooldown": "Sau cooldown",
         "manualOnly": "Chỉ thủ công"
+      },
+      "schedule": {
+        "enabled": "Khung giờ ghi",
+        "description": "Chỉ tự ghi streamer này trong ngày và khung giờ local đã chọn.",
+        "days": "Ngày (0=T2, 6=CN)",
+        "daysPlaceholder": "Trống = mọi ngày, ví dụ 0,1,2,3,4",
+        "start": "Giờ bắt đầu",
+        "end": "Giờ kết thúc",
+        "value": "Lịch: {{days}} · {{start}}-{{end}}",
+        "everyDay": "mọi ngày"
       }
     },
     "recovery": {
@@ -526,6 +536,20 @@
         "description": "Thao tác này sẽ xóa vĩnh viễn các phân đoạn đã lưu của “{{title}}”.",
         "cancel": "Hủy",
         "confirm": "Xóa"
+      }
+    },
+    "telemetry": {
+      "title": "Telemetry",
+      "active": "Phòng đang ghi: {{count}}",
+      "watched": "Watchlist: {{count}}",
+      "recoverable": "Có thể khôi phục: {{count}}",
+      "segments": "Segments: {{count}}",
+      "refreshes": "Refresh: {{count}}",
+      "reconnects": "Reconnect: {{count}}",
+      "recordedSize": "Đã ghi: {{size}}",
+      "warnings": {
+        "limitHigh": "Đã bật chế độ nhiều phòng. Theo dõi CPU, ổ đĩa và băng thông nếu bản ghi bị giật.",
+        "multiRoomActive": "Đang ghi nhiều phòng cùng lúc. Giảm giới hạn phòng nếu CPU, ổ đĩa hoặc băng thông tăng cao."
       }
     }
   }

@@ -500,6 +500,16 @@
         "oncePerLive": "Una vez por live",
         "alwaysAfterCooldown": "Tras la espera",
         "manualOnly": "Solo manual"
+      },
+      "schedule": {
+        "enabled": "Ventana de grabación",
+        "description": "Solo graba automáticamente este streamer en los días y horas locales seleccionados.",
+        "days": "Días (0=Lun, 6=Dom)",
+        "daysPlaceholder": "Vacío = todos los días, ej. 0,1,2,3,4",
+        "start": "Hora de inicio",
+        "end": "Hora de fin",
+        "value": "Horario: {{days}} · {{start}}-{{end}}",
+        "everyDay": "todos los días"
       }
     },
     "recovery": {
@@ -526,6 +536,20 @@
         "description": "Esto eliminará permanentemente los segmentos guardados de “{{title}}”.",
         "cancel": "Cancelar",
         "confirm": "Eliminar"
+      }
+    },
+    "telemetry": {
+      "title": "Telemetría",
+      "active": "Salas activas: {{count}}",
+      "watched": "Watchlist: {{count}}",
+      "recoverable": "Recuperables: {{count}}",
+      "segments": "Segmentos: {{count}}",
+      "refreshes": "Refrescos: {{count}}",
+      "reconnects": "Reconexiones: {{count}}",
+      "recordedSize": "Grabado: {{size}}",
+      "warnings": {
+        "limitHigh": "El modo multisala está activado. Vigila CPU, disco y ancho de banda si las grabaciones se entrecortan.",
+        "multiRoomActive": "Hay varias salas grabando ahora. Reduce el límite si suben CPU, disco o ancho de banda."
       }
     }
   }

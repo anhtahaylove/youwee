@@ -151,6 +151,15 @@ pub(crate) fn init_tiktok_live_jobs_table(conn: &Connection) -> Result<(), Strin
         [],
     )
     .map_err(|e| format!("Failed to create TikTok Live jobs index: {e}"))?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS tiktok_live_recorder_config (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            max_concurrent_recordings INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )",
+        [],
+    )
+    .map_err(|e| format!("Failed to create TikTok Live recorder config table: {e}"))?;
     Ok(())
 }
 
@@ -314,6 +323,33 @@ pub fn delete_tiktok_live_job_internal(id: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn get_tiktok_live_recorder_limit_internal() -> Result<Option<usize>, String> {
+    let conn = get_db()?;
+    match conn.query_row(
+        "SELECT max_concurrent_recordings FROM tiktok_live_recorder_config WHERE id = 1",
+        [],
+        |row| row.get::<_, i64>(0),
+    ) {
+        Ok(value) => Ok(Some(value.max(1) as usize)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(format!("Failed to load TikTok Live recorder config: {e}")),
+    }
+}
+
+pub fn set_tiktok_live_recorder_limit_internal(value: usize) -> Result<(), String> {
+    let conn = get_db()?;
+    conn.execute(
+        "INSERT INTO tiktok_live_recorder_config (id, max_concurrent_recordings, updated_at)
+         VALUES (1, ?1, ?2)
+         ON CONFLICT(id) DO UPDATE SET
+            max_concurrent_recordings = excluded.max_concurrent_recordings,
+            updated_at = excluded.updated_at",
+        params![value as i64, Utc::now().timestamp()],
+    )
+    .map_err(|e| format!("Failed to save TikTok Live recorder config: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -330,6 +366,9 @@ mod tests {
         connection
             .execute("DELETE FROM tiktok_live_jobs", [])
             .expect("clear TikTok Live jobs");
+        connection
+            .execute("DELETE FROM tiktok_live_recorder_config", [])
+            .expect("clear TikTok Live recorder config");
     }
 
     fn sample_job() -> TikTokLiveJob {
@@ -408,5 +447,22 @@ mod tests {
         assert!(TikTokLiveJobStatus::Recoverable.can_resume());
         assert!(TikTokLiveJobStatus::Interrupted.can_resume());
         assert!(!TikTokLiveJobStatus::Completed.can_resume());
+    }
+
+    #[test]
+    fn recorder_limit_config_round_trip() {
+        let _guard = db_test_guard();
+        ensure_test_table();
+
+        assert_eq!(
+            get_tiktok_live_recorder_limit_internal().expect("missing config"),
+            None
+        );
+        set_tiktok_live_recorder_limit_internal(3).expect("save config");
+
+        assert_eq!(
+            get_tiktok_live_recorder_limit_internal().expect("load config"),
+            Some(3)
+        );
     }
 }

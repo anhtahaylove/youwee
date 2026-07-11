@@ -284,6 +284,9 @@ pub fn run() {
             if let Err(error) = database::init_database(&app.handle()) {
                 log::error!("Failed to initialize database: {}", error);
             } else {
+                if let Err(error) = commands::load_tiktok_live_recorder_config_after_restart() {
+                    log::error!("Failed to load TikTok Live recorder config: {}", error);
+                }
                 if let Err(error) = commands::reconcile_tiktok_live_jobs_after_restart() {
                     log::error!("Failed to reconcile TikTok Live jobs: {}", error);
                 }
@@ -464,6 +467,7 @@ pub fn run() {
             commands::continue_tiktok_live_recovery,
             commands::delete_tiktok_live_recovery,
             commands::get_tiktok_live_recorder_config,
+            commands::get_tiktok_live_telemetry,
             commands::set_tiktok_live_recorder_config,
             commands::list_tiktok_live_watchlist,
             commands::save_tiktok_live_watch_entry,

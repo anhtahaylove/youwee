@@ -500,6 +500,16 @@
         "oncePerLive": "Once per live",
         "alwaysAfterCooldown": "After cooldown",
         "manualOnly": "Manual only"
+      },
+      "schedule": {
+        "enabled": "Recording window",
+        "description": "Only auto-record this streamer during the selected local days and time range.",
+        "days": "Days (0=Mon, 6=Sun)",
+        "daysPlaceholder": "Empty = every day, e.g. 0,1,2,3,4",
+        "start": "Start time",
+        "end": "End time",
+        "value": "Schedule: {{days}} · {{start}}-{{end}}",
+        "everyDay": "every day"
       }
     },
     "recovery": {
@@ -526,6 +536,20 @@
         "description": "This permanently deletes the saved segments for “{{title}}”.",
         "cancel": "Cancel",
         "confirm": "Delete"
+      }
+    },
+    "telemetry": {
+      "title": "Telemetry",
+      "active": "Active rooms: {{count}}",
+      "watched": "Watchlist: {{count}}",
+      "recoverable": "Recoverable: {{count}}",
+      "segments": "Segments: {{count}}",
+      "refreshes": "Refreshes: {{count}}",
+      "reconnects": "Reconnects: {{count}}",
+      "recordedSize": "Recorded: {{size}}",
+      "warnings": {
+        "limitHigh": "Multi-room mode is enabled. Watch CPU, disk, and bandwidth if recordings stutter.",
+        "multiRoomActive": "Multiple rooms are recording now. Lower the room limit if CPU, disk, or bandwidth spikes."
       }
     }
   }

@@ -1,19 +1,20 @@
 use crate::database::{
     add_log_internal, delete_tiktok_live_job_internal, delete_tiktok_live_watch_entry_internal,
     get_due_tiktok_live_watchlist_internal, get_tiktok_live_job_internal,
-    get_tiktok_live_jobs_internal, get_tiktok_live_watch_entry_by_active_job_internal,
+    get_tiktok_live_jobs_internal, get_tiktok_live_recorder_limit_internal,
+    get_tiktok_live_watch_entry_by_active_job_internal,
     get_tiktok_live_watch_entry_by_target_internal, get_tiktok_live_watch_entry_internal,
     get_tiktok_live_watchlist_internal, save_tiktok_live_job_internal,
-    save_tiktok_live_watch_entry_internal, update_tiktok_live_watch_entry_internal,
-    upsert_history_with_id_internal, TikTokLiveJob, TikTokLiveJobStatus, TikTokLiveRecordMode,
-    TikTokLiveWatchEntry, TikTokLiveWatchStatus,
+    save_tiktok_live_watch_entry_internal, set_tiktok_live_recorder_limit_internal,
+    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal, TikTokLiveJob,
+    TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
 };
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
 };
 use crate::types::{code, BackendError};
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
-use chrono::Utc;
+use chrono::{Datelike, Local, Timelike, Utc};
 use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
@@ -67,10 +68,92 @@ fn configured_tiktok_live_recording_limit() -> usize {
     clamp_tiktok_live_recording_limit(Some(TIKTOK_LIVE_MAX_RECORDINGS.load(Ordering::SeqCst)))
 }
 
+fn apply_tiktok_live_recording_limit(value: usize) -> usize {
+    let limit = clamp_tiktok_live_recording_limit(Some(value));
+    TIKTOK_LIVE_MAX_RECORDINGS.store(limit, Ordering::SeqCst);
+    limit
+}
+
+pub fn load_tiktok_live_recorder_config_after_restart() -> Result<usize, String> {
+    let limit = get_tiktok_live_recorder_limit_internal()?
+        .map(apply_tiktok_live_recording_limit)
+        .unwrap_or_else(configured_tiktok_live_recording_limit);
+    Ok(limit)
+}
+
 fn clamp_watchlist_cooldown(seconds: Option<u32>) -> u32 {
     seconds
         .unwrap_or(WATCHLIST_DEFAULT_COOLDOWN_SECONDS)
         .min(WATCHLIST_MAX_COOLDOWN_SECONDS)
+}
+
+fn tiktok_live_resource_warning(
+    active_recordings: usize,
+    recording_limit: usize,
+) -> Option<&'static str> {
+    if active_recordings > 1 {
+        Some("multiRoomActive")
+    } else if recording_limit > 1 {
+        Some("limitHigh")
+    } else {
+        None
+    }
+}
+
+fn normalize_schedule_days(raw: Option<String>) -> Option<String> {
+    let mut days: Vec<u32> = raw
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|value| value.trim().parse::<u32>().ok())
+        .filter(|day| *day < 7)
+        .collect();
+    days.sort_unstable();
+    days.dedup();
+    (!days.is_empty()).then(|| {
+        days.into_iter()
+            .map(|day| day.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    })
+}
+
+fn normalize_schedule_minute(value: Option<u32>) -> Option<u32> {
+    value.filter(|minute| *minute < 24 * 60)
+}
+
+fn schedule_days_contains(schedule_days: Option<&str>, weekday: u32) -> bool {
+    schedule_days
+        .map(|days| {
+            days.split(',')
+                .filter_map(|value| value.trim().parse::<u32>().ok())
+                .any(|day| day == weekday)
+        })
+        .unwrap_or(true)
+}
+
+fn schedule_window_contains(start: Option<u32>, end: Option<u32>, minute: u32) -> bool {
+    match (start, end) {
+        (Some(start), Some(end)) if start < end => (start..end).contains(&minute),
+        (Some(start), Some(end)) if start > end => minute >= start || minute < end,
+        (Some(start), None) => minute >= start,
+        (None, Some(end)) => minute < end,
+        _ => true,
+    }
+}
+
+fn watch_entry_allows_auto_record_now(entry: &TikTokLiveWatchEntry) -> bool {
+    if !entry.schedule_enabled {
+        return true;
+    }
+    let now = Local::now();
+    let weekday = now.weekday().num_days_from_monday();
+    let minute = now.hour() * 60 + now.minute();
+    schedule_days_contains(entry.schedule_days.as_deref(), weekday)
+        && schedule_window_contains(
+            entry.schedule_start_minute,
+            entry.schedule_end_minute,
+            minute,
+        )
 }
 
 async fn tiktok_live_recorder_at_limit() -> bool {
@@ -182,6 +265,21 @@ pub struct TikTokLiveRecorderConfig {
     pub hard_limit: usize,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TikTokLiveTelemetrySnapshot {
+    pub active_recordings: usize,
+    pub max_concurrent_recordings: usize,
+    pub watched_streamers: usize,
+    pub enabled_watchers: usize,
+    pub recoverable_jobs: usize,
+    pub total_segments: u64,
+    pub total_refreshes: u64,
+    pub total_reconnects: u64,
+    pub total_recorded_bytes: u64,
+    pub resource_warning: Option<&'static str>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveTikTokLiveWatchEntryInput {
@@ -201,6 +299,10 @@ pub struct SaveTikTokLiveWatchEntryInput {
     pub record_mode: Option<TikTokLiveRecordMode>,
     pub cooldown_seconds: Option<u32>,
     pub filename_template: Option<String>,
+    pub schedule_enabled: Option<bool>,
+    pub schedule_days: Option<String>,
+    pub schedule_start_minute: Option<u32>,
+    pub schedule_end_minute: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -599,6 +701,21 @@ fn job_has_recoverable_media(job: &TikTokLiveJob) -> bool {
             .output_path
             .as_deref()
             .is_some_and(|path| path_has_media(Path::new(path)))
+}
+
+fn job_recorded_bytes(job: &TikTokLiveJob) -> u64 {
+    job.final_path
+        .as_deref()
+        .and_then(|path| fs::metadata(path).ok())
+        .map(|metadata| metadata.len())
+        .or_else(|| {
+            let bytes = recoverable_segment_paths(job)
+                .iter()
+                .filter_map(|path| fs::metadata(path).ok().map(|metadata| metadata.len()))
+                .sum::<u64>();
+            (bytes > 0).then_some(bytes)
+        })
+        .unwrap_or(0)
 }
 
 fn recording_output_name_is_safe(path: &Path) -> bool {
@@ -2579,7 +2696,14 @@ async fn record_tiktok_live_inner(
                     String::new()
                 }
             ),
-            Some(&result.filepath),
+            Some(&format!(
+                "file={} size={} segments={} signed_url_refreshes={} reconnects={}",
+                result.filepath,
+                result.filesize.unwrap_or_default(),
+                segment_count,
+                session_refresh_attempts,
+                job.reconnect_count
+            )),
             Some(&job.target_url),
         )
         .ok();
@@ -2628,28 +2752,97 @@ pub fn list_tiktok_live_watchlist() -> Result<Vec<TikTokLiveWatchEntry>, String>
 }
 
 #[tauri::command]
-pub async fn get_tiktok_live_recorder_config() -> TikTokLiveRecorderConfig {
-    TikTokLiveRecorderConfig {
+pub async fn get_tiktok_live_recorder_config() -> Result<TikTokLiveRecorderConfig, String> {
+    load_tiktok_live_recorder_config_after_restart()?;
+    Ok(TikTokLiveRecorderConfig {
         max_concurrent_recordings: configured_tiktok_live_recording_limit(),
         active_recordings: ACTIVE_RECORDINGS.lock().await.len(),
         hard_limit: TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT,
-    }
+    })
+}
+
+#[tauri::command]
+pub async fn get_tiktok_live_telemetry() -> Result<TikTokLiveTelemetrySnapshot, String> {
+    load_tiktok_live_recorder_config_after_restart()?;
+    let active_recordings = ACTIVE_RECORDINGS.lock().await.len();
+    let max_concurrent_recordings = configured_tiktok_live_recording_limit();
+    let watch_entries = get_tiktok_live_watchlist_internal()?;
+    let jobs = get_tiktok_live_jobs_internal()?;
+
+    Ok(TikTokLiveTelemetrySnapshot {
+        active_recordings,
+        max_concurrent_recordings,
+        watched_streamers: watch_entries.len(),
+        enabled_watchers: watch_entries.iter().filter(|entry| entry.enabled).count(),
+        recoverable_jobs: jobs.iter().filter(|job| job.status.can_resume()).count(),
+        total_segments: jobs
+            .iter()
+            .map(|job| job.segment_paths.len() as u64)
+            .sum::<u64>()
+            .max(
+                watch_entries
+                    .iter()
+                    .map(|entry| u64::from(entry.last_segment_count))
+                    .sum(),
+            ),
+        total_refreshes: jobs
+            .iter()
+            .map(|job| u64::from(job.refresh_count))
+            .sum::<u64>()
+            .max(
+                watch_entries
+                    .iter()
+                    .map(|entry| u64::from(entry.last_refresh_count))
+                    .sum(),
+            ),
+        total_reconnects: jobs
+            .iter()
+            .map(|job| u64::from(job.reconnect_count))
+            .sum::<u64>()
+            .max(
+                watch_entries
+                    .iter()
+                    .map(|entry| u64::from(entry.last_reconnect_count))
+                    .sum(),
+            ),
+        total_recorded_bytes: jobs.iter().map(job_recorded_bytes).sum::<u64>().max(
+            watch_entries
+                .iter()
+                .filter_map(|entry| entry.last_file_size)
+                .sum(),
+        ),
+        resource_warning: tiktok_live_resource_warning(
+            active_recordings,
+            max_concurrent_recordings,
+        ),
+    })
 }
 
 #[tauri::command]
 pub fn set_tiktok_live_recorder_config(
     max_concurrent_recordings: Option<usize>,
-) -> TikTokLiveRecorderConfig {
+) -> Result<TikTokLiveRecorderConfig, String> {
+    let previous_limit = configured_tiktok_live_recording_limit();
     let limit = clamp_tiktok_live_recording_limit(max_concurrent_recordings);
-    TIKTOK_LIVE_MAX_RECORDINGS.store(limit, Ordering::SeqCst);
-    TikTokLiveRecorderConfig {
+    set_tiktok_live_recorder_limit_internal(limit)?;
+    apply_tiktok_live_recording_limit(limit);
+    if previous_limit != limit {
+        add_log_internal(
+            "info",
+            &format!("TikTok Live max concurrent rooms set to {limit}."),
+            tiktok_live_resource_warning(0, limit),
+            None,
+        )
+        .ok();
+    }
+    Ok(TikTokLiveRecorderConfig {
         max_concurrent_recordings: limit,
         active_recordings: ACTIVE_RECORDINGS
             .try_lock()
             .map(|recordings| recordings.len())
             .unwrap_or_default(),
         hard_limit: TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT,
-    }
+    })
 }
 
 #[tauri::command]
@@ -2715,6 +2908,10 @@ pub fn save_tiktok_live_watch_entry(
         record_mode: TikTokLiveRecordMode::OncePerLive,
         cooldown_seconds: WATCHLIST_DEFAULT_COOLDOWN_SECONDS,
         filename_template: None,
+        schedule_enabled: false,
+        schedule_days: None,
+        schedule_start_minute: None,
+        schedule_end_minute: None,
         backoff_attempt: 0,
         next_check_at: now,
         status: TikTokLiveWatchStatus::Offline,
@@ -2754,6 +2951,10 @@ pub fn save_tiktok_live_watch_entry(
         .filename_template
         .map(|template| template.trim().to_string())
         .filter(|template| !template.is_empty());
+    saved.schedule_enabled = entry.schedule_enabled.unwrap_or(saved.schedule_enabled);
+    saved.schedule_days = normalize_schedule_days(entry.schedule_days);
+    saved.schedule_start_minute = normalize_schedule_minute(entry.schedule_start_minute);
+    saved.schedule_end_minute = normalize_schedule_minute(entry.schedule_end_minute);
     if target_changed {
         saved.status = TikTokLiveWatchStatus::Offline;
         saved.backoff_attempt = 0;
@@ -3077,6 +3278,7 @@ async fn inspect_watch_entry(
             entry.backoff_attempt = 0;
             entry.last_error = None;
             let should_auto_record = allow_auto_record
+                && watch_entry_allows_auto_record_now(entry)
                 && should_auto_record_watch_entry(
                     previous_status,
                     entry,
@@ -4191,6 +4393,10 @@ mod tests {
             record_mode: TikTokLiveRecordMode::OncePerLive,
             cooldown_seconds: WATCHLIST_DEFAULT_COOLDOWN_SECONDS,
             filename_template: None,
+            schedule_enabled: false,
+            schedule_days: None,
+            schedule_start_minute: None,
+            schedule_end_minute: None,
             backoff_attempt: 0,
             next_check_at: 100,
             status,
@@ -4324,6 +4530,26 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn watchlist_schedule_rules_normalize_and_match_windows() {
+        assert_eq!(
+            normalize_schedule_days(Some(" 2,1,2,9,x,0 ".to_string())).as_deref(),
+            Some("0,1,2")
+        );
+        assert_eq!(normalize_schedule_minute(Some(1439)), Some(1439));
+        assert_eq!(normalize_schedule_minute(Some(1440)), None);
+        assert!(schedule_days_contains(Some("0,2,4"), 2));
+        assert!(!schedule_days_contains(Some("0,2,4"), 3));
+        assert!(schedule_window_contains(Some(60), Some(120), 90));
+        assert!(!schedule_window_contains(Some(60), Some(120), 120));
+        assert!(schedule_window_contains(Some(1320), Some(120), 30));
+        assert!(schedule_window_contains(Some(1320), Some(120), 1380));
+        assert!(!schedule_window_contains(Some(1320), Some(120), 600));
+        assert_eq!(tiktok_live_resource_warning(0, 1), None);
+        assert_eq!(tiktok_live_resource_warning(1, 2), Some("limitHigh"));
+        assert_eq!(tiktok_live_resource_warning(2, 2), Some("multiRoomActive"));
+    }
+
     #[tokio::test]
     async fn global_tiktok_live_reservation_is_atomic() {
         let _limit_guard = RECORDING_LIMIT_TEST_LOCK
@@ -4390,6 +4616,40 @@ mod tests {
         release_tiktok_live_recording(&second_id).await;
         drop(first_cancel);
         drop(second_cancel);
+        TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
+    }
+
+    #[test]
+    fn startup_restores_persisted_recorder_limit_with_hard_cap() {
+        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
+        use std::sync::Mutex as StdMutex;
+
+        let _db_guard = db_test_guard();
+        let _limit_guard = RECORDING_LIMIT_TEST_LOCK
+            .lock()
+            .expect("lock recording limit");
+        if DB_CONNECTION.get().is_none() {
+            let connection = Connection::open_in_memory().expect("open in-memory database");
+            let _ = DB_CONNECTION.set(StdMutex::new(connection));
+        }
+        let connection = get_db().expect("get database");
+        crate::database::init_tiktok_live_jobs_table(&connection).expect("create jobs table");
+        connection
+            .execute("DELETE FROM tiktok_live_recorder_config", [])
+            .expect("clear recorder config");
+        drop(connection);
+
+        set_tiktok_live_recorder_limit_internal(99).expect("save oversized limit");
+        TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
+
+        assert_eq!(
+            load_tiktok_live_recorder_config_after_restart().expect("load recorder config"),
+            TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT
+        );
+        assert_eq!(
+            configured_tiktok_live_recording_limit(),
+            TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT
+        );
         TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
     }
 
