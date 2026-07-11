@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+## [0.19.1-custom.16] - 2026-07-11
+
+### Added
+- **TikTok Live Recorder Phase 3C-6** - Persist recorder capacity across restarts, add per-streamer recording windows, expose telemetry totals, warn about multi-room limits, and confirm Telegram Topic watchlist commands before the signed tester release
+
+### Fixed
+
 ## [0.19.1-custom.15] - 2026-07-11
 
 ### Added

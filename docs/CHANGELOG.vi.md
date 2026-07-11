@@ -11,6 +11,13 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Sửa lỗi
 
+## [0.19.1-custom.16] - 2026-07-11
+
+### Thêm mới
+- **TikTok Live Recorder Phase 3C-6** - Lưu giới hạn recorder qua lần khởi động lại, thêm khung giờ ghi riêng từng streamer, hiển thị tổng telemetry, cảnh báo giới hạn multi-room và xác nhận lệnh watchlist qua Telegram Topic trước release tester đã ký
+
+### Sửa lỗi
+
 ## [0.19.1-custom.15] - 2026-07-11
 
 ### Thêm mới
