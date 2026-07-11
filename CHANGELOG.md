@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.17] - 2026-07-11
+
+### Added
+- **TikTok Live Telegram backend commands** - Handle `/tl_*` watchlist commands in the Rust backend so Telegram Topic control works while the app is hidden or minimized
+
 ### Fixed
 
 ## [0.19.1-custom.16] - 2026-07-11

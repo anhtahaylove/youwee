@@ -9,6 +9,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.17] - 2026-07-11
+
+### Thêm mới
+- **Lệnh Telegram backend cho TikTok Live** - Xử lý các lệnh watchlist `/tl_*` trong backend Rust để điều khiển qua Telegram Topic vẫn hoạt động khi app bị ẩn hoặc minimized
+
 ### Sửa lỗi
 
 ## [0.19.1-custom.16] - 2026-07-11
