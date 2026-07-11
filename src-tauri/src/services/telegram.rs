@@ -77,16 +77,6 @@ struct TelegramDownloadCommandEvent {
     message_thread_id: Option<i64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TelegramTikTokLiveCommandEvent {
-    command: String,
-    target: Option<String>,
-    chat_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    message_thread_id: Option<i64>,
-}
-
 #[derive(Debug, PartialEq, Eq)]
 pub enum TelegramCommand {
     Add {
@@ -484,13 +474,16 @@ async fn handle_update(
             emit_simple_command(app, "stop", &chat_id, message_thread_id);
         }
         TelegramCommand::TikTokLive { command, target } => {
-            emit_tiktok_live_command(
-                app,
+            let reply = crate::commands::handle_tiktok_live_telegram_command(
+                app.clone(),
                 &command,
                 target.as_deref(),
-                &chat_id,
-                message_thread_id,
-            );
+            )
+            .await
+            .unwrap_or_else(|_| "Failed to handle that TikTok Live command.".to_string());
+            let _ =
+                send_message_with_keyboard(client, bot_token, &chat_id, message_thread_id, &reply)
+                    .await;
         }
         TelegramCommand::Help => {
             let _ = send_message_with_keyboard(
@@ -547,24 +540,6 @@ fn emit_simple_command(
             command: command.to_string(),
             url: None,
             quality: None,
-            chat_id: chat_id.to_string(),
-            message_thread_id,
-        },
-    );
-}
-
-fn emit_tiktok_live_command(
-    app: &AppHandle,
-    command: &str,
-    target: Option<&str>,
-    chat_id: &str,
-    message_thread_id: Option<i64>,
-) {
-    let _ = app.emit(
-        "telegram-tiktok-live-command",
-        TelegramTikTokLiveCommandEvent {
-            command: command.to_string(),
-            target: target.map(ToString::to_string),
             chat_id: chat_id.to_string(),
             message_thread_id,
         },

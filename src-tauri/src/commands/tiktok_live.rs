@@ -3640,6 +3640,326 @@ pub async fn cancel_tiktok_live_recording(job_id: String) -> Result<(), String> 
     Ok(())
 }
 
+fn tiktok_live_status_icon(status: TikTokLiveWatchStatus) -> &'static str {
+    match status {
+        TikTokLiveWatchStatus::Recording => "🔴",
+        TikTokLiveWatchStatus::Online => "🟢",
+        TikTokLiveWatchStatus::Backoff | TikTokLiveWatchStatus::Recoverable => "🟡",
+        TikTokLiveWatchStatus::Error => "❌",
+        TikTokLiveWatchStatus::Checking => "🔎",
+        TikTokLiveWatchStatus::Offline => "⚫",
+    }
+}
+
+fn format_tiktok_live_telegram_target(entry: &TikTokLiveWatchEntry) -> String {
+    entry
+        .username
+        .as_deref()
+        .map(|username| format!("@{username}"))
+        .unwrap_or_else(|| entry.target_input.clone())
+}
+
+fn format_tiktok_live_telegram_timestamp(seconds: Option<i64>) -> String {
+    seconds
+        .and_then(|seconds| chrono::DateTime::<Utc>::from_timestamp(seconds, 0))
+        .map(|value| {
+            value
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        })
+        .unwrap_or_else(|| "never".to_string())
+}
+
+fn format_tiktok_live_telegram_entry(entry: &TikTokLiveWatchEntry, index: usize) -> String {
+    [
+        Some(format!(
+            "{}. {} {}",
+            index + 1,
+            tiktok_live_status_icon(entry.status),
+            format_tiktok_live_telegram_target(entry)
+        )),
+        Some(format!(
+            "Status: {}{}",
+            entry.status.as_str(),
+            if entry.enabled { "" } else { " · disabled" }
+        )),
+        entry
+            .last_outcome
+            .as_deref()
+            .map(|outcome| format!("Last outcome: {outcome}")),
+        (entry.last_segment_count > 0).then(|| format!("Segments: {}", entry.last_segment_count)),
+        (entry.last_reconnect_count > 0)
+            .then(|| format!("Reconnects: {}", entry.last_reconnect_count)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join("\n")
+}
+
+fn build_tiktok_live_telegram_watchlist_reply(entries: &[TikTokLiveWatchEntry]) -> String {
+    if entries.is_empty() {
+        return "📭 TikTok Live watchlist is empty.\nUse /tl_add @username to add one.".to_string();
+    }
+
+    [
+        format!("📺 TikTok Live watchlist ({})", entries.len()),
+        String::new(),
+        entries
+            .iter()
+            .take(8)
+            .enumerate()
+            .map(|(index, entry)| format_tiktok_live_telegram_entry(entry, index))
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+    ]
+    .join("\n")
+}
+
+fn tiktok_live_telegram_target_matches(entry: &TikTokLiveWatchEntry, target: &str) -> bool {
+    let raw = target.trim();
+    let normalized = raw.to_ascii_lowercase();
+    let username = raw.trim_start_matches('@').to_ascii_lowercase();
+
+    entry.id == raw
+        || entry.target_input.eq_ignore_ascii_case(raw)
+        || entry.target_url.eq_ignore_ascii_case(raw)
+        || entry
+            .username
+            .as_deref()
+            .is_some_and(|value| value.eq_ignore_ascii_case(&username))
+        || entry
+            .target_url
+            .to_ascii_lowercase()
+            .contains(&format!("/@{username}/live"))
+        || entry.target_url.to_ascii_lowercase() == normalized
+}
+
+fn find_tiktok_live_telegram_entry(
+    entries: &[TikTokLiveWatchEntry],
+    target: &str,
+) -> Option<TikTokLiveWatchEntry> {
+    entries
+        .iter()
+        .find(|entry| tiktok_live_telegram_target_matches(entry, target))
+        .cloned()
+}
+
+fn build_tiktok_live_telegram_status_reply(
+    entries: &[TikTokLiveWatchEntry],
+    config: &TikTokLiveRecorderConfig,
+    target: Option<&str>,
+) -> String {
+    if let Some(target) = target {
+        let Some(entry) = find_tiktok_live_telegram_entry(entries, target) else {
+            return format!("TikTok Live target not found: {target}");
+        };
+        return [
+            Some(format!(
+                "{} {}",
+                tiktok_live_status_icon(entry.status),
+                format_tiktok_live_telegram_target(&entry)
+            )),
+            Some(format!("Status: {}", entry.status.as_str())),
+            Some(format!(
+                "Enabled: {}",
+                if entry.enabled { "yes" } else { "no" }
+            )),
+            Some(format!(
+                "Auto-record: {}",
+                if entry.auto_record { "yes" } else { "no" }
+            )),
+            Some(format!(
+                "Last checked: {}",
+                format_tiktok_live_telegram_timestamp(entry.last_checked_at)
+            )),
+            Some(format!(
+                "Last online: {}",
+                format_tiktok_live_telegram_timestamp(entry.last_online_at)
+            )),
+            Some(format!(
+                "Last recording: {}",
+                format_tiktok_live_telegram_timestamp(entry.last_recording_at)
+            )),
+            entry
+                .last_outcome
+                .as_deref()
+                .map(|outcome| format!("Last outcome: {outcome}")),
+            entry
+                .last_error
+                .as_deref()
+                .map(|error| format!("Last error: {error}")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("\n");
+    }
+
+    let recording = entries
+        .iter()
+        .filter(|entry| entry.status == TikTokLiveWatchStatus::Recording)
+        .count();
+    let online = entries
+        .iter()
+        .filter(|entry| entry.status == TikTokLiveWatchStatus::Online)
+        .count();
+    let enabled = entries.iter().filter(|entry| entry.enabled).count();
+    [
+        "📡 TikTok Live Recorder".to_string(),
+        format!(
+            "Active rooms: {}/{}",
+            config.active_recordings, config.max_concurrent_recordings
+        ),
+        format!("Configured hard limit: {}", config.hard_limit),
+        format!("Watchlist: {} total · {enabled} enabled", entries.len()),
+        format!("Online: {online}"),
+        format!("Recording: {recording}"),
+    ]
+    .join("\n")
+}
+
+fn find_tiktok_live_telegram_entry_by_target(
+    target: &str,
+) -> Result<Option<TikTokLiveWatchEntry>, String> {
+    Ok(find_tiktok_live_telegram_entry(
+        &get_tiktok_live_watchlist_internal()?,
+        target,
+    ))
+}
+
+fn ensure_tiktok_live_telegram_entry(
+    app: AppHandle,
+    target: &str,
+) -> Result<TikTokLiveWatchEntry, String> {
+    if let Some(entry) = find_tiktok_live_telegram_entry_by_target(target)? {
+        return Ok(entry);
+    }
+    save_tiktok_live_watch_entry(
+        app,
+        SaveTikTokLiveWatchEntryInput {
+            id: None,
+            input: target.to_string(),
+            enabled: None,
+            auto_record: None,
+            output_dir: String::new(),
+            preferred_quality: Some("auto".to_string()),
+            preferred_transport: Some("auto".to_string()),
+            duration_seconds: None,
+            cookie_mode: None,
+            cookie_browser: None,
+            cookie_browser_profile: None,
+            cookie_file_path: None,
+            poll_interval_seconds: Some(60),
+            record_mode: Some(TikTokLiveRecordMode::OncePerLive),
+            cooldown_seconds: Some(WATCHLIST_DEFAULT_COOLDOWN_SECONDS),
+            filename_template: None,
+            schedule_enabled: None,
+            schedule_days: None,
+            schedule_start_minute: None,
+            schedule_end_minute: None,
+        },
+    )
+}
+
+pub async fn handle_tiktok_live_telegram_command(
+    app: AppHandle,
+    command: &str,
+    target: Option<&str>,
+) -> Result<String, String> {
+    match command {
+        "watchlist" => Ok(build_tiktok_live_telegram_watchlist_reply(
+            &get_tiktok_live_watchlist_internal()?,
+        )),
+        "status" => {
+            let entries = get_tiktok_live_watchlist_internal()?;
+            let config = get_tiktok_live_recorder_config().await?;
+            Ok(build_tiktok_live_telegram_status_reply(
+                &entries, &config, target,
+            ))
+        }
+        command => {
+            let Some(target) = target.map(str::trim).filter(|value| !value.is_empty()) else {
+                return Ok(format!(
+                    "Missing TikTok Live target. Example: /tl_{command} @username"
+                ));
+            };
+
+            match command {
+                "add" => {
+                    let entry = ensure_tiktok_live_telegram_entry(app, target)?;
+                    Ok(format!(
+                        "Added TikTok Live target: {}",
+                        format_tiktok_live_telegram_target(&entry)
+                    ))
+                }
+                "remove" => {
+                    let Some(entry) = find_tiktok_live_telegram_entry_by_target(target)? else {
+                        return Ok(format!("TikTok Live target not found: {target}"));
+                    };
+                    delete_tiktok_live_watch_entry(app, entry.id.clone()).await?;
+                    Ok(format!(
+                        "Removed TikTok Live target: {}",
+                        format_tiktok_live_telegram_target(&entry)
+                    ))
+                }
+                "enable" | "disable" => {
+                    let Some(entry) = find_tiktok_live_telegram_entry_by_target(target)? else {
+                        return Ok(format!("TikTok Live target not found: {target}"));
+                    };
+                    let enabled = command == "enable";
+                    set_tiktok_live_watch_entry_enabled(app, entry.id.clone(), enabled)?;
+                    Ok(format!(
+                        "{} TikTok Live target: {}",
+                        if enabled { "Enabled" } else { "Disabled" },
+                        format_tiktok_live_telegram_target(&entry)
+                    ))
+                }
+                "inspect" => {
+                    let entry = ensure_tiktok_live_telegram_entry(app.clone(), target)?;
+                    let updated = inspect_tiktok_live_watch_entry(app, entry.id).await?;
+                    Ok(format!(
+                        "Checked {}: {}{}",
+                        format_tiktok_live_telegram_target(&updated),
+                        updated.status.as_str(),
+                        updated
+                            .last_error
+                            .as_deref()
+                            .map(|error| format!(" ({error})"))
+                            .unwrap_or_default()
+                    ))
+                }
+                "record" => {
+                    let entry = ensure_tiktok_live_telegram_entry(app.clone(), target)?;
+                    record_tiktok_live_watch_entry(app, entry.id.clone()).await?;
+                    Ok(format!(
+                        "Started TikTok Live recording: {}",
+                        format_tiktok_live_telegram_target(&entry)
+                    ))
+                }
+                "stop" => {
+                    let Some(entry) = find_tiktok_live_telegram_entry_by_target(target)? else {
+                        return Ok(format!("TikTok Live target not found: {target}"));
+                    };
+                    let Some(job_id) = entry.active_job_id.as_deref() else {
+                        return Ok(format!(
+                            "No active TikTok Live recording for {}.",
+                            format_tiktok_live_telegram_target(&entry)
+                        ));
+                    };
+                    cancel_tiktok_live_recording(job_id.to_string()).await?;
+                    Ok(format!(
+                        "Stopping TikTok Live recording: {}",
+                        format_tiktok_live_telegram_target(&entry)
+                    ))
+                }
+                _ => Ok("Unsupported command. Use /help to see available commands.".to_string()),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4416,6 +4736,51 @@ mod tests {
             created_at: 100,
             updated_at: 100,
         }
+    }
+
+    #[test]
+    fn telegram_watchlist_reply_formats_backend_entries() {
+        let mut entry = sample_watch_entry(TikTokLiveWatchStatus::Recording);
+        entry.last_outcome = Some("recording".to_string());
+        entry.last_segment_count = 2;
+        entry.last_reconnect_count = 1;
+
+        let reply = build_tiktok_live_telegram_watchlist_reply(&[entry]);
+
+        assert!(reply.contains("📺 TikTok Live watchlist (1)"));
+        assert!(reply.contains("🔴 @creator"));
+        assert!(reply.contains("Status: recording"));
+        assert!(reply.contains("Segments: 2"));
+        assert!(reply.contains("Reconnects: 1"));
+    }
+
+    #[test]
+    fn telegram_status_reply_matches_targets_like_frontend_hook() {
+        let mut entry = sample_watch_entry(TikTokLiveWatchStatus::Online);
+        entry.last_checked_at = Some(1_783_750_000);
+        let config = TikTokLiveRecorderConfig {
+            max_concurrent_recordings: 2,
+            active_recordings: 1,
+            hard_limit: TIKTOK_LIVE_MAX_RECORDINGS_HARD_LIMIT,
+        };
+
+        assert!(tiktok_live_telegram_target_matches(&entry, "@creator"));
+        assert!(tiktok_live_telegram_target_matches(
+            &entry,
+            "https://www.tiktok.com/@creator/live"
+        ));
+        assert!(tiktok_live_telegram_target_matches(&entry, "watch-creator"));
+
+        let target_reply =
+            build_tiktok_live_telegram_status_reply(&[entry.clone()], &config, Some("@creator"));
+        assert!(target_reply.contains("🟢 @creator"));
+        assert!(target_reply.contains("Status: online"));
+        assert!(target_reply.contains("Enabled: yes"));
+
+        let summary_reply = build_tiktok_live_telegram_status_reply(&[entry], &config, None);
+        assert!(summary_reply.contains("Active rooms: 1/2"));
+        assert!(summary_reply.contains("Watchlist: 1 total · 1 enabled"));
+        assert!(summary_reply.contains("Online: 1"));
     }
 
     #[test]
