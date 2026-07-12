@@ -9,6 +9,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.19] - 2026-07-13
+
+### Sửa lỗi
+- **Chất lượng gốc TikTok Live 60 FPS** - Ưu tiên stream `uhd_60` khi chất lượng Bản gốc có cùng độ phân giải để bản ghi live giữ 60 FPS khi TikTok cung cấp
+
 ## [0.19.1-custom.18] - 2026-07-12
 
 ### Sửa lỗi

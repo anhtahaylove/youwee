@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.19] - 2026-07-13
+
+### Fixed
+- **TikTok Live 60 FPS origin quality** - Prefer `uhd_60` streams when Origin quality exposes the same resolution so live recordings keep 60 FPS when TikTok provides it
+
 ## [0.19.1-custom.18] - 2026-07-12
 
 ### Fixed
