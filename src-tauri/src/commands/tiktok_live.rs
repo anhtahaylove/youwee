@@ -1,21 +1,21 @@
 use crate::database::{
-    add_log_internal, delete_tiktok_live_job_internal, delete_tiktok_live_watch_entry_internal,
-    get_due_tiktok_live_watchlist_internal, get_tiktok_live_job_internal,
-    get_tiktok_live_jobs_internal, get_tiktok_live_recorder_limit_internal,
-    get_tiktok_live_watch_entry_by_active_job_internal,
+    TikTokLiveJob, TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry,
+    TikTokLiveWatchStatus, add_log_internal, delete_tiktok_live_job_internal,
+    delete_tiktok_live_watch_entry_internal, get_due_tiktok_live_watchlist_internal,
+    get_tiktok_live_job_internal, get_tiktok_live_jobs_internal,
+    get_tiktok_live_recorder_limit_internal, get_tiktok_live_watch_entry_by_active_job_internal,
     get_tiktok_live_watch_entry_by_target_internal, get_tiktok_live_watch_entry_internal,
     get_tiktok_live_watchlist_internal, save_tiktok_live_job_internal,
     save_tiktok_live_watch_entry_internal, set_tiktok_live_recorder_limit_internal,
-    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal, TikTokLiveJob,
-    TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
+    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal,
 };
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
 };
-use crate::types::{code, BackendError};
+use crate::types::{BackendError, code};
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
 use chrono::{Datelike, Local, Timelike, Utc};
-use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
+use reqwest::header::{COOKIE, HeaderMap, HeaderValue, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -23,14 +23,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering},
     LazyLock,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
 };
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::time::{sleep, timeout, Instant};
+use tokio::time::{Instant, sleep, timeout};
 
 static ACTIVE_RECORDINGS: LazyLock<
     Mutex<HashMap<String, Option<tokio::sync::oneshot::Sender<()>>>>,
@@ -347,8 +347,7 @@ struct TikTokLiveFormat {
     http_headers: serde_json::Map<String, serde_json::Value>,
 }
 
-const TIKTOK_BROWSER_USER_AGENT: &str =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
+const TIKTOK_BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
 fn clamp_watchlist_poll_interval(seconds: Option<u32>) -> u32 {
     seconds
@@ -845,7 +844,7 @@ fn remaining_recording_seconds(started_at: Instant, duration_seconds: Option<u32
 fn quality_rank(quality: Option<&str>) -> i64 {
     match quality.unwrap_or_default().to_ascii_lowercase().as_str() {
         "origin" => 100,
-        "uhd_60" => 95,
+        "uhd_60" => 105,
         "uhd" => 90,
         "hd_60" => 80,
         "hd" => 70,
@@ -937,7 +936,17 @@ fn select_best_format<'a>(
         .or_else(|| formats.max_by_key(|format| format_score(format)))
 }
 
-fn matches_filter(value: &Option<String>, filter: &Option<String>) -> bool {
+fn text_matches_filter(value: Option<&str>, filter: &str) -> bool {
+    value
+        .map(|value| {
+            value
+                .to_ascii_lowercase()
+                .contains(&filter.to_ascii_lowercase())
+        })
+        .unwrap_or(false)
+}
+
+fn matches_quality_filter(variant: &TikTokLiveVariant, filter: &Option<String>) -> bool {
     let Some(filter) = filter.as_deref().map(str::trim).filter(|s| !s.is_empty()) else {
         return true;
     };
@@ -945,14 +954,18 @@ fn matches_filter(value: &Option<String>, filter: &Option<String>) -> bool {
         return true;
     }
 
-    value
-        .as_deref()
-        .map(|value| {
-            value
-                .to_ascii_lowercase()
-                .contains(&filter.to_ascii_lowercase())
-        })
-        .unwrap_or(false)
+    if filter.eq_ignore_ascii_case("origin")
+        && variant
+            .quality
+            .as_deref()
+            .is_some_and(|quality| quality.eq_ignore_ascii_case("uhd_60"))
+    {
+        return true;
+    }
+
+    text_matches_filter(variant.quality.as_deref(), filter)
+        || text_matches_filter(variant.note.as_deref(), filter)
+        || text_matches_filter(Some(&variant.format_id), filter)
 }
 
 fn matches_transport(variant: &TikTokLiveVariant, filter: &Option<String>) -> bool {
@@ -988,10 +1001,7 @@ fn select_variant(
     select_best_variant(
         variants
             .iter()
-            .filter(|variant| {
-                matches_filter(&variant.quality, preferred_quality)
-                    || matches_filter(&variant.note, preferred_quality)
-            })
+            .filter(|variant| matches_quality_filter(variant, preferred_quality))
             .filter(|variant| matches_transport(variant, preferred_transport)),
     )
     .cloned()
@@ -1006,10 +1016,7 @@ fn select_format(
     select_best_format(
         formats
             .iter()
-            .filter(|format| {
-                matches_filter(&format.variant.quality, preferred_quality)
-                    || matches_filter(&format.variant.note, preferred_quality)
-            })
+            .filter(|format| matches_quality_filter(&format.variant, preferred_quality))
             .filter(|format| matches_transport(&format.variant, preferred_transport)),
     )
     .cloned()
@@ -4407,14 +4414,72 @@ mod tests {
         )
         .expect("selected");
 
-        assert!(formats
-            .iter()
-            .any(|format| format.variant.format_id == "uhd_60-flv"));
+        assert!(
+            formats
+                .iter()
+                .any(|format| format.variant.format_id == "uhd_60-flv")
+        );
         assert_eq!(selected.variant.format_id, "uhd_60-flv");
         assert_eq!(selected.variant.width, Some(1080));
         assert_eq!(selected.variant.height, Some(1920));
         assert_eq!(selected.variant.fps, Some(60.0));
         assert_eq!(selected.variant.vcodec.as_deref(), Some("h265"));
+    }
+
+    #[test]
+    fn origin_quality_prefers_uhd_60_when_resolution_matches() {
+        let hevc_stream_data = serde_json::json!({
+            "data": {
+                "origin": {
+                    "main": {
+                        "hls": "https://signed.example/origin.m3u8",
+                        "sdk_params": "{\"resolution\":\"1080x1920\",\"vbitrate\":4593000,\"VCodec\":\"h265\"}"
+                    }
+                },
+                "uhd_60": {
+                    "main": {
+                        "hls": "https://signed.example/uhd60.m3u8",
+                        "sdk_params": "{\"resolution\":\"1080x1920\",\"vbitrate\":4000000,\"VCodec\":\"h265\",\"stream_suffix\":\"uhd560\"}"
+                    }
+                }
+            }
+        });
+        let sigi_state = serde_json::json!({
+            "LiveRoom": {
+                "liveRoomUserInfo": {
+                    "liveRoom": {
+                        "hevcStreamData": {
+                            "pull_data": {
+                                "stream_data": hevc_stream_data.to_string()
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        let json = serde_json::json!({
+            "_youwee_page_hydration": [sigi_state]
+        });
+
+        let variants = variants_from_ytdlp_json(&json);
+        let selected_variant = select_variant(
+            &variants,
+            &Some("origin".to_string()),
+            &Some("auto".to_string()),
+        )
+        .expect("selected variant");
+        assert_eq!(selected_variant.format_id, "uhd_60-hls");
+        assert_eq!(selected_variant.fps, Some(60.0));
+
+        let formats = formats_from_ytdlp_json(&json);
+        let selected_format = select_format(
+            &formats,
+            &Some("origin".to_string()),
+            &Some("auto".to_string()),
+        )
+        .expect("selected format");
+        assert_eq!(selected_format.variant.format_id, "uhd_60-hls");
+        assert_eq!(selected_format.variant.fps, Some(60.0));
     }
 
     #[test]
@@ -4642,15 +4707,21 @@ mod tests {
         append_reconnect_args(&mut enabled, true);
 
         assert!(enabled.windows(2).any(|args| args == ["-reconnect", "1"]));
-        assert!(enabled
-            .windows(2)
-            .any(|args| args == ["-reconnect_max_retries", "20"]));
-        assert!(enabled
-            .windows(2)
-            .any(|args| args == ["-reconnect_delay_total_max", "120"]));
-        assert!(enabled
-            .windows(2)
-            .any(|args| args == ["-reconnect_on_http_error", "408,429,5xx"]));
+        assert!(
+            enabled
+                .windows(2)
+                .any(|args| args == ["-reconnect_max_retries", "20"])
+        );
+        assert!(
+            enabled
+                .windows(2)
+                .any(|args| args == ["-reconnect_delay_total_max", "120"])
+        );
+        assert!(
+            enabled
+                .windows(2)
+                .any(|args| args == ["-reconnect_on_http_error", "408,429,5xx"])
+        );
 
         let mut disabled = Vec::new();
         append_reconnect_args(&mut disabled, false);
@@ -4837,9 +4908,10 @@ mod tests {
 
         assert!(args.windows(2).any(|args| args == ["-c", "copy"]));
         assert!(args.windows(2).any(|args| args == ["-f", "matroska"]));
-        assert!(args
-            .windows(2)
-            .any(|args| args == ["-cluster_time_limit", "2000"]));
+        assert!(
+            args.windows(2)
+                .any(|args| args == ["-cluster_time_limit", "2000"])
+        );
         assert!(!args.iter().any(|arg| arg == "+faststart"));
         assert_eq!(args.last().map(String::as_str), output.to_str());
     }
@@ -4877,9 +4949,11 @@ mod tests {
         .await
         .expect_err("keep multi-segment job recoverable");
 
-        assert!(BackendError::from_message(&error)
-            .message()
-            .contains("preserved for recovery"));
+        assert!(
+            BackendError::from_message(&error)
+                .message()
+                .contains("preserved for recovery")
+        );
         assert_eq!(
             std::fs::read(&first).ok().as_deref(),
             Some(&b"first recoverable segment"[..])
@@ -4942,9 +5016,11 @@ mod tests {
             cookie_file_path: None,
             auto_reconnect: true,
             status,
-            segment_paths: vec![segment_path_for_recording(&output_path, 1)
-                .to_string_lossy()
-                .to_string()],
+            segment_paths: vec![
+                segment_path_for_recording(&output_path, 1)
+                    .to_string_lossy()
+                    .to_string(),
+            ],
             refresh_count: 2,
             reconnect_count: 2,
             format_id: Some("best".to_string()),
@@ -4978,7 +5054,7 @@ mod tests {
 
     #[test]
     fn startup_reconciliation_marks_stale_jobs_by_media_presence() {
-        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
+        use crate::database::{DB_CONNECTION, db_test_guard, get_db};
         use std::sync::Mutex as StdMutex;
 
         let _guard = db_test_guard();
@@ -5035,9 +5111,11 @@ mod tests {
         ));
         let mut job = sample_recovery_job(&dir, TikTokLiveJobStatus::Recoverable);
         let paths = job_owned_paths(&job).expect("generated paths are accepted");
-        assert!(paths
-            .iter()
-            .all(|path| path.parent() == Some(dir.as_path())));
+        assert!(
+            paths
+                .iter()
+                .all(|path| path.parent() == Some(dir.as_path()))
+        );
 
         job.segment_paths = vec![dir.join(r"..\unrelated.mkv").to_string_lossy().to_string()];
         assert!(job_owned_paths(&job).is_err());
@@ -5280,9 +5358,11 @@ mod tests {
         let second_error = reserve_tiktok_live_recording(&second_id)
             .await
             .expect_err("reject concurrent recording reservation");
-        assert!(BackendError::from_message(&second_error)
-            .message()
-            .contains("configured room limit"));
+        assert!(
+            BackendError::from_message(&second_error)
+                .message()
+                .contains("configured room limit")
+        );
 
         cancel_tiktok_live_recording(first_id.clone())
             .await
@@ -5291,9 +5371,11 @@ mod tests {
         let while_stopping_error = reserve_tiktok_live_recording(&second_id)
             .await
             .expect_err("keep slot reserved while cancellation finishes");
-        assert!(BackendError::from_message(&while_stopping_error)
-            .message()
-            .contains("configured room limit"));
+        assert!(
+            BackendError::from_message(&while_stopping_error)
+                .message()
+                .contains("configured room limit")
+        );
 
         release_tiktok_live_recording(&first_id).await;
         let second_cancel = reserve_tiktok_live_recording(&second_id)
@@ -5323,9 +5405,11 @@ mod tests {
         let third_error = reserve_tiktok_live_recording(&third_id)
             .await
             .expect_err("reject over configured limit");
-        assert!(BackendError::from_message(&third_error)
-            .message()
-            .contains("configured room limit"));
+        assert!(
+            BackendError::from_message(&third_error)
+                .message()
+                .contains("configured room limit")
+        );
 
         release_tiktok_live_recording(&first_id).await;
         release_tiktok_live_recording(&second_id).await;
@@ -5336,7 +5420,7 @@ mod tests {
 
     #[test]
     fn startup_restores_persisted_recorder_limit_with_hard_cap() {
-        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
+        use crate::database::{DB_CONNECTION, db_test_guard, get_db};
         use std::sync::Mutex as StdMutex;
 
         let _db_guard = db_test_guard();
@@ -5382,7 +5466,7 @@ mod tests {
 
     #[test]
     fn watchlist_restart_links_recoverable_job_without_starting_a_duplicate() {
-        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
+        use crate::database::{DB_CONNECTION, db_test_guard, get_db};
         use std::sync::Mutex as StdMutex;
 
         let _guard = db_test_guard();
