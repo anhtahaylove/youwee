@@ -9,6 +9,12 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ### 新增
 
+## [0.19.1-custom.18] - 2026-07-12
+
+### 修复
+- **TikTok Live 原始画质** - 使用 Firefox Cookie 获取 TikTok Live 页面元数据并合并 HEVC `origin`/`uhd_60` 流，让录制在 TikTok 提供时使用 1080x1920 源画质
+- **TikTok Live 流选择** - 当画质和分辨率相同，优先选择更稳定的 HLS 而不是低延迟 LLS
+
 ## [0.19.1-custom.17] - 2026-07-11
 
 ### 新增

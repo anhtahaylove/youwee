@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.18] - 2026-07-12
+
+### Fixed
+- **TikTok Live origin quality** - Fetch TikTok Live page metadata with Firefox cookies and merge HEVC `origin`/`uhd_60` streams so recordings can use 1080x1920 source quality when TikTok exposes it
+- **TikTok Live stream selection** - Prefer stable HLS over low-latency LLS when quality and resolution tie
+
 ## [0.19.1-custom.17] - 2026-07-11
 
 ### Added

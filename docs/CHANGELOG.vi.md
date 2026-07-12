@@ -9,6 +9,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.18] - 2026-07-12
+
+### Sửa lỗi
+- **Chất lượng gốc TikTok Live** - Fetch metadata trang TikTok Live bằng cookie Firefox và merge stream HEVC `origin`/`uhd_60` để bản ghi dùng được chất lượng nguồn 1080x1920 khi TikTok cung cấp
+- **Chọn stream TikTok Live** - Ưu tiên HLS ổn định hơn LLS khi chất lượng và độ phân giải ngang nhau
+
 ## [0.19.1-custom.17] - 2026-07-11
 
 ### Thêm mới
