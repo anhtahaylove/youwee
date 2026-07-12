@@ -18,7 +18,7 @@ use chrono::{Datelike, Local, Timelike, Utc};
 use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -859,12 +859,14 @@ fn quality_rank(quality: Option<&str>) -> i64 {
 fn transport_rank(protocol: Option<&str>, ext: Option<&str>) -> i64 {
     let protocol = protocol.unwrap_or_default().to_ascii_lowercase();
     let ext = ext.unwrap_or_default().to_ascii_lowercase();
-    if protocol.contains("hls") || protocol.contains("m3u8") || ext == "m3u8" {
+    if protocol.contains("hls") || protocol.contains("m3u8") {
         30
     } else if protocol.contains("flv") || ext == "flv" {
         20
     } else if protocol.contains("lls") {
         10
+    } else if ext == "m3u8" {
+        5
     } else if protocol.contains("http") || protocol.contains("https") {
         5
     } else {
@@ -1122,6 +1124,24 @@ fn sdk_params_from_value(
     }
 }
 
+fn infer_tiktok_stream_fps(
+    quality: &str,
+    params: &serde_json::Map<String, serde_json::Value>,
+) -> Option<f64> {
+    json_f64(
+        params
+            .get("fps")
+            .or_else(|| params.get("FPS"))
+            .or_else(|| params.get("frame_rate"))
+            .or_else(|| params.get("frameRate")),
+    )
+    .or_else(|| {
+        let quality = quality.to_ascii_lowercase();
+        let suffix = json_string(params.get("stream_suffix")).unwrap_or_default();
+        (quality.ends_with("_60") || suffix.ends_with("60")).then_some(60.0)
+    })
+}
+
 fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTokLiveFormat> {
     let Some(data) = stream_data.get("data").and_then(|value| value.as_object()) else {
         return Vec::new();
@@ -1166,7 +1186,7 @@ fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTo
                     resolution: resolution.clone(),
                     width,
                     height,
-                    fps: None,
+                    fps: infer_tiktok_stream_fps(quality, &params),
                     vcodec: vcodec.clone(),
                     acodec: None,
                     tbr,
@@ -1181,25 +1201,75 @@ fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTo
     formats
 }
 
-fn variants_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTokLiveVariant> {
-    formats_from_tiktok_stream_data(stream_data)
-        .into_iter()
-        .map(|format| format.variant)
-        .collect()
+fn stream_data_from_value(value: &serde_json::Value) -> Option<serde_json::Value> {
+    match value {
+        serde_json::Value::String(raw) => serde_json::from_str(raw).ok(),
+        value @ serde_json::Value::Object(_) if value.get("data").is_some() => Some(value.clone()),
+        value @ serde_json::Value::Object(_) => value
+            .get("stream_data")
+            .and_then(stream_data_from_value)
+            .or_else(|| Some(value.clone()).filter(|value| value.get("data").is_some())),
+        _ => None,
+    }
 }
 
-fn stream_data_from_json(json: &serde_json::Value) -> Option<serde_json::Value> {
-    [
+fn push_tiktok_stream_data_pointer(
+    json: &serde_json::Value,
+    path: &str,
+    values: &mut Vec<serde_json::Value>,
+    seen: &mut HashSet<String>,
+) {
+    let Some(stream_data) = json.pointer(path).and_then(stream_data_from_value) else {
+        return;
+    };
+    let key = serde_json::to_string(&stream_data).unwrap_or_default();
+    if seen.insert(key) {
+        values.push(stream_data);
+    }
+}
+
+fn tiktok_stream_data_values_from_json(json: &serde_json::Value) -> Vec<serde_json::Value> {
+    const STREAM_DATA_POINTERS: &[&str] = &[
         "/stream_url/live_core_sdk_data/pull_data/stream_data",
         "/live_core_sdk_data/pull_data/stream_data",
         "/data/stream_url/live_core_sdk_data/pull_data/stream_data",
-    ]
-    .iter()
-    .find_map(|path| match json.pointer(path)? {
-        serde_json::Value::String(raw) => serde_json::from_str(raw).ok(),
-        value @ serde_json::Value::Object(_) => Some(value.clone()),
-        _ => None,
-    })
+        "/LiveRoom/liveRoomUserInfo/liveRoom/streamData/pull_data/stream_data",
+        "/LiveRoom/liveRoomUserInfo/liveRoom/hevcStreamData/pull_data/stream_data",
+    ];
+
+    let mut values = Vec::new();
+    let mut seen = HashSet::new();
+    for path in STREAM_DATA_POINTERS {
+        push_tiktok_stream_data_pointer(json, path, &mut values, &mut seen);
+    }
+
+    if let Some(hydration_values) = json
+        .get("_youwee_page_hydration")
+        .and_then(|value| value.as_array())
+    {
+        for hydration in hydration_values {
+            for path in STREAM_DATA_POINTERS {
+                push_tiktok_stream_data_pointer(hydration, path, &mut values, &mut seen);
+            }
+        }
+    }
+
+    values
+}
+
+fn formats_from_tiktok_stream_data_values(json: &serde_json::Value) -> Vec<TikTokLiveFormat> {
+    let mut formats = Vec::new();
+    let mut seen_urls = HashSet::new();
+
+    for stream_data in tiktok_stream_data_values_from_json(json) {
+        for format in formats_from_tiktok_stream_data(&stream_data) {
+            if seen_urls.insert(format.url.clone()) {
+                formats.push(format);
+            }
+        }
+    }
+
+    formats
 }
 
 fn formats_from_legacy_room_stream_urls(json: &serde_json::Value) -> Vec<TikTokLiveFormat> {
@@ -1264,34 +1334,14 @@ fn formats_from_legacy_room_stream_urls(json: &serde_json::Value) -> Vec<TikTokL
 }
 
 fn variants_from_ytdlp_json(json: &serde_json::Value) -> Vec<TikTokLiveVariant> {
-    let variants: Vec<TikTokLiveVariant> = json
-        .get("formats")
-        .and_then(|v| v.as_array())
-        .map(|formats| {
-            formats
-                .iter()
-                .filter_map(variant_from_ytdlp_format)
-                .collect()
-        })
-        .unwrap_or_default();
-
-    if variants.is_empty() {
-        stream_data_from_json(json)
-            .map(|stream_data| variants_from_tiktok_stream_data(&stream_data))
-            .filter(|variants| !variants.is_empty())
-            .unwrap_or_else(|| {
-                formats_from_legacy_room_stream_urls(json)
-                    .into_iter()
-                    .map(|format| format.variant)
-                    .collect()
-            })
-    } else {
-        variants
-    }
+    formats_from_ytdlp_json(json)
+        .into_iter()
+        .map(|format| format.variant)
+        .collect()
 }
 
 fn formats_from_ytdlp_json(json: &serde_json::Value) -> Vec<TikTokLiveFormat> {
-    let formats: Vec<TikTokLiveFormat> = json
+    let mut formats: Vec<TikTokLiveFormat> = json
         .get("formats")
         .and_then(|v| v.as_array())
         .map(|formats| {
@@ -1302,11 +1352,15 @@ fn formats_from_ytdlp_json(json: &serde_json::Value) -> Vec<TikTokLiveFormat> {
         })
         .unwrap_or_default();
 
+    let mut seen_urls: HashSet<String> = formats.iter().map(|format| format.url.clone()).collect();
+    formats.extend(
+        formats_from_tiktok_stream_data_values(json)
+            .into_iter()
+            .filter(|format| seen_urls.insert(format.url.clone())),
+    );
+
     if formats.is_empty() {
-        stream_data_from_json(json)
-            .map(|stream_data| formats_from_tiktok_stream_data(&stream_data))
-            .filter(|formats| !formats.is_empty())
-            .unwrap_or_else(|| formats_from_legacy_room_stream_urls(json))
+        formats_from_legacy_room_stream_urls(json)
     } else {
         formats
     }
@@ -1849,6 +1903,161 @@ async fn fetch_tiktok_live_json(
     })
 }
 
+fn decode_basic_html_entities(value: &str) -> String {
+    value
+        .replace("&quot;", "\"")
+        .replace("&#34;", "\"")
+        .replace("&#x22;", "\"")
+        .replace("&#X22;", "\"")
+        .replace("&amp;", "&")
+}
+
+fn script_json_from_html(html: &str, script_id: &str) -> Option<serde_json::Value> {
+    let quoted = format!("id=\"{script_id}\"");
+    let single_quoted = format!("id='{script_id}'");
+    let id_pos = html.find(&quoted).or_else(|| html.find(&single_quoted))?;
+    html[..id_pos].rfind("<script")?;
+    let content_start = html[id_pos..].find('>')? + id_pos + 1;
+    let content_end = html[content_start..].find("</script>")? + content_start;
+    let body = html[content_start..content_end].trim();
+
+    serde_json::from_str(body)
+        .or_else(|_| serde_json::from_str(&decode_basic_html_entities(body)))
+        .ok()
+        .filter(|json| !tiktok_stream_data_values_from_json(json).is_empty())
+}
+
+fn tiktok_page_hydration_values_from_html(html: &str) -> Vec<serde_json::Value> {
+    ["SIGI_STATE", "__UNIVERSAL_DATA_FOR_REHYDRATION__"]
+        .into_iter()
+        .filter_map(|script_id| script_json_from_html(html, script_id))
+        .collect()
+}
+
+async fn fetch_tiktok_live_page_hydration_jsons(
+    target_url: &str,
+    cookie_header: Option<&str>,
+    proxy_url: Option<&str>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_static(TIKTOK_BROWSER_USER_AGENT),
+    );
+    headers.insert(REFERER, HeaderValue::from_static("https://www.tiktok.com/"));
+    headers.insert(ORIGIN, HeaderValue::from_static("https://www.tiktok.com"));
+    if let Some(cookie) = cookie_header.filter(|value| !value.trim().is_empty()) {
+        if let Ok(value) = HeaderValue::from_str(cookie) {
+            headers.insert(COOKIE, value);
+        }
+    }
+
+    let mut client = reqwest::Client::builder()
+        .default_headers(headers)
+        .timeout(Duration::from_secs(30));
+    if let Some(proxy) = proxy_url.filter(|value| !value.trim().is_empty()) {
+        client = client.proxy(reqwest::Proxy::all(proxy).map_err(|e| {
+            BackendError::from_message(format!("Invalid proxy URL: {e}")).to_wire_string()
+        })?);
+    }
+
+    let response = client
+        .build()
+        .map_err(|e| {
+            BackendError::from_message(format!("Failed to build TikTok page client: {e}"))
+                .to_wire_string()
+        })?
+        .get(target_url)
+        .send()
+        .await
+        .map_err(|e| {
+            BackendError::from_message(format!("Failed to fetch TikTok Live page: {e}"))
+                .to_wire_string()
+        })?;
+
+    if !response.status().is_success() {
+        return Err(BackendError::from_message(format!(
+            "TikTok Live page request failed with status {}",
+            response.status()
+        ))
+        .to_wire_string());
+    }
+
+    let html = response.text().await.map_err(|e| {
+        BackendError::from_message(format!("Failed to read TikTok Live page: {e}")).to_wire_string()
+    })?;
+    Ok(tiktok_page_hydration_values_from_html(&html))
+}
+
+fn append_tiktok_page_hydration_jsons(
+    json: &mut serde_json::Value,
+    values: Vec<serde_json::Value>,
+) {
+    let Some(object) = json.as_object_mut() else {
+        return;
+    };
+    if values.is_empty() {
+        return;
+    }
+
+    object.insert(
+        "_youwee_page_hydration".to_string(),
+        serde_json::Value::Array(values),
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn augment_tiktok_json_with_page_hydration(
+    json: &mut serde_json::Value,
+    target_url: &str,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) {
+    let is_live_page = reqwest::Url::parse(target_url)
+        .ok()
+        .and_then(|url| {
+            let host = url.host_str()?.to_ascii_lowercase();
+            Some(
+                (host == "tiktok.com" || host.ends_with(".tiktok.com"))
+                    && url.path().contains("/@")
+                    && url.path().contains("/live"),
+            )
+        })
+        .unwrap_or(false);
+    if !is_live_page {
+        return;
+    }
+
+    let cookie_header = tiktok_cookie_header(
+        target_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+    match fetch_tiktok_live_page_hydration_jsons(target_url, cookie_header.as_deref(), proxy_url)
+        .await
+    {
+        Ok(values) if !values.is_empty() => append_tiktok_page_hydration_jsons(json, values),
+        Ok(_) => {}
+        Err(error) => {
+            let message = BackendError::from_message(&error).message().to_string();
+            add_log_internal(
+                "info",
+                &format!("TikTok Live page quality fallback unavailable: {message}"),
+                None,
+                Some(target_url),
+            )
+            .ok();
+        }
+    }
+}
+
 async fn fetch_tiktok_room_info_json(
     room_id: &str,
     cookie_header: Option<&str>,
@@ -1930,7 +2139,7 @@ async fn fetch_tiktok_target_json(
             fetch_tiktok_room_info_json(room_id, cookie_header.as_deref(), proxy_url).await?;
         if let Some(username) = room_owner_username(&room_json) {
             let live_url = format!("https://www.tiktok.com/@{username}/live");
-            if let Ok(json) = fetch_tiktok_live_json(
+            if let Ok(mut json) = fetch_tiktok_live_json(
                 app,
                 &live_url,
                 cookie_mode,
@@ -1942,6 +2151,17 @@ async fn fetch_tiktok_target_json(
             )
             .await
             {
+                augment_tiktok_json_with_page_hydration(
+                    &mut json,
+                    &live_url,
+                    cookie_mode,
+                    cookie_browser,
+                    cookie_browser_profile,
+                    cookie_file_path,
+                    cookie_skip_patterns,
+                    proxy_url,
+                )
+                .await;
                 return Ok((json, live_url));
             }
         }
@@ -1952,7 +2172,7 @@ async fn fetch_tiktok_target_json(
         .url
         .clone()
         .ok_or_else(|| BackendError::from_message("Missing TikTok Live URL").to_wire_string())?;
-    let json = fetch_tiktok_live_json(
+    let mut json = fetch_tiktok_live_json(
         app,
         &target_url,
         cookie_mode,
@@ -1963,6 +2183,17 @@ async fn fetch_tiktok_target_json(
         proxy_url,
     )
     .await?;
+    augment_tiktok_json_with_page_hydration(
+        &mut json,
+        &target_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+        proxy_url,
+    )
+    .await;
     Ok((json, target_url))
 }
 
@@ -4065,7 +4296,10 @@ mod tests {
             }
         });
 
-        let variants = variants_from_tiktok_stream_data(&stream_data);
+        let variants: Vec<TikTokLiveVariant> = formats_from_tiktok_stream_data(&stream_data)
+            .into_iter()
+            .map(|format| format.variant)
+            .collect();
         let rendered = serde_json::to_string(&variants).expect("json");
 
         assert_eq!(variants.len(), 3);
@@ -4104,6 +4338,118 @@ mod tests {
         assert_eq!(variants.len(), 1);
         assert_eq!(variants[0].format_id, "origin-hls");
         assert_eq!(variants[0].resolution.as_deref(), Some("1920x1080"));
+    }
+
+    #[test]
+    fn merges_hevc_page_hydration_stream_data_with_ytdlp_formats() {
+        let browser_stream_data = serde_json::json!({
+            "data": {
+                "hd": {
+                    "main": {
+                        "hls": "https://signed.example/hd.m3u8",
+                        "sdk_params": "{\"resolution\":\"720x1280\",\"vbitrate\":1800000,\"VCodec\":\"h264\"}"
+                    }
+                }
+            }
+        });
+        let hevc_stream_data = serde_json::json!({
+            "data": {
+                "uhd_60": {
+                    "main": {
+                        "flv": "https://signed.example/uhd60.flv",
+                        "sdk_params": "{\"resolution\":\"1080x1920\",\"vbitrate\":4000000,\"VCodec\":\"h265\",\"stream_suffix\":\"uhd560\"}"
+                    }
+                }
+            }
+        });
+        let sigi_state = serde_json::json!({
+            "LiveRoom": {
+                "liveRoomUserInfo": {
+                    "liveRoom": {
+                        "streamData": {
+                            "pull_data": {
+                                "stream_data": browser_stream_data.to_string()
+                            }
+                        },
+                        "hevcStreamData": {
+                            "pull_data": {
+                                "stream_data": hevc_stream_data.to_string()
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        let json = serde_json::json!({
+            "formats": [
+                {
+                    "format_id": "yt-dlp-hd",
+                    "url": "https://signed.example/ytdlp-hd.m3u8",
+                    "ext": "mp4",
+                    "protocol": "m3u8_native",
+                    "quality": "hd",
+                    "resolution": "720x1280",
+                    "width": 720,
+                    "height": 1280,
+                    "vcodec": "h264",
+                    "acodec": "aac",
+                    "tbr": 1800
+                }
+            ],
+            "_youwee_page_hydration": [sigi_state]
+        });
+
+        let formats = formats_from_ytdlp_json(&json);
+        let selected = select_format(
+            &formats,
+            &Some("origin".to_string()),
+            &Some("auto".to_string()),
+        )
+        .expect("selected");
+
+        assert!(formats
+            .iter()
+            .any(|format| format.variant.format_id == "uhd_60-flv"));
+        assert_eq!(selected.variant.format_id, "uhd_60-flv");
+        assert_eq!(selected.variant.width, Some(1080));
+        assert_eq!(selected.variant.height, Some(1920));
+        assert_eq!(selected.variant.fps, Some(60.0));
+        assert_eq!(selected.variant.vcodec.as_deref(), Some("h265"));
+    }
+
+    #[test]
+    fn extracts_tiktok_live_stream_data_from_sigi_html() {
+        let stream_data = serde_json::json!({
+            "data": {
+                "uhd_60": {
+                    "main": {
+                        "flv": "https://signed.example/uhd60.flv",
+                        "sdk_params": "{\"resolution\":\"1080x1920\",\"vbitrate\":4000000,\"VCodec\":\"h265\"}"
+                    }
+                }
+            }
+        });
+        let sigi_state = serde_json::json!({
+            "LiveRoom": {
+                "liveRoomUserInfo": {
+                    "liveRoom": {
+                        "hevcStreamData": {
+                            "pull_data": {
+                                "stream_data": stream_data.to_string()
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        let html = format!(
+            r#"<html><body><script id="SIGI_STATE" type="application/json">{sigi_state}</script></body></html>"#
+        );
+
+        let values = tiktok_page_hydration_values_from_html(&html);
+
+        assert_eq!(values.len(), 1);
+        assert_eq!(tiktok_stream_data_values_from_json(&values[0]).len(), 1);
     }
 
     #[test]
@@ -4319,13 +4665,17 @@ mod tests {
                     "main": {
                         "flv": "https://signed.example/hd.flv",
                         "hls": "https://signed.example/hd.m3u8",
+                        "lls": "https://signed.example/hd-lls.m3u8",
                         "sdk_params": "{\"resolution\":\"1280x720\",\"vbitrate\":2500000}"
                     }
                 }
             }
         });
 
-        let variants = variants_from_tiktok_stream_data(&stream_data);
+        let variants: Vec<TikTokLiveVariant> = formats_from_tiktok_stream_data(&stream_data)
+            .into_iter()
+            .map(|format| format.variant)
+            .collect();
         let selected = select_variant(&variants, &None, &None).expect("selected");
 
         assert_eq!(selected.format_id, "hd-hls");
