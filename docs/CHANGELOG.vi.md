@@ -9,6 +9,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.22] - 2026-07-14
+
+### Sửa lỗi
+- **Logs watchlist TikTok Live** - Không ghi các lượt polling offline dự kiến của watchlist vào error logs, đồng thời vẫn giữ lỗi Inspect thủ công và lỗi metadata thật
+
 ## [0.19.1-custom.21] - 2026-07-14
 
 ### Sửa lỗi

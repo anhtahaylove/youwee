@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.22] - 2026-07-14
+
+### Fixed
+- **TikTok Live watchlist logs** - Keep expected offline watchlist polling out of error logs while preserving manual Inspect errors and real metadata failures
+
 ## [0.19.1-custom.21] - 2026-07-14
 
 ### Fixed
