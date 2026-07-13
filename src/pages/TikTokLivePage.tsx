@@ -229,9 +229,15 @@ function timeToMinute(value: string): number | null {
 
 function variantLabel(variant?: TikTokLiveVariant): string {
   if (!variant) return '';
+  const fps =
+    typeof variant.fps === 'number' && Number.isFinite(variant.fps)
+      ? `${Number.isInteger(variant.fps) ? variant.fps : variant.fps.toFixed(2)} FPS`
+      : undefined;
   return [
     variant.formatId,
     variant.resolution,
+    fps,
+    variant.vcodec,
     variant.protocol || variant.ext,
     variant.tbr ? `${Math.round(variant.tbr)} kbps` : undefined,
   ]

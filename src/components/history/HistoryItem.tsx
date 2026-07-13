@@ -93,6 +93,23 @@ function createSummaryPreview(summary: string): string {
     .trim();
 }
 
+function qualityParts(quality?: string): { label?: string; details: string[] } {
+  const parts = quality
+    ?.split(' · ')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const label = parts?.[0];
+  if (!label) return { details: [] };
+  if (parts && parts.length > 1) return { label, details: parts.slice(1) };
+
+  const lower = label.toLowerCase();
+  const transport = lower.match(/-(hls|flv|lls|m3u8)$/)?.[1]?.toUpperCase();
+  return {
+    label,
+    details: [transport].filter(Boolean) as string[],
+  };
+}
+
 export function HistoryItem({ entry }: HistoryItemProps) {
   const { t } = useTranslation('pages');
   const {
@@ -143,6 +160,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     () => (localSummary ? createSummaryPreview(localSummary) : ''),
     [localSummary],
   );
+  const qualityMeta = useMemo(() => qualityParts(entry.quality), [entry.quality]);
 
   // Reset local summary when entry changes (important for component reuse)
   useEffect(() => {
@@ -355,9 +373,9 @@ export function HistoryItem({ entry }: HistoryItemProps) {
         )}
 
         {/* Quality badge */}
-        {entry.quality && !isDataExport && (
+        {qualityMeta.label && !isDataExport && (
           <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-black/70 text-[10px] text-white font-medium">
-            {entry.quality}
+            {qualityMeta.label}
           </div>
         )}
 
@@ -399,6 +417,11 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                 {entry.format}
               </span>
             )}
+            {qualityMeta.details.map((detail) => (
+              <span key={detail} className="font-medium px-1.5 py-0.5 rounded bg-muted">
+                {detail}
+              </span>
+            ))}
             {entry.time_range && (
               <span className="inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
                 <Scissors className="w-3 h-3" />

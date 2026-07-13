@@ -858,14 +858,12 @@ fn quality_rank(quality: Option<&str>) -> i64 {
 fn transport_rank(protocol: Option<&str>, ext: Option<&str>) -> i64 {
     let protocol = protocol.unwrap_or_default().to_ascii_lowercase();
     let ext = ext.unwrap_or_default().to_ascii_lowercase();
-    if protocol.contains("hls") || protocol.contains("m3u8") {
+    if protocol.contains("flv") || ext == "flv" {
         30
-    } else if protocol.contains("flv") || ext == "flv" {
+    } else if protocol.contains("hls") || protocol.contains("m3u8") || ext == "m3u8" {
         20
     } else if protocol.contains("lls") {
         10
-    } else if ext == "m3u8" {
-        5
     } else if protocol.contains("http") || protocol.contains("https") {
         5
     } else {
@@ -884,6 +882,39 @@ fn variant_score(variant: &TikTokLiveVariant) -> i64 {
 
 fn format_score(format: &TikTokLiveFormat) -> i64 {
     variant_score(&format.variant)
+}
+
+fn tiktok_live_variant_label(variant: &TikTokLiveVariant) -> String {
+    let mut parts = vec![variant.format_id.clone()];
+    if let Some(resolution) = variant
+        .resolution
+        .as_deref()
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(resolution.to_string());
+    }
+    if let Some(fps) = variant.fps.filter(|value| *value > 0.0) {
+        parts.push(if fps.fract() == 0.0 {
+            format!("{} FPS", fps as u32)
+        } else {
+            format!("{fps:.2} FPS")
+        });
+    }
+    if let Some(codec) = variant.vcodec.as_deref().filter(|value| !value.is_empty()) {
+        parts.push(codec.to_string());
+    }
+    if let Some(transport) = variant
+        .protocol
+        .as_deref()
+        .or(variant.ext.as_deref())
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(transport.to_ascii_uppercase());
+    }
+    if let Some(tbr) = variant.tbr.filter(|value| *value > 0.0) {
+        parts.push(format!("{} kbps", tbr.round() as u32));
+    }
+    parts.join(" · ")
 }
 
 fn has_video_variant(variant: &TikTokLiveVariant) -> bool {
@@ -1131,10 +1162,7 @@ fn sdk_params_from_value(
     }
 }
 
-fn infer_tiktok_stream_fps(
-    quality: &str,
-    params: &serde_json::Map<String, serde_json::Value>,
-) -> Option<f64> {
+fn infer_tiktok_stream_fps(params: &serde_json::Map<String, serde_json::Value>) -> Option<f64> {
     json_f64(
         params
             .get("fps")
@@ -1142,11 +1170,6 @@ fn infer_tiktok_stream_fps(
             .or_else(|| params.get("frame_rate"))
             .or_else(|| params.get("frameRate")),
     )
-    .or_else(|| {
-        let quality = quality.to_ascii_lowercase();
-        let suffix = json_string(params.get("stream_suffix")).unwrap_or_default();
-        (quality.ends_with("_60") || suffix.ends_with("60")).then_some(60.0)
-    })
 }
 
 fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTokLiveFormat> {
@@ -1193,7 +1216,7 @@ fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTo
                     resolution: resolution.clone(),
                     width,
                     height,
-                    fps: infer_tiktok_stream_fps(quality, &params),
+                    fps: infer_tiktok_stream_fps(&params),
                     vcodec: vcodec.clone(),
                     acodec: None,
                     tbr,
@@ -2605,7 +2628,7 @@ async fn record_tiktok_live_inner(
                 "/data/owner/avatar_thumb/url_list/0",
             ],
         );
-        job.format_id = Some(selected.variant.format_id.clone());
+        job.format_id = Some(tiktok_live_variant_label(&selected.variant));
         let output_path = job
             .output_path
             .as_deref()
@@ -2866,7 +2889,7 @@ async fn record_tiktok_live_inner(
                 ],
             )
             .or(job.thumbnail.clone());
-            job.format_id = Some(selected.variant.format_id.clone());
+            job.format_id = Some(tiktok_live_variant_label(&selected.variant));
             save_job_status(&mut job, TikTokLiveJobStatus::Recording)?;
             segment_number += 1;
         }
@@ -4422,8 +4445,12 @@ mod tests {
         assert_eq!(selected.variant.format_id, "uhd_60-flv");
         assert_eq!(selected.variant.width, Some(1080));
         assert_eq!(selected.variant.height, Some(1920));
-        assert_eq!(selected.variant.fps, Some(60.0));
+        assert_eq!(selected.variant.fps, None);
         assert_eq!(selected.variant.vcodec.as_deref(), Some("h265"));
+        assert_eq!(
+            tiktok_live_variant_label(&selected.variant),
+            "uhd_60-flv · 1080x1920 · h265 · FLV · 4000 kbps"
+        );
     }
 
     #[test]
@@ -4439,6 +4466,7 @@ mod tests {
                 "uhd_60": {
                     "main": {
                         "hls": "https://signed.example/uhd60.m3u8",
+                        "flv": "https://signed.example/uhd60.flv",
                         "sdk_params": "{\"resolution\":\"1080x1920\",\"vbitrate\":4000000,\"VCodec\":\"h265\",\"stream_suffix\":\"uhd560\"}"
                     }
                 }
@@ -4468,8 +4496,8 @@ mod tests {
             &Some("auto".to_string()),
         )
         .expect("selected variant");
-        assert_eq!(selected_variant.format_id, "uhd_60-hls");
-        assert_eq!(selected_variant.fps, Some(60.0));
+        assert_eq!(selected_variant.format_id, "uhd_60-flv");
+        assert_eq!(selected_variant.fps, None);
 
         let formats = formats_from_ytdlp_json(&json);
         let selected_format = select_format(
@@ -4478,8 +4506,12 @@ mod tests {
             &Some("auto".to_string()),
         )
         .expect("selected format");
-        assert_eq!(selected_format.variant.format_id, "uhd_60-hls");
-        assert_eq!(selected_format.variant.fps, Some(60.0));
+        assert_eq!(selected_format.variant.format_id, "uhd_60-flv");
+        assert_eq!(selected_format.variant.fps, None);
+        assert_eq!(
+            tiktok_live_variant_label(&selected_format.variant),
+            "uhd_60-flv · 1080x1920 · h265 · FLV · 4000 kbps"
+        );
     }
 
     #[test]
@@ -4729,7 +4761,7 @@ mod tests {
     }
 
     #[test]
-    fn prefers_hls_over_flv_when_resolution_matches() {
+    fn prefers_flv_over_hls_when_resolution_matches() {
         let stream_data = serde_json::json!({
             "data": {
                 "hd": {
@@ -4749,7 +4781,7 @@ mod tests {
             .collect();
         let selected = select_variant(&variants, &None, &None).expect("selected");
 
-        assert_eq!(selected.format_id, "hd-hls");
+        assert_eq!(selected.format_id, "hd-flv");
     }
 
     #[test]
