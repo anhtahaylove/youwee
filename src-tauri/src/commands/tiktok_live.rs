@@ -534,7 +534,9 @@ fn parse_tiktok_live_target(input: &str) -> Result<TikTokLiveTarget, String> {
 }
 
 fn tiktok_room_info_url(room_id: &str) -> String {
-    format!("https://webcast.tiktok.com/webcast/room/info/?aid=1988&room_id={room_id}")
+    format!(
+        "https://webcast.tiktok.com/webcast/room/info/?aid=1988&device_type=web_h265&room_id={room_id}"
+    )
 }
 
 fn tiktok_target_url(target: &TikTokLiveTarget) -> Option<String> {
@@ -2030,10 +2032,17 @@ fn append_tiktok_page_hydration_jsons(
         return;
     }
 
-    object.insert(
-        "_youwee_page_hydration".to_string(),
-        serde_json::Value::Array(values),
-    );
+    if let Some(existing) = object
+        .get_mut("_youwee_page_hydration")
+        .and_then(|value| value.as_array_mut())
+    {
+        existing.extend(values);
+    } else {
+        object.insert(
+            "_youwee_page_hydration".to_string(),
+            serde_json::Value::Array(values),
+        );
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2145,6 +2154,49 @@ async fn fetch_tiktok_room_info_json(
 }
 
 #[allow(clippy::too_many_arguments)]
+async fn augment_tiktok_json_with_room_info(
+    json: &mut serde_json::Value,
+    target_url: &str,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) {
+    if !formats_from_tiktok_stream_data_values(json).is_empty() {
+        return;
+    }
+
+    let Some(room_id) = tiktok_room_id_from_json(json) else {
+        return;
+    };
+    let room_info_url = tiktok_room_info_url(&room_id);
+    let cookie_header = tiktok_cookie_header(
+        &room_info_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+
+    match fetch_tiktok_room_info_json(&room_id, cookie_header.as_deref(), proxy_url).await {
+        Ok(room_json) => append_tiktok_page_hydration_jsons(json, vec![room_json]),
+        Err(error) => {
+            let message = BackendError::from_message(&error).message().to_string();
+            add_log_internal(
+                "info",
+                &format!("TikTok Live room info quality fallback unavailable: {message}"),
+                None,
+                Some(target_url),
+            )
+            .ok();
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn fetch_tiktok_target_json(
     app: &AppHandle,
     target: &TikTokLiveTarget,
@@ -2192,6 +2244,9 @@ async fn fetch_tiktok_target_json(
                     proxy_url,
                 )
                 .await;
+                if formats_from_tiktok_stream_data_values(&json).is_empty() {
+                    append_tiktok_page_hydration_jsons(&mut json, vec![room_json.clone()]);
+                }
                 return Ok((json, live_url));
             }
         }
@@ -2214,6 +2269,17 @@ async fn fetch_tiktok_target_json(
     )
     .await?;
     augment_tiktok_json_with_page_hydration(
+        &mut json,
+        &target_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+        proxy_url,
+    )
+    .await;
+    augment_tiktok_json_with_room_info(
         &mut json,
         &target_url,
         cookie_mode,
@@ -2331,6 +2397,19 @@ fn tiktok_live_session_id(
         let title = title.trim();
         (!title.is_empty()).then(|| format!("{target_url}#{title}"))
     })
+}
+
+fn tiktok_room_id_from_json(json: &serde_json::Value) -> Option<String> {
+    scalar_string_at(
+        json,
+        &[
+            "/room_id",
+            "/id",
+            "/data/id",
+            "/data/room_id",
+            "/data/live_room_id",
+        ],
+    )
 }
 
 fn room_owner_username(json: &serde_json::Value) -> Option<String> {
@@ -4270,7 +4349,9 @@ mod tests {
         assert!(target.url.is_none());
         assert_eq!(
             tiktok_target_url(&target).as_deref(),
-            Some("https://webcast.tiktok.com/webcast/room/info/?aid=1988&room_id=1234567890")
+            Some(
+                "https://webcast.tiktok.com/webcast/room/info/?aid=1988&device_type=web_h265&room_id=1234567890"
+            )
         );
     }
 
