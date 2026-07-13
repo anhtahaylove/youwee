@@ -1621,6 +1621,10 @@ fn should_retry_metadata_error(error: &str) -> bool {
         || wire.code == code::BACKEND_UNKNOWN && wire.message.contains("yt-dlp command failed")
 }
 
+fn should_suppress_watchlist_offline_log(job_id: Option<&str>, error: &BackendError) -> bool {
+    job_id.is_some_and(|id| id.starts_with("watch:")) && error.code() == code::TIKTOK_LIVE_OFFLINE
+}
+
 fn metadata_retry_delay(attempt: u32) -> Duration {
     Duration::from_millis(METADATA_RETRY_BASE_DELAY_MS * u64::from(attempt))
 }
@@ -2482,7 +2486,11 @@ pub async fn inspect_tiktok_live(
     )
     .await
     .inspect_err(|error| {
-        let message = BackendError::from_message(error).message().to_string();
+        let backend_error = BackendError::from_message(error);
+        if should_suppress_watchlist_offline_log(job_id.as_deref(), &backend_error) {
+            return;
+        }
+        let message = backend_error.message().to_string();
         add_log_internal("error", &message, None, Some(&target_url)).ok();
     })?;
 
@@ -4798,9 +4806,20 @@ mod tests {
         let offline = BackendError::new(code::TIKTOK_LIVE_OFFLINE, "offline")
             .with_retryable(false)
             .to_wire_string();
+        let offline_error =
+            BackendError::new(code::TIKTOK_LIVE_OFFLINE, "offline").with_retryable(false);
 
         assert!(should_retry_metadata_error(&timeout));
         assert!(!should_retry_metadata_error(&offline));
+        assert!(should_suppress_watchlist_offline_log(
+            Some("watch:abc"),
+            &offline_error
+        ));
+        assert!(!should_suppress_watchlist_offline_log(None, &offline_error));
+        assert!(!should_suppress_watchlist_offline_log(
+            Some("manual"),
+            &offline_error
+        ));
         assert_eq!(metadata_retry_delay(1), Duration::from_millis(750));
         assert_eq!(metadata_retry_delay(2), Duration::from_millis(1500));
         assert!(tiktok_live_metadata_is_offline(
