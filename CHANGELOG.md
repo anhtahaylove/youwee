@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.20] - 2026-07-13
+
+### Added
+- **TikTok Live stream metadata** - Show FPS, codec, transport, resolution, and bitrate more clearly in Inspect results and Library history entries
+
+### Fixed
+- **TikTok Live transport selection** - Prefer stable FLV streams over HLS when quality matches and only show FPS when metadata explicitly provides it
+
 ## [0.19.1-custom.19] - 2026-07-13
 
 ### Fixed

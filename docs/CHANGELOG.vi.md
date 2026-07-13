@@ -9,6 +9,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.20] - 2026-07-13
+
+### Thêm mới
+- **Metadata stream TikTok Live** - Hiển thị FPS, codec, transport, độ phân giải và bitrate rõ hơn trong kết quả Inspect và lịch sử Library
+
+### Sửa lỗi
+- **Chọn transport TikTok Live** - Ưu tiên stream FLV ổn định hơn HLS khi chất lượng ngang nhau và chỉ hiển thị FPS khi metadata cung cấp rõ ràng
+
 ## [0.19.1-custom.19] - 2026-07-13
 
 ### Sửa lỗi
