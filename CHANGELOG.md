@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.21] - 2026-07-14
+
+### Fixed
+- **TikTok Live 60 FPS metadata** - Request TikTok room metadata with the web H.265 device type so Origin quality can expose `uhd_60` 1080p60 streams when TikTok provides them
+
 ## [0.19.1-custom.20] - 2026-07-13
 
 ### Added

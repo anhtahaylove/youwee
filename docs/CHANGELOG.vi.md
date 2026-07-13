@@ -9,6 +9,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.21] - 2026-07-14
+
+### Sửa lỗi
+- **Metadata TikTok Live 60 FPS** - Gọi metadata phòng TikTok với device type web H.265 để chất lượng Bản gốc có thể expose stream `uhd_60` 1080p60 khi TikTok cung cấp
+
 ## [0.19.1-custom.20] - 2026-07-13
 
 ### Thêm mới
