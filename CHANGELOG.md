@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.24] - 2026-07-15
+
+### Changed
+- **TikTok Live quick capture** - Put target inspection, Original/60 FPS/audio presets, friendly duration choices, output folder, and the primary Record action in a clearer first-screen workflow while keeping advanced controls available
+
+### Fixed
+- **TikTok Live custom rules** - Keep custom duration, poll interval, cooldown, and filename values editable instead of snapping them back to a matching preset
+- **TikTok Live active-room recovery** - Recover a currently active username through signed room metadata when yt-dlp incorrectly reports the live as offline, without exposing stream URLs or forwarding browser cookies to the signing service
+- **Windows header maximize** - Keep rapid title-bar double-clicks aligned with the native maximize/restore state instead of immediately returning to windowed mode
+
 ## [0.19.1-custom.23] - 2026-07-15
 
 ### Changed

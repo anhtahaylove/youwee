@@ -9,6 +9,16 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.24] - 2026-07-15
+
+### Thay đổi
+- **Ghi nhanh TikTok Live** - Đưa mục tiêu Inspect, preset Bản gốc/60 FPS/chỉ âm thanh, thời lượng thân thiện, thư mục đầu ra và hành động Ghi chính vào luồng màn hình đầu rõ ràng hơn, đồng thời vẫn giữ các tùy chọn nâng cao
+
+### Sửa lỗi
+- **Rule tùy chỉnh TikTok Live** - Giữ thời lượng, chu kỳ polling, cooldown và tên file tùy chỉnh luôn sửa được thay vì tự nhảy về preset có giá trị trùng khớp
+- **Khôi phục phòng TikTok Live đang hoạt động** - Khôi phục username đang live qua metadata phòng đã ký khi yt-dlp báo nhầm là offline, không lộ stream URL và không gửi cookie trình duyệt tới dịch vụ ký
+- **Phóng to header Windows** - Đồng bộ thao tác double-click nhanh trên thanh tiêu đề với trạng thái maximize/restore native, không tự quay lại window mode ngay lập tức
+
 ## [0.19.1-custom.23] - 2026-07-15
 
 ### Thay đổi
