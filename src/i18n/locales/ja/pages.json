@@ -399,7 +399,8 @@
     "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
     "input": {
       "placeholder": "@username、room ID、またはTikTok Live URLを入力...",
-      "label": "TikTok Live のユーザー名、ルーム ID、または URL"
+      "label": "TikTok Live のユーザー名、ルーム ID、または URL",
+      "clear": "入力をクリア"
     },
     "quality": "Quality",
     "transport": "Transport",

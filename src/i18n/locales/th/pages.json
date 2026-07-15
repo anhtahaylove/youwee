@@ -396,7 +396,8 @@
     "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
     "input": {
       "placeholder": "Enter @username, room ID, or TikTok Live URL...",
-      "label": "ชื่อผู้ใช้ รหัสห้อง หรือ URL ของ TikTok Live"
+      "label": "ชื่อผู้ใช้ รหัสห้อง หรือ URL ของ TikTok Live",
+      "clear": "ล้างเป้าหมาย"
     },
     "quality": "Quality",
     "transport": "Transport",

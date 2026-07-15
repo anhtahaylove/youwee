@@ -399,10 +399,11 @@
     "subtitle": "Kiểm tra và ghi TikTok Live bằng xác thực trình duyệt của Youwee.",
     "input": {
       "placeholder": "Nhập @username, room ID hoặc URL TikTok Live...",
-      "label": "Tên người dùng, room ID hoặc URL TikTok Live"
+      "label": "Tên người dùng, room ID hoặc URL TikTok Live",
+      "clear": "Xóa mục tiêu"
     },
     "quality": "Chất lượng",
-    "transport": "Transport",
+    "transport": "Giao thức truyền",
     "duration": "Thời lượng giây (0 = không giới hạn)",
     "selected": "Đã chọn",
     "output": {
@@ -489,12 +490,12 @@
       },
       "recorderLimitUpdated": "Đã cập nhật giới hạn phòng ghi TikTok Live.",
       "maxRooms": "Số phòng tối đa",
-      "cooldownSeconds": "Cooldown (giây)",
-      "cooldownValue": "Cooldown: {{seconds}} giây",
+      "cooldownSeconds": "Thời gian chờ (giây)",
+      "cooldownValue": "Thời gian chờ: {{seconds}} giây",
       "filenameTemplate": "Mẫu tên file",
       "lastOutcome": "Kết quả gần nhất",
       "lastSize": "Dung lượng gần nhất",
-      "telemetry": "Segment: {{segments}} · Refresh: {{refreshes}} · Reconnect: {{reconnects}}",
+      "telemetry": "Phân đoạn: {{segments}} · Làm mới URL: {{refreshes}} · Kết nối lại: {{reconnects}}",
       "recordMode": {
         "label": "Chế độ ghi",
         "oncePerLive": "Một lần mỗi live",
@@ -539,13 +540,13 @@
       }
     },
     "telemetry": {
-      "title": "Telemetry",
+      "title": "Tổng quan",
       "active": "Phòng đang ghi: {{count}}",
-      "watched": "Watchlist: {{count}}",
+      "watched": "Theo dõi: {{count}}",
       "recoverable": "Có thể khôi phục: {{count}}",
-      "segments": "Segments: {{count}}",
-      "refreshes": "Refresh: {{count}}",
-      "reconnects": "Reconnect: {{count}}",
+      "segments": "Phân đoạn: {{count}}",
+      "refreshes": "Làm mới URL: {{count}}",
+      "reconnects": "Kết nối lại: {{count}}",
       "recordedSize": "Đã ghi: {{size}}",
       "warnings": {
         "limitHigh": "Đã bật chế độ nhiều phòng. Theo dõi CPU, ổ đĩa và băng thông nếu bản ghi bị giật.",

@@ -399,7 +399,8 @@
     "subtitle": "Inspect and record TikTok Live streams with your Youwee browser authentication.",
     "input": {
       "placeholder": "Enter @username, room ID, or TikTok Live URL...",
-      "label": "Usuario, ID de sala o URL de TikTok Live"
+      "label": "Usuario, ID de sala o URL de TikTok Live",
+      "clear": "Borrar destino"
     },
     "quality": "Quality",
     "transport": "Transport",
