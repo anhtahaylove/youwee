@@ -9,6 +9,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.23] - 2026-07-15
+
+### Thay đổi
+- **Không gian TikTok Live Recorder** - Tách luồng ghi thủ công và tự động hóa watchlist, cải thiện preview stream và phản hồi bản ghi, đồng thời hoàn thiện telemetry, bố cục responsive, trạng thái trống và accessibility
+
 ## [0.19.1-custom.22] - 2026-07-14
 
 ### Sửa lỗi

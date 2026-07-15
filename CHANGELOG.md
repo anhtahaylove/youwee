@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.23] - 2026-07-15
+
+### Changed
+- **TikTok Live recorder workspace** - Separate manual recording and watchlist automation, improve stream preview and recording feedback, and polish telemetry, responsive layout, empty states, and accessibility
+
 ## [0.19.1-custom.22] - 2026-07-14
 
 ### Fixed
