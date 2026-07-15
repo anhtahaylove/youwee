@@ -54,6 +54,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cacheRemoteThumbnailUrl } from '@/lib/asset-access';
 import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { openFileLocation } from '@/lib/open-file-location';
@@ -170,6 +171,9 @@ type TikTokLiveWatchEntry = {
   lastRefreshCount: number;
   lastReconnectCount: number;
   lastFileSize?: number;
+  lastTitle?: string;
+  lastUploader?: string;
+  thumbnail?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -318,6 +322,51 @@ function formatDuration(secondsValue: string): string {
   if (seconds % 3600 === 0) return `${seconds / 3600}h`;
   if (seconds % 60 === 0) return `${seconds / 60}m`;
   return `${seconds}s`;
+}
+
+function TikTokLiveThumbnail({
+  src,
+  alt,
+  className,
+}: {
+  src?: string;
+  alt: string;
+  className: string;
+}) {
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setThumbnail(null);
+    void cacheRemoteThumbnailUrl(src).then((url) => {
+      if (active) setThumbnail(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [src]);
+
+  if (!thumbnail) {
+    return (
+      <div
+        className={cn(
+          'grid shrink-0 place-items-center border border-dashed border-border/60 bg-muted/20 text-muted-foreground',
+          className,
+        )}
+      >
+        <Radio className="h-5 w-5" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={thumbnail}
+      alt={alt}
+      className={cn('shrink-0 border border-border/60 object-cover', className)}
+      onError={() => setThumbnail(null)}
+    />
+  );
 }
 
 export function TikTokLivePage() {
@@ -756,6 +805,9 @@ export function TikTokLivePage() {
           scheduleDays: watchScheduleDays.trim() || null,
           scheduleStartMinute: watchScheduleEnabled ? timeToMinute(watchScheduleStart) : null,
           scheduleEndMinute: watchScheduleEnabled ? timeToMinute(watchScheduleEnd) : null,
+          title: inspectResult?.title,
+          uploader: inspectResult?.uploader,
+          thumbnail: inspectResult?.thumbnail,
         },
       });
       setStatus(t(editingWatchId ? 'tiktokLive.watchlist.updated' : 'tiktokLive.watchlist.added'));
@@ -773,6 +825,7 @@ export function TikTokLivePage() {
     editingWatchAuth,
     editingWatchId,
     input,
+    inspectResult,
     invokeOptions,
     outputDir,
     quality,
@@ -1885,13 +1938,28 @@ export function TikTokLivePage() {
                       className="rounded-xl border border-border/60 bg-card/60 p-3 transition-colors hover:border-cyan-500/25"
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium">
-                            {entry.username ? `@${entry.username}` : entry.targetInput}
-                          </p>
-                          <p className="mt-1 truncate text-xs text-muted-foreground">
-                            {entry.targetUrl}
-                          </p>
+                        <div className="flex min-w-0 items-start gap-3">
+                          <TikTokLiveThumbnail
+                            src={entry.thumbnail}
+                            alt={
+                              entry.lastTitle ||
+                              (entry.username ? `@${entry.username}` : entry.targetInput)
+                            }
+                            className="h-16 w-12 rounded-lg"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">
+                              {entry.lastTitle ||
+                                (entry.username ? `@${entry.username}` : entry.targetInput)}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {entry.lastUploader ||
+                                (entry.username ? `@${entry.username}` : entry.targetUrl)}
+                            </p>
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground/70">
+                              {entry.targetUrl}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <Badge className={watchStatusClass(entry.status)}>
@@ -2139,17 +2207,11 @@ export function TikTokLivePage() {
           <section className="space-y-4 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
-                {inspectResult.thumbnail ? (
-                  <img
-                    src={inspectResult.thumbnail.replace(/^http:\/\//, 'https://')}
-                    alt={inspectResult.title}
-                    className="h-20 w-16 shrink-0 rounded-lg border border-border/60 object-cover"
-                  />
-                ) : (
-                  <div className="grid h-20 w-16 shrink-0 place-items-center rounded-lg border border-dashed border-border/60 bg-muted/20 text-muted-foreground">
-                    <Radio className="h-5 w-5" />
-                  </div>
-                )}
+                <TikTokLiveThumbnail
+                  src={inspectResult.thumbnail}
+                  alt={inspectResult.title}
+                  className="h-20 w-16 rounded-lg"
+                />
                 <div className="min-w-0">
                   <h2 className="truncate text-sm font-medium">{inspectResult.title}</h2>
                   <p className="mt-1 truncate text-xs text-muted-foreground">

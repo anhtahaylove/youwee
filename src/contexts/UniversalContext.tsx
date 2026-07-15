@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
-import { normalizeThumbnailUrl, toAssetUrl } from '@/lib/asset-access';
+import { cacheRemoteThumbnailUrl, normalizeThumbnailUrl } from '@/lib/asset-access';
 import {
   extractBackendError,
   localizeBackendError,
@@ -77,18 +77,6 @@ import { useDownload } from './DownloadContext';
 const STORAGE_KEY = 'youwee-universal-settings';
 const DOWNLOAD_STORAGE_KEY = 'youwee-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
-
-async function cacheThumbnailUrl(url: string | null | undefined): Promise<string | null> {
-  const thumbnail = normalizeThumbnailUrl(url);
-  if (!thumbnail || !/^https?:\/\//.test(thumbnail)) return thumbnail;
-
-  try {
-    const path = await invoke<string>('cache_remote_thumbnail', { url: thumbnail });
-    return await toAssetUrl(path);
-  } catch {
-    return thumbnail;
-  }
-}
 
 // Format duration in seconds to HH:MM:SS or MM:SS
 function formatDuration(seconds: number): string {
@@ -555,7 +543,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       })
         .then(async (response) => {
           const info = response.info;
-          const thumb = await cacheThumbnailUrl(info.thumbnail);
+          const thumb = await cacheRemoteThumbnailUrl(info.thumbnail);
           setItems((current) =>
             current.map((i) =>
               i.id === item.id

@@ -16,6 +16,20 @@ export function normalizeThumbnailUrl(url: string | null | undefined): string | 
   return url;
 }
 
+export async function cacheRemoteThumbnailUrl(
+  url: string | null | undefined,
+): Promise<string | null> {
+  const thumbnail = normalizeThumbnailUrl(url);
+  if (!thumbnail || !/^https?:\/\//.test(thumbnail)) return thumbnail;
+
+  try {
+    const path = await invoke<string>('cache_remote_thumbnail', { url: thumbnail });
+    return await toAssetUrl(path);
+  } catch {
+    return thumbnail;
+  }
+}
+
 export async function ensureAssetPathAccess(path: string): Promise<string> {
   const normalized = normalizeAssetPath(path);
   if (!normalized) {

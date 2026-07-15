@@ -304,6 +304,9 @@ pub struct SaveTikTokLiveWatchEntryInput {
     pub schedule_days: Option<String>,
     pub schedule_start_minute: Option<u32>,
     pub schedule_end_minute: Option<u32>,
+    pub title: Option<String>,
+    pub uploader: Option<String>,
+    pub thumbnail: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2571,12 +2574,32 @@ fn scalar_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> 
     })
 }
 
+fn tiktok_metadata_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
+    string_at(json, paths).or_else(|| {
+        json.get("_youwee_page_hydration")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|values| values.iter().find_map(|value| string_at(value, paths)))
+    })
+}
+
+fn tiktok_metadata_scalar_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
+    scalar_string_at(json, paths).or_else(|| {
+        json.get("_youwee_page_hydration")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|values| {
+                values
+                    .iter()
+                    .find_map(|value| scalar_string_at(value, paths))
+            })
+    })
+}
+
 fn tiktok_live_session_id(
     json: &serde_json::Value,
     target_url: &str,
     title: &str,
 ) -> Option<String> {
-    scalar_string_at(
+    tiktok_metadata_scalar_string_at(
         json,
         &[
             "/id",
@@ -2608,19 +2631,42 @@ fn tiktok_room_id_from_json(json: &serde_json::Value) -> Option<String> {
 }
 
 fn room_owner_username(json: &serde_json::Value) -> Option<String> {
-    string_at(json, &["/data/owner/display_id"])
-        .or_else(|| string_at(json, &["/data/owner/unique_id"]))
+    tiktok_metadata_string_at(json, &["/data/owner/display_id"])
+        .or_else(|| tiktok_metadata_string_at(json, &["/data/owner/unique_id"]))
         .and_then(|value| normalize_tiktok_username(&value))
 }
 
 fn tiktok_live_title(json: &serde_json::Value, username: Option<&str>) -> String {
-    string_at(json, &["/title", "/data/title"])
+    tiktok_metadata_string_at(json, &["/title", "/data/title"])
         .or_else(|| username.map(|value| format!("TikTok LIVE @{value}")))
         .or_else(|| {
-            string_at(json, &["/data/owner/display_id"])
+            tiktok_metadata_string_at(json, &["/data/owner/display_id"])
                 .map(|value| format!("TikTok LIVE @{value}"))
         })
         .unwrap_or_else(|| "TikTok LIVE".to_string())
+}
+
+fn tiktok_live_uploader(json: &serde_json::Value) -> Option<String> {
+    tiktok_metadata_string_at(
+        json,
+        &[
+            "/uploader",
+            "/data/owner/display_id",
+            "/data/owner/nickname",
+        ],
+    )
+}
+
+fn tiktok_live_thumbnail(json: &serde_json::Value) -> Option<String> {
+    tiktok_metadata_string_at(
+        json,
+        &[
+            "/thumbnail",
+            "/data/cover/url_list/0",
+            "/data/owner/avatar_medium/url_list/0",
+            "/data/owner/avatar_thumb/url_list/0",
+        ],
+    )
 }
 
 fn tiktok_live_metadata_is_offline(json: &serde_json::Value) -> bool {
@@ -2697,23 +2743,8 @@ pub async fn inspect_tiktok_live(
         target_url,
         session_id,
         title,
-        uploader: string_at(
-            &json,
-            &[
-                "/uploader",
-                "/data/owner/display_id",
-                "/data/owner/nickname",
-            ],
-        )
-        .or(target.username),
-        thumbnail: string_at(
-            &json,
-            &[
-                "/thumbnail",
-                "/data/cover/url_list/0",
-                "/data/owner/avatar_thumb/url_list/0",
-            ],
-        ),
+        uploader: tiktok_live_uploader(&json).or(target.username),
+        thumbnail: tiktok_live_thumbnail(&json),
         is_live: json
             .get("is_live")
             .and_then(|v| v.as_bool())
@@ -2898,14 +2929,7 @@ async fn record_tiktok_live_inner(
 
         job.target_url = target_url.clone();
         job.title = tiktok_live_title(&json, target.username.as_deref());
-        job.thumbnail = string_at(
-            &json,
-            &[
-                "/thumbnail",
-                "/data/cover/url_list/0",
-                "/data/owner/avatar_thumb/url_list/0",
-            ],
-        );
+        job.thumbnail = tiktok_live_thumbnail(&json);
         job.format_id = Some(tiktok_live_variant_label(&selected.variant));
         let output_path = job
             .output_path
@@ -3158,15 +3182,7 @@ async fn record_tiktok_live_inner(
             target_url = refreshed_target_url;
             selected = refreshed_selected;
             job.target_url = target_url.clone();
-            job.thumbnail = string_at(
-                &json,
-                &[
-                    "/thumbnail",
-                    "/data/cover/url_list/0",
-                    "/data/owner/avatar_thumb/url_list/0",
-                ],
-            )
-            .or(job.thumbnail.clone());
+            job.thumbnail = tiktok_live_thumbnail(&json).or(job.thumbnail.clone());
             job.format_id = Some(tiktok_live_variant_label(&selected.variant));
             save_job_status(&mut job, TikTokLiveJobStatus::Recording)?;
             segment_number += 1;
@@ -3467,6 +3483,9 @@ pub fn save_tiktok_live_watch_entry(
         last_refresh_count: 0,
         last_reconnect_count: 0,
         last_file_size: None,
+        last_title: None,
+        last_uploader: None,
+        thumbnail: None,
         created_at: now,
         updated_at: now,
     });
@@ -3501,6 +3520,30 @@ pub fn save_tiktok_live_watch_entry(
         saved.last_checked_at = None;
         saved.last_online_at = None;
         saved.last_session_id = None;
+        saved.last_title = None;
+        saved.last_uploader = None;
+        saved.thumbnail = None;
+    }
+    if let Some(title) = entry
+        .title
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        saved.last_title = Some(title);
+    }
+    if let Some(uploader) = entry
+        .uploader
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        saved.last_uploader = Some(uploader);
+    }
+    if let Some(thumbnail) = entry
+        .thumbnail
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        saved.thumbnail = Some(thumbnail);
     }
     if saved.enabled && saved.active_job_id.is_none() {
         saved.next_check_at = now;
@@ -3813,6 +3856,13 @@ async fn inspect_watch_entry(
 
     match inspect_result {
         Ok(result) if result.is_live != Some(false) && !result.variants.is_empty() => {
+            entry.last_title = Some(result.title.clone());
+            if result.uploader.is_some() {
+                entry.last_uploader = result.uploader.clone();
+            }
+            if result.thumbnail.is_some() {
+                entry.thumbnail = result.thumbnail.clone();
+            }
             entry.last_online_at = Some(now);
             entry.backoff_attempt = 0;
             entry.last_error = None;
@@ -4398,6 +4448,9 @@ fn ensure_tiktok_live_telegram_entry(
             schedule_days: None,
             schedule_start_minute: None,
             schedule_end_minute: None,
+            title: None,
+            uploader: None,
+            thumbnail: None,
         },
     )
 }
@@ -4899,6 +4952,45 @@ mod tests {
         });
 
         assert_eq!(room_owner_username(&json).as_deref(), Some("some.user"));
+    }
+
+    #[test]
+    fn extracts_live_metadata_from_appended_page_hydration() {
+        let json = serde_json::json!({
+            "extractor": "TikTok",
+            "_youwee_page_hydration": [{
+                "data": {
+                    "id": "7654321",
+                    "title": "Creator live title",
+                    "owner": {
+                        "display_id": "creator.user",
+                        "nickname": "Creator User"
+                    },
+                    "cover": {
+                        "url_list": ["https://p16.example/live-cover.jpeg"]
+                    }
+                }
+            }]
+        });
+
+        assert_eq!(
+            tiktok_live_title(&json, Some("creator.user")),
+            "Creator live title"
+        );
+        assert_eq!(tiktok_live_uploader(&json).as_deref(), Some("creator.user"));
+        assert_eq!(
+            tiktok_live_thumbnail(&json).as_deref(),
+            Some("https://p16.example/live-cover.jpeg")
+        );
+        assert_eq!(
+            tiktok_live_session_id(
+                &json,
+                "https://www.tiktok.com/@creator.user/live",
+                "Creator live title"
+            )
+            .as_deref(),
+            Some("7654321")
+        );
     }
 
     #[test]
@@ -5510,6 +5602,9 @@ mod tests {
             last_refresh_count: 0,
             last_reconnect_count: 0,
             last_file_size: None,
+            last_title: None,
+            last_uploader: None,
+            thumbnail: None,
             created_at: 100,
             updated_at: 100,
         }

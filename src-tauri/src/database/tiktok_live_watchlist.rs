@@ -123,11 +123,14 @@ pub struct TikTokLiveWatchEntry {
     pub last_refresh_count: u32,
     pub last_reconnect_count: u32,
     pub last_file_size: Option<u64>,
+    pub last_title: Option<String>,
+    pub last_uploader: Option<String>,
+    pub thumbnail: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
 
-const WATCH_COLUMNS: &str = "id, target_input, target_url, username, enabled, auto_record, output_dir, preferred_quality, preferred_transport, duration_seconds, cookie_mode, cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds, backoff_attempt, next_check_at, status, active_job_id, last_error, last_checked_at, last_online_at, last_recording_at, created_at, updated_at, record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome, last_completed_at, last_started_job_id, last_segment_count, last_refresh_count, last_reconnect_count, last_file_size, schedule_enabled, schedule_days, schedule_start_minute, schedule_end_minute";
+const WATCH_COLUMNS: &str = "id, target_input, target_url, username, enabled, auto_record, output_dir, preferred_quality, preferred_transport, duration_seconds, cookie_mode, cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds, backoff_attempt, next_check_at, status, active_job_id, last_error, last_checked_at, last_online_at, last_recording_at, created_at, updated_at, record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome, last_completed_at, last_started_job_id, last_segment_count, last_refresh_count, last_reconnect_count, last_file_size, schedule_enabled, schedule_days, schedule_start_minute, schedule_end_minute, last_title, last_uploader, thumbnail";
 
 pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), String> {
     conn.execute(
@@ -170,6 +173,9 @@ pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), 
             schedule_days TEXT,
             schedule_start_minute INTEGER,
             schedule_end_minute INTEGER,
+            last_title TEXT,
+            last_uploader TEXT,
+            thumbnail TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
@@ -192,6 +198,9 @@ pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), 
         "ALTER TABLE tiktok_live_watchlist ADD COLUMN schedule_days TEXT",
         "ALTER TABLE tiktok_live_watchlist ADD COLUMN schedule_start_minute INTEGER",
         "ALTER TABLE tiktok_live_watchlist ADD COLUMN schedule_end_minute INTEGER",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_title TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_uploader TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN thumbnail TEXT",
     ] {
         let _ = conn.execute(migration, []);
     }
@@ -270,6 +279,9 @@ fn watch_entry_from_row(row: &Row<'_>) -> rusqlite::Result<TikTokLiveWatchEntry>
         schedule_days: row.get(37)?,
         schedule_start_minute: row.get::<_, Option<i64>>(38)?.map(|value| value as u32),
         schedule_end_minute: row.get::<_, Option<i64>>(39)?.map(|value| value as u32),
+        last_title: row.get(40)?,
+        last_uploader: row.get(41)?,
+        thumbnail: row.get(42)?,
         created_at: row.get(23)?,
         updated_at: row.get(24)?,
     })
@@ -296,11 +308,12 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome,
             last_completed_at, last_started_job_id, last_segment_count, last_refresh_count,
             last_reconnect_count, last_file_size, schedule_enabled, schedule_days,
-            schedule_start_minute, schedule_end_minute
+            schedule_start_minute, schedule_end_minute, last_title, last_uploader, thumbnail
          ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
             ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28,
-            ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40
+            ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40,
+            ?41, ?42, ?43
          )
          ON CONFLICT(id) DO UPDATE SET
             target_input = excluded.target_input,
@@ -340,6 +353,9 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             schedule_days = excluded.schedule_days,
             schedule_start_minute = excluded.schedule_start_minute,
             schedule_end_minute = excluded.schedule_end_minute,
+            last_title = excluded.last_title,
+            last_uploader = excluded.last_uploader,
+            thumbnail = excluded.thumbnail,
             created_at = excluded.created_at,
             updated_at = excluded.updated_at",
         params![
@@ -385,6 +401,9 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             entry.schedule_days,
             entry.schedule_start_minute.map(i64::from),
             entry.schedule_end_minute.map(i64::from),
+            entry.last_title,
+            entry.last_uploader,
+            entry.thumbnail,
         ],
     )
     .map_err(|error| format!("Failed to save TikTok Live watchlist entry: {error}"))?;
@@ -437,7 +456,10 @@ pub fn update_tiktok_live_watch_entry_internal(
                 schedule_enabled = ?37,
                 schedule_days = ?38,
                 schedule_start_minute = ?39,
-                schedule_end_minute = ?40
+                schedule_end_minute = ?40,
+                last_title = ?41,
+                last_uploader = ?42,
+                thumbnail = ?43
              WHERE id = ?1",
             params![
                 entry.id,
@@ -482,6 +504,9 @@ pub fn update_tiktok_live_watch_entry_internal(
                 entry.schedule_days,
                 entry.schedule_start_minute.map(i64::from),
                 entry.schedule_end_minute.map(i64::from),
+                entry.last_title,
+                entry.last_uploader,
+                entry.thumbnail,
             ],
         )
         .map_err(|error| format!("Failed to update TikTok Live watchlist entry: {error}"))?;
@@ -630,6 +655,9 @@ mod tests {
             last_refresh_count: 0,
             last_reconnect_count: 0,
             last_file_size: None,
+            last_title: None,
+            last_uploader: None,
+            thumbnail: None,
             created_at: 100,
             updated_at: 100,
         }
@@ -642,6 +670,9 @@ mod tests {
         let mut entry = sample_entry("watch-1", "https://www.tiktok.com/@creator/live");
         entry.target_input =
             "https://www.tiktok.com/@creator/live?token=secret#fragment".to_string();
+        entry.last_title = Some("Creator is live".to_string());
+        entry.last_uploader = Some("Creator".to_string());
+        entry.thumbnail = Some("https://p16.example/live-cover.jpeg".to_string());
         save_tiktok_live_watch_entry_internal(&entry).expect("save watch entry");
 
         let loaded = get_tiktok_live_watch_entry_internal(&entry.id)
@@ -652,6 +683,9 @@ mod tests {
         assert_eq!(loaded.record_mode, TikTokLiveRecordMode::OncePerLive);
         assert_eq!(loaded.cooldown_seconds, 3600);
         assert_eq!(loaded.target_input, entry.target_url);
+        assert_eq!(loaded.last_title, entry.last_title);
+        assert_eq!(loaded.last_uploader, entry.last_uploader);
+        assert_eq!(loaded.thumbnail, entry.thumbnail);
         assert!(!loaded.schedule_enabled);
         assert!(
             get_tiktok_live_watch_entry_by_active_job_internal("missing-job")
