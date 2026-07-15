@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.25] - 2026-07-15
+
+### Fixed
+- **Windows updater restart guidance** - Explain during download that the Windows installer closes and reopens Youwee automatically instead of asking users to wait for a Restart Now button that may never appear
+
 ## [0.19.1-custom.24] - 2026-07-15
 
 ### Changed

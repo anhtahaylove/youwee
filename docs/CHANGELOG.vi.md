@@ -9,6 +9,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.25] - 2026-07-15
+
+### Sửa lỗi
+- **Hướng dẫn khởi động lại updater Windows** - Giải thích ngay khi tải rằng trình cài đặt Windows sẽ tự đóng và mở lại Youwee, thay vì khiến người dùng chờ nút Khởi động lại có thể không xuất hiện
+
 ## [0.19.1-custom.24] - 2026-07-15
 
 ### Thay đổi
