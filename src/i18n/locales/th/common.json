@@ -104,5 +104,11 @@
     "WHISPER_NO_API_KEY": "ยังไม่ได้ตั้งค่า Whisper API key",
     "WHISPER_UNSUPPORTED_FORMAT": "รูปแบบเสียงนี้ยังไม่รองรับสำหรับ Whisper",
     "TIKTOK_LIVE_OFFLINE": "TikTok Live นี้ไม่ได้ถ่ายทอดสดอยู่ในขณะนี้"
+  },
+  "windowControls": {
+    "minimize": "ย่อหน้าต่าง",
+    "maximize": "ขยายหน้าต่าง",
+    "restore": "คืนค่าหน้าต่าง",
+    "close": "ปิด"
   }
 }

@@ -104,5 +104,11 @@
     "WHISPER_NO_API_KEY": "未配置 Whisper API Key。",
     "WHISPER_UNSUPPORTED_FORMAT": "Whisper 不支持该音频格式。",
     "TIKTOK_LIVE_OFFLINE": "此 TikTok 直播当前未开播。"
+  },
+  "windowControls": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原",
+    "close": "关闭"
   }
 }

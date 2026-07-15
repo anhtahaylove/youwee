@@ -104,5 +104,11 @@
     "WHISPER_UNSUPPORTED_FORMAT": "Неподдерживаемый аудиоформат для Whisper.",
     "ARIA2_NOT_FOUND": "aria2c не найден. Установите aria2 и убедитесь, что aria2c доступен в PATH.",
     "TIKTOK_LIVE_OFFLINE": "Этот TikTok Live сейчас не активен."
+  },
+  "windowControls": {
+    "minimize": "Свернуть",
+    "maximize": "Развернуть",
+    "restore": "Восстановить",
+    "close": "Закрыть"
   }
 }

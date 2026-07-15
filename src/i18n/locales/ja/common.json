@@ -104,5 +104,11 @@
     "WHISPER_NO_API_KEY": "Whisper API キーが設定されていません。",
     "WHISPER_UNSUPPORTED_FORMAT": "Whisper でサポートされていない音声フォーマットです。",
     "TIKTOK_LIVE_OFFLINE": "この TikTok Live は現在配信されていません。"
+  },
+  "windowControls": {
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す",
+    "close": "閉じる"
   }
 }

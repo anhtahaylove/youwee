@@ -104,5 +104,11 @@
     "WHISPER_UNSUPPORTED_FORMAT": "Format audio non pris en charge par Whisper.",
     "ARIA2_NOT_FOUND": "aria2c est introuvable. Installez aria2 et assurez-vous que aria2c est disponible dans PATH.",
     "TIKTOK_LIVE_OFFLINE": "Ce TikTok Live n’est pas actif actuellement."
+  },
+  "windowControls": {
+    "minimize": "Réduire",
+    "maximize": "Agrandir",
+    "restore": "Restaurer",
+    "close": "Fermer"
   }
 }

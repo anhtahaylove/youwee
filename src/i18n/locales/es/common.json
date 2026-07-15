@@ -104,5 +104,11 @@
     "WHISPER_NO_API_KEY": "Clave API de Whisper no configurada.",
     "WHISPER_UNSUPPORTED_FORMAT": "Formato de audio no compatible con Whisper.",
     "TIKTOK_LIVE_OFFLINE": "Este TikTok Live no está activo actualmente."
+  },
+  "windowControls": {
+    "minimize": "Minimizar",
+    "maximize": "Maximizar",
+    "restore": "Restaurar",
+    "close": "Cerrar"
   }
 }

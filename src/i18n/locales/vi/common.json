@@ -104,5 +104,11 @@
     "WHISPER_NO_API_KEY": "Chưa cấu hình API key cho Whisper.",
     "WHISPER_UNSUPPORTED_FORMAT": "Định dạng âm thanh không được Whisper hỗ trợ.",
     "TIKTOK_LIVE_OFFLINE": "TikTok Live này hiện không hoạt động."
+  },
+  "windowControls": {
+    "minimize": "Thu nhỏ",
+    "maximize": "Phóng to",
+    "restore": "Khôi phục",
+    "close": "Đóng"
   }
 }

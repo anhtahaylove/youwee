@@ -6,6 +6,8 @@ import {
   Activity,
   BookmarkPlus,
   CheckCircle2,
+  ChevronDown,
+  ClipboardPaste,
   Clock3,
   Eye,
   FileCheck2,
@@ -41,6 +43,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -54,6 +57,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { openFileLocation } from '@/lib/open-file-location';
+import { extractUrls } from '@/lib/sources';
 import { cn } from '@/lib/utils';
 
 type TikTokLiveVariant = {
@@ -201,6 +205,36 @@ const RECORD_MODE_OPTIONS: TikTokLiveRecordMode[] = [
   'alwaysAfterCooldown',
   'manualOnly',
 ];
+const CAPTURE_PRESETS = [
+  { id: 'origin', quality: 'origin', transport: 'auto' },
+  { id: 'prefer60', quality: 'uhd_60', transport: 'auto' },
+  { id: 'audio', quality: 'ao', transport: 'auto' },
+] as const;
+const DURATION_PRESETS = [
+  { value: '60', label: '1m' },
+  { value: '300', label: '5m' },
+  { value: '1800', label: '30m' },
+  { value: '3600', label: '1h' },
+] as const;
+const POLL_INTERVAL_PRESETS = [
+  { value: '30', label: '30s' },
+  { value: '60', label: '1m' },
+  { value: '120', label: '2m' },
+  { value: '300', label: '5m' },
+  { value: '600', label: '10m' },
+] as const;
+const COOLDOWN_PRESETS = [
+  { value: '0', label: '0' },
+  { value: '900', label: '15m' },
+  { value: '3600', label: '1h' },
+  { value: '21600', label: '6h' },
+  { value: '86400', label: '24h' },
+] as const;
+const FILENAME_TEMPLATE_PRESETS = [
+  { id: 'automatic', value: '' },
+  { id: 'username', value: '{username}_{date}_{time}' },
+  { id: 'title', value: '{title}_{date}_{time}' },
+] as const;
 
 function isAbsolutePath(path: string): boolean {
   return path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path);
@@ -273,12 +307,27 @@ function isCancellationError(error: unknown): boolean {
   return extractBackendError(error).code === 'DOWNLOAD_CANCELLED';
 }
 
+function minutesFromSeconds(seconds: number): string {
+  const minutes = seconds / 60;
+  return Number.isInteger(minutes) ? minutes.toString() : Number(minutes.toFixed(2)).toString();
+}
+
+function formatDuration(secondsValue: string): string {
+  const seconds = Number.parseInt(secondsValue, 10);
+  if (!Number.isFinite(seconds) || seconds <= 0) return '∞';
+  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
+  if (seconds % 60 === 0) return `${seconds / 60}m`;
+  return `${seconds}s`;
+}
+
 export function TikTokLivePage() {
-  const { t } = useTranslation('pages');
+  const { t, i18n } = useTranslation(['pages', 'universal']);
   const [input, setInput] = useState('');
   const [outputDir, setOutputDir] = useState('');
   const [duration, setDuration] = useState('60');
-  const [quality, setQuality] = useState('auto');
+  const [durationMode, setDurationMode] = useState('60');
+  const [customDurationMinutes, setCustomDurationMinutes] = useState('15');
+  const [quality, setQuality] = useState('origin');
   const [transport, setTransport] = useState('auto');
   const [autoReconnect, setAutoReconnect] = useState(true);
   const [workspaceView, setWorkspaceView] = useState<'record' | 'watchlist'>('record');
@@ -294,9 +343,12 @@ export function TikTokLivePage() {
   const [deleteCandidate, setDeleteCandidate] = useState<TikTokLiveRecoveryJob | null>(null);
   const [watchEntries, setWatchEntries] = useState<TikTokLiveWatchEntry[]>([]);
   const [watchPollInterval, setWatchPollInterval] = useState('60');
+  const [watchPollIntervalMode, setWatchPollIntervalMode] = useState('60');
   const [watchRecordMode, setWatchRecordMode] = useState<TikTokLiveRecordMode>('oncePerLive');
   const [watchCooldown, setWatchCooldown] = useState('3600');
+  const [watchCooldownMode, setWatchCooldownMode] = useState('3600');
   const [watchFilenameTemplate, setWatchFilenameTemplate] = useState('');
+  const [watchFilenameTemplateMode, setWatchFilenameTemplateMode] = useState('automatic');
   const [watchScheduleEnabled, setWatchScheduleEnabled] = useState(false);
   const [watchScheduleDays, setWatchScheduleDays] = useState('');
   const [watchScheduleStart, setWatchScheduleStart] = useState('00:00');
@@ -427,6 +479,32 @@ export function TikTokLivePage() {
     setRecordResult(null);
     setStatus('');
     setError('');
+  }, []);
+
+  const pasteTarget = useCallback(async () => {
+    try {
+      const clipboardText = (await navigator.clipboard.readText()).trim();
+      if (!clipboardText) return;
+
+      const target =
+        extractUrls(clipboardText).find((url) =>
+          /(^|\.)tiktok\.com$/i.test(new URL(url).hostname),
+        ) || clipboardText;
+      updateInput(target);
+    } catch {
+      // Clipboard permission can be denied by the webview. Keep the input usable manually.
+    }
+  }, [updateInput]);
+
+  const applyCapturePreset = useCallback((presetId: string) => {
+    const preset = CAPTURE_PRESETS.find((candidate) => candidate.id === presetId);
+    if (!preset) return;
+
+    setQuality(preset.quality);
+    setTransport(preset.transport);
+    setAutoReconnect(true);
+    setInspectResult(null);
+    setStatus('');
   }, []);
 
   const selectOutputFolder = useCallback(async () => {
@@ -623,20 +701,27 @@ export function TikTokLivePage() {
     }
   }, [deleteCandidate, refreshRecoveryJobs, t]);
 
-  const updateRecorderLimit = useCallback(async () => {
-    const limitValue = Number.parseInt(maxConcurrentRecordings, 10);
-    try {
-      const config = await invoke<TikTokLiveRecorderConfig>('set_tiktok_live_recorder_config', {
-        maxConcurrentRecordings: Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 1,
-      });
-      setRecorderConfig(config);
-      setMaxConcurrentRecordings(config.maxConcurrentRecordings.toString());
-      await refreshTelemetry();
-      setStatus(t('tiktokLive.watchlist.recorderLimitUpdated'));
-    } catch (err) {
-      setError(localizeBackendError(extractBackendError(err)));
-    }
-  }, [maxConcurrentRecordings, refreshTelemetry, t]);
+  const updateRecorderLimit = useCallback(
+    async (value = maxConcurrentRecordings) => {
+      const limitValue = Number.parseInt(value, 10);
+      setWatchActionId('recorder-limit');
+      setError('');
+      try {
+        const config = await invoke<TikTokLiveRecorderConfig>('set_tiktok_live_recorder_config', {
+          maxConcurrentRecordings: Number.isFinite(limitValue) && limitValue > 0 ? limitValue : 1,
+        });
+        setRecorderConfig(config);
+        setMaxConcurrentRecordings(config.maxConcurrentRecordings.toString());
+        await refreshTelemetry();
+        setStatus(t('tiktokLive.watchlist.recorderLimitUpdated'));
+      } catch (err) {
+        setError(localizeBackendError(extractBackendError(err)));
+      } finally {
+        setWatchActionId(null);
+      }
+    },
+    [maxConcurrentRecordings, refreshTelemetry, t],
+  );
 
   const saveWatchEntry = useCallback(async () => {
     if (!input.trim() || !outputDir) return;
@@ -709,13 +794,39 @@ export function TikTokLivePage() {
     setEditingWatchId(entry.id);
     setInput(entry.targetInput);
     setOutputDir(entry.outputDir);
-    setDuration(entry.durationSeconds?.toString() || '0');
-    setQuality(entry.preferredQuality || 'auto');
+    const durationSeconds = entry.durationSeconds ?? 0;
+    const durationValue = durationSeconds.toString();
+    const savedDurationPreset = DURATION_PRESETS.some((preset) => preset.value === durationValue)
+      ? durationValue
+      : durationSeconds === 0
+        ? '0'
+        : 'custom';
+    setDuration(durationValue);
+    setDurationMode(savedDurationPreset);
+    if (savedDurationPreset === 'custom') {
+      setCustomDurationMinutes(minutesFromSeconds(durationSeconds));
+    }
+    setQuality(entry.preferredQuality === 'auto' ? 'origin' : entry.preferredQuality || 'origin');
     setTransport(entry.preferredTransport || 'auto');
-    setWatchPollInterval(entry.pollIntervalSeconds.toString());
+    const pollIntervalValue = entry.pollIntervalSeconds.toString();
+    setWatchPollInterval(pollIntervalValue);
+    setWatchPollIntervalMode(
+      POLL_INTERVAL_PRESETS.some((preset) => preset.value === pollIntervalValue)
+        ? pollIntervalValue
+        : 'custom',
+    );
     setWatchRecordMode(entry.recordMode || 'oncePerLive');
-    setWatchCooldown((entry.cooldownSeconds ?? 3600).toString());
-    setWatchFilenameTemplate(entry.filenameTemplate || '');
+    const cooldownValue = (entry.cooldownSeconds ?? 3600).toString();
+    setWatchCooldown(cooldownValue);
+    setWatchCooldownMode(
+      COOLDOWN_PRESETS.some((preset) => preset.value === cooldownValue) ? cooldownValue : 'custom',
+    );
+    const filenameTemplateValue = entry.filenameTemplate || '';
+    setWatchFilenameTemplate(filenameTemplateValue);
+    setWatchFilenameTemplateMode(
+      FILENAME_TEMPLATE_PRESETS.find((preset) => preset.value === filenameTemplateValue)?.id ??
+        'custom',
+    );
     setWatchScheduleEnabled(entry.scheduleEnabled);
     setWatchScheduleDays(entry.scheduleDays || '');
     setWatchScheduleStart(minuteToTime(entry.scheduleStartMinute) || '00:00');
@@ -824,11 +935,15 @@ export function TikTokLivePage() {
   }, [editingWatchId, refreshWatchlist, t, watchDeleteCandidate]);
 
   const busy = isInspecting || isRecording || recoveryActionId !== null;
+  const parsedDuration = Number.parseInt(duration, 10);
+  const hasValidDuration =
+    duration === '0' || (Number.isFinite(parsedDuration) && parsedDuration > 0);
   const canInspect = input.trim().length > 0 && !busy;
-  const canRecord = canInspect && outputDir.length > 0;
+  const canRecord = canInspect && outputDir.length > 0 && hasValidDuration;
   const canCancel = isRecording && !isCancelling;
   const watchBusy = watchActionId !== null;
-  const canSaveWatch = input.trim().length > 0 && outputDir.length > 0 && !busy && !watchBusy;
+  const canSaveWatch =
+    input.trim().length > 0 && outputDir.length > 0 && hasValidDuration && !busy && !watchBusy;
   const localTelemetry = useMemo(() => {
     const watchStats = watchEntries.reduce(
       (totals, entry) => ({
@@ -866,6 +981,49 @@ export function TikTokLivePage() {
         resourceWarning: telemetrySnapshot.resourceWarning || null,
       }
     : localTelemetry;
+  const activeCapturePreset =
+    CAPTURE_PRESETS.find(
+      (preset) => preset.quality === quality && preset.transport === transport && autoReconnect,
+    )?.id ?? 'custom';
+  const captureSummary =
+    activeCapturePreset === 'custom'
+      ? `${quality.replace('_', ' · ').toUpperCase()} · ${transport.toUpperCase()}`
+      : t(`tiktokLive.presets.${activeCapturePreset}`);
+  const selectedScheduleDays = useMemo(() => {
+    return new Set(
+      watchScheduleDays
+        .split(',')
+        .map((value) => Number.parseInt(value.trim(), 10))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6),
+    );
+  }, [watchScheduleDays]);
+  const scheduleLocale = i18n.resolvedLanguage || i18n.language || 'en';
+  const scheduleDayLabels = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(scheduleLocale, {
+      weekday: 'short',
+      timeZone: 'UTC',
+    });
+    return Array.from({ length: 7 }, (_, day) => ({
+      day,
+      label: formatter.format(new Date(Date.UTC(2023, 0, 2 + day))),
+    }));
+  }, [scheduleLocale]);
+  const toggleScheduleDay = useCallback((day: number) => {
+    setWatchScheduleDays((current) => {
+      const days = new Set(
+        current
+          .split(',')
+          .map((value) => Number.parseInt(value.trim(), 10))
+          .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6),
+      );
+      if (days.has(day)) {
+        days.delete(day);
+      } else {
+        days.add(day);
+      }
+      return [...days].sort((left, right) => left - right).join(',');
+    });
+  }, []);
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
@@ -904,6 +1062,700 @@ export function TikTokLivePage() {
       <div className="mx-4 sm:mx-6 h-px bg-gradient-to-r from-transparent via-border/50 to-transparent" />
 
       <main className="flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-6">
+        <section className="space-y-4 rounded-xl border border-border/60 bg-card/40 p-4">
+          <form
+            className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_auto]"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void inspectLive();
+            }}
+          >
+            <div className="relative">
+              <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="tiktok-live-target"
+                value={input}
+                onChange={(event) => updateInput(event.target.value)}
+                disabled={busy}
+                placeholder={t('tiktokLive.input.placeholder')}
+                aria-label={t('tiktokLive.input.label')}
+                className="h-11 pl-9 pr-10"
+                autoComplete="off"
+              />
+              {input && !busy && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => updateInput('')}
+                  className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-md text-muted-foreground"
+                  aria-label={t('tiktokLive.input.clear')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void pasteTarget()}
+              disabled={busy}
+              className="h-11 gap-2 border-dashed px-4"
+              aria-label={t('urlInput.paste', { ns: 'universal' })}
+              title={t('urlInput.paste', { ns: 'universal' })}
+            >
+              <ClipboardPaste className="h-4 w-4" />
+              <span className="md:hidden lg:inline">
+                {t('urlInput.paste', { ns: 'universal' })}
+              </span>
+            </Button>
+            <Button type="submit" disabled={!canInspect} className="h-11 gap-2 px-5">
+              {isInspecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+              {t('tiktokLive.actions.inspect')}
+            </Button>
+          </form>
+
+          <div className="space-y-2">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Settings2 className="h-3.5 w-3.5" />
+              {t('tiktokLive.presets.quickSetup')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {CAPTURE_PRESETS.map((preset) => {
+                const active = activeCapturePreset === preset.id;
+                const description = t(`tiktokLive.presets.${preset.id}Description`);
+                return (
+                  <Button
+                    key={preset.id}
+                    type="button"
+                    variant="outline"
+                    aria-pressed={active}
+                    title={description}
+                    onClick={() => applyCapturePreset(preset.id)}
+                    disabled={busy}
+                    className={cn(
+                      'h-auto min-h-16 justify-start whitespace-normal border-dashed px-3 py-2 text-left transition-colors',
+                      active &&
+                        'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 hover:bg-cyan-500/15 dark:text-cyan-300',
+                    )}
+                  >
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">
+                        {t(`tiktokLive.presets.${preset.id}`)}
+                      </span>
+                      <span className="text-[11px] font-normal leading-snug opacity-75">
+                        {description}
+                      </span>
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="tiktok-live-duration-preset"
+                className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+              >
+                <Clock3 className="h-3.5 w-3.5" />
+                {t('tiktokLive.duration')}
+              </label>
+              <Select
+                value={durationMode}
+                onValueChange={(value) => {
+                  setDurationMode(value);
+                  if (value === 'custom') {
+                    const minutes = Number.parseFloat(customDurationMinutes);
+                    setDuration(
+                      Number.isFinite(minutes) && minutes > 0
+                        ? Math.round(minutes * 60).toString()
+                        : '900',
+                    );
+                    return;
+                  }
+                  setDuration(value);
+                }}
+                disabled={busy}
+              >
+                <SelectTrigger id="tiktok-live-duration-preset" className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_PRESETS.map((preset) => (
+                    <SelectItem key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="0">{t('tiktokLive.presets.unlimited')}</SelectItem>
+                  <SelectItem value="custom">{t('tiktokLive.presets.custom')}</SelectItem>
+                </SelectContent>
+              </Select>
+              {durationMode === 'custom' && (
+                <div className="mt-2 space-y-1">
+                  <label
+                    htmlFor="tiktok-live-duration"
+                    className="text-xs font-medium text-muted-foreground"
+                  >
+                    {t('tiktokLive.presets.customDurationMinutes')}
+                  </label>
+                  <Input
+                    id="tiktok-live-duration"
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={customDurationMinutes}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      const minutes = Number.parseFloat(value);
+                      setCustomDurationMinutes(value);
+                      setDuration(
+                        Number.isFinite(minutes) && minutes > 0
+                          ? Math.round(minutes * 60).toString()
+                          : '',
+                      );
+                    }}
+                    disabled={busy}
+                    className="h-10"
+                    aria-describedby="tiktok-live-duration-help"
+                  />
+                  <p
+                    id="tiktok-live-duration-help"
+                    className="text-[11px] leading-snug text-muted-foreground"
+                  >
+                    {t('tiktokLive.presets.customDurationHelp')}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Folder className="h-3.5 w-3.5" />
+                {t('tiktokLive.output.label')}
+              </p>
+              <Button
+                variant="outline"
+                className="h-10 w-full justify-start gap-2 px-3"
+                onClick={() => void selectOutputFolder()}
+                disabled={busy}
+                title={outputDir || t('tiktokLive.output.empty')}
+              >
+                <Folder className="h-4 w-4 shrink-0" />
+                <span className="truncate">{outputDir || t('tiktokLive.output.empty')}</span>
+              </Button>
+            </div>
+          </div>
+
+          <Collapsible className="rounded-lg border border-border/50 bg-muted/15">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-medium"
+              >
+                <span className="flex items-center gap-2">
+                  <Settings2 className="h-4 w-4 text-cyan-500" />
+                  {t('tiktokLive.presets.advanced')}
+                </span>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-180" />
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="border-t border-border/50 px-3 py-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="tiktok-live-quality"
+                    className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    {t('tiktokLive.quality')}
+                  </label>
+                  <Select
+                    value={quality}
+                    onValueChange={(value) => {
+                      setQuality(value);
+                      setInspectResult(null);
+                      setStatus('');
+                    }}
+                    disabled={busy}
+                  >
+                    <SelectTrigger id="tiktok-live-quality" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {QUALITY_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option.replace('_', ' · ').toUpperCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label
+                    htmlFor="tiktok-live-transport"
+                    className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+                  >
+                    <Wifi className="h-3.5 w-3.5" />
+                    {t('tiktokLive.transport')}
+                  </label>
+                  <Select
+                    value={transport}
+                    onValueChange={(value) => {
+                      setTransport(value);
+                      setInspectResult(null);
+                      setStatus('');
+                    }}
+                    disabled={busy}
+                  >
+                    <SelectTrigger id="tiktok-live-transport" className="h-10">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TRANSPORT_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option.toUpperCase()}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="mt-3 flex items-start justify-between gap-4 rounded-lg bg-muted/25 px-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <RefreshCw className="h-4 w-4 text-cyan-500" />
+                    {t('tiktokLive.autoReconnect.label')}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {t('tiktokLive.autoReconnect.description')}
+                  </p>
+                </div>
+                <Switch
+                  checked={autoReconnect}
+                  onCheckedChange={setAutoReconnect}
+                  disabled={busy}
+                  aria-label={t('tiktokLive.autoReconnect.label')}
+                />
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+
+          <Tabs
+            value={workspaceView}
+            onValueChange={(value) => setWorkspaceView(value as 'record' | 'watchlist')}
+            className="space-y-3"
+          >
+            <TabsList className="grid h-11 w-full grid-cols-2 rounded-xl bg-muted/50 p-1 sm:max-w-md">
+              <TabsTrigger value="record" className="h-9 gap-2 rounded-lg">
+                <Radio className="h-4 w-4" />
+                {t('tiktokLive.actions.record')}
+              </TabsTrigger>
+              <TabsTrigger value="watchlist" className="h-9 gap-2 rounded-lg">
+                <ListVideo className="h-4 w-4" />
+                {t('tiktokLive.watchlist.title')}
+                {watchEntries.length > 0 && (
+                  <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[10px] text-cyan-600 dark:text-cyan-400">
+                    {watchEntries.length}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent ref={watchRulesRef} value="watchlist" className="mt-0 space-y-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t('tiktokLive.watchlist.pollInterval')}
+                  </p>
+                  <Select
+                    value={watchPollIntervalMode}
+                    onValueChange={(value) => {
+                      setWatchPollIntervalMode(value);
+                      if (value === 'custom') {
+                        if (watchPollIntervalMode !== 'custom') setWatchPollInterval('90');
+                        return;
+                      }
+                      setWatchPollInterval(value);
+                    }}
+                    disabled={busy || watchBusy}
+                  >
+                    <SelectTrigger aria-label={t('tiktokLive.watchlist.pollInterval')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {POLL_INTERVAL_PRESETS.map((preset) => (
+                        <SelectItem key={preset.value} value={preset.value}>
+                          {preset.label}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">{t('tiktokLive.presets.custom')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {watchPollIntervalMode === 'custom' && (
+                    <div className="relative mt-2">
+                      <Input
+                        type="number"
+                        min="30"
+                        max="3600"
+                        step="1"
+                        inputMode="numeric"
+                        value={watchPollInterval}
+                        onChange={(event) => setWatchPollInterval(event.target.value)}
+                        disabled={busy || watchBusy}
+                        className="pr-8"
+                        aria-label={t('tiktokLive.watchlist.pollInterval')}
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        s
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted-foreground">
+                    {t('tiktokLive.watchlist.recordMode.label')}
+                  </p>
+                  <Select
+                    value={watchRecordMode}
+                    onValueChange={(value) => setWatchRecordMode(value as TikTokLiveRecordMode)}
+                    disabled={busy || watchBusy}
+                  >
+                    <SelectTrigger aria-label={t('tiktokLive.watchlist.recordMode.label')}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RECORD_MODE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {t(`tiktokLive.watchlist.recordMode.${option}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">
+                      {t('tiktokLive.watchlist.schedule.enabled')}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t('tiktokLive.watchlist.schedule.description')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={watchScheduleEnabled}
+                    onCheckedChange={setWatchScheduleEnabled}
+                    disabled={busy || watchBusy}
+                    aria-label={t('tiktokLive.watchlist.schedule.enabled')}
+                  />
+                </div>
+                {watchScheduleEnabled && (
+                  <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,2fr)_1fr_1fr]">
+                    <fieldset className="min-w-0">
+                      <legend className="mb-1 text-xs text-muted-foreground">
+                        {t('tiktokLive.watchlist.schedule.days')}
+                      </legend>
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          aria-pressed={selectedScheduleDays.size === 0}
+                          onClick={() => setWatchScheduleDays('')}
+                          disabled={busy || watchBusy}
+                          className={cn(
+                            'h-9 border-dashed px-3',
+                            selectedScheduleDays.size === 0 &&
+                              'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+                          )}
+                        >
+                          {t('tiktokLive.presets.everyDay')}
+                        </Button>
+                        {scheduleDayLabels.map(({ day, label }) => {
+                          const selected = selectedScheduleDays.has(day);
+                          return (
+                            <Button
+                              key={`schedule-${label}`}
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              aria-pressed={selected}
+                              onClick={() => toggleScheduleDay(day)}
+                              disabled={busy || watchBusy}
+                              className={cn(
+                                'h-9 min-w-10 border-dashed px-2',
+                                selected &&
+                                  'border-cyan-500/50 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+                              )}
+                            >
+                              {label}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">
+                        {t('tiktokLive.watchlist.schedule.start')}
+                      </p>
+                      <Input
+                        type="time"
+                        value={watchScheduleStart}
+                        onChange={(event) => setWatchScheduleStart(event.target.value)}
+                        disabled={busy || watchBusy}
+                        aria-label={t('tiktokLive.watchlist.schedule.start')}
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">
+                        {t('tiktokLive.watchlist.schedule.end')}
+                      </p>
+                      <Input
+                        type="time"
+                        value={watchScheduleEnd}
+                        onChange={(event) => setWatchScheduleEnd(event.target.value)}
+                        disabled={busy || watchBusy}
+                        aria-label={t('tiktokLive.watchlist.schedule.end')}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Collapsible className="rounded-lg border border-border/50 bg-muted/15">
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm font-medium"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Settings2 className="h-4 w-4 text-cyan-500" />
+                      {t('tiktokLive.presets.advancedRules')}
+                    </span>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-180" />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="border-t border-border/50 px-3 py-3">
+                  <div
+                    className={cn(
+                      'grid gap-3',
+                      watchRecordMode === 'alwaysAfterCooldown' && 'sm:grid-cols-2',
+                    )}
+                  >
+                    {watchRecordMode === 'alwaysAfterCooldown' && (
+                      <div>
+                        <p className="mb-1 text-xs text-muted-foreground">
+                          {t('tiktokLive.watchlist.cooldownSeconds')}
+                        </p>
+                        <Select
+                          value={watchCooldownMode}
+                          onValueChange={(value) => {
+                            setWatchCooldownMode(value);
+                            if (value === 'custom') {
+                              if (watchCooldownMode !== 'custom') setWatchCooldown('1800');
+                              return;
+                            }
+                            setWatchCooldown(value);
+                          }}
+                          disabled={busy || watchBusy}
+                        >
+                          <SelectTrigger aria-label={t('tiktokLive.watchlist.cooldownSeconds')}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {COOLDOWN_PRESETS.map((preset) => (
+                              <SelectItem key={preset.value} value={preset.value}>
+                                {preset.label}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="custom">{t('tiktokLive.presets.custom')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {watchCooldownMode === 'custom' && (
+                          <div className="relative mt-2">
+                            <Input
+                              type="number"
+                              min="0"
+                              max="604800"
+                              step="1"
+                              inputMode="numeric"
+                              value={watchCooldown}
+                              onChange={(event) => setWatchCooldown(event.target.value)}
+                              disabled={busy || watchBusy}
+                              className="pr-8"
+                              aria-label={t('tiktokLive.watchlist.cooldownSeconds')}
+                            />
+                            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                              s
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    <div>
+                      <p className="mb-1 text-xs text-muted-foreground">
+                        {t('tiktokLive.watchlist.filenameTemplate')}
+                      </p>
+                      <Select
+                        value={watchFilenameTemplateMode}
+                        onValueChange={(value) => {
+                          setWatchFilenameTemplateMode(value);
+                          const preset = FILENAME_TEMPLATE_PRESETS.find(
+                            (candidate) => candidate.id === value,
+                          );
+                          if (preset) {
+                            setWatchFilenameTemplate(preset.value);
+                          } else if (watchFilenameTemplateMode !== 'custom') {
+                            setWatchFilenameTemplate('{username}_{date}');
+                          }
+                        }}
+                        disabled={busy || watchBusy}
+                      >
+                        <SelectTrigger aria-label={t('tiktokLive.watchlist.filenameTemplate')}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="automatic">
+                            {t('tiktokLive.presets.automatic')}
+                          </SelectItem>
+                          <SelectItem value="username">
+                            {t('tiktokLive.presets.filenameUsername')}
+                          </SelectItem>
+                          <SelectItem value="title">
+                            {t('tiktokLive.presets.filenameTitle')}
+                          </SelectItem>
+                          <SelectItem value="custom">{t('tiktokLive.presets.custom')}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {watchFilenameTemplateMode === 'custom' && (
+                        <Input
+                          value={watchFilenameTemplate}
+                          onChange={(event) => setWatchFilenameTemplate(event.target.value)}
+                          disabled={busy || watchBusy}
+                          className="mt-2"
+                          placeholder="{username}_{date}_{time}"
+                          aria-label={t('tiktokLive.watchlist.filenameTemplate')}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {editingWatchId && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setEditingWatchId(null);
+                      setEditingWatchAuth(null);
+                    }}
+                    disabled={watchBusy}
+                  >
+                    {t('tiktokLive.watchlist.actions.cancelEdit')}
+                  </Button>
+                )}
+                <Button
+                  onClick={() => void saveWatchEntry()}
+                  disabled={!canSaveWatch}
+                  className="gap-2 bg-cyan-600 text-white hover:bg-cyan-500"
+                >
+                  {watchActionId === (editingWatchId || 'new') ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <BookmarkPlus className="h-4 w-4" />
+                  )}
+                  {t(
+                    editingWatchId
+                      ? 'tiktokLive.watchlist.actions.update'
+                      : 'tiktokLive.watchlist.actions.add',
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="record" className="mt-0">
+              <div className="flex flex-col gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-500">
+                    {isRecording ? (
+                      <Radio className="h-5 w-5 animate-pulse" />
+                    ) : (
+                      <Play className="h-5 w-5" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{t('tiktokLive.actions.record')}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {captureSummary} · {formatDuration(duration)}
+                    </p>
+                  </div>
+                </div>
+                {!isRecording ? (
+                  <Button
+                    onClick={() => void startRecording()}
+                    disabled={!canRecord}
+                    className="min-w-44 gap-2 bg-rose-600 text-white hover:bg-rose-500"
+                  >
+                    <Radio className="h-4 w-4" />
+                    {t('tiktokLive.actions.record')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="destructive"
+                    onClick={() => void cancelRecording()}
+                    className="min-w-44 gap-2"
+                    disabled={!canCancel}
+                  >
+                    {isCancelling ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                    {t('tiktokLive.actions.cancel')}
+                  </Button>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          {status && !error && (
+            <output
+              className={cn(
+                'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm',
+                isRecording
+                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                  : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
+              )}
+              aria-live="polite"
+            >
+              {busy || watchBusy ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+              )}
+              {status}
+            </output>
+          )}
+
+          {error && (
+            <div
+              className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-500"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+        </section>
+
         <section
           aria-label={t('tiktokLive.telemetry.title')}
           className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4"
@@ -963,422 +1815,6 @@ export function TikTokLivePage() {
           )}
         </section>
 
-        <section className="space-y-4 rounded-xl border border-border/60 bg-card/40 p-4">
-          <form
-            className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void inspectLive();
-            }}
-          >
-            <div className="relative">
-              <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="tiktok-live-target"
-                value={input}
-                onChange={(event) => updateInput(event.target.value)}
-                disabled={busy}
-                placeholder={t('tiktokLive.input.placeholder')}
-                aria-label={t('tiktokLive.input.label')}
-                className="h-11 pl-9 pr-10"
-                autoComplete="off"
-              />
-              {input && !busy && (
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => updateInput('')}
-                  className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-md text-muted-foreground"
-                  aria-label={t('tiktokLive.input.clear')}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <Button type="submit" disabled={!canInspect} className="h-11 gap-2 px-5">
-              {isInspecting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Search className="h-4 w-4" />
-              )}
-              {t('tiktokLive.actions.inspect')}
-            </Button>
-          </form>
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div>
-              <label
-                htmlFor="tiktok-live-quality"
-                className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-              >
-                <Settings2 className="h-3.5 w-3.5" />
-                {t('tiktokLive.quality')}
-              </label>
-              <Select
-                value={quality}
-                onValueChange={(value) => {
-                  setQuality(value);
-                  setInspectResult(null);
-                  setStatus('');
-                }}
-                disabled={busy}
-              >
-                <SelectTrigger id="tiktok-live-quality" className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {QUALITY_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option.replace('_', ' · ').toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label
-                htmlFor="tiktok-live-transport"
-                className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-              >
-                <Wifi className="h-3.5 w-3.5" />
-                {t('tiktokLive.transport')}
-              </label>
-              <Select
-                value={transport}
-                onValueChange={(value) => {
-                  setTransport(value);
-                  setInspectResult(null);
-                  setStatus('');
-                }}
-                disabled={busy}
-              >
-                <SelectTrigger id="tiktok-live-transport" className="h-10">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRANSPORT_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option.toUpperCase()}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label
-                htmlFor="tiktok-live-duration"
-                className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-              >
-                <Clock3 className="h-3.5 w-3.5" />
-                {t('tiktokLive.duration')}
-              </label>
-              <Input
-                id="tiktok-live-duration"
-                type="number"
-                min="0"
-                step="1"
-                inputMode="numeric"
-                value={duration}
-                onChange={(event) => setDuration(event.target.value)}
-                disabled={busy}
-                className="h-10"
-              />
-            </div>
-            <div>
-              <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <Folder className="h-3.5 w-3.5" />
-                {t('tiktokLive.output.label')}
-              </p>
-              <Button
-                variant="outline"
-                className="h-10 w-full justify-start gap-2 px-3"
-                onClick={() => void selectOutputFolder()}
-                disabled={busy}
-                title={outputDir || t('tiktokLive.output.empty')}
-              >
-                <Folder className="h-4 w-4 shrink-0" />
-                <span className="truncate">{outputDir || t('tiktokLive.output.empty')}</span>
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex items-start justify-between gap-4 rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <RefreshCw className="h-4 w-4 text-cyan-500" />
-                {t('tiktokLive.autoReconnect.label')}
-              </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {t('tiktokLive.autoReconnect.description')}
-              </p>
-            </div>
-            <Switch
-              checked={autoReconnect}
-              onCheckedChange={setAutoReconnect}
-              disabled={busy}
-              aria-label={t('tiktokLive.autoReconnect.label')}
-            />
-          </div>
-
-          <Tabs
-            value={workspaceView}
-            onValueChange={(value) => setWorkspaceView(value as 'record' | 'watchlist')}
-            className="space-y-3"
-          >
-            <TabsList className="grid h-11 w-full grid-cols-2 rounded-xl bg-muted/50 p-1 sm:max-w-md">
-              <TabsTrigger value="record" className="h-9 gap-2 rounded-lg">
-                <Radio className="h-4 w-4" />
-                {t('tiktokLive.actions.record')}
-              </TabsTrigger>
-              <TabsTrigger value="watchlist" className="h-9 gap-2 rounded-lg">
-                <ListVideo className="h-4 w-4" />
-                {t('tiktokLive.watchlist.title')}
-                {watchEntries.length > 0 && (
-                  <span className="rounded-full bg-cyan-500/15 px-1.5 py-0.5 text-[10px] text-cyan-600 dark:text-cyan-400">
-                    {watchEntries.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent ref={watchRulesRef} value="watchlist" className="mt-0 space-y-3">
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    {t('tiktokLive.watchlist.pollInterval')}
-                  </p>
-                  <Input
-                    type="number"
-                    min="30"
-                    max="3600"
-                    step="1"
-                    inputMode="numeric"
-                    value={watchPollInterval}
-                    onChange={(event) => setWatchPollInterval(event.target.value)}
-                    disabled={busy || watchBusy}
-                    aria-label={t('tiktokLive.watchlist.pollInterval')}
-                  />
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    {t('tiktokLive.watchlist.recordMode.label')}
-                  </p>
-                  <Select
-                    value={watchRecordMode}
-                    onValueChange={(value) => setWatchRecordMode(value as TikTokLiveRecordMode)}
-                    disabled={busy || watchBusy}
-                  >
-                    <SelectTrigger aria-label={t('tiktokLive.watchlist.recordMode.label')}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {RECORD_MODE_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {t(`tiktokLive.watchlist.recordMode.${option}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    {t('tiktokLive.watchlist.cooldownSeconds')}
-                  </p>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="604800"
-                    step="1"
-                    inputMode="numeric"
-                    value={watchCooldown}
-                    onChange={(event) => setWatchCooldown(event.target.value)}
-                    disabled={busy || watchBusy}
-                    aria-label={t('tiktokLive.watchlist.cooldownSeconds')}
-                  />
-                </div>
-                <div>
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    {t('tiktokLive.watchlist.filenameTemplate')}
-                  </p>
-                  <Input
-                    value={watchFilenameTemplate}
-                    onChange={(event) => setWatchFilenameTemplate(event.target.value)}
-                    disabled={busy || watchBusy}
-                    placeholder="{username}_{date}_{time}"
-                    aria-label={t('tiktokLive.watchlist.filenameTemplate')}
-                  />
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border/50 bg-muted/20 px-3 py-2.5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">
-                      {t('tiktokLive.watchlist.schedule.enabled')}
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      {t('tiktokLive.watchlist.schedule.description')}
-                    </p>
-                  </div>
-                  <Switch
-                    checked={watchScheduleEnabled}
-                    onCheckedChange={setWatchScheduleEnabled}
-                    disabled={busy || watchBusy}
-                    aria-label={t('tiktokLive.watchlist.schedule.enabled')}
-                  />
-                </div>
-                {watchScheduleEnabled && (
-                  <div className="mt-3 grid gap-3 md:grid-cols-3">
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">
-                        {t('tiktokLive.watchlist.schedule.days')}
-                      </p>
-                      <Input
-                        value={watchScheduleDays}
-                        onChange={(event) => setWatchScheduleDays(event.target.value)}
-                        disabled={busy || watchBusy}
-                        placeholder={t('tiktokLive.watchlist.schedule.daysPlaceholder')}
-                        aria-label={t('tiktokLive.watchlist.schedule.days')}
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">
-                        {t('tiktokLive.watchlist.schedule.start')}
-                      </p>
-                      <Input
-                        type="time"
-                        value={watchScheduleStart}
-                        onChange={(event) => setWatchScheduleStart(event.target.value)}
-                        disabled={busy || watchBusy}
-                        aria-label={t('tiktokLive.watchlist.schedule.start')}
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-1 text-xs text-muted-foreground">
-                        {t('tiktokLive.watchlist.schedule.end')}
-                      </p>
-                      <Input
-                        type="time"
-                        value={watchScheduleEnd}
-                        onChange={(event) => setWatchScheduleEnd(event.target.value)}
-                        disabled={busy || watchBusy}
-                        aria-label={t('tiktokLive.watchlist.schedule.end')}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="record" className="mt-0">
-              <div className="flex flex-col gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-500">
-                    {isRecording ? (
-                      <Radio className="h-5 w-5 animate-pulse" />
-                    ) : (
-                      <Play className="h-5 w-5" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{t('tiktokLive.actions.record')}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {quality.replace('_', ' · ').toUpperCase()} · {transport.toUpperCase()} ·{' '}
-                      {duration === '0' ? '∞' : `${duration}s`}
-                    </p>
-                  </div>
-                </div>
-                {!isRecording ? (
-                  <Button
-                    onClick={() => void startRecording()}
-                    disabled={!canRecord}
-                    className="min-w-44 gap-2 bg-rose-600 text-white hover:bg-rose-500"
-                  >
-                    <Radio className="h-4 w-4" />
-                    {t('tiktokLive.actions.record')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="destructive"
-                    onClick={() => void cancelRecording()}
-                    className="min-w-44 gap-2"
-                    disabled={!canCancel}
-                  >
-                    {isCancelling ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Square className="h-4 w-4" />
-                    )}
-                    {t('tiktokLive.actions.cancel')}
-                  </Button>
-                )}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="watchlist" className="mt-0">
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {editingWatchId && (
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      setEditingWatchId(null);
-                      setEditingWatchAuth(null);
-                    }}
-                    disabled={watchBusy}
-                  >
-                    {t('tiktokLive.watchlist.actions.cancelEdit')}
-                  </Button>
-                )}
-                <Button
-                  onClick={() => void saveWatchEntry()}
-                  disabled={!canSaveWatch}
-                  className="gap-2 bg-cyan-600 text-white hover:bg-cyan-500"
-                >
-                  {watchActionId === (editingWatchId || 'new') ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <BookmarkPlus className="h-4 w-4" />
-                  )}
-                  {t(
-                    editingWatchId
-                      ? 'tiktokLive.watchlist.actions.update'
-                      : 'tiktokLive.watchlist.actions.add',
-                  )}
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          {status && !error && (
-            <output
-              className={cn(
-                'flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm',
-                isRecording
-                  ? 'border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-400'
-                  : 'border-cyan-500/20 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300',
-              )}
-              aria-live="polite"
-            >
-              {busy || watchBusy ? (
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-              ) : (
-                <CheckCircle2 className="h-4 w-4 shrink-0" />
-              )}
-              {status}
-            </output>
-          )}
-
-          {error && (
-            <div
-              className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-500"
-              role="alert"
-            >
-              {error}
-            </div>
-          )}
-        </section>
-
         {workspaceView === 'watchlist' && (
           <section className="space-y-3 rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4">
             <div className="flex items-start justify-between gap-3">
@@ -1396,24 +1832,28 @@ export function TikTokLivePage() {
                   <span className="text-xs text-muted-foreground">
                     {t('tiktokLive.watchlist.maxRooms')}
                   </span>
-                  <Input
-                    type="number"
-                    min="1"
-                    max={recorderConfig?.hardLimit ?? 4}
+                  <Select
                     value={maxConcurrentRecordings}
-                    onChange={(event) => setMaxConcurrentRecordings(event.target.value)}
-                    className="h-8 w-16"
-                    disabled={watchBusy}
-                    aria-label={t('tiktokLive.watchlist.maxRooms')}
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => void updateRecorderLimit()}
+                    onValueChange={(value) => void updateRecorderLimit(value)}
                     disabled={watchBusy}
                   >
-                    {t('tiktokLive.watchlist.actions.apply')}
-                  </Button>
+                    <SelectTrigger
+                      className="h-8 w-16"
+                      aria-label={t('tiktokLive.watchlist.maxRooms')}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: recorderConfig?.hardLimit ?? 4 }, (_, index) => {
+                        const value = (index + 1).toString();
+                        return (
+                          <SelectItem key={value} value={value}>
+                            {value}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Badge className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
                   {recorderConfig

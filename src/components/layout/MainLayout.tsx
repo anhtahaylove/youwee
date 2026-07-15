@@ -1,6 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Page } from './Sidebar';
 import { Sidebar } from './Sidebar';
 
@@ -9,6 +10,7 @@ const isWindows = typeof navigator !== 'undefined' && navigator.platform.include
 
 /** Windows-only window control buttons (minimize / maximize-restore / close). */
 function WindowControls() {
+  const { t } = useTranslation('common');
   const [maximized, setMaximized] = useState(false);
 
   useEffect(() => {
@@ -38,6 +40,8 @@ function WindowControls() {
         type="button"
         onClick={() => getCurrentWindow().minimize()}
         className={`${btnBase} hover:bg-foreground/10`}
+        aria-label={t('windowControls.minimize')}
+        title={t('windowControls.minimize')}
       >
         {/* Minimize icon */}
         <svg width="10" height="1" viewBox="0 0 10 1" className="fill-current" aria-hidden="true">
@@ -49,6 +53,8 @@ function WindowControls() {
         type="button"
         onClick={() => getCurrentWindow().toggleMaximize()}
         className={`${btnBase} hover:bg-foreground/10`}
+        aria-label={t(maximized ? 'windowControls.restore' : 'windowControls.maximize')}
+        title={t(maximized ? 'windowControls.restore' : 'windowControls.maximize')}
       >
         {maximized ? (
           /* Restore icon (two overlapping rectangles) */
@@ -82,6 +88,8 @@ function WindowControls() {
         type="button"
         onClick={() => getCurrentWindow().close()}
         className={`${btnBase} hover:bg-red-500 hover:text-white`}
+        aria-label={t('windowControls.close')}
+        title={t('windowControls.close')}
       >
         {/* Close icon */}
         <svg
@@ -117,13 +125,8 @@ export function MainLayout({ children, currentPage, onPageChange }: MainLayoutPr
       {/* Windows: custom title bar replacing native decorations */}
       {isWindows && (
         <div className="absolute top-0 left-0 right-0 z-30 h-8 flex">
-          {/* Drag area — fills remaining space, separate from buttons */}
-          <div
-            role="toolbar"
-            data-tauri-drag-region
-            className="flex-1 h-full"
-            onDoubleClick={() => getCurrentWindow().toggleMaximize()}
-          />
+          {/* Native Windows titlebar handles drag and double-click maximize here. */}
+          <div data-tauri-drag-region className="flex-1 h-full" />
           {/* Window controls — NOT inside the drag region */}
           <WindowControls />
         </div>
