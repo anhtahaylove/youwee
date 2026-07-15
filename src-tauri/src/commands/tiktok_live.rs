@@ -1,21 +1,21 @@
 use crate::database::{
-    TikTokLiveJob, TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry,
-    TikTokLiveWatchStatus, add_log_internal, delete_tiktok_live_job_internal,
-    delete_tiktok_live_watch_entry_internal, get_due_tiktok_live_watchlist_internal,
-    get_tiktok_live_job_internal, get_tiktok_live_jobs_internal,
-    get_tiktok_live_recorder_limit_internal, get_tiktok_live_watch_entry_by_active_job_internal,
+    add_log_internal, delete_tiktok_live_job_internal, delete_tiktok_live_watch_entry_internal,
+    get_due_tiktok_live_watchlist_internal, get_tiktok_live_job_internal,
+    get_tiktok_live_jobs_internal, get_tiktok_live_recorder_limit_internal,
+    get_tiktok_live_watch_entry_by_active_job_internal,
     get_tiktok_live_watch_entry_by_target_internal, get_tiktok_live_watch_entry_internal,
     get_tiktok_live_watchlist_internal, save_tiktok_live_job_internal,
     save_tiktok_live_watch_entry_internal, set_tiktok_live_recorder_limit_internal,
-    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal,
+    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal, TikTokLiveJob,
+    TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
 };
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
 };
-use crate::types::{BackendError, code};
+use crate::types::{code, BackendError};
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
 use chrono::{Datelike, Local, Timelike, Utc};
-use reqwest::header::{COOKIE, HeaderMap, HeaderValue, ORIGIN, REFERER, USER_AGENT};
+use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -23,14 +23,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{
-    LazyLock,
     atomic::{AtomicBool, AtomicUsize, Ordering},
+    LazyLock,
 };
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use tokio::time::{Instant, sleep, timeout};
+use tokio::time::{sleep, timeout, Instant};
 
 static ACTIVE_RECORDINGS: LazyLock<
     Mutex<HashMap<String, Option<tokio::sync::oneshot::Sender<()>>>>,
@@ -57,6 +57,7 @@ const TIKTOK_LIVE_ALREADY_ACTIVE_MESSAGE: &str =
     "This TikTok Live recording job is already active.";
 const TIKTOK_LIVE_ONE_ROOM_MESSAGE: &str =
     "The TikTok Live recorder is at its configured room limit.";
+const TIKTOK_SIGNED_ROOM_LOOKUP_URL: &str = "https://tikrec.com/tiktok/room/api/sign";
 
 fn clamp_tiktok_live_recording_limit(value: Option<usize>) -> usize {
     value
@@ -2025,6 +2026,151 @@ async fn fetch_tiktok_live_page_hydration_jsons(
     Ok(tiktok_page_hydration_values_from_html(&html))
 }
 
+fn tiktok_signed_room_lookup_url(json: &serde_json::Value) -> Option<reqwest::Url> {
+    let base_url = reqwest::Url::parse("https://www.tiktok.com").ok()?;
+    ["signed_url", "signed_path"].into_iter().find_map(|key| {
+        let value = json.get(key)?.as_str()?.trim();
+        if value.is_empty() {
+            return None;
+        }
+
+        let url = reqwest::Url::parse(value)
+            .ok()
+            .or_else(|| base_url.join(value).ok())?;
+        let host = url.host_str()?.to_ascii_lowercase();
+        (url.scheme() == "https"
+            && (host == "tiktok.com" || host.ends_with(".tiktok.com"))
+            && url.path().starts_with("/api-live/user/room/"))
+        .then_some(url)
+    })
+}
+
+fn tiktok_room_id_from_signed_lookup(json: &serde_json::Value) -> Option<String> {
+    scalar_string_at(
+        json,
+        &[
+            "/data/user/roomId",
+            "/data/user/room_id",
+            "/data/roomId",
+            "/data/room_id",
+        ],
+    )
+    .filter(|room_id| room_id.chars().all(|character| character.is_ascii_digit()))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn fetch_tiktok_room_info_for_username(
+    username: &str,
+    target_url: &str,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) -> Result<serde_json::Value, String> {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        USER_AGENT,
+        HeaderValue::from_static(TIKTOK_BROWSER_USER_AGENT),
+    );
+    headers.insert(REFERER, HeaderValue::from_static("https://www.tiktok.com/"));
+    headers.insert(ORIGIN, HeaderValue::from_static("https://www.tiktok.com"));
+
+    let mut client = reqwest::Client::builder()
+        .default_headers(headers)
+        .timeout(Duration::from_secs(30));
+    if let Some(proxy) = proxy_url.filter(|value| !value.trim().is_empty()) {
+        client = client.proxy(reqwest::Proxy::all(proxy).map_err(|error| {
+            BackendError::from_message(format!("Invalid proxy URL: {error}")).to_wire_string()
+        })?);
+    }
+    let client = client.build().map_err(|error| {
+        BackendError::from_message(format!(
+            "Failed to build TikTok room lookup client: {error}"
+        ))
+        .to_wire_string()
+    })?;
+
+    // Do not forward TikTok cookies to the third-party signing endpoint.
+    let sign_response = client
+        .get(TIKTOK_SIGNED_ROOM_LOOKUP_URL)
+        .query(&[("unique_id", username)])
+        .send()
+        .await
+        .map_err(|error| {
+            BackendError::from_message(format!(
+                "Failed to request the TikTok signed room lookup: {error}"
+            ))
+            .to_wire_string()
+        })?;
+    if !sign_response.status().is_success() {
+        return Err(BackendError::from_message(format!(
+            "TikTok signed room lookup failed with status {}",
+            sign_response.status()
+        ))
+        .to_wire_string());
+    }
+    let sign_json: serde_json::Value = sign_response.json().await.map_err(|error| {
+        BackendError::from_message(format!(
+            "Failed to parse the TikTok signed room lookup: {error}"
+        ))
+        .to_wire_string()
+    })?;
+    let signed_url = tiktok_signed_room_lookup_url(&sign_json).ok_or_else(|| {
+        BackendError::from_message("TikTok signed room lookup returned an invalid URL.")
+            .to_wire_string()
+    })?;
+
+    let cookie_header = tiktok_cookie_header(
+        target_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+    let mut lookup_request = client.get(signed_url);
+    if let Some(cookie) = cookie_header.filter(|value| !value.trim().is_empty()) {
+        lookup_request = lookup_request.header(COOKIE, cookie);
+    }
+    let lookup_response = lookup_request.send().await.map_err(|error| {
+        BackendError::from_message(format!("Failed to resolve the TikTok Live room: {error}"))
+            .to_wire_string()
+    })?;
+    if !lookup_response.status().is_success() {
+        return Err(BackendError::from_message(format!(
+            "TikTok Live room lookup failed with status {}",
+            lookup_response.status()
+        ))
+        .to_wire_string());
+    }
+    let lookup_json: serde_json::Value = lookup_response.json().await.map_err(|error| {
+        BackendError::from_message(format!(
+            "Failed to parse the TikTok Live room lookup: {error}"
+        ))
+        .to_wire_string()
+    })?;
+    let room_id = tiktok_room_id_from_signed_lookup(&lookup_json).ok_or_else(|| {
+        BackendError::new(
+            code::TIKTOK_LIVE_OFFLINE,
+            format!("@{username} is not currently live."),
+        )
+        .with_retryable(false)
+        .to_wire_string()
+    })?;
+    let room_info_url = tiktok_room_info_url(&room_id);
+    let room_cookie_header = tiktok_cookie_header(
+        &room_info_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+    fetch_tiktok_room_info_json(&room_id, room_cookie_header.as_deref(), proxy_url).await
+}
+
 fn append_tiktok_page_hydration_jsons(
     json: &mut serde_json::Value,
     values: Vec<serde_json::Value>,
@@ -2261,7 +2407,7 @@ async fn fetch_tiktok_target_json(
         .url
         .clone()
         .ok_or_else(|| BackendError::from_message("Missing TikTok Live URL").to_wire_string())?;
-    let mut json = fetch_tiktok_live_json(
+    let primary_result = fetch_tiktok_live_json(
         app,
         &target_url,
         cookie_mode,
@@ -2271,7 +2417,32 @@ async fn fetch_tiktok_target_json(
         cookie_skip_patterns,
         proxy_url,
     )
-    .await?;
+    .await;
+    let mut json = match primary_result {
+        Ok(json) => json,
+        Err(primary_error) => {
+            let Some(username) = target.username.as_deref() else {
+                return Err(primary_error);
+            };
+            match fetch_tiktok_room_info_for_username(
+                username,
+                &target_url,
+                cookie_mode,
+                cookie_browser,
+                cookie_browser_profile,
+                cookie_file_path,
+                cookie_skip_patterns,
+                proxy_url,
+            )
+            .await
+            {
+                Ok(room_json) if !formats_from_tiktok_stream_data_values(&room_json).is_empty() => {
+                    return Ok((room_json, target_url));
+                }
+                Ok(_) | Err(_) => return Err(primary_error),
+            }
+        }
+    };
     augment_tiktok_json_with_page_hydration(
         &mut json,
         &target_url,
@@ -2294,6 +2465,26 @@ async fn fetch_tiktok_target_json(
         proxy_url,
     )
     .await;
+    if formats_from_tiktok_stream_data_values(&json).is_empty() {
+        if let Some(username) = target.username.as_deref() {
+            if let Ok(room_json) = fetch_tiktok_room_info_for_username(
+                username,
+                &target_url,
+                cookie_mode,
+                cookie_browser,
+                cookie_browser_profile,
+                cookie_file_path,
+                cookie_skip_patterns,
+                proxy_url,
+            )
+            .await
+            {
+                if !formats_from_tiktok_stream_data_values(&room_json).is_empty() {
+                    append_tiktok_page_hydration_jsons(&mut json, vec![room_json]);
+                }
+            }
+        }
+    }
     Ok((json, target_url))
 }
 
@@ -4370,6 +4561,47 @@ mod tests {
     }
 
     #[test]
+    fn validates_signed_tiktok_room_lookup_urls() {
+        let absolute = serde_json::json!({
+            "signed_url": "https://www.tiktok.com/api-live/user/room/?uniqueId=test&X-Bogus=abc"
+        });
+        let relative = serde_json::json!({
+            "signed_path": "/api-live/user/room/?uniqueId=test&X-Bogus=abc"
+        });
+        let foreign = serde_json::json!({
+            "signed_url": "https://example.com/api-live/user/room/?uniqueId=test"
+        });
+        let wrong_path = serde_json::json!({
+            "signed_url": "https://www.tiktok.com/@test/live"
+        });
+
+        assert_eq!(
+            tiktok_signed_room_lookup_url(&absolute)
+                .and_then(|url| url.host_str().map(str::to_string))
+                .as_deref(),
+            Some("www.tiktok.com")
+        );
+        assert!(tiktok_signed_room_lookup_url(&relative).is_some());
+        assert!(tiktok_signed_room_lookup_url(&foreign).is_none());
+        assert!(tiktok_signed_room_lookup_url(&wrong_path).is_none());
+    }
+
+    #[test]
+    fn extracts_numeric_room_id_from_signed_lookup_response() {
+        assert_eq!(
+            tiktok_room_id_from_signed_lookup(&serde_json::json!({
+                "data": { "user": { "roomId": "7662757197105466133" } }
+            }))
+            .as_deref(),
+            Some("7662757197105466133")
+        );
+        assert!(tiktok_room_id_from_signed_lookup(&serde_json::json!({
+            "data": { "user": { "roomId": "not-a-room" } }
+        }))
+        .is_none());
+    }
+
+    #[test]
     fn ytdlp_variants_do_not_expose_signed_urls() {
         let json = serde_json::json!({
             "formats": [{
@@ -4526,11 +4758,9 @@ mod tests {
         )
         .expect("selected");
 
-        assert!(
-            formats
-                .iter()
-                .any(|format| format.variant.format_id == "uhd_60-flv")
-        );
+        assert!(formats
+            .iter()
+            .any(|format| format.variant.format_id == "uhd_60-flv"));
         assert_eq!(selected.variant.format_id, "uhd_60-flv");
         assert_eq!(selected.variant.width, Some(1080));
         assert_eq!(selected.variant.height, Some(1920));
@@ -4839,21 +5069,15 @@ mod tests {
         append_reconnect_args(&mut enabled, true);
 
         assert!(enabled.windows(2).any(|args| args == ["-reconnect", "1"]));
-        assert!(
-            enabled
-                .windows(2)
-                .any(|args| args == ["-reconnect_max_retries", "20"])
-        );
-        assert!(
-            enabled
-                .windows(2)
-                .any(|args| args == ["-reconnect_delay_total_max", "120"])
-        );
-        assert!(
-            enabled
-                .windows(2)
-                .any(|args| args == ["-reconnect_on_http_error", "408,429,5xx"])
-        );
+        assert!(enabled
+            .windows(2)
+            .any(|args| args == ["-reconnect_max_retries", "20"]));
+        assert!(enabled
+            .windows(2)
+            .any(|args| args == ["-reconnect_delay_total_max", "120"]));
+        assert!(enabled
+            .windows(2)
+            .any(|args| args == ["-reconnect_on_http_error", "408,429,5xx"]));
 
         let mut disabled = Vec::new();
         append_reconnect_args(&mut disabled, false);
@@ -5040,10 +5264,9 @@ mod tests {
 
         assert!(args.windows(2).any(|args| args == ["-c", "copy"]));
         assert!(args.windows(2).any(|args| args == ["-f", "matroska"]));
-        assert!(
-            args.windows(2)
-                .any(|args| args == ["-cluster_time_limit", "2000"])
-        );
+        assert!(args
+            .windows(2)
+            .any(|args| args == ["-cluster_time_limit", "2000"]));
         assert!(!args.iter().any(|arg| arg == "+faststart"));
         assert_eq!(args.last().map(String::as_str), output.to_str());
     }
@@ -5081,11 +5304,9 @@ mod tests {
         .await
         .expect_err("keep multi-segment job recoverable");
 
-        assert!(
-            BackendError::from_message(&error)
-                .message()
-                .contains("preserved for recovery")
-        );
+        assert!(BackendError::from_message(&error)
+            .message()
+            .contains("preserved for recovery"));
         assert_eq!(
             std::fs::read(&first).ok().as_deref(),
             Some(&b"first recoverable segment"[..])
@@ -5148,11 +5369,9 @@ mod tests {
             cookie_file_path: None,
             auto_reconnect: true,
             status,
-            segment_paths: vec![
-                segment_path_for_recording(&output_path, 1)
-                    .to_string_lossy()
-                    .to_string(),
-            ],
+            segment_paths: vec![segment_path_for_recording(&output_path, 1)
+                .to_string_lossy()
+                .to_string()],
             refresh_count: 2,
             reconnect_count: 2,
             format_id: Some("best".to_string()),
@@ -5186,7 +5405,7 @@ mod tests {
 
     #[test]
     fn startup_reconciliation_marks_stale_jobs_by_media_presence() {
-        use crate::database::{DB_CONNECTION, db_test_guard, get_db};
+        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
         use std::sync::Mutex as StdMutex;
 
         let _guard = db_test_guard();
@@ -5243,11 +5462,9 @@ mod tests {
         ));
         let mut job = sample_recovery_job(&dir, TikTokLiveJobStatus::Recoverable);
         let paths = job_owned_paths(&job).expect("generated paths are accepted");
-        assert!(
-            paths
-                .iter()
-                .all(|path| path.parent() == Some(dir.as_path()))
-        );
+        assert!(paths
+            .iter()
+            .all(|path| path.parent() == Some(dir.as_path())));
 
         job.segment_paths = vec![dir.join(r"..\unrelated.mkv").to_string_lossy().to_string()];
         assert!(job_owned_paths(&job).is_err());
@@ -5490,11 +5707,9 @@ mod tests {
         let second_error = reserve_tiktok_live_recording(&second_id)
             .await
             .expect_err("reject concurrent recording reservation");
-        assert!(
-            BackendError::from_message(&second_error)
-                .message()
-                .contains("configured room limit")
-        );
+        assert!(BackendError::from_message(&second_error)
+            .message()
+            .contains("configured room limit"));
 
         cancel_tiktok_live_recording(first_id.clone())
             .await
@@ -5503,11 +5718,9 @@ mod tests {
         let while_stopping_error = reserve_tiktok_live_recording(&second_id)
             .await
             .expect_err("keep slot reserved while cancellation finishes");
-        assert!(
-            BackendError::from_message(&while_stopping_error)
-                .message()
-                .contains("configured room limit")
-        );
+        assert!(BackendError::from_message(&while_stopping_error)
+            .message()
+            .contains("configured room limit"));
 
         release_tiktok_live_recording(&first_id).await;
         let second_cancel = reserve_tiktok_live_recording(&second_id)
@@ -5537,11 +5750,9 @@ mod tests {
         let third_error = reserve_tiktok_live_recording(&third_id)
             .await
             .expect_err("reject over configured limit");
-        assert!(
-            BackendError::from_message(&third_error)
-                .message()
-                .contains("configured room limit")
-        );
+        assert!(BackendError::from_message(&third_error)
+            .message()
+            .contains("configured room limit"));
 
         release_tiktok_live_recording(&first_id).await;
         release_tiktok_live_recording(&second_id).await;
@@ -5552,7 +5763,7 @@ mod tests {
 
     #[test]
     fn startup_restores_persisted_recorder_limit_with_hard_cap() {
-        use crate::database::{DB_CONNECTION, db_test_guard, get_db};
+        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
         use std::sync::Mutex as StdMutex;
 
         let _db_guard = db_test_guard();
@@ -5598,7 +5809,7 @@ mod tests {
 
     #[test]
     fn watchlist_restart_links_recoverable_job_without_starting_a_duplicate() {
-        use crate::database::{DB_CONNECTION, db_test_guard, get_db};
+        use crate::database::{db_test_guard, get_db, DB_CONNECTION};
         use std::sync::Mutex as StdMutex;
 
         let _guard = db_test_guard();
