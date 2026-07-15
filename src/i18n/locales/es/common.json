@@ -46,6 +46,7 @@
     "error": "Error de actualización",
     "description": "Hay una nueva versión de Youwee disponible. ¿Deseas actualizar ahora?",
     "downloading": "Descargando actualización...",
+    "autoRestart": "Youwee se cerrará y volverá a abrir automáticamente después de instalar la actualización.",
     "ready": "¡Actualización descargada con éxito! Reinicia para aplicar los cambios.",
     "errorGeneric": "Se produjo un error al actualizar.",
     "later": "Más tarde",

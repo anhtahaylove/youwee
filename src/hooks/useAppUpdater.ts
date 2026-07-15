@@ -27,6 +27,8 @@ export type UpdateStatus =
   | 'external'
   | 'up-to-date';
 
+export const updaterRestartsAutomatically = (platform: string) => platform.includes('Win');
+
 export function useAppUpdater() {
   const [status, setStatus] = useState<UpdateStatus>('idle');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);

@@ -46,6 +46,7 @@
     "error": "Lỗi cập nhật",
     "description": "Đã có phiên bản mới của Youwee. Bạn có muốn cập nhật ngay không?",
     "downloading": "Đang tải bản cập nhật...",
+    "autoRestart": "Youwee sẽ tự đóng và mở lại sau khi cài xong; bạn không cần bấm thêm.",
     "ready": "Đã tải xong bản cập nhật! Khởi động lại để áp dụng.",
     "errorGeneric": "Đã xảy ra lỗi khi cập nhật.",
     "later": "Để sau",

@@ -12,7 +12,12 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { SimpleMarkdown } from '@/components/ui/simple-markdown';
-import type { UpdateInfo, UpdateProgress, UpdateStatus } from '@/hooks/useAppUpdater';
+import {
+  type UpdateInfo,
+  type UpdateProgress,
+  type UpdateStatus,
+  updaterRestartsAutomatically,
+} from '@/hooks/useAppUpdater';
 import { cn } from '@/lib/utils';
 
 // Get the localized release notes based on current language
@@ -69,6 +74,8 @@ export function UpdateDialog({
 
   const localizedBody = getLocalizedBody(updateInfo, i18n.language);
   const canDismiss = status === 'available' || status === 'error';
+  const autoRestarts =
+    typeof navigator !== 'undefined' && updaterRestartsAutomatically(navigator.platform);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md animate-in fade-in duration-500">
@@ -189,6 +196,9 @@ export function UpdateDialog({
                 <div className="text-xs font-medium text-muted-foreground">
                   {formatBytes(progress.downloaded)} / {formatBytes(progress.total)}
                 </div>
+              )}
+              {autoRestarts && (
+                <p className="mt-3 text-xs text-muted-foreground">{t('update.autoRestart')}</p>
               )}
             </div>
           )}

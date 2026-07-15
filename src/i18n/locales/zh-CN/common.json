@@ -46,6 +46,7 @@
     "error": "更新出错",
     "description": "Youwee 有新版本可用，是否立即更新？",
     "downloading": "正在下载更新...",
+    "autoRestart": "更新安装完成后，Youwee 将自动关闭并重新打开。",
     "ready": "更新已下载完成！重启以应用更改。",
     "errorGeneric": "更新时发生错误。",
     "later": "稍后",
