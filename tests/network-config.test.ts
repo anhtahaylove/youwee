@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildCookieProxyInvokeOptions,
+  mergeCookieSkipPatterns,
   normalizeCookieSkipPattern,
+  PUBLIC_COOKIE_SKIP_PRESETS,
   sanitizeCookieSkipPatterns,
 } from '../src/lib/network-config';
 
@@ -29,5 +31,19 @@ describe('cookie skip patterns', () => {
     );
 
     expect(options.cookieSkipPatterns).toEqual(['facebook.com/reel']);
+  });
+
+  test('adds public presets without replacing defaults or creating duplicates', () => {
+    const withYouTube = mergeCookieSkipPatterns(undefined, PUBLIC_COOKIE_SKIP_PRESETS.youtube);
+
+    expect(withYouTube).toEqual(['facebook.com/reel', 'youtube.com/watch', 'youtu.be']);
+    expect(mergeCookieSkipPatterns(withYouTube, PUBLIC_COOKIE_SKIP_PRESETS.youtube)).toEqual(
+      withYouTube,
+    );
+    expect(mergeCookieSkipPatterns(withYouTube, PUBLIC_COOKIE_SKIP_PRESETS.instagram)).toEqual([
+      ...withYouTube,
+      'instagram.com/reel',
+      'instagram.com/p',
+    ]);
   });
 });

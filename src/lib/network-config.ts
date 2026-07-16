@@ -3,6 +3,10 @@ import type { CookieSettings, ProxySettings } from '@/lib/types';
 export const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
 export const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
 export const DEFAULT_COOKIE_SKIP_PATTERNS = ['facebook.com/reel'];
+export const PUBLIC_COOKIE_SKIP_PRESETS = {
+  youtube: ['youtube.com/watch', 'youtu.be'],
+  instagram: ['instagram.com/reel', 'instagram.com/p'],
+} as const;
 
 export type CookieProxyInvokeOptions = {
   cookieMode: CookieSettings['mode'];
@@ -65,6 +69,13 @@ export function sanitizeCookieSkipPatterns(patterns: unknown): string[] {
   }
 
   return next;
+}
+
+export function mergeCookieSkipPatterns(
+  patterns: string[] | undefined,
+  additions: readonly string[],
+): string[] {
+  return sanitizeCookieSkipPatterns([...(patterns ?? DEFAULT_COOKIE_SKIP_PATTERNS), ...additions]);
 }
 
 function normalizeCookieSettings(settings: CookieSettings): CookieSettings {
