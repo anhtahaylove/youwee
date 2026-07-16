@@ -9,6 +9,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.30] - 2026-07-16
+
+### Thay đổi
+- **Consent dữ liệu Firefox** - Khai báo thao tác chuyển URL trang hiện tại là dữ liệu hoạt động duyệt web bắt buộc và yêu cầu phiên bản Firefox hỗ trợ consent tích hợp của Mozilla
+
+### Sửa lỗi
+- **Kiểm định Firefox AMO** - Thay các lệnh ghi `innerHTML` không an toàn bằng markup tĩnh và DOM API gốc để gói tiện ích được kiểm định không còn cảnh báo
+
 ## [0.19.1-custom.29] - 2026-07-16
 
 ### Thêm mới

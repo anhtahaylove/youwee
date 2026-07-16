@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.30] - 2026-07-16
+
+### Changed
+- **Firefox data consent** - Declare the current-page URL handoff as required browsing activity and require Firefox versions that support Mozilla's built-in consent flow
+
+### Fixed
+- **Firefox AMO validation** - Replace unsafe extension `innerHTML` writes with static markup and native DOM construction so the packaged add-on validates without warnings
+
 ## [0.19.1-custom.29] - 2026-07-16
 
 ### Added
