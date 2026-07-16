@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.26] - 2026-07-16
+
+### Added
+- **TikTok Live preview metadata** - Recover titles, creators, covers, and avatars from TikTok room/page metadata, cache remote images through Youwee, and preserve the latest preview in Watchlist
+- **TikTok Live audience snapshots** - Show localized current or last-seen viewer counts with streamer avatars in Inspect and Watchlist without increasing the polling cadence
+
 ## [0.19.1-custom.25] - 2026-07-15
 
 ### Fixed

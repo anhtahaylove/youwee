@@ -9,6 +9,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.26] - 2026-07-16
+
+### Thêm mới
+- **Metadata preview TikTok Live** - Khôi phục tiêu đề, chủ kênh, ảnh bìa và avatar từ metadata phòng/trang TikTok, cache ảnh từ xa qua Youwee và giữ preview mới nhất trong Watchlist
+- **Ảnh chụp lượng người xem TikTok Live** - Hiển thị avatar streamer cùng số người đang xem hoặc số gần nhất đã thấy trong Inspect và Watchlist mà không tăng tần suất polling
+
 ## [0.19.1-custom.25] - 2026-07-15
 
 ### Sửa lỗi
