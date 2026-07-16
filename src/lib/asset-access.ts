@@ -20,7 +20,14 @@ export async function cacheRemoteThumbnailUrl(
   url: string | null | undefined,
 ): Promise<string | null> {
   const thumbnail = normalizeThumbnailUrl(url);
-  if (!thumbnail || !/^https?:\/\//.test(thumbnail)) return thumbnail;
+  if (!thumbnail) return null;
+  if (!/^https?:\/\//.test(thumbnail)) {
+    try {
+      return await toAssetUrl(thumbnail);
+    } catch {
+      return thumbnail;
+    }
+  }
 
   try {
     const path = await invoke<string>('cache_remote_thumbnail', { url: thumbnail });

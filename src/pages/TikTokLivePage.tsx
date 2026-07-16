@@ -1953,14 +1953,25 @@ export function TikTokLivePage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
-                          <TikTokLiveThumbnail
-                            src={entry.avatar || entry.thumbnail}
-                            alt={
-                              entry.lastTitle ||
-                              (entry.username ? `@${entry.username}` : entry.targetInput)
-                            }
-                            className="h-12 w-12 rounded-full"
-                          />
+                          <div className="relative shrink-0">
+                            <TikTokLiveThumbnail
+                              src={entry.thumbnail || entry.avatar}
+                              alt={
+                                entry.lastTitle ||
+                                (entry.username ? `@${entry.username}` : entry.targetInput)
+                              }
+                              className={
+                                entry.thumbnail ? 'h-20 w-14 rounded-lg' : 'h-12 w-12 rounded-full'
+                              }
+                            />
+                            {entry.thumbnail && entry.avatar && (
+                              <TikTokLiveThumbnail
+                                src={entry.avatar}
+                                alt={entry.lastUploader || entry.username || entry.targetInput}
+                                className="absolute -bottom-1.5 -right-1.5 h-7 w-7 rounded-full border-2 border-card"
+                              />
+                            )}
+                          </div>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">
                               {entry.lastTitle ||
@@ -2235,9 +2246,11 @@ export function TikTokLivePage() {
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 items-center gap-3">
                 <TikTokLiveThumbnail
-                  src={inspectResult.thumbnail}
+                  src={inspectResult.thumbnail || inspectResult.avatar}
                   alt={inspectResult.title}
-                  className="h-20 w-16 rounded-lg"
+                  className={
+                    inspectResult.thumbnail ? 'h-28 w-20 rounded-lg' : 'h-16 w-16 rounded-full'
+                  }
                 />
                 <div className="min-w-0">
                   <h2 className="truncate text-sm font-medium">{inspectResult.title}</h2>

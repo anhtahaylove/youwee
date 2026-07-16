@@ -18,8 +18,9 @@ use chrono::{Datelike, Local, Timelike, Utc};
 use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{
@@ -58,6 +59,7 @@ const TIKTOK_LIVE_ALREADY_ACTIVE_MESSAGE: &str =
 const TIKTOK_LIVE_ONE_ROOM_MESSAGE: &str =
     "The TikTok Live recorder is at its configured room limit.";
 const TIKTOK_SIGNED_ROOM_LOOKUP_URL: &str = "https://tikrec.com/tiktok/room/api/sign";
+const TIKTOK_LIVE_PREVIEW_TIMEOUT_SECONDS: u64 = 12;
 
 fn clamp_tiktok_live_recording_limit(value: Option<usize>) -> usize {
     value
@@ -957,6 +959,7 @@ fn is_video_audio_variant(variant: &TikTokLiveVariant) -> bool {
     has_video_variant(variant) && has_audio_variant(variant)
 }
 
+#[cfg(test)]
 fn select_best_variant<'a>(
     variants: impl Iterator<Item = &'a TikTokLiveVariant> + Clone,
 ) -> Option<&'a TikTokLiveVariant> {
@@ -1034,6 +1037,7 @@ fn matches_transport(variant: &TikTokLiveVariant, filter: &Option<String>) -> bo
         || (filter == "hls" && (protocol.contains("m3u8") || ext == "m3u8"))
 }
 
+#[cfg(test)]
 fn select_variant(
     variants: &[TikTokLiveVariant],
     preferred_quality: &Option<String>,
@@ -1373,6 +1377,7 @@ fn formats_from_legacy_room_stream_urls(json: &serde_json::Value) -> Vec<TikTokL
     formats
 }
 
+#[cfg(test)]
 fn variants_from_ytdlp_json(json: &serde_json::Value) -> Vec<TikTokLiveVariant> {
     formats_from_ytdlp_json(json)
         .into_iter()
@@ -1660,22 +1665,11 @@ fn append_reconnect_args(args: &mut Vec<String>, enabled: bool) {
     ]);
 }
 
-fn build_ffmpeg_record_args(
+fn append_tiktok_ffmpeg_headers(
+    args: &mut Vec<String>,
     selected: &TikTokLiveFormat,
     cookie_header: Option<&str>,
-    duration_seconds: Option<u32>,
-    auto_reconnect: bool,
-    output_path: &Path,
-) -> Vec<String> {
-    let mut args = vec![
-        "-hide_banner".to_string(),
-        "-nostdin".to_string(),
-        "-y".to_string(),
-    ];
-    if let Some(seconds) = duration_seconds.filter(|seconds| *seconds > 0) {
-        args.extend(["-t".to_string(), seconds.to_string()]);
-    }
-
+) {
     let mut selected_headers = selected.http_headers.clone();
     if let Some(cookie) = cookie_header.filter(|value| !value.trim().is_empty()) {
         insert_header_if_missing(&mut selected_headers, "Cookie", cookie);
@@ -1694,6 +1688,25 @@ fn build_ffmpeg_record_args(
     if let Some(headers) = ffmpeg_header_block(&ffmpeg_headers) {
         args.extend(["-headers".to_string(), headers]);
     }
+}
+
+fn build_ffmpeg_record_args(
+    selected: &TikTokLiveFormat,
+    cookie_header: Option<&str>,
+    duration_seconds: Option<u32>,
+    auto_reconnect: bool,
+    output_path: &Path,
+) -> Vec<String> {
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-nostdin".to_string(),
+        "-y".to_string(),
+    ];
+    if let Some(seconds) = duration_seconds.filter(|seconds| *seconds > 0) {
+        args.extend(["-t".to_string(), seconds.to_string()]);
+    }
+
+    append_tiktok_ffmpeg_headers(&mut args, selected, cookie_header);
     append_reconnect_args(&mut args, auto_reconnect);
     args.extend([
         "-i".to_string(),
@@ -1707,6 +1720,83 @@ fn build_ffmpeg_record_args(
         output_path.to_string_lossy().to_string(),
     ]);
     args
+}
+
+fn build_ffmpeg_preview_args(
+    selected: &TikTokLiveFormat,
+    cookie_header: Option<&str>,
+    output_path: &Path,
+) -> Vec<String> {
+    let mut args = vec![
+        "-hide_banner".to_string(),
+        "-nostdin".to_string(),
+        "-loglevel".to_string(),
+        "error".to_string(),
+        "-y".to_string(),
+        "-rw_timeout".to_string(),
+        "10000000".to_string(),
+    ];
+    append_tiktok_ffmpeg_headers(&mut args, selected, cookie_header);
+    args.extend([
+        "-i".to_string(),
+        selected.url.clone(),
+        "-map".to_string(),
+        "0:v:0".to_string(),
+        "-frames:v".to_string(),
+        "1".to_string(),
+        "-vf".to_string(),
+        "scale=-2:720".to_string(),
+        "-q:v".to_string(),
+        "3".to_string(),
+        output_path.to_string_lossy().to_string(),
+    ]);
+    args
+}
+
+async fn capture_tiktok_live_preview(
+    app: &AppHandle,
+    selected: &TikTokLiveFormat,
+    cookie_header: Option<&str>,
+    cache_key: &str,
+) -> Option<String> {
+    let app_data_dir = app.path().app_data_dir().ok()?;
+    let thumbnail_dir = app_data_dir.join("thumbnails");
+    tokio::fs::create_dir_all(&thumbnail_dir).await.ok()?;
+
+    let mut hasher = DefaultHasher::new();
+    ("tiktok-live-preview", cache_key).hash(&mut hasher);
+    let preview_path = thumbnail_dir.join(format!("{:016x}.jpg", hasher.finish()));
+    if tokio::fs::metadata(&preview_path)
+        .await
+        .is_ok_and(|metadata| metadata.len() > 0)
+    {
+        return Some(preview_path.to_string_lossy().to_string());
+    }
+
+    let ffmpeg_path = get_ffmpeg_path(app).await?;
+    let args = build_ffmpeg_preview_args(selected, cookie_header, &preview_path);
+    let mut cmd = Command::new(ffmpeg_path);
+    cmd.args(args)
+        .kill_on_drop(true)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    crate::utils::CommandExt::hide_window(&mut cmd);
+
+    let status = timeout(
+        Duration::from_secs(TIKTOK_LIVE_PREVIEW_TIMEOUT_SECONDS),
+        cmd.status(),
+    )
+    .await;
+    if matches!(status, Ok(Ok(status)) if status.success())
+        && tokio::fs::metadata(&preview_path)
+            .await
+            .is_ok_and(|metadata| metadata.len() > 0)
+    {
+        return Some(preview_path.to_string_lossy().to_string());
+    }
+
+    tokio::fs::remove_file(&preview_path).await.ok();
+    None
 }
 
 async fn remove_recording_paths(paths: &[PathBuf]) {
@@ -2714,17 +2804,19 @@ fn tiktok_live_uploader(json: &serde_json::Value) -> Option<String> {
     )
 }
 
-fn tiktok_live_thumbnail(json: &serde_json::Value) -> Option<String> {
+fn tiktok_live_cover(json: &serde_json::Value) -> Option<String> {
     tiktok_metadata_image_url_at(
         json,
         &[
-            "/thumbnail",
-            "/data/cover",
-            "/LiveRoom/liveRoomUserInfo/liveRoom/cover",
-            "/data/owner/avatar_medium",
-            "/data/owner/avatar_thumb",
+            "/dynamic_cover",
+            "/data/dynamic_cover",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/dynamicCover",
         ],
     )
+}
+
+fn tiktok_live_thumbnail(json: &serde_json::Value) -> Option<String> {
+    tiktok_live_cover(json).or_else(|| tiktok_metadata_image_url_at(json, &["/thumbnail"]))
 }
 
 fn tiktok_live_avatar(json: &serde_json::Value) -> Option<String> {
@@ -2824,12 +2916,41 @@ pub async fn inspect_tiktok_live(
         add_log_internal("error", &message, None, Some(&target_url)).ok();
     })?;
 
-    let variants = variants_from_ytdlp_json(&json);
-    let selected_variant = select_variant(&variants, &preferred_quality, &preferred_transport);
+    let formats = formats_from_ytdlp_json(&json);
+    let variants = formats
+        .iter()
+        .map(|format| format.variant.clone())
+        .collect::<Vec<_>>();
+    let selected_format = select_format(&formats, &preferred_quality, &preferred_transport);
+    let selected_variant = selected_format
+        .as_ref()
+        .map(|format| format.variant.clone());
     let title = tiktok_live_title(&json, target.username.as_deref());
     let session_id = (!variants.is_empty())
         .then(|| tiktok_live_session_id(&json, &target_url, &title))
         .flatten();
+    let thumbnail = match tiktok_live_cover(&json) {
+        Some(cover) => Some(cover),
+        None => {
+            let cookie_header = tiktok_cookie_header(
+                &target_url,
+                cookie_mode.as_deref(),
+                cookie_browser.as_deref(),
+                cookie_browser_profile.as_deref(),
+                cookie_file_path.as_deref(),
+                cookie_skip_patterns.as_deref(),
+            );
+            let cache_key = session_id.as_deref().unwrap_or(&target_url);
+            let preview = match selected_format.as_ref() {
+                Some(selected) => {
+                    capture_tiktok_live_preview(&app, selected, cookie_header.as_deref(), cache_key)
+                        .await
+                }
+                None => None,
+            };
+            preview.or_else(|| tiktok_live_thumbnail(&json))
+        }
+    };
 
     Ok(TikTokLiveInspectResult {
         input: target.input,
@@ -2837,7 +2958,7 @@ pub async fn inspect_tiktok_live(
         session_id,
         title,
         uploader: tiktok_live_uploader(&json).or(target.username),
-        thumbnail: tiktok_live_thumbnail(&json),
+        thumbnail,
         avatar: tiktok_live_avatar(&json),
         viewer_count: tiktok_live_viewer_count(&json),
         is_live: json
@@ -5087,7 +5208,7 @@ mod tests {
                         }
                     },
                     "user_count": "12345",
-                    "cover": {
+                    "dynamic_cover": {
                         "url_list": ["https://p16.example/live-cover.jpeg"]
                     }
                 }
@@ -5122,11 +5243,15 @@ mod tests {
     #[test]
     fn extracts_avatar_and_viewers_from_sigi_live_room_hydration() {
         let json = serde_json::json!({
+            "thumbnail": "https://p16.example/generic-avatar.jpeg",
             "_youwee_page_hydration": [{
                 "LiveRoom": {
                     "liveRoomUserInfo": {
                         "liveRoom": {
-                            "user_count": 678
+                            "user_count": 678,
+                            "dynamicCover": {
+                                "urlList": ["https://p16.example/live-cover.jpeg"]
+                            }
                         },
                         "user": {
                             "avatarLarger": {
@@ -5142,7 +5267,34 @@ mod tests {
             tiktok_live_avatar(&json).as_deref(),
             Some("https://p16.example/sigi-avatar.jpeg")
         );
+        assert_eq!(
+            tiktok_live_thumbnail(&json).as_deref(),
+            Some("https://p16.example/live-cover.jpeg")
+        );
         assert_eq!(tiktok_live_viewer_count(&json), Some(678));
+    }
+
+    #[test]
+    fn does_not_treat_static_room_avatar_cover_as_live_preview() {
+        let json = serde_json::json!({
+            "data": {
+                "cover": {
+                    "url_list": ["https://p16.example/avatar-medium.jpeg"]
+                },
+                "owner": {
+                    "avatar_medium": {
+                        "url_list": ["https://p16.example/avatar-medium.jpeg"]
+                    }
+                }
+            }
+        });
+
+        assert!(tiktok_live_cover(&json).is_none());
+        assert!(tiktok_live_thumbnail(&json).is_none());
+        assert_eq!(
+            tiktok_live_avatar(&json).as_deref(),
+            Some("https://p16.example/avatar-medium.jpeg")
+        );
     }
 
     #[test]
@@ -5512,6 +5664,55 @@ mod tests {
             .windows(2)
             .any(|args| args == ["-cluster_time_limit", "2000"]));
         assert!(!args.iter().any(|arg| arg == "+faststart"));
+        assert_eq!(args.last().map(String::as_str), output.to_str());
+    }
+
+    #[test]
+    fn builds_bounded_authenticated_ffmpeg_live_preview() {
+        let selected = TikTokLiveFormat {
+            variant: TikTokLiveVariant {
+                format_id: "origin-flv".to_string(),
+                ext: Some("flv".to_string()),
+                protocol: Some("https".to_string()),
+                quality: Some("origin".to_string()),
+                resolution: Some("1080x1920".to_string()),
+                width: Some(1080),
+                height: Some(1920),
+                fps: Some(60.0),
+                vcodec: Some("h265".to_string()),
+                acodec: Some("aac".to_string()),
+                tbr: Some(4_500.0),
+                note: None,
+            },
+            url: "https://signed.example/live.flv?token=secret".to_string(),
+            http_headers: serde_json::Map::from_iter([
+                (
+                    "User-Agent".to_string(),
+                    serde_json::Value::String("Youwee test agent".to_string()),
+                ),
+                (
+                    "Referer".to_string(),
+                    serde_json::Value::String("https://www.tiktok.com/".to_string()),
+                ),
+            ]),
+        };
+        let output = PathBuf::from(r"C:\Videos\live-preview.jpg");
+        let args = build_ffmpeg_preview_args(&selected, Some("sessionid=authenticated"), &output);
+
+        assert!(args
+            .windows(2)
+            .any(|args| args == ["-rw_timeout", "10000000"]));
+        assert!(args.windows(2).any(|args| args == ["-frames:v", "1"]));
+        assert!(args.windows(2).any(|args| args == ["-vf", "scale=-2:720"]));
+        assert!(args
+            .windows(2)
+            .any(|args| args == ["-user_agent", "Youwee test agent"]));
+        assert!(args
+            .windows(2)
+            .any(|args| args == ["-referer", "https://www.tiktok.com/"]));
+        assert!(args
+            .iter()
+            .any(|arg| arg.contains("sessionid=authenticated")));
         assert_eq!(args.last().map(String::as_str), output.to_str());
     }
 
