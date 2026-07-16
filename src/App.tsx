@@ -170,7 +170,10 @@ function AppContent() {
     <>
       <MainLayout currentPage={currentPage} onPageChange={setCurrentPage}>
         {currentPage === 'youtube' && (
-          <DownloadPage onNavigateToSettings={() => openSettingsPage('general')} />
+          <DownloadPage
+            onNavigateToSettings={() => openSettingsPage('general')}
+            onNavigateToLogs={() => setCurrentPage('logs')}
+          />
         )}
         {currentPage === 'universal' && (
           <UniversalPage
@@ -179,7 +182,10 @@ function AppContent() {
           />
         )}
         {currentPage === 'gallery' && (
-          <GalleryPage onNavigateToSettings={() => openSettingsPage('general')} />
+          <GalleryPage
+            onNavigateToSettings={() => openSettingsPage('general')}
+            onNavigateToLogs={() => setCurrentPage('logs')}
+          />
         )}
         {currentPage === 'channels' && <ChannelsPage />}
         {currentPage === 'tiktok-live' && <TikTokLivePage />}

@@ -26,9 +26,10 @@ const FFMPEG_REQUIRED_QUALITIES: Quality[] = ['best', '8k', '4k', '2k'];
 
 interface DownloadPageProps {
   onNavigateToSettings?: () => void;
+  onNavigateToLogs: () => void;
 }
 
-export function DownloadPage({ onNavigateToSettings }: DownloadPageProps) {
+export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: DownloadPageProps) {
   const { t } = useTranslation('download');
   const {
     items,
@@ -208,6 +209,7 @@ export function DownloadPage({ onNavigateToSettings }: DownloadPageProps) {
               onUpdateTimeRange={updateItemTimeRange}
               onSelectOutputFolder={selectItemOutputFolder}
               onRename={renameCompletedItem}
+              onViewLogs={onNavigateToLogs}
               onClearCompleted={clearCompleted}
               onScheduleUpcomingLive={schedule.setSchedule}
             />

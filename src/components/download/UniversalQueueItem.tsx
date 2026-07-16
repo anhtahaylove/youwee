@@ -13,7 +13,6 @@ import {
   Pencil,
   RefreshCw,
   Scissors,
-  ScrollText,
   Sparkles,
   X,
   XCircle,
@@ -27,6 +26,7 @@ import type { ScheduleConfig } from '@/hooks/useSchedule';
 import { openFileLocation } from '@/lib/open-file-location';
 import type { DownloadItem, ItemUniversalSettings } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { FailedLogsButton } from './FailedLogsButton';
 import { SourceBadge } from './SourceBadge';
 import { ThumbnailCompletedBadge, ThumbnailFailedBadge } from './ThumbnailStatusBadge';
 
@@ -535,14 +535,7 @@ export function UniversalQueueItem({
           )}
 
           {isError && !isUpcomingLiveError && (
-            <button
-              type="button"
-              onClick={onViewLogs}
-              className="inline-flex items-center gap-1 rounded-md border border-dashed border-red-500/35 bg-red-500/5 px-2 py-0.5 text-[11px] font-medium text-red-600 transition-colors hover:border-red-500/60 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400"
-            >
-              <ScrollText className="w-3 h-3" />
-              {t('queue.status.failedHint')}
-            </button>
+            <FailedLogsButton label={t('queue.status.failedHint')} onClick={onViewLogs} />
           )}
 
           {isUpcomingLiveError && onScheduleUpcomingLive && (

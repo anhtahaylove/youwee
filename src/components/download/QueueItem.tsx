@@ -27,6 +27,7 @@ import { openFileLocation } from '@/lib/open-file-location';
 import type { DownloadItem, ItemDownloadSettings } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { extractYouTubeVideoId, youtubeThumbnailUrl } from '@/lib/youtube-url';
+import { FailedLogsButton } from './FailedLogsButton';
 import { ThumbnailCompletedBadge, ThumbnailFailedBadge } from './ThumbnailStatusBadge';
 
 // Parse a duration string like "5:30" or "1:05:30" to total seconds
@@ -111,6 +112,7 @@ interface QueueItemProps {
   onUpdateTimeRange: (id: string, start?: string, end?: string) => void;
   onSelectOutputFolder: (id: string) => Promise<void>;
   onRename: (id: string, newName: string) => Promise<void>;
+  onViewLogs: () => void;
   onScheduleUpcomingLive?: (config: ScheduleConfig) => void;
 }
 
@@ -123,6 +125,7 @@ export function QueueItem({
   onUpdateTimeRange,
   onSelectOutputFolder,
   onRename,
+  onViewLogs,
   onScheduleUpcomingLive,
 }: QueueItemProps) {
   const { t } = useTranslation('download');
@@ -506,11 +509,15 @@ export function QueueItem({
           )}
 
           {/* Failed Hint - View Logs */}
-          {isError && (
+          {isError && isUpcomingLiveError && (
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <Lightbulb className="w-3 h-3" />
-              {isUpcomingLiveError ? t('queue.upcomingLive.hint') : t('queue.status.failedHint')}
+              {t('queue.upcomingLive.hint')}
             </span>
+          )}
+
+          {isError && !isUpcomingLiveError && (
+            <FailedLogsButton label={t('queue.status.failedHint')} onClick={onViewLogs} />
           )}
 
           {isUpcomingLiveError && onScheduleUpcomingLive && (

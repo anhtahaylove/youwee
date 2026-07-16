@@ -30,6 +30,7 @@ interface QueueListProps {
   onUpdateTimeRange: (id: string, start?: string, end?: string) => void;
   onSelectOutputFolder: (id: string) => Promise<void>;
   onRename: (id: string, newName: string) => Promise<void>;
+  onViewLogs: () => void;
   onClearCompleted: () => void;
   onScheduleUpcomingLive?: (config: ScheduleConfig) => void;
 }
@@ -44,6 +45,7 @@ export function QueueList({
   onUpdateTimeRange,
   onSelectOutputFolder,
   onRename,
+  onViewLogs,
   onClearCompleted,
   onScheduleUpcomingLive,
 }: QueueListProps) {
@@ -149,6 +151,7 @@ export function QueueList({
                   onUpdateTimeRange={onUpdateTimeRange}
                   onSelectOutputFolder={onSelectOutputFolder}
                   onRename={onRename}
+                  onViewLogs={onViewLogs}
                   onScheduleUpcomingLive={onScheduleUpcomingLive}
                 />
               ))}

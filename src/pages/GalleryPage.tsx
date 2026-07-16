@@ -11,9 +11,10 @@ import { cn } from '@/lib/utils';
 
 interface GalleryPageProps {
   onNavigateToSettings?: () => void;
+  onNavigateToLogs: () => void;
 }
 
-export function GalleryPage({ onNavigateToSettings }: GalleryPageProps) {
+export function GalleryPage({ onNavigateToSettings, onNavigateToLogs }: GalleryPageProps) {
   const { t } = useTranslation('gallery');
   const {
     items,
@@ -127,6 +128,7 @@ export function GalleryPage({ onNavigateToSettings }: GalleryPageProps) {
             focusedItemId={focusedItemId}
             isDownloading={isDownloading}
             onRemove={removeItem}
+            onViewLogs={onNavigateToLogs}
             onClearCompleted={clearCompleted}
           />
         </div>

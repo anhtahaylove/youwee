@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { openFileLocation } from '@/lib/open-file-location';
 import type { DownloadItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { FailedLogsButton } from './FailedLogsButton';
 
 interface GalleryQueueItemProps {
   item: DownloadItem;
   isFocused?: boolean;
   disabled?: boolean;
   onRemove: (id: string) => void;
+  onViewLogs: () => void;
 }
 
 export function GalleryQueueItem({
@@ -17,8 +19,10 @@ export function GalleryQueueItem({
   isFocused = false,
   disabled,
   onRemove,
+  onViewLogs,
 }: GalleryQueueItemProps) {
   const { t } = useTranslation('gallery');
+  const { t: tDownload } = useTranslation('download');
   const isActive = item.status === 'downloading' || item.status === 'fetching';
   const isCompleted = item.status === 'completed';
   const isError = item.status === 'error';
@@ -103,6 +107,10 @@ export function GalleryQueueItem({
             <span className="text-xs text-red-500/80 line-clamp-2" title={item.error}>
               {item.error}
             </span>
+          )}
+
+          {isError && (
+            <FailedLogsButton label={tDownload('queue.status.failedHint')} onClick={onViewLogs} />
           )}
         </div>
 

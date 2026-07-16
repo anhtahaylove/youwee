@@ -25,6 +25,7 @@ interface GalleryQueueListProps {
   focusedItemId?: string | null;
   isDownloading: boolean;
   onRemove: (id: string) => void;
+  onViewLogs: () => void;
   onClearCompleted: () => void;
 }
 
@@ -33,6 +34,7 @@ export function GalleryQueueList({
   focusedItemId,
   isDownloading,
   onRemove,
+  onViewLogs,
   onClearCompleted,
 }: GalleryQueueListProps) {
   const { t } = useTranslation('gallery');
@@ -132,6 +134,7 @@ export function GalleryQueueList({
               isFocused={focusedItemId === item.id}
               disabled={isDownloading}
               onRemove={onRemove}
+              onViewLogs={onViewLogs}
             />
           ))}
         </div>
