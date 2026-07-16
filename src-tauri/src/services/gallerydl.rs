@@ -4,6 +4,7 @@ use std::process::Stdio;
 use tauri::{AppHandle, Manager};
 use tokio::process::Command;
 
+use super::{get_packaged_dependency_path, select_preferred_dependency_path};
 use crate::types::{BackendError, GalleryDlStatus};
 use crate::utils::{find_system_binary, unix_system_binary_dirs, CommandExt};
 
@@ -51,8 +52,21 @@ fn get_app_gallerydl_path(app: &AppHandle) -> Option<PathBuf> {
     }
 }
 
+fn get_packaged_gallerydl_path(app: &AppHandle) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let binary_name = "gallery-dl.exe";
+    #[cfg(not(windows))]
+    let binary_name = "gallery-dl";
+
+    get_packaged_dependency_path(app, binary_name)
+}
+
 pub fn get_gallerydl_path(app: &AppHandle) -> Option<PathBuf> {
-    get_system_gallerydl_path().or_else(|| get_app_gallerydl_path(app))
+    select_preferred_dependency_path(
+        get_app_gallerydl_path(app),
+        get_packaged_gallerydl_path(app),
+        get_system_gallerydl_path(),
+    )
 }
 
 pub async fn check_gallerydl_internal(app: &AppHandle) -> Result<GalleryDlStatus, String> {
@@ -61,7 +75,8 @@ pub async fn check_gallerydl_internal(app: &AppHandle) -> Result<GalleryDlStatus
             installed: false,
             version: None,
             binary_path: None,
-            is_system: true,
+            is_system: false,
+            is_bundled: false,
         });
     };
 
@@ -88,9 +103,7 @@ pub async fn check_gallerydl_internal(app: &AppHandle) -> Result<GalleryDlStatus
         installed: true,
         version: Some(String::from_utf8_lossy(&output.stdout).trim().to_string()),
         binary_path: Some(binary_path.to_string_lossy().to_string()),
-        is_system: get_app_gallerydl_path(app)
-            .as_ref()
-            .map(|app_path| app_path != &binary_path)
-            .unwrap_or(true),
+        is_system: get_system_gallerydl_path().as_ref() == Some(&binary_path),
+        is_bundled: get_packaged_gallerydl_path(app).as_ref() == Some(&binary_path),
     })
 }

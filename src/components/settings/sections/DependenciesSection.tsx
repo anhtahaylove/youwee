@@ -520,7 +520,11 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                     {!ffmpegLoading &&
                       ffmpegStatus &&
                       (ffmpegStatus?.installed ? (
-                        <Badge variant="secondary" className="font-mono text-xs">
+                        <Badge
+                          variant="secondary"
+                          className="font-mono text-xs"
+                          title={ffmpegStatus.binary_path || undefined}
+                        >
                           {ffmpegStatus.version || t('dependencies.installed')}
                         </Badge>
                       ) : (
@@ -564,6 +568,8 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                           ? t('dependencies.systemFfmpegNotFound')
                           : t('dependencies.requiredFor2K4K8K')}
                       </span>
+                    ) : ffmpegStatus?.is_bundled ? (
+                      t('dependencies.channelBundledDesc')
                     ) : ffmpegUpdateInfo?.has_update ? (
                       <span className="text-primary">
                         {t('dependencies.available', { version: ffmpegUpdateInfo.latest_version })}
@@ -673,7 +679,11 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                         <Loader2 className="w-3 h-3 animate-spin" />
                       </Badge>
                     ) : denoStatus?.installed ? (
-                      <Badge variant="secondary" className="font-mono text-xs">
+                      <Badge
+                        variant="secondary"
+                        className="font-mono text-xs"
+                        title={denoStatus.binary_path || undefined}
+                      >
                         {denoStatus.version || t('dependencies.installed')}
                       </Badge>
                     ) : (
@@ -709,6 +719,8 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                       </span>
                     ) : denoError ? (
                       <span className="text-destructive">{denoError}</span>
+                    ) : denoStatus?.is_bundled ? (
+                      t('dependencies.channelBundledDesc')
                     ) : denoUpdateInfo?.has_update ? (
                       <span className="text-primary">
                         {t('dependencies.available', { version: denoUpdateInfo.latest_version })}
@@ -792,7 +804,11 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                         <Loader2 className="w-3 h-3 animate-spin" />
                       </Badge>
                     ) : galleryDlStatus?.installed ? (
-                      <Badge variant="secondary" className="font-mono text-xs">
+                      <Badge
+                        variant="secondary"
+                        className="font-mono text-xs"
+                        title={galleryDlStatus.binary_path || undefined}
+                      >
                         {galleryDlStatus.version || t('dependencies.installed')}
                       </Badge>
                     ) : (
@@ -809,6 +825,8 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                       </span>
                     ) : galleryDlError ? (
                       <span className="text-destructive">{galleryDlError}</span>
+                    ) : galleryDlStatus?.is_bundled ? (
+                      t('dependencies.channelBundledDesc')
                     ) : galleryDlStatus?.installed ? (
                       t('dependencies.systemGallerydl')
                     ) : (

@@ -62,7 +62,7 @@ jobs:
             friendly_name: Windows
             yt_dlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
             yt_dlp_name: youwee-yt-dlp-x86_64-pc-windows-msvc.exe
-            bundle_args: --bundles nsis,msi --config .github/tauri.windows.release.conf.json
+            bundle_args: --bundles nsis,msi --config src-tauri/tauri.windows.full.conf.json
 
     runs-on: ${{ matrix.platform }}
     
@@ -109,44 +109,17 @@ jobs:
           chmod +x "src-tauri/bin/${{ matrix.yt_dlp_name }}"
           ls -la src-tauri/bin/
 
-      - name: Download yt-dlp binary (Windows)
+      - name: Cache Windows Full Installer dependencies
+        if: matrix.os_name == 'windows'
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target/dependency-cache/windows
+          key: youwee-windows-dependencies-${{ hashFiles('src-tauri/dependencies.windows.lock.json') }}
+
+      - name: Prepare Windows Full Installer dependencies
         if: matrix.os_name == 'windows'
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path src-tauri/bin
-          Invoke-WebRequest -Uri "${{ matrix.yt_dlp_url }}" -OutFile "src-tauri/bin/${{ matrix.yt_dlp_name }}"
-          Get-ChildItem src-tauri/bin/
-
-      - name: Generate numeric MSI package version
-        if: matrix.os_name == 'windows'
-        shell: pwsh
-        run: |
-          $appVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $match = [regex]::Match($appVersion, '^(\d+)\.(\d+)\.(\d+)(?:-custom\.(\d+))?$')
-          if (-not $match.Success) {
-            throw "Cannot derive an MSI version from app version '$appVersion'."
-          }
-
-          $parts = @(
-            [int]$match.Groups[1].Value
-            [int]$match.Groups[2].Value
-            [int]$match.Groups[3].Value
-            $(if ($match.Groups[4].Success) { [int]$match.Groups[4].Value } else { 0 })
-          )
-          if ($parts[0] -gt 255 -or $parts[1] -gt 255 -or $parts[2] -gt 65535 -or $parts[3] -gt 65535) {
-            throw "Derived MSI version fields exceed Windows Installer limits: $($parts -join '.')"
-          }
-
-          $msiVersion = $parts -join '.'
-          @{
-            bundle = @{
-              windows = @{
-                wix = @{ version = $msiVersion }
-              }
-            }
-          } | ConvertTo-Json -Depth 5 | Set-Content .github/tauri.windows.release.conf.json -Encoding utf8NoBOM
-
-          Write-Host "App version: $appVersion; MSI package version: $msiVersion"
+        run: ./scripts/prepare-windows-dependencies.ps1
 
       - name: Build Tauri app with signing
         uses: tauri-apps/tauri-action@v0
@@ -210,10 +183,10 @@ jobs:
           if (Test-Path "msi") {
             cd msi
             Get-ChildItem *.msi.sig | ForEach-Object {
-              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}.msi.sig"
+              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Full.msi.sig"
             }
             Get-ChildItem *.msi | ForEach-Object { 
-              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}.msi"
+              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Full.msi"
             }
             cd ..
           }
@@ -221,10 +194,10 @@ jobs:
           if (Test-Path "nsis") {
             cd nsis
             Get-ChildItem *.exe.sig | ForEach-Object {
-              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Setup.exe.sig"
+              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Full-Setup.exe.sig"
             }
             Get-ChildItem *.exe | ForEach-Object {
-              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Setup.exe"
+              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Full-Setup.exe"
             }
             cd ..
           }
@@ -332,10 +305,10 @@ jobs:
       - name: Verify required release artifacts
         run: |
           REQUIRED_ASSETS=(
-            "Youwee-Windows.msi"
-            "Youwee-Windows.msi.sig"
-            "Youwee-Windows-Setup.exe"
-            "Youwee-Windows-Setup.exe.sig"
+            "Youwee-Windows-Full.msi"
+            "Youwee-Windows-Full.msi.sig"
+            "Youwee-Windows-Full-Setup.exe"
+            "Youwee-Windows-Full-Setup.exe.sig"
             "Youwee-Extension-Chromium.zip"
             "Youwee-Extension-Firefox.zip"
           )
@@ -510,7 +483,7 @@ jobs:
           fi
           
           # Windows NSIS
-          WIN_SIG=$(find artifacts -name "Youwee-Windows-Setup.exe.sig" 2>/dev/null | head -1)
+          WIN_SIG=$(find artifacts -name "Youwee-Windows-Full-Setup.exe.sig" 2>/dev/null | head -1)
           if [ -n "$WIN_SIG" ] && [ -f "$WIN_SIG" ]; then
             SIG=$(cat "$WIN_SIG")
             if [ "$FIRST" = false ]; then echo "," >> latest.json; fi
@@ -518,7 +491,7 @@ jobs:
             cat >> latest.json << PLATFORM
               "windows-x86_64": {
                 "signature": "$SIG",
-                "url": "https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/Youwee-Windows-Setup.exe"
+                "url": "https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/Youwee-Windows-Full-Setup.exe"
               }
           PLATFORM
           fi
@@ -589,8 +562,8 @@ jobs:
           |----------|------|-------------|
           | 🍎 **Mac (M1/M2/M3/M4)** | `Youwee-Mac-Apple-Silicon.dmg` | For Apple Silicon Macs |
           | 🍎 **Mac (Intel)** | `Youwee-Mac-Intel.dmg` | For Intel-based Macs |
-          | 🪟 **Windows** | `Youwee-Windows.msi` | MSI Installer |
-          | 🪟 **Windows** | `Youwee-Windows-Setup.exe` | EXE Installer |
+          | 🪟 **Windows** | `Youwee-Windows-Full.msi` | Full MSI with yt-dlp, FFmpeg, Deno and gallery-dl |
+          | 🪟 **Windows** | `Youwee-Windows-Full-Setup.exe` | Recommended zero-setup installer |
           | 🐧 **Linux** | `Youwee-Linux.deb` | Debian/Ubuntu |
           | 🐧 **Linux** | `Youwee-Linux.AppImage` | Portable (all distros) |
           | 🌐 **Extension (Chromium)** | `Youwee-Extension-Chromium.zip` | Unzip and load unpacked on Chrome/Edge/Brave |
@@ -608,9 +581,9 @@ jobs:
           - **macOS**: 10.15 (Catalina) or later  
           - **Linux**: Ubuntu 22.04 or equivalent
           
-          ## Optional
-          - **FFmpeg** - for best video/audio quality (auto-download available in Settings)
-          - **Bun Runtime** - if you can only download 360p from YouTube (auto-download available in Settings)
+          ## Included on Windows
+          - **yt-dlp, FFmpeg/ffprobe, Deno and gallery-dl** are bundled in the Full installers.
+          - App-managed dependency updates remain available in Settings and override the bundled copy.
 
           ## Browser Extension Install
           - Chromium: download `Youwee-Extension-Chromium.zip` -> extract -> open `chrome://extensions` -> enable Developer mode -> **Load unpacked**.

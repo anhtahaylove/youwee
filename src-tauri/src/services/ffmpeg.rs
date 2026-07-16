@@ -1,3 +1,4 @@
+use super::{get_packaged_dependency_path, select_dependency_path_for_source};
 use crate::types::{DependencySource, FfmpegStatus};
 use crate::utils::{find_system_binary, unix_system_binary_dirs, CommandExt};
 use std::path::PathBuf;
@@ -122,13 +123,24 @@ fn get_system_ffmpeg_path() -> Option<PathBuf> {
     find_system_binary(binary_name, &unix_system_binary_dirs())
 }
 
+fn get_packaged_ffmpeg_path(app: &AppHandle) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let binary_name = "ffmpeg.exe";
+    #[cfg(not(windows))]
+    let binary_name = "ffmpeg";
+
+    get_packaged_dependency_path(app, binary_name)
+}
+
 /// Get the FFmpeg binary path (app data or system)
 pub async fn get_ffmpeg_path(app: &AppHandle) -> Option<PathBuf> {
-    match get_ffmpeg_source(app).await {
-        DependencySource::System => get_system_ffmpeg_path(),
-        DependencySource::App => get_app_ffmpeg_path(app),
-        DependencySource::Auto => get_app_ffmpeg_path(app).or_else(get_system_ffmpeg_path),
-    }
+    let source = get_ffmpeg_source(app).await;
+    select_dependency_path_for_source(
+        &source,
+        get_app_ffmpeg_path(app),
+        get_packaged_ffmpeg_path(app),
+        get_system_ffmpeg_path(),
+    )
 }
 
 /// Check FFmpeg status
@@ -144,14 +156,15 @@ pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, Stri
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 let binary_version = parse_ffmpeg_version(&stdout);
-                let app_path = get_app_ffmpeg_path(app);
-                let is_system = app_path.as_ref().map(|p| p != &ffmpeg_path).unwrap_or(true);
-                let version = if is_system {
-                    binary_version
-                } else {
+                let is_app_managed = get_app_ffmpeg_path(app).as_ref() == Some(&ffmpeg_path);
+                let is_bundled = get_packaged_ffmpeg_path(app).as_ref() == Some(&ffmpeg_path);
+                let is_system = get_system_ffmpeg_path().as_ref() == Some(&ffmpeg_path);
+                let version = if is_app_managed {
                     read_app_ffmpeg_release_version(app)
                         .await
                         .unwrap_or(binary_version)
+                } else {
+                    binary_version
                 };
 
                 return Ok(FfmpegStatus {
@@ -159,6 +172,7 @@ pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, Stri
                     version: Some(version),
                     binary_path: Some(ffmpeg_path.to_string_lossy().to_string()),
                     is_system,
+                    is_bundled,
                 });
             }
         }
@@ -169,6 +183,7 @@ pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, Stri
         version: None,
         binary_path: None,
         is_system: false,
+        is_bundled: false,
     })
 }
 

@@ -1,3 +1,4 @@
+use super::{get_packaged_dependency_path, select_preferred_dependency_path};
 use crate::types::DenoStatus;
 #[cfg(not(windows))]
 use crate::utils::unix_system_binary_dirs;
@@ -31,76 +32,48 @@ fn get_system_deno_path() -> Option<PathBuf> {
     find_system_binary(binary_name, &fallback_dirs)
 }
 
+fn get_app_deno_path(app: &AppHandle) -> Option<PathBuf> {
+    let app_data_dir = app.path().app_data_dir().ok()?;
+    #[cfg(windows)]
+    let binary_name = "deno.exe";
+    #[cfg(not(windows))]
+    let binary_name = "deno";
+
+    let binary_path = app_data_dir.join("bin").join(binary_name);
+    binary_path.is_file().then_some(binary_path)
+}
+
+fn get_packaged_deno_path(app: &AppHandle) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let binary_name = "deno.exe";
+    #[cfg(not(windows))]
+    let binary_name = "deno";
+
+    get_packaged_dependency_path(app, binary_name)
+}
+
 /// Get the Deno binary path (app data or system)
 pub async fn get_deno_path(app: &AppHandle) -> Option<PathBuf> {
-    // First check app data directory
-    if let Ok(app_data_dir) = app.path().app_data_dir() {
-        let bin_dir = app_data_dir.join("bin");
-        #[cfg(windows)]
-        let deno_path = bin_dir.join("deno.exe");
-        #[cfg(not(windows))]
-        let deno_path = bin_dir.join("deno");
-
-        if deno_path.exists() {
-            return Some(deno_path);
-        }
-    }
-
-    get_system_deno_path()
+    select_preferred_dependency_path(
+        get_app_deno_path(app),
+        get_packaged_deno_path(app),
+        get_system_deno_path(),
+    )
 }
 
 /// Check Deno runtime status
 pub async fn check_deno_internal(app: &AppHandle) -> Result<DenoStatus, String> {
-    // First check app data directory
-    if let Ok(app_data_dir) = app.path().app_data_dir() {
-        let bin_dir = app_data_dir.join("bin");
-        #[cfg(windows)]
-        let deno_path = bin_dir.join("deno.exe");
-        #[cfg(not(windows))]
-        let deno_path = bin_dir.join("deno");
+    let Some(deno_path) = get_deno_path(app).await else {
+        return Ok(DenoStatus {
+            installed: false,
+            version: None,
+            binary_path: None,
+            is_system: false,
+            is_bundled: false,
+        });
+    };
 
-        if deno_path.exists() {
-            let mut cmd = Command::new(&deno_path);
-            cmd.args(["--version"])
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped());
-            cmd.hide_window();
-            let output = cmd.output().await;
-
-            if let Ok(output) = output {
-                if output.status.success() {
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    // Deno outputs: "deno 2.1.2 (stable, release, aarch64-apple-darwin)"
-                    let version = stdout
-                        .lines()
-                        .next()
-                        .map(|l| {
-                            l.trim_start_matches("deno ")
-                                .split_whitespace()
-                                .next()
-                                .unwrap_or("")
-                                .to_string()
-                        })
-                        .unwrap_or_default();
-                    return Ok(DenoStatus {
-                        installed: true,
-                        version: Some(version),
-                        binary_path: Some(deno_path.to_string_lossy().to_string()),
-                        is_system: false,
-                    });
-                }
-            }
-        }
-    }
-
-    // Check system Deno (PATH first, then well-known locations)
-    let deno_path = get_system_deno_path();
-    let deno_cmd = deno_path
-        .as_ref()
-        .map(|path| path.to_string_lossy().to_string())
-        .unwrap_or_else(|| "deno".to_string());
-
-    let mut cmd = Command::new(&deno_cmd);
+    let mut cmd = Command::new(&deno_path);
     cmd.args(["--version"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -122,11 +95,15 @@ pub async fn check_deno_internal(app: &AppHandle) -> Result<DenoStatus, String> 
                 })
                 .unwrap_or_default();
 
+            let is_bundled = get_packaged_deno_path(app).as_ref() == Some(&deno_path);
+            let is_system = get_system_deno_path().as_ref() == Some(&deno_path);
+
             Ok(DenoStatus {
                 installed: true,
                 version: Some(version),
-                binary_path: deno_path.map(|path| path.to_string_lossy().to_string()),
-                is_system: true,
+                binary_path: Some(deno_path.to_string_lossy().to_string()),
+                is_system,
+                is_bundled,
             })
         }
         _ => Ok(DenoStatus {
@@ -134,6 +111,7 @@ pub async fn check_deno_internal(app: &AppHandle) -> Result<DenoStatus, String> 
             version: None,
             binary_path: None,
             is_system: false,
+            is_bundled: false,
         }),
     }
 }

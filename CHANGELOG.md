@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.29] - 2026-07-16
+
+### Added
+- **Windows Full Installer** - Bundle checksum-pinned yt-dlp, FFmpeg/ffprobe, Deno, and gallery-dl so a fresh Windows install can download without manual dependency setup
+
+### Changed
+- **Portable dependency resolution** - Resolve app-managed, packaged, and system binaries from each machine's runtime directories and identify bundled tools in Settings
+- **Windows release artifacts** - Publish signed Full NSIS and MSI assets with matching updater metadata and third-party notices
+
+### Fixed
+- **Cross-machine dependency paths** - Fall back to packaged Windows binaries when app-managed tools are absent instead of relying on paths or dependencies from the build machine
+
 ## [0.19.1-custom.28] - 2026-07-16
 
 ### Added

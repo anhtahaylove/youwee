@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows-x86_64",
+  "dependencies": [
+    {
+      "name": "yt-dlp",
+      "version": "2026.07.04",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.07.04/yt-dlp.exe",
+      "sha256": "52fe3c26dcf71fbdc85b528589020bb0b8e383155cfa81b64dd447bbe35e24b8",
+      "archive": "file",
+      "files": [
+        {
+          "source": "yt-dlp.exe",
+          "target": "src-tauri/bin/youwee-yt-dlp-x86_64-pc-windows-msvc.exe"
+        }
+      ],
+      "license": "Unlicense",
+      "sourceUrl": "https://github.com/yt-dlp/yt-dlp"
+    },
+    {
+      "name": "FFmpeg",
+      "version": "n8.1-2026-07-16",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-8.1.zip",
+      "sha256": "803818c44d5e4ea3e6226f05a9eb1105170753b170a2520d1dea08698b16d7cf",
+      "archive": "zip",
+      "files": [
+        {
+          "source": "ffmpeg.exe",
+          "target": "src-tauri/resources/dependencies/windows/ffmpeg.exe"
+        },
+        {
+          "source": "ffprobe.exe",
+          "target": "src-tauri/resources/dependencies/windows/ffprobe.exe"
+        }
+      ],
+      "license": "GPL build; see upstream license and build configuration",
+      "sourceUrl": "https://github.com/BtbN/FFmpeg-Builds"
+    },
+    {
+      "name": "Deno",
+      "version": "2.9.3",
+      "url": "https://github.com/denoland/deno/releases/download/v2.9.3/deno-x86_64-pc-windows-msvc.zip",
+      "sha256": "60343461ac5fe3a31f4ef12667f2946bb852e20655c8610aeb7e751e87f7df3a",
+      "archive": "zip",
+      "files": [
+        {
+          "source": "deno.exe",
+          "target": "src-tauri/resources/dependencies/windows/deno.exe"
+        }
+      ],
+      "license": "MIT",
+      "sourceUrl": "https://github.com/denoland/deno"
+    },
+    {
+      "name": "gallery-dl",
+      "version": "2026.07.16",
+      "url": "https://github.com/gdl-org/builds/releases/download/2026.07.16/gallery-dl_windows.exe",
+      "sha256": "538f9ac4eabb5ee80cb22342c07053ae177349d139d69bb23d7bd8d65fe5b1cd",
+      "archive": "file",
+      "files": [
+        {
+          "source": "gallery-dl_windows.exe",
+          "target": "src-tauri/resources/dependencies/windows/gallery-dl.exe"
+        }
+      ],
+      "license": "GPL-2.0-only",
+      "sourceUrl": "https://github.com/mikf/gallery-dl"
+    }
+  ]
+}

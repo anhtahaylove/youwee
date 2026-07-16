@@ -9,6 +9,18 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.29] - 2026-07-16
+
+### Thêm mới
+- **Windows Full Installer** - Đóng gói sẵn yt-dlp, FFmpeg/ffprobe, Deno và gallery-dl đã khóa checksum để máy Windows mới có thể tải ngay mà không cần cài dependency thủ công
+
+### Thay đổi
+- **Nhận diện dependency linh động** - Phân giải binary app-managed, packaged và system từ thư mục runtime của từng máy, đồng thời hiển thị rõ công cụ bundled trong Settings
+- **Artifact release Windows** - Phát hành Full NSIS và MSI có chữ ký cùng updater metadata tương ứng và thông báo bản quyền bên thứ ba
+
+### Sửa lỗi
+- **Path dependency giữa các máy** - Tự dùng binary Windows packaged khi thiếu công cụ app-managed thay vì phụ thuộc path hoặc dependency của máy build
+
 ## [0.19.1-custom.28] - 2026-07-16
 
 ### Thêm mới

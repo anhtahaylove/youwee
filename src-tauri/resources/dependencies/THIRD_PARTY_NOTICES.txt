@@ -1,0 +1,30 @@
+Youwee Windows Full Installer - Third-Party Runtime Notices
+===========================================================
+
+The Windows Full Installer includes unmodified executable distributions of the
+projects listed below. The dependency lock manifest bundled with the application
+records the exact artifact version, download URL and SHA-256 used for this build.
+
+yt-dlp
+  Project: https://github.com/yt-dlp/yt-dlp
+  License: Unlicense
+  License: https://github.com/yt-dlp/yt-dlp/blob/master/LICENSE
+
+FFmpeg (BtbN GPL build)
+  Project: https://ffmpeg.org/
+  Build scripts and source references: https://github.com/BtbN/FFmpeg-Builds
+  License information: https://ffmpeg.org/legal.html
+
+Deno
+  Project and source: https://github.com/denoland/deno
+  License: MIT
+  License: https://github.com/denoland/deno/blob/main/LICENSE.md
+
+gallery-dl
+  Project and source: https://github.com/mikf/gallery-dl
+  Standalone Windows build: https://github.com/gdl-org/builds
+  License: GPL-2.0-only
+  License: https://github.com/mikf/gallery-dl/blob/master/LICENSE
+
+No dependency installer is executed at first launch. Youwee runs these packaged
+resources directly and prefers a user-updated app-managed binary when present.

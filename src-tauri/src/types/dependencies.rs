@@ -101,6 +101,7 @@ pub struct FfmpegStatus {
     pub version: Option<String>,
     pub binary_path: Option<String>,
     pub is_system: bool,
+    pub is_bundled: bool,
 }
 
 /// Deno runtime installation status
@@ -110,6 +111,7 @@ pub struct DenoStatus {
     pub version: Option<String>,
     pub binary_path: Option<String>,
     pub is_system: bool,
+    pub is_bundled: bool,
 }
 
 /// gallery-dl installation status
@@ -119,4 +121,5 @@ pub struct GalleryDlStatus {
     pub version: Option<String>,
     pub binary_path: Option<String>,
     pub is_system: bool,
+    pub is_bundled: bool,
 }

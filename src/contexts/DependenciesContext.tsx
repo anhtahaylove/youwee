@@ -23,6 +23,7 @@ export interface FfmpegStatus {
   version: string | null;
   binary_path: string | null;
   is_system: boolean;
+  is_bundled: boolean;
 }
 
 export interface DenoStatus {
@@ -30,6 +31,7 @@ export interface DenoStatus {
   version: string | null;
   binary_path: string | null;
   is_system: boolean;
+  is_bundled: boolean;
 }
 
 export interface GalleryDlStatus {
@@ -37,6 +39,7 @@ export interface GalleryDlStatus {
   version: string | null;
   binary_path: string | null;
   is_system: boolean;
+  is_bundled: boolean;
 }
 
 export interface FfmpegUpdateInfo {
@@ -374,6 +377,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
         version,
         binary_path: null, // Will be updated on next check
         is_system: false,
+        is_bundled: false,
       });
       setFfmpegSuccess(true);
       // Set update info to show "Up to date" instead of null
@@ -436,6 +440,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
         version,
         binary_path: null, // Will be updated on next check
         is_system: false,
+        is_bundled: false,
       });
       setDenoSuccess(true);
       // Set update info to show "Up to date" instead of null
@@ -535,6 +540,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
               version,
               binary_path: null,
               is_system: false,
+              is_bundled: false,
             });
             setDenoSuccess(true);
             await checkDeno();
@@ -550,7 +556,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
       });
 
       checkGalleryDl().catch(() => {
-        // gallery-dl is system-managed only, so failure here is non-fatal
+        // gallery-dl is optional, so failure here is non-fatal
       });
     }
   }, [

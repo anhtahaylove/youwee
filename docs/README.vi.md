@@ -96,19 +96,19 @@ Chỉ sử dụng Youwee với nội dung bạn sở hữu, được phép sử 
 
 | Nền tảng | Tải về |
 |----------|--------|
-| **Windows** (x64) | [Tải .msi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Windows.msi) · [Tải .exe](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Windows-Setup.exe) |
-| **macOS** (Apple Silicon) | [Tải .dmg](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Mac-Apple-Silicon.dmg) |
-| **macOS** (Intel) | [Tải .dmg](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Mac-Intel.dmg) |
-| **Linux** (x64) | [Tải .deb](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Linux.deb) · [Tải .AppImage](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Linux.AppImage) |
+| **Windows** (x64) | [Tải Full .msi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Windows-Full.msi) · [Tải Full .exe](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Windows-Full-Setup.exe) |
+| **macOS** (Apple Silicon) | [Tải .dmg](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Mac-Apple-Silicon.dmg) |
+| **macOS** (Intel) | [Tải .dmg](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Mac-Intel.dmg) |
+| **Linux** (x64) | [Tải .deb](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Linux.deb) · [Tải .AppImage](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Linux.AppImage) |
 
-> Xem tất cả các phiên bản tại [trang Releases](https://github.com/vanloctech/youwee/releases)
+> Xem tất cả các phiên bản tại [trang Releases](https://github.com/anhtahaylove/youwee/releases)
 
 ### Tiện ích mở rộng trình duyệt (Chromium + Firefox)
 
 | Trình duyệt | Tải về |
 |-------------|--------|
-| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Tải .zip](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Tải .xpi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Tải .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
+| **Firefox** | [Tải .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
 
 - Gửi link từ tab hiện tại sang Youwee chỉ với 1 lần bấm (`Download now` hoặc `Add to queue`)
 - Nút nổi hỗ trợ chọn `Video/Audio` + chất lượng trên các trang được hỗ trợ
