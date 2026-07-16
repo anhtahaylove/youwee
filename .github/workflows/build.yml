@@ -62,7 +62,7 @@ jobs:
             friendly_name: Windows
             yt_dlp_url: https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe
             yt_dlp_name: youwee-yt-dlp-x86_64-pc-windows-msvc.exe
-            bundle_args: --bundles nsis
+            bundle_args: --bundles nsis,msi --config .github/tauri.windows.release.conf.json
 
     runs-on: ${{ matrix.platform }}
     
@@ -116,6 +116,37 @@ jobs:
           New-Item -ItemType Directory -Force -Path src-tauri/bin
           Invoke-WebRequest -Uri "${{ matrix.yt_dlp_url }}" -OutFile "src-tauri/bin/${{ matrix.yt_dlp_name }}"
           Get-ChildItem src-tauri/bin/
+
+      - name: Generate numeric MSI package version
+        if: matrix.os_name == 'windows'
+        shell: pwsh
+        run: |
+          $appVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $match = [regex]::Match($appVersion, '^(\d+)\.(\d+)\.(\d+)(?:-custom\.(\d+))?$')
+          if (-not $match.Success) {
+            throw "Cannot derive an MSI version from app version '$appVersion'."
+          }
+
+          $parts = @(
+            [int]$match.Groups[1].Value
+            [int]$match.Groups[2].Value
+            [int]$match.Groups[3].Value
+            $(if ($match.Groups[4].Success) { [int]$match.Groups[4].Value } else { 0 })
+          )
+          if ($parts[0] -gt 255 -or $parts[1] -gt 255 -or $parts[2] -gt 65535 -or $parts[3] -gt 65535) {
+            throw "Derived MSI version fields exceed Windows Installer limits: $($parts -join '.')"
+          }
+
+          $msiVersion = $parts -join '.'
+          @{
+            bundle = @{
+              windows = @{
+                wix = @{ version = $msiVersion }
+              }
+            }
+          } | ConvertTo-Json -Depth 5 | Set-Content .github/tauri.windows.release.conf.json -Encoding utf8NoBOM
+
+          Write-Host "App version: $appVersion; MSI package version: $msiVersion"
 
       - name: Build Tauri app with signing
         uses: tauri-apps/tauri-action@v0
@@ -178,6 +209,9 @@ jobs:
           # Rename .msi
           if (Test-Path "msi") {
             cd msi
+            Get-ChildItem *.msi.sig | ForEach-Object {
+              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}.msi.sig"
+            }
             Get-ChildItem *.msi | ForEach-Object { 
               Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}.msi"
             }
@@ -186,6 +220,9 @@ jobs:
           # Rename .exe (NSIS installer)
           if (Test-Path "nsis") {
             cd nsis
+            Get-ChildItem *.exe.sig | ForEach-Object {
+              Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Setup.exe.sig"
+            }
             Get-ChildItem *.exe | ForEach-Object {
               Rename-Item $_.Name "Youwee-${{ matrix.friendly_name }}-Setup.exe"
             }
@@ -269,6 +306,7 @@ jobs:
           name: youwee-extension-packages
           path: |
             extensions/youwee-webext/dist/packages/Youwee-Extension-Chromium.zip
+            extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip
             extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi
           if-no-files-found: error
 
@@ -290,6 +328,28 @@ jobs:
 
       - name: List artifacts
         run: find artifacts -type f | head -50
+
+      - name: Verify required release artifacts
+        run: |
+          REQUIRED_ASSETS=(
+            "Youwee-Windows.msi"
+            "Youwee-Windows.msi.sig"
+            "Youwee-Windows-Setup.exe"
+            "Youwee-Windows-Setup.exe.sig"
+            "Youwee-Extension-Chromium.zip"
+            "Youwee-Extension-Firefox.zip"
+          )
+
+          for asset in "${REQUIRED_ASSETS[@]}"; do
+            if ! find artifacts -type f -name "$asset" -print -quit | grep -q .; then
+              echo "Missing required release asset: $asset"
+              exit 1
+            fi
+          done
+
+          if ! find artifacts -type f -name "Youwee-Extension-Firefox-signed.xpi" -print -quit | grep -q .; then
+            echo "Firefox AMO signing was skipped; publishing the developer ZIP only."
+          fi
 
       - name: Get version from tag
         id: version
@@ -450,7 +510,7 @@ jobs:
           fi
           
           # Windows NSIS
-          WIN_SIG=$(find artifacts -name "*.exe.sig" 2>/dev/null | head -1)
+          WIN_SIG=$(find artifacts -name "Youwee-Windows-Setup.exe.sig" 2>/dev/null | head -1)
           if [ -n "$WIN_SIG" ] && [ -f "$WIN_SIG" ]; then
             SIG=$(cat "$WIN_SIG")
             if [ "$FIRST" = false ]; then echo "," >> latest.json; fi
@@ -519,7 +579,9 @@ jobs:
           cat CHANGELOG_EXTRACT.md >> RELEASE_BODY.md
           echo "" >> RELEASE_BODY.md
           
-          # Add download section
+          # Add download section. The signed Firefox XPI is optional because it
+          # requires FIREFOX_AMO_JWT_ISSUER and FIREFOX_AMO_JWT_SECRET.
+          FIREFOX_XPI=$(find artifacts -name "Youwee-Extension-Firefox-signed.xpi" 2>/dev/null | head -1)
           cat >> RELEASE_BODY.md << 'DOWNLOADS'
           ## Download
           
@@ -532,7 +594,14 @@ jobs:
           | 🐧 **Linux** | `Youwee-Linux.deb` | Debian/Ubuntu |
           | 🐧 **Linux** | `Youwee-Linux.AppImage` | Portable (all distros) |
           | 🌐 **Extension (Chromium)** | `Youwee-Extension-Chromium.zip` | Unzip and load unpacked on Chrome/Edge/Brave |
-          | 🦊 **Extension (Firefox)** | `Youwee-Extension-Firefox-signed.xpi` | Signed unlisted add-on for Firefox stable |
+          | 🦊 **Extension (Firefox Developer)** | `Youwee-Extension-Firefox.zip` | Temporary load through `about:debugging` |
+          DOWNLOADS
+
+          if [ -n "$FIREFOX_XPI" ]; then
+            echo '| 🦊 **Extension (Firefox Stable)** | `Youwee-Extension-Firefox-signed.xpi` | Signed unlisted add-on for Firefox stable |' >> RELEASE_BODY.md
+          fi
+
+          cat >> RELEASE_BODY.md << 'DETAILS'
           
           ## 📋 Requirements
           - **Windows**: Windows 10 or later
@@ -545,7 +614,16 @@ jobs:
 
           ## Browser Extension Install
           - Chromium: download `Youwee-Extension-Chromium.zip` -> extract -> open `chrome://extensions` -> enable Developer mode -> **Load unpacked**.
-          - Firefox: download `Youwee-Extension-Firefox-signed.xpi` and open it directly to install.
+          - Firefox developer build: download `Youwee-Extension-Firefox.zip` -> extract -> open `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> select `manifest.json`.
+          DETAILS
+
+          if [ -n "$FIREFOX_XPI" ]; then
+            echo '- Firefox stable: download `Youwee-Extension-Firefox-signed.xpi` and open it directly to install.' >> RELEASE_BODY.md
+          else
+            echo '- Firefox stable XPI was not published because AMO signing credentials were not configured.' >> RELEASE_BODY.md
+          fi
+
+          cat >> RELEASE_BODY.md << 'VERIFY'
 
           ## Verify Downloads
           
@@ -553,7 +631,7 @@ jobs:
           ```bash
           sha256sum -c SHA256SUMS.txt
           ```
-          DOWNLOADS
+          VERIFY
           
           echo "Generated RELEASE_BODY.md:"
           cat RELEASE_BODY.md

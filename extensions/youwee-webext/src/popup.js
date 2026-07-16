@@ -6,7 +6,8 @@
   const STORAGE_KEY = 'youwee-floating-prefs-v1';
   let currentUrl = '';
   let activeTabId = null;
-  const manifestVersion = api?.runtime?.getManifest?.()?.version || '0.0.0';
+  const manifest = api?.runtime?.getManifest?.();
+  const manifestVersion = manifest?.version_name || manifest?.version || '0.0.0';
   let floatingPrefs = { enabled: true, collapsedByHost: {} };
   let floatingPrefsChangedInPopup = false;
 
