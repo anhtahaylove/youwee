@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Перетащите URL или .txt файл сюда",
     "detectedMultiple": "Обнаружено {{count}} URL",
-    "clearInput": "Очистить"
+    "clearInput": "Очистить",
+    "alreadyQueuedTitle": "Уже в очереди",
+    "alreadyQueuedMessage": "{{count}} ссылка уже находится в очереди. Существующий элемент выделен, а его предпросмотр при необходимости обновлён."
   },
   "page": {
     "quickSettings": "Быстрые настройки",

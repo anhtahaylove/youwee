@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} 个链接",
     "dropHint": "拖放链接或 .txt 文件到此处",
     "detectedMultiple": "已识别 {{count}} 个链接",
-    "clearInput": "清除"
+    "clearInput": "清除",
+    "alreadyQueuedTitle": "已在队列中",
+    "alreadyQueuedMessage": "{{count}} 个链接已在队列中。已定位现有项目，并在需要时刷新预览。"
   },
   "page": {
     "quickSettings": "快捷设置",

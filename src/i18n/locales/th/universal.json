@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} URLs",
     "dropHint": "ลาก URL หรือไฟล์ .txt มาวางที่นี่",
     "detectedMultiple": "ตรวจพบ URL {{count}} รายการ",
-    "clearInput": "ล้าง"
+    "clearInput": "ล้าง",
+    "alreadyQueuedTitle": "มีอยู่ในคิวแล้ว",
+    "alreadyQueuedMessage": "ลิงก์ {{count}} รายการมีอยู่ในคิวแล้ว ระบบได้โฟกัสรายการเดิมและรีเฟรชตัวอย่างเมื่อจำเป็น"
   },
   "page": {
     "quickSettings": "การตั้งค่าด่วน",

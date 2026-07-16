@@ -32,4 +32,12 @@ describe('extractUrls', () => {
       'https://www.facebook.com/reel/123',
     ]);
   });
+
+  test('canonicalizes Facebook Reel share tracking URLs', () => {
+    expect(
+      parseUniversalUrls(
+        'https://m.facebook.com/reel/2058460874874165/?__cft__[0]=tracking&__tn__=%2CO%2CP-R',
+      ),
+    ).toEqual(['https://www.facebook.com/reel/2058460874874165']);
+  });
 });

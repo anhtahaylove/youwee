@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} 件の URL",
     "dropHint": "ここに URL または .txt ファイルをドロップ",
     "detectedMultiple": "{{count}} 件の URL を検出",
-    "clearInput": "クリア"
+    "clearInput": "クリア",
+    "alreadyQueuedTitle": "すでにキューにあります",
+    "alreadyQueuedMessage": "{{count}} 件のリンクはすでにキューにあります。既存項目を選択し、必要に応じてプレビューを更新しました。"
   },
   "page": {
     "quickSettings": "クイック設定",

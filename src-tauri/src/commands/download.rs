@@ -30,9 +30,9 @@ use crate::database::{
 };
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
-    enqueue_post_download_workflow, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
-    get_ytdlp_source, is_upcoming_live_error, resolve_download_workflow_snapshot,
-    run_ytdlp_with_stderr, system_ytdlp_not_found_message,
+    enqueue_post_download_workflow, get_bundled_ytdlp_fallback_path, get_deno_path,
+    get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
+    resolve_download_workflow_snapshot, run_ytdlp_with_stderr, system_ytdlp_not_found_message,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -1641,7 +1641,7 @@ pub async fn download_video(
         workflow_steps_for_trigger(&app, "download.failed", &plugin_workflow_snapshots);
 
     // Try to get yt-dlp path (prioritizes bundled version for stability)
-    if let Some((binary_path, _)) = get_ytdlp_path(&app).await {
+    if let Some((mut binary_path, selected_is_bundled)) = binary_info {
         // Build extended PATH with deno/bun locations for JavaScript runtime support
         let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/Users".to_string());
         let mut path_entries: Vec<std::path::PathBuf> = std::env::var_os("PATH")
@@ -1656,15 +1656,51 @@ pub async fn download_video(
         let extended_path = std::env::join_paths(path_entries)
             .unwrap_or_else(|_| std::env::var_os("PATH").unwrap_or_default());
 
-        let mut cmd = Command::new(&binary_path);
-        cmd.args(&args)
-            .env("HOME", &home_dir)
-            .env("PATH", &extended_path)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        cmd.hide_window();
+        let spawn_ytdlp = |path: &Path| {
+            let mut cmd = Command::new(path);
+            cmd.args(&args)
+                .env("HOME", &home_dir)
+                .env("PATH", &extended_path)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            cmd.hide_window();
+            cmd.spawn()
+        };
+        let mut active_binary_label = binary_path_str.clone();
+        let process_result = match spawn_ytdlp(&binary_path) {
+            Ok(process) => Ok(process),
+            Err(primary_error) => {
+                if let Some(fallback_path) =
+                    get_bundled_ytdlp_fallback_path(&binary_path, selected_is_bundled)
+                {
+                    add_log_internal(
+                        "info",
+                        &format!(
+                            "Selected yt-dlp could not start; retrying bundled binary at {}",
+                            fallback_path.display()
+                        ),
+                        None,
+                        Some(&url),
+                    )
+                    .ok();
+                    match spawn_ytdlp(&fallback_path) {
+                        Ok(process) => {
+                            binary_path = fallback_path;
+                            active_binary_label =
+                                format!("{} (bundled: true)", binary_path.display());
+                            Ok(process)
+                        }
+                        Err(fallback_error) => Err(format!(
+                            "selected binary failed ({primary_error}); bundled fallback failed ({fallback_error})"
+                        )),
+                    }
+                } else {
+                    Err(primary_error.to_string())
+                }
+            }
+        };
 
-        let process = match cmd.spawn() {
+        let process = match process_result {
             Ok(process) => process,
             Err(error) => {
                 if emit_failed_workflow {
@@ -1710,7 +1746,7 @@ pub async fn download_video(
 
         let core_fallback = CoreDownloadFallback {
             binary_path,
-            binary_label: binary_path_str.clone(),
+            binary_label: active_binary_label,
             args: args.clone(),
             home_dir,
             path: extended_path,
@@ -2100,6 +2136,13 @@ pub async fn download_video(
                                 split_embedded_chapters && output_paths.len() > 1,
                                 display_title.as_deref(),
                             );
+                            let completed_thumbnail = resolve_completed_thumbnail(
+                                &app,
+                                &url,
+                                thumbnail.clone(),
+                                &output_paths,
+                            )
+                            .await;
 
                             // Log success
                             let success_msg = format!(
@@ -2124,7 +2167,7 @@ pub async fn download_video(
                                 history_id.as_ref(),
                                 &url,
                                 display_title.clone(),
-                                thumbnail.clone(),
+                                completed_thumbnail.clone(),
                                 source.clone(),
                                 quality_display.clone(),
                                 &format,
@@ -2140,9 +2183,7 @@ pub async fn download_video(
                                 eta: String::new(),
                                 status: "finished".to_string(),
                                 title: display_title.clone(),
-                                thumbnail: thumbnail
-                                    .clone()
-                                    .or_else(|| generate_thumbnail_url(&url)),
+                                thumbnail: completed_thumbnail.clone(),
                                 source: effective_source(&source, &url),
                                 playlist_index: current_index,
                                 playlist_count: total_count,
@@ -2179,7 +2220,7 @@ pub async fn download_video(
                                     quality_display.clone().or_else(|| Some(quality.clone())),
                                     &url,
                                     plugin_title,
-                                    thumbnail.clone().or_else(|| generate_thumbnail_url(&url)),
+                                    completed_thumbnail.clone(),
                                     if index == 0 {
                                         progress_history_id.clone()
                                     } else {
@@ -2728,6 +2769,8 @@ async fn handle_tokio_download(
             split_embedded_chapters && output_paths.len() > 1,
             display_title.as_deref(),
         );
+        let completed_thumbnail =
+            resolve_completed_thumbnail(&app, &url, thumbnail.clone(), &output_paths).await;
 
         let success_msg = format!(
             "Downloaded: {}",
@@ -2750,7 +2793,7 @@ async fn handle_tokio_download(
             history_id.as_ref(),
             &url,
             display_title.clone(),
-            thumbnail.clone(),
+            completed_thumbnail.clone(),
             source.clone(),
             quality_display.clone(),
             &format,
@@ -2766,7 +2809,7 @@ async fn handle_tokio_download(
             eta: String::new(),
             status: "finished".to_string(),
             title: display_title.clone(),
-            thumbnail: thumbnail.clone().or_else(|| generate_thumbnail_url(&url)),
+            thumbnail: completed_thumbnail.clone(),
             source: effective_source(&source, &url),
             playlist_index: current_index,
             playlist_count: total_count,
@@ -2803,7 +2846,7 @@ async fn handle_tokio_download(
                 quality_display.clone().or_else(|| Some(quality.clone())),
                 &url,
                 plugin_title,
-                thumbnail.clone().or_else(|| generate_thumbnail_url(&url)),
+                completed_thumbnail.clone(),
                 if index == 0 {
                     progress_history_id.clone()
                 } else {
@@ -3000,6 +3043,39 @@ fn generate_thumbnail_url(url: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+async fn resolve_completed_thumbnail(
+    app: &AppHandle,
+    url: &str,
+    thumbnail: Option<String>,
+    output_paths: &[String],
+) -> Option<String> {
+    if thumbnail
+        .as_deref()
+        .is_some_and(|value| !value.trim().is_empty())
+    {
+        return thumbnail;
+    }
+
+    if is_facebook_reel_url(url) {
+        if let Some(filepath) = output_paths.iter().find(|path| Path::new(path).is_file()) {
+            match super::generate_video_thumbnail(app.clone(), filepath.clone()).await {
+                Ok(generated) => return Some(generated),
+                Err(error) => {
+                    add_log_internal(
+                        "info",
+                        "Facebook Reel thumbnail fallback unavailable",
+                        Some(&error),
+                        Some(url),
+                    )
+                    .ok();
+                }
+            }
+        }
+    }
+
+    generate_thumbnail_url(url)
 }
 
 fn thumbnail_file_extension(content_type: &str) -> Option<&'static str> {

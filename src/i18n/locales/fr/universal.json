@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Déposez des URL ou un fichier .txt ici",
     "detectedMultiple": "{{count}} URL détectées",
-    "clearInput": "Effacer"
+    "clearInput": "Effacer",
+    "alreadyQueuedTitle": "Déjà dans la file",
+    "alreadyQueuedMessage": "{{count}} lien est déjà dans la file. L’élément existant a été ciblé et son aperçu actualisé si nécessaire."
   },
   "page": {
     "quickSettings": "Paramètres rapides",

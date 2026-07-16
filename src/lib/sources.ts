@@ -229,6 +229,28 @@ export function normalizeShellEscapedUrl(text: string): string {
   return normalized;
 }
 
+export function normalizeUniversalUrl(text: string): string {
+  const normalized = normalizeShellEscapedUrl(text).trim();
+
+  try {
+    const parsed = new URL(normalized);
+    const hostname = parsed.hostname.toLowerCase();
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    if (
+      (hostname === 'facebook.com' || hostname.endsWith('.facebook.com')) &&
+      segments.length === 2 &&
+      segments[0] === 'reel' &&
+      /^\d+$/.test(segments[1])
+    ) {
+      return `https://www.facebook.com/reel/${segments[1]}`;
+    }
+  } catch {
+    // Keep existing validation behavior for non-URL input.
+  }
+
+  return normalized;
+}
+
 function isShellEscapedUrlChar(char: string): boolean {
   return "?=&#%+:/._-~@!$'()*,;[]".includes(char);
 }
@@ -241,7 +263,7 @@ function cleanExtractedUrl(candidate: string): string {
   while (url && TRAILING_URL_PUNCTUATION.includes(url.charAt(url.length - 1))) {
     url = url.slice(0, -1);
   }
-  return url;
+  return normalizeUniversalUrl(url);
 }
 
 /**

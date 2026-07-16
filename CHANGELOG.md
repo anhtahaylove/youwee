@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.28] - 2026-07-16
+
+### Added
+- **TikTok Live first-party username resolution** - Resolve room IDs from TikTok pages before external fallbacks and cache recently verified username-to-room mappings without storing signed stream URLs
+
+### Changed
+- **Universal metadata previews** - Use a compact UTF-8 yt-dlp probe, preserve remote thumbnail sources, and refresh incomplete metadata without blocking downloads
+- **Release artifacts** - Prepare Windows MSI and Firefox XPI packaging in the release workflow, with AMO signing enabled when Mozilla credentials are configured
+
+### Fixed
+- **Facebook Reel portability** - Canonicalize Reel share links by removing tracking parameters so metadata, duplicate detection, downloads, and history use the same stable URL
+- **yt-dlp dependency recovery** - Log the selected binary and execution error, then retry the bundled binary when an updated app-managed executable cannot start
+- **Universal duplicate feedback** - Detect an existing queue item across clean and tracked URLs, focus it, notify the user, and retry missing preview metadata instead of silently adding duplicates
+
 ## [0.19.1-custom.27] - 2026-07-16
 
 ### Added

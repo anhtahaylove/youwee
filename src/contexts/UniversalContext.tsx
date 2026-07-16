@@ -31,7 +31,10 @@ import {
   localizeBackendError,
   localizeProgressError,
 } from '@/lib/backend-error';
-import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
+import {
+  buildDownloadDuplicateIdentity,
+  partitionDownloadQueueUrls,
+} from '@/lib/download-duplicates';
 import {
   AUTO_RETRY_LIMITS,
   clampAutoRetryDelaySeconds,
@@ -52,7 +55,7 @@ import {
   refreshPluginWorkflowSnapshots,
   refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
-import { detectExtractorFromUrl, parseUniversalUrls } from '@/lib/sources';
+import { detectExtractorFromUrl, normalizeUniversalUrl, parseUniversalUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
   DownloadItem,
@@ -65,6 +68,7 @@ import type {
   PostDownloadPluginPayload,
   PreferredFps,
   Quality,
+  UniversalAddResult,
   VideoCodec,
   VideoInfoResponse,
 } from '@/lib/types';
@@ -253,7 +257,7 @@ interface UniversalContextType {
   focusedItemId: string | null;
   isDownloading: boolean;
   settings: UniversalSettings;
-  addFromText: (text: string) => Promise<number>;
+  addFromText: (text: string) => Promise<UniversalAddResult>;
   enqueueExternalUrl: (
     url: string,
     options?: ExternalEnqueueOptions,
@@ -391,10 +395,24 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     getDefaultPath();
   }, [settings.outputPath]);
 
+  const focusItem = useCallback((itemId: string) => {
+    setFocusedItemId(itemId);
+
+    if (focusClearTimerRef.current !== null) {
+      window.clearTimeout(focusClearTimerRef.current);
+    }
+
+    focusClearTimerRef.current = window.setTimeout(() => {
+      setFocusedItemId((current) => (current === itemId ? null : current));
+      focusClearTimerRef.current = null;
+    }, 3000);
+  }, []);
+
   // Listen for progress updates - use unique event for universal downloads
   useEffect(() => {
     const unlisten = listen<DownloadProgress>('download-progress', (event) => {
       const progress = event.payload;
+      const progressThumbnail = normalizeThumbnailUrl(progress.thumbnail) || undefined;
 
       // Detect cookie error on Windows (lock error or DPAPI/App-Bound Encryption)
       const cookieDbLockedPattern =
@@ -437,7 +455,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                 speed: progress.speed,
                 eta: progress.eta,
                 title: progress.title || item.title,
-                thumbnail: normalizeThumbnailUrl(progress.thumbnail) || item.thumbnail,
+                thumbnail: item.thumbnail || progressThumbnail,
+                thumbnailSource: progressThumbnail || item.thumbnailSource,
                 extractor: progress.source || item.extractor,
                 metadataStage: undefined,
                 status:
@@ -508,6 +527,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                 ...item,
                 title: title || item.title,
                 thumbnail: thumbnail || item.thumbnail,
+                thumbnailSource: thumbnail || item.thumbnailSource,
                 ...(recoveredFilepath
                   ? {
                       status: 'completed' as const,
@@ -537,33 +557,50 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     const networkOptions = buildCookieProxyInvokeOptions(cookieSettings, proxySettings);
 
     for (const item of items) {
-      invoke<VideoInfoResponse>('get_video_info', {
+      invoke<VideoInfoResponse>('get_video_basic_info', {
         url: item.url,
         ...networkOptions,
       })
-        .then(async (response) => {
+        .then((response) => {
           const info = response.info;
-          const thumb = await cacheRemoteThumbnailUrl(info.thumbnail);
-          setItems((current) =>
-            current.map((i) =>
+          const remoteThumbnail = normalizeThumbnailUrl(info.thumbnail);
+          setItems((current) => {
+            const next = current.map((i) =>
               i.id === item.id
                 ? {
                     ...i,
-                    thumbnail: thumb || i.thumbnail,
+                    thumbnail: remoteThumbnail || i.thumbnail,
+                    thumbnailSource: remoteThumbnail || i.thumbnailSource,
                     title: info.title || i.title,
                     duration: info.duration ? formatDuration(info.duration) : i.duration,
-                    extractor: info.extractor || i.extractor,
+                    extractor:
+                      info.extractor || detectExtractorFromUrl(item.url) || i.extractor || 'direct',
                     channel: info.channel || i.channel,
                     metadataStage: undefined,
                   }
                 : i,
-            ),
-          );
+            );
+            itemsRef.current = next;
+            return next;
+          });
+
+          if (remoteThumbnail) {
+            void cacheRemoteThumbnailUrl(remoteThumbnail).then((cachedThumbnail) => {
+              if (!cachedThumbnail) return;
+              setItems((current) => {
+                const next = current.map((i) =>
+                  i.id === item.id ? { ...i, thumbnail: cachedThumbnail } : i,
+                );
+                itemsRef.current = next;
+                return next;
+              });
+            });
+          }
         })
         .catch(() => {
-          // Mark extractor so isFetchingMeta becomes false and item exits loading state
-          setItems((current) =>
-            current.map((i) =>
+          // Mark extractor so isFetchingMeta becomes false and item exits loading state.
+          setItems((current) => {
+            const next = current.map((i) =>
               i.id === item.id
                 ? {
                     ...i,
@@ -571,8 +608,10 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                     metadataStage: undefined,
                   }
                 : i,
-            ),
-          );
+            );
+            itemsRef.current = next;
+            return next;
+          });
         });
     }
   }, []);
@@ -600,7 +639,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         quality: itemSettings?.quality ?? settingsRef.current.quality,
         url: item.url,
         title: item.title || null,
-        thumbnail: item.thumbnail || null,
+        thumbnail: item.thumbnailSource || item.thumbnail || null,
         historyId: null,
         timeRange,
         downloadKind: 'universal',
@@ -639,7 +678,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         quality: itemSettings?.quality ?? settings.quality,
         url: item.url,
         title: item.title || null,
-        thumbnail: item.thumbnail || null,
+        thumbnail: item.thumbnailSource || item.thumbnail || null,
         historyId: null,
         timeRange,
         downloadKind: 'universal',
@@ -658,9 +697,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   );
 
   const addFromText = useCallback(
-    async (text: string): Promise<number> => {
+    async (text: string): Promise<UniversalAddResult> => {
       const urls = parseUniversalUrls(text);
-      if (urls.length === 0) return 0;
+      if (urls.length === 0) return { added: 0, alreadyQueued: 0, refreshed: 0 };
 
       const currentItems = itemsRef.current;
       const currentSettings = settingsRef.current;
@@ -694,13 +733,33 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
-      const candidates = urls
-        .filter((url) => !currentItems.some((item) => item.url === url))
-        .map((url) => ({
-          url,
-          title: url,
-          duplicateIdentity: buildDownloadDuplicateIdentity(url),
-        }));
+      const { alreadyQueuedItems, newUrls } = partitionDownloadQueueUrls(urls, currentItems);
+      const refreshItems = alreadyQueuedItems.filter(
+        (item) =>
+          item.metadataStage !== 'fetching' &&
+          (!item.thumbnail || item.title === item.url || !item.extractor),
+      );
+
+      if (alreadyQueuedItems.length > 0) {
+        focusItem(alreadyQueuedItems[0].id);
+      }
+      if (refreshItems.length > 0) {
+        const refreshIds = new Set(refreshItems.map((item) => item.id));
+        setItems((current) => {
+          const next = current.map((item) =>
+            refreshIds.has(item.id) ? { ...item, metadataStage: 'fetching' as const } : item,
+          );
+          itemsRef.current = next;
+          return next;
+        });
+        fetchMetadataForItems(refreshItems);
+      }
+
+      const candidates = newUrls.map((url) => ({
+        url,
+        title: url,
+        duplicateIdentity: buildDownloadDuplicateIdentity(url),
+      }));
       const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
       const currentItemsAfterReview = itemsRef.current;
       const enqueueCandidates = filteredCandidates.filter(
@@ -733,7 +792,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         enqueueQueuedWorkflowForItems(newItems);
       }
 
-      return newItems.length;
+      return {
+        added: newItems.length,
+        alreadyQueued: alreadyQueuedItems.length,
+        refreshed: refreshItems.length,
+      };
     },
     [
       downloadSettings.filenameTemplate,
@@ -747,30 +810,34 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       enqueueQueuedWorkflowForItems,
       filterDownloadedDuplicateCandidates,
       fetchMetadataForItems,
+      focusItem,
     ],
   );
 
-  const focusItem = useCallback((itemId: string) => {
-    setFocusedItemId(itemId);
-
-    if (focusClearTimerRef.current !== null) {
-      window.clearTimeout(focusClearTimerRef.current);
-    }
-
-    focusClearTimerRef.current = window.setTimeout(() => {
-      setFocusedItemId((current) => (current === itemId ? null : current));
-      focusClearTimerRef.current = null;
-    }, 3000);
-  }, []);
-
   const enqueueExternalUrl = useCallback(
     async (url: string, options?: ExternalEnqueueOptions): Promise<ExternalEnqueueResult> => {
-      const normalizedUrl = url.trim();
+      const normalizedUrl = normalizeUniversalUrl(url);
       if (!normalizedUrl) return { added: false, itemId: null };
 
-      const existingItem = itemsRef.current.find((item) => item.url === normalizedUrl);
+      const existingItem = partitionDownloadQueueUrls([normalizedUrl], itemsRef.current)
+        .alreadyQueuedItems[0];
       if (existingItem) {
         focusItem(existingItem.id);
+        if (
+          existingItem.metadataStage !== 'fetching' &&
+          (!existingItem.thumbnail ||
+            existingItem.title === existingItem.url ||
+            !existingItem.extractor)
+        ) {
+          setItems((current) => {
+            const next = current.map((item) =>
+              item.id === existingItem.id ? { ...item, metadataStage: 'fetching' as const } : item,
+            );
+            itemsRef.current = next;
+            return next;
+          });
+          fetchMetadataForItems([existingItem]);
+        }
         return { added: false, itemId: existingItem.id };
       }
 
@@ -870,7 +937,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       if (!file) return 0;
 
       const content = await readTextFile(file as string);
-      return addFromText(content);
+      return (await addFromText(content)).added;
     } catch (error) {
       console.error('Failed to import file:', error);
       return 0;
@@ -880,7 +947,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   const importFromClipboard = useCallback(async (): Promise<number> => {
     try {
       const text = await navigator.clipboard.readText();
-      return addFromText(text);
+      return (await addFromText(text)).added;
     } catch (error) {
       console.error('Failed to read clipboard:', error);
       return 0;
@@ -1205,7 +1272,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             // Title from video info fetch
             title: item.title || null,
             // Thumbnail from video info fetch (for non-YouTube sites)
-            thumbnail: item.thumbnail || null,
+            thumbnail: item.thumbnailSource || item.thumbnail || null,
             // Source/extractor from video info fetch (e.g. "BiliBili", "TikTok")
             source:
               item.extractor === 'direct'

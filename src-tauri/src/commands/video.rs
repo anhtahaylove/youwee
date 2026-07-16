@@ -1,16 +1,39 @@
 use crate::database::add_log_internal;
 use crate::services::{
-    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, parse_ytdlp_error,
-    run_ytdlp_json_with_cookies, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
+    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ytdlp_path,
+    parse_ytdlp_error, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr,
+    run_ytdlp_with_stderr_and_cookies,
 };
 use crate::types::{
-    BackendError, FormatOption, PlaylistVideoEntry, SubtitleInfo, VideoInfo, VideoInfoResponse,
+    parse_wire_error_string, BackendError, FormatOption, PlaylistVideoEntry, SubtitleInfo,
+    VideoInfo, VideoInfoResponse,
 };
 use crate::utils::{normalize_url, validate_url};
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio::time::timeout;
 use uuid::Uuid;
+
+async fn ytdlp_command_for_log(app: &AppHandle, args: &[String]) -> String {
+    let binary = get_ytdlp_path(app)
+        .await
+        .map(|(path, bundled)| format!("{} (bundled: {bundled})", path.display()))
+        .unwrap_or_else(|| "unresolved yt-dlp dependency".to_string());
+    format!("[{binary}] yt-dlp {}", args.join(" "))
+}
+
+fn log_metadata_execution_error(url: &str, error: &str) {
+    let detail = parse_wire_error_string(error)
+        .map(|wire| wire.message)
+        .unwrap_or_else(|| error.to_string());
+    add_log_internal(
+        "error",
+        &format!("Failed to execute yt-dlp metadata command: {detail}"),
+        None,
+        Some(url),
+    )
+    .ok();
+}
 
 fn default_transcript_languages(url: &str) -> Vec<String> {
     let lowered = url.to_lowercase();
@@ -34,35 +57,51 @@ fn default_transcript_languages(url: &str) -> Vec<String> {
 
 fn parse_basic_video_info_output(
     output: &str,
-) -> Result<(String, Option<String>, Option<f64>), String> {
+) -> Result<
+    (
+        String,
+        Option<String>,
+        Option<f64>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ),
+    String,
+> {
     let line = output
         .lines()
         .map(str::trim)
         .find(|line| !line.is_empty())
         .ok_or_else(|| "Failed to fetch video information".to_string())?;
 
-    let mut parts = line.splitn(3, "|||");
-    let title = parts.next().unwrap_or("").trim();
-    let thumbnail = parts.next().unwrap_or("").trim();
-    let duration = parts.next().unwrap_or("").trim();
-
-    if title.is_empty() || title == "NA" {
+    let json: serde_json::Value = serde_json::from_str(line)
+        .map_err(|error| format!("Failed to parse basic video information: {error}"))?;
+    let string_field = |key: &str| {
+        json.get(key)
+            .and_then(serde_json::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty() && *value != "NA")
+            .map(str::to_string)
+    };
+    let title = string_field("title").ok_or_else(|| "Failed to fetch video title".to_string())?;
+    if title.is_empty() {
         return Err("Failed to fetch video title".to_string());
     }
 
-    let thumbnail = if thumbnail.is_empty() || thumbnail == "NA" {
-        None
-    } else {
-        Some(thumbnail.to_string())
-    };
+    let duration = json.get("duration").and_then(|value| {
+        value
+            .as_f64()
+            .or_else(|| value.as_str()?.trim().parse::<f64>().ok())
+    });
 
-    let duration = if duration.is_empty() || duration == "NA" {
-        None
-    } else {
-        duration.parse::<f64>().ok()
-    };
-
-    Ok((title.to_string(), thumbnail, duration))
+    Ok((
+        title,
+        string_field("thumbnail"),
+        duration,
+        string_field("id"),
+        string_field("extractor"),
+        string_field("channel").or_else(|| string_field("uploader")),
+    ))
 }
 
 /// Get video transcript/subtitles for AI summarization
@@ -815,6 +854,8 @@ pub async fn get_video_basic_info(
         "--ignore-no-formats-error".to_string(),
         "--socket-timeout".to_string(),
         "15".to_string(),
+        "--encoding".to_string(),
+        "utf-8".to_string(),
     ];
 
     if url.contains("youtube.com") || url.contains("youtu.be") {
@@ -825,16 +866,21 @@ pub async fn get_video_basic_info(
     }
 
     args.push("--print".to_string());
-    args.push("%(title)s|||%(thumbnail)s|||%(duration)s".to_string());
+    args.push("%(.{id,title,thumbnail,duration,extractor,channel,uploader})j".to_string());
     args.push("--".to_string());
     args.push(url.clone());
 
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
-    let command_str = format!("yt-dlp {}", args.join(" "));
+    let command_str = ytdlp_command_for_log(&app, &args).await;
     add_log_internal("command", &command_str, None, Some(&url)).ok();
 
+    let metadata_timeout = if url.starts_with("https://www.facebook.com/reel/") {
+        Duration::from_secs(20)
+    } else {
+        Duration::from_secs(45)
+    };
     let output = match timeout(
-        Duration::from_secs(45),
+        metadata_timeout,
         run_ytdlp_with_stderr_and_cookies(
             &app,
             &args_ref,
@@ -848,7 +894,11 @@ pub async fn get_video_basic_info(
     )
     .await
     {
-        Ok(result) => result?,
+        Ok(Ok(output)) => output,
+        Ok(Err(error)) => {
+            log_metadata_execution_error(&url, &error);
+            return Err(error);
+        }
         Err(_) => {
             let error = BackendError::from_message(
                 "Timed out fetching video info. Please try again or check your cookie/proxy settings.",
@@ -875,22 +925,23 @@ pub async fn get_video_basic_info(
         return Err(parsed_error.to_wire_string());
     }
 
-    let (title, thumbnail, duration) = parse_basic_video_info_output(&output.stdout)
-        .map_err(|e| BackendError::from_message(e).to_wire_string())?;
+    let (title, thumbnail, duration, id, extractor, channel) =
+        parse_basic_video_info_output(&output.stdout)
+            .map_err(|e| BackendError::from_message(e).to_wire_string())?;
 
     let info = VideoInfo {
-        id: String::new(),
+        id: id.unwrap_or_default(),
         title,
         thumbnail,
         duration,
-        channel: None,
+        channel,
         uploader: None,
         upload_date: None,
         view_count: None,
         description: None,
         is_playlist: false,
         playlist_count: None,
-        extractor: None,
+        extractor,
         extractor_key: None,
         is_live: None,
         was_live: None,
@@ -961,7 +1012,7 @@ pub async fn get_video_info(
         args.splice(separator_index..separator_index, extra_args);
     }
 
-    let command_str = format!("yt-dlp {}", args.join(" "));
+    let command_str = ytdlp_command_for_log(&app, &args).await;
     add_log_internal("command", &command_str, None, Some(&url)).ok();
 
     let args_ref: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
@@ -971,7 +1022,11 @@ pub async fn get_video_info(
     )
     .await
     {
-        Ok(result) => result?,
+        Ok(Ok(output)) => output,
+        Ok(Err(error)) => {
+            log_metadata_execution_error(&url, &error);
+            return Err(error);
+        }
         Err(_) => {
             let error = BackendError::from_message(
                 "Timed out fetching video info. Please try again or check your cookie/proxy settings.",
@@ -1434,12 +1489,10 @@ mod tests {
 
     #[test]
     fn parse_basic_video_info_output_reads_printed_fields() {
-        let output = concat!(
-            "Кто попадет в команду ChatGPT: учёный или программист? (Ответ тебя удивит)",
-            "|||https://i.ytimg.com/vi/ePPilLkDn0s/maxresdefault.jpg|||3623\n"
-        );
+        let output = r#"{"id":"ePPilLkDn0s","title":"Кто попадет в команду ChatGPT: учёный или программист? (Ответ тебя удивит)","thumbnail":"https://i.ytimg.com/vi/ePPilLkDn0s/maxresdefault.jpg","duration":3623,"extractor":"youtube","channel":"Example"}"#;
 
-        let (title, thumbnail, duration) = parse_basic_video_info_output(output).unwrap();
+        let (title, thumbnail, duration, id, extractor, channel) =
+            parse_basic_video_info_output(output).unwrap();
 
         assert_eq!(
             title,
@@ -1450,15 +1503,21 @@ mod tests {
             Some("https://i.ytimg.com/vi/ePPilLkDn0s/maxresdefault.jpg")
         );
         assert_eq!(duration, Some(3623.0));
+        assert_eq!(id.as_deref(), Some("ePPilLkDn0s"));
+        assert_eq!(extractor.as_deref(), Some("youtube"));
+        assert_eq!(channel.as_deref(), Some("Example"));
     }
 
     #[test]
     fn parse_basic_video_info_output_ignores_missing_optional_fields() {
-        let (title, thumbnail, duration) =
-            parse_basic_video_info_output("Video title|||NA|||NA").unwrap();
+        let (title, thumbnail, duration, id, extractor, channel) =
+            parse_basic_video_info_output(r#"{"title":"Video title"}"#).unwrap();
 
         assert_eq!(title, "Video title");
         assert_eq!(thumbnail, None);
         assert_eq!(duration, None);
+        assert_eq!(id, None);
+        assert_eq!(extractor, None);
+        assert_eq!(channel, None);
     }
 }

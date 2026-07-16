@@ -9,6 +9,20 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.28] - 2026-07-16
+
+### Thêm mới
+- **Phân giải username TikTok Live first-party** - Lấy room ID từ trang TikTok trước các fallback bên ngoài và cache ánh xạ username-room vừa xác minh mà không lưu signed stream URL
+
+### Thay đổi
+- **Preview metadata Universal** - Dùng probe yt-dlp UTF-8 gọn nhẹ, giữ nguồn thumbnail từ xa và tải lại metadata còn thiếu mà không chặn download
+- **Artifact release** - Chuẩn bị đóng gói Windows MSI và Firefox XPI trong workflow release, đồng thời bật ký AMO khi đã cấu hình thông tin Mozilla
+
+### Sửa lỗi
+- **Facebook Reel ổn định giữa các máy** - Chuẩn hóa link Reel bằng cách bỏ tham số tracking để metadata, kiểm tra trùng, download và history dùng cùng một URL ổn định
+- **Khôi phục dependency yt-dlp** - Ghi rõ binary được chọn cùng lỗi thực thi, rồi tự thử binary bundled khi executable app-managed đã cập nhật không thể khởi động
+- **Phản hồi URL trùng trong Universal** - Nhận diện item đã có giữa URL sạch và URL tracking, focus item, thông báo người dùng và tải lại preview còn thiếu thay vì âm thầm thêm trùng
+
 ## [0.19.1-custom.27] - 2026-07-16
 
 ### Thêm mới

@@ -32,8 +32,18 @@ pub fn validate_url(url: &str) -> Result<(), String> {
 /// Channel root URLs → videos tab:
 /// - `youtube.com/@handle` → `youtube.com/@handle/videos`
 /// - `youtube.com/channel/UC…` → `youtube.com/channel/UC…/videos`
+///
+/// ## Facebook
+/// Reel share URLs → stable canonical URL without tracking parameters:
+/// - `facebook.com/reel/123/?__cft__=…` → `facebook.com/reel/123`
 pub fn normalize_url(url: &str) -> String {
     let lower = url.to_lowercase();
+
+    if lower.contains("facebook.com/") {
+        if let Some(normalized) = normalize_facebook_reel(url) {
+            return normalized;
+        }
+    }
 
     if lower.contains("youtube.com/") {
         if let Some(normalized) = normalize_youtube_channel_root_tab_url(url, "videos") {
@@ -48,6 +58,27 @@ pub fn normalize_url(url: &str) -> String {
     }
 
     url.to_string()
+}
+
+fn normalize_facebook_reel(url: &str) -> Option<String> {
+    let parsed = reqwest::Url::parse(url).ok()?;
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    if host != "facebook.com" && !host.ends_with(".facebook.com") {
+        return None;
+    }
+
+    let segments: Vec<&str> = parsed
+        .path_segments()?
+        .filter(|segment| !segment.is_empty())
+        .collect();
+    let ["reel", id] = segments.as_slice() else {
+        return None;
+    };
+    if id.is_empty() || !id.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+
+    Some(format!("https://www.facebook.com/reel/{id}"))
 }
 
 /// Normalize a YouTube channel URL to one or more content tabs.
@@ -548,6 +579,34 @@ mod tests {
     fn bilibili_url_unchanged() {
         let input = "https://www.bilibili.com/video/BV1xx411c7mD";
         assert_eq!(normalize_url(input), input);
+    }
+
+    #[test]
+    fn facebook_reel_share_url_removes_tracking_parameters() {
+        let input = "https://www.facebook.com/reel/2058460874874165/?__cft__[0]=tracking&__tn__=%2CO%2CP-R#player";
+        assert_eq!(
+            normalize_url(input),
+            "https://www.facebook.com/reel/2058460874874165"
+        );
+    }
+
+    #[test]
+    fn facebook_reel_mobile_url_uses_canonical_host() {
+        assert_eq!(
+            normalize_url("https://m.facebook.com/reel/2058460874874165/"),
+            "https://www.facebook.com/reel/2058460874874165"
+        );
+    }
+
+    #[test]
+    fn facebook_lookalike_and_non_reel_urls_are_unchanged() {
+        for input in [
+            "https://notfacebook.com/reel/2058460874874165?tracking=1",
+            "https://www.facebook.com/watch/?v=2058460874874165",
+            "https://www.facebook.com/reel/not-a-numeric-id?tracking=1",
+        ] {
+            assert_eq!(normalize_url(input), input);
+        }
     }
 
     #[test]

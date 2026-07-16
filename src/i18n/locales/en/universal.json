@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} URLs",
     "dropHint": "Drop URLs or .txt file here",
     "detectedMultiple": "{{count}} URLs detected",
-    "clearInput": "Clear"
+    "clearInput": "Clear",
+    "alreadyQueuedTitle": "Already in queue",
+    "alreadyQueuedMessage": "{{count}} link is already in the queue. The existing item was focused and its preview refreshed when needed."
   },
   "page": {
     "quickSettings": "Quick settings",

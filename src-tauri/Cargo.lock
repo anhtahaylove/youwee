@@ -7033,7 +7033,7 @@ dependencies = [
 
 [[package]]
 name = "youwee"
-version = "0.19.1-custom.27"
+version = "0.19.1-custom.28"
 dependencies = [
  "base64 0.22.1",
  "chrono",

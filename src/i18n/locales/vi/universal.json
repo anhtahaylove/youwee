@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Thả URL hoặc file .txt vào đây",
     "detectedMultiple": "Đã nhận diện {{count}} URL",
-    "clearInput": "Xóa"
+    "clearInput": "Xóa",
+    "alreadyQueuedTitle": "Đã có trong hàng đợi",
+    "alreadyQueuedMessage": "{{count}} liên kết đã có trong hàng đợi. Youwee đã chọn mục hiện có và làm mới ảnh xem trước khi cần."
   },
   "page": {
     "quickSettings": "Cài đặt nhanh",

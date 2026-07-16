@@ -147,6 +147,8 @@ export interface DownloadItem {
   queueIndex?: number;
   queueTotal?: number;
   thumbnail?: string;
+  /** Original remote thumbnail URL passed to the download/history backend. */
+  thumbnailSource?: string;
   duration?: string;
   channel?: string;
   filesize?: number; // File size in bytes from video info
@@ -163,6 +165,12 @@ export interface DownloadItem {
   settings?: ItemDownloadSettings | ItemUniversalSettings;
   // Auto retry status while waiting between attempts
   retryState?: DownloadRetryState;
+}
+
+export interface UniversalAddResult {
+  added: number;
+  alreadyQueued: number;
+  refreshed: number;
 }
 
 export interface YoutubeSearchVideo {

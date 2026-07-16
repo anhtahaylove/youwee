@@ -1,3 +1,4 @@
+use crate::database::add_log_internal;
 use crate::types::{
     BackendError, DependencySource, YtdlpAllVersions, YtdlpChannel, YtdlpChannelInfo,
     YtdlpVersionInfo,
@@ -5,7 +6,7 @@ use crate::types::{
 use crate::utils::{
     find_system_binary, resolve_firefox_profile_for_cookies, unix_system_binary_dirs, CommandExt,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::process::CommandEvent;
@@ -372,19 +373,82 @@ pub struct YtdlpOutput {
     pub success: bool,
 }
 
+fn bundled_fallback_path(
+    selected_path: &Path,
+    selected_is_bundled: bool,
+    bundled_path: Option<PathBuf>,
+) -> Option<PathBuf> {
+    bundled_path.filter(|path| !selected_is_bundled && path != selected_path)
+}
+
+pub(crate) fn get_bundled_ytdlp_fallback_path(
+    selected_path: &Path,
+    selected_is_bundled: bool,
+) -> Option<PathBuf> {
+    bundled_fallback_path(selected_path, selected_is_bundled, get_bundled_ytdlp_path())
+}
+
+async fn run_selected_ytdlp(
+    app: &AppHandle,
+    args: &[&str],
+) -> Option<Result<std::process::Output, String>> {
+    let (selected_path, selected_is_bundled) = get_ytdlp_path(app).await?;
+    let run = |path: &Path| {
+        let mut cmd = Command::new(path);
+        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.hide_window();
+        cmd
+    };
+
+    match run(&selected_path).output().await {
+        Ok(output) => Some(Ok(output)),
+        Err(primary_error) => {
+            let Some(fallback_path) =
+                get_bundled_ytdlp_fallback_path(&selected_path, selected_is_bundled)
+            else {
+                return Some(Err(BackendError::from_message(format!(
+                    "Failed to run yt-dlp at {}: {primary_error}",
+                    selected_path.display()
+                ))
+                .to_wire_string()));
+            };
+
+            match run(&fallback_path).output().await {
+                Ok(output) => {
+                    let url = args
+                        .last()
+                        .copied()
+                        .filter(|value| value.starts_with("http://") || value.starts_with("https://"));
+                    add_log_internal(
+                        "info",
+                        &format!(
+                            "Selected yt-dlp could not start; used bundled fallback at {}",
+                            fallback_path.display()
+                        ),
+                        Some(&primary_error.to_string()),
+                        url,
+                    )
+                    .ok();
+                    Some(Ok(output))
+                }
+                Err(fallback_error) => Some(Err(BackendError::from_message(format!(
+                    "Failed to run selected yt-dlp at {} ({primary_error}); bundled fallback at {} also failed ({fallback_error})",
+                    selected_path.display(),
+                    fallback_path.display()
+                ))
+                .to_wire_string())),
+            }
+        }
+    }
+}
+
 /// Helper to run yt-dlp command and get output with stderr
 pub async fn run_ytdlp_with_stderr(app: &AppHandle, args: &[&str]) -> Result<YtdlpOutput, String> {
     let source = get_ytdlp_source(app).await;
 
     // Try to get yt-dlp path (prioritizes user-updated version)
-    if let Some((binary_path, _)) = get_ytdlp_path(app).await {
-        let mut cmd = Command::new(&binary_path);
-        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
-        cmd.hide_window();
-
-        let output = cmd.output().await.map_err(|e| {
-            BackendError::from_message(format!("Failed to run yt-dlp: {}", e)).to_wire_string()
-        })?;
+    if let Some(output) = run_selected_ytdlp(app, args).await {
+        let output = output?;
 
         return Ok(YtdlpOutput {
             stdout: String::from_utf8_lossy(&output.stdout).to_string(),
@@ -645,14 +709,8 @@ pub async fn run_ytdlp_json(app: &AppHandle, args: &[&str]) -> Result<String, St
     let source = get_ytdlp_source(app).await;
 
     // Try to get yt-dlp path (prioritizes user-updated version)
-    if let Some((binary_path, _)) = get_ytdlp_path(app).await {
-        let mut cmd = Command::new(&binary_path);
-        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
-        cmd.hide_window();
-
-        let output = cmd.output().await.map_err(|e| {
-            BackendError::from_message(format!("Failed to run yt-dlp: {}", e)).to_wire_string()
-        })?;
+    if let Some(output) = run_selected_ytdlp(app, args).await {
+        let output = output?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1194,6 +1252,29 @@ mod tests {
                 "--referer".to_string(),
                 BILIBILI_REFERER.to_string(),
             ]
+        );
+    }
+
+    #[test]
+    fn selected_ytdlp_uses_a_distinct_bundled_fallback_only() {
+        let selected = Path::new("C:/app-data/yt-dlp-nightly.exe");
+        let bundled = PathBuf::from("C:/Youwee/youwee-yt-dlp.exe");
+
+        assert_eq!(
+            bundled_fallback_path(selected, false, Some(bundled.clone())),
+            Some(bundled)
+        );
+        assert_eq!(
+            bundled_fallback_path(
+                selected,
+                true,
+                Some(PathBuf::from("C:/Youwee/youwee-yt-dlp.exe"))
+            ),
+            None
+        );
+        assert_eq!(
+            bundled_fallback_path(selected, false, Some(selected.to_path_buf())),
+            None
         );
     }
 

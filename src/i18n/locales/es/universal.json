@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} URL",
     "dropHint": "Suelta URL o un archivo .txt aquí",
     "detectedMultiple": "{{count}} URL detectadas",
-    "clearInput": "Borrar"
+    "clearInput": "Borrar",
+    "alreadyQueuedTitle": "Ya está en la cola",
+    "alreadyQueuedMessage": "{{count}} enlace ya está en la cola. Se enfocó el elemento existente y se actualizó su vista previa cuando fue necesario."
   },
   "page": {
     "quickSettings": "Ajustes rápidos",

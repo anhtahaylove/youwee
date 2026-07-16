@@ -16,7 +16,9 @@
     "urlCount_plural": "{{count}} روابط",
     "dropHint": "أفلت الروابط أو ملف .txt هنا",
     "detectedMultiple": "تم اكتشاف {{count}} رابطًا",
-    "clearInput": "مسح"
+    "clearInput": "مسح",
+    "alreadyQueuedTitle": "موجود بالفعل في قائمة الانتظار",
+    "alreadyQueuedMessage": "يوجد {{count}} رابط بالفعل في قائمة الانتظار. تم تحديد العنصر الموجود وتحديث معاينته عند الحاجة."
   },
   "page": {
     "quickSettings": "إعدادات سريعة",

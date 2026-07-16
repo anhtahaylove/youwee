@@ -1,13 +1,15 @@
 use crate::database::{
-    add_log_internal, delete_tiktok_live_job_internal, delete_tiktok_live_watch_entry_internal,
-    get_due_tiktok_live_watchlist_internal, get_tiktok_live_job_internal,
-    get_tiktok_live_jobs_internal, get_tiktok_live_recorder_limit_internal,
+    add_log_internal, delete_tiktok_live_job_internal, delete_tiktok_live_room_cache,
+    delete_tiktok_live_watch_entry_internal, get_due_tiktok_live_watchlist_internal,
+    get_tiktok_live_job_internal, get_tiktok_live_jobs_internal,
+    get_tiktok_live_recorder_limit_internal, get_tiktok_live_room_cache,
     get_tiktok_live_watch_entry_by_active_job_internal,
     get_tiktok_live_watch_entry_by_target_internal, get_tiktok_live_watch_entry_internal,
     get_tiktok_live_watchlist_internal, save_tiktok_live_job_internal,
     save_tiktok_live_watch_entry_internal, set_tiktok_live_recorder_limit_internal,
-    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal, TikTokLiveJob,
-    TikTokLiveJobStatus, TikTokLiveRecordMode, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
+    update_tiktok_live_watch_entry_internal, upsert_history_with_id_internal,
+    upsert_tiktok_live_room_cache, TikTokLiveJob, TikTokLiveJobStatus, TikTokLiveRecordMode,
+    TikTokLiveRoomCacheEntry, TikTokLiveWatchEntry, TikTokLiveWatchStatus,
 };
 use crate::services::{
     get_ffmpeg_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, should_skip_cookies_for_url,
@@ -63,6 +65,7 @@ const TIKTOK_LIVE_ONE_ROOM_MESSAGE: &str =
     "The TikTok Live recorder is at its configured room limit.";
 const TIKTOK_SIGNED_ROOM_LOOKUP_URL: &str = "https://tikrec.com/tiktok/room/api/sign";
 const TIKTOK_LIVE_PREVIEW_TIMEOUT_SECONDS: u64 = 12;
+const TIKTOK_LIVE_ROOM_CACHE_TTL_SECONDS: i64 = 10 * 60;
 
 fn clamp_tiktok_live_recording_limit(value: Option<usize>) -> usize {
     value
@@ -2094,7 +2097,10 @@ fn script_json_from_html(html: &str, script_id: &str) -> Option<serde_json::Valu
     serde_json::from_str(body)
         .or_else(|_| serde_json::from_str(&decode_basic_html_entities(body)))
         .ok()
-        .filter(|json| !tiktok_stream_data_values_from_json(json).is_empty())
+        .filter(|json| {
+            !tiktok_stream_data_values_from_json(json).is_empty()
+                || recursive_tiktok_room_id(json).is_some()
+        })
 }
 
 fn tiktok_page_hydration_values_from_html(html: &str) -> Vec<serde_json::Value> {
@@ -2146,10 +2152,11 @@ async fn fetch_tiktok_live_page_hydration_jsons(
         })?;
 
     if !response.status().is_success() {
-        return Err(BackendError::from_message(format!(
-            "TikTok Live page request failed with status {}",
-            response.status()
-        ))
+        let status = response.status();
+        return Err(tiktok_live_http_status_error(
+            format!("TikTok Live page request failed with status {status}"),
+            status,
+        )
         .to_wire_string());
     }
 
@@ -2197,6 +2204,8 @@ fn tiktok_live_http_status_error(message: String, status: StatusCode) -> Backend
         || status == StatusCode::TOO_MANY_REQUESTS;
     let error_code = if status == StatusCode::TOO_MANY_REQUESTS {
         code::YT_RATE_LIMITED
+    } else if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
+        code::YT_SIGNIN_REQUIRED
     } else if retryable {
         code::NETWORK_REQUEST_FAILED
     } else {
@@ -2204,6 +2213,188 @@ fn tiktok_live_http_status_error(message: String, status: StatusCode) -> Backend
     };
 
     BackendError::new(error_code, message).with_retryable(retryable)
+}
+
+fn tiktok_live_room_cache_is_fresh(entry: &TikTokLiveRoomCacheEntry, now: i64) -> bool {
+    now >= entry.observed_at
+        && now.saturating_sub(entry.observed_at) <= TIKTOK_LIVE_ROOM_CACHE_TTL_SECONDS
+}
+
+fn remove_tiktok_live_room_cache_best_effort(username: &str) {
+    if let Err(error) = delete_tiktok_live_room_cache(username) {
+        log::warn!("Failed to invalidate TikTok Live room cache for @{username}: {error}");
+    }
+}
+
+fn cache_tiktok_live_room_resolution(target: &TikTokLiveTarget, json: &serde_json::Value) {
+    if tiktok_live_metadata_is_offline(json) {
+        return;
+    }
+    let Some(room_id) = tiktok_room_id_from_metadata(json) else {
+        return;
+    };
+    if !room_id.chars().all(|character| character.is_ascii_digit()) {
+        return;
+    }
+    let requested_username = target.username.as_deref();
+    let owner_username = room_owner_username(json);
+    if requested_username.is_some_and(|requested| {
+        owner_username
+            .as_deref()
+            .is_some_and(|owner| !owner.eq_ignore_ascii_case(requested))
+    }) {
+        return;
+    }
+    let Some(username) = requested_username.or(owner_username.as_deref()) else {
+        return;
+    };
+
+    if let Err(error) =
+        upsert_tiktok_live_room_cache(username, &room_id, Some(&room_id), Utc::now().timestamp())
+    {
+        log::warn!("Failed to cache TikTok Live room for @{username}: {error}");
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn fetch_tiktok_room_info_from_cache(
+    username: &str,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) -> Option<serde_json::Value> {
+    let cached = match get_tiktok_live_room_cache(username) {
+        Ok(Some(entry)) if tiktok_live_room_cache_is_fresh(&entry, Utc::now().timestamp()) => entry,
+        Ok(Some(_)) => {
+            remove_tiktok_live_room_cache_best_effort(username);
+            return None;
+        }
+        Ok(None) => return None,
+        Err(error) => {
+            log::warn!("Failed to read TikTok Live room cache for @{username}: {error}");
+            return None;
+        }
+    };
+    let room_info_url = tiktok_room_info_url(&cached.room_id);
+    let cookie_header = tiktok_cookie_header(
+        &room_info_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+    let room_json =
+        match fetch_tiktok_room_info_json(&cached.room_id, cookie_header.as_deref(), proxy_url)
+            .await
+        {
+            Ok(json) => json,
+            Err(_) => return None,
+        };
+    let owner_matches =
+        room_owner_username(&room_json).is_some_and(|owner| owner.eq_ignore_ascii_case(username));
+    let room_matches =
+        tiktok_room_id_from_metadata(&room_json).is_some_and(|room_id| room_id == cached.room_id);
+    let session_matches = cached
+        .session_id
+        .as_deref()
+        .is_none_or(|session_id| session_id == cached.room_id);
+    if !owner_matches
+        || !room_matches
+        || !session_matches
+        || tiktok_live_metadata_is_offline(&room_json)
+    {
+        remove_tiktok_live_room_cache_best_effort(username);
+        return None;
+    }
+
+    add_log_internal(
+        "info",
+        &format!("TikTok Live room cache verified for @{username}"),
+        None,
+        None,
+    )
+    .ok();
+    Some(room_json)
+}
+
+fn recursive_tiktok_room_id(json: &serde_json::Value) -> Option<String> {
+    match json {
+        serde_json::Value::Object(object) => {
+            for key in ["room_id", "roomId", "live_room_id", "liveRoomId"] {
+                if let Some(value) = object.get(key).and_then(json_scalar_to_string) {
+                    if value.chars().all(|character| character.is_ascii_digit()) {
+                        return Some(value);
+                    }
+                }
+            }
+            object.values().find_map(recursive_tiktok_room_id)
+        }
+        serde_json::Value::Array(values) => values.iter().find_map(recursive_tiktok_room_id),
+        _ => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn fetch_tiktok_room_info_from_first_party_page(
+    username: &str,
+    target_url: &str,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) -> Result<serde_json::Value, String> {
+    let cookie_header = tiktok_cookie_header(
+        target_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+    let hydration =
+        fetch_tiktok_live_page_hydration_jsons(target_url, cookie_header.as_deref(), proxy_url)
+            .await?;
+    let room_id = hydration
+        .iter()
+        .find_map(tiktok_room_id_from_metadata)
+        .or_else(|| hydration.iter().find_map(recursive_tiktok_room_id))
+        .ok_or_else(|| {
+            BackendError::new(
+                code::NETWORK_REQUEST_FAILED,
+                format!(
+                    "TikTok first-party page did not expose a room ID for @{username}. Try again or enter the numeric TikTok room ID."
+                ),
+            )
+            .with_retryable(true)
+            .to_wire_string()
+        })?;
+    let room_info_url = tiktok_room_info_url(&room_id);
+    let room_cookie_header = tiktok_cookie_header(
+        &room_info_url,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+    );
+    let mut room_json =
+        fetch_tiktok_room_info_json(&room_id, room_cookie_header.as_deref(), proxy_url).await?;
+    if room_owner_username(&room_json).is_some_and(|owner| !owner.eq_ignore_ascii_case(username)) {
+        return Err(BackendError::new(
+            code::NETWORK_REQUEST_FAILED,
+            format!("TikTok first-party room owner did not match @{username}."),
+        )
+        .with_retryable(true)
+        .to_wire_string());
+    }
+    append_tiktok_page_hydration_jsons(&mut room_json, hydration);
+    Ok(room_json)
 }
 
 fn prefer_tiktok_username_lookup_error(primary_error: String, fallback_error: String) -> String {
@@ -2458,10 +2649,11 @@ async fn fetch_tiktok_room_info_json(
         })?;
 
     if !response.status().is_success() {
-        return Err(BackendError::from_message(format!(
-            "TikTok room info request failed with status {}",
-            response.status()
-        ))
+        let status = response.status();
+        return Err(tiktok_live_http_status_error(
+            format!("TikTok room info request failed with status {status}"),
+            status,
+        )
         .to_wire_string());
     }
 
@@ -2575,6 +2767,23 @@ async fn fetch_tiktok_target_json(
         .url
         .clone()
         .ok_or_else(|| BackendError::from_message("Missing TikTok Live URL").to_wire_string())?;
+    if let Some(username) = target.username.as_deref() {
+        if let Some(room_json) = fetch_tiktok_room_info_from_cache(
+            username,
+            cookie_mode,
+            cookie_browser,
+            cookie_browser_profile,
+            cookie_file_path,
+            cookie_skip_patterns,
+            proxy_url,
+        )
+        .await
+        {
+            if !formats_from_tiktok_stream_data_values(&room_json).is_empty() {
+                return Ok((room_json, target_url));
+            }
+        }
+    }
     let primary_result = fetch_tiktok_live_json(
         app,
         &target_url,
@@ -2592,6 +2801,27 @@ async fn fetch_tiktok_target_json(
             let Some(username) = target.username.as_deref() else {
                 return Err(primary_error);
             };
+            let first_party_error = match fetch_tiktok_room_info_from_first_party_page(
+                username,
+                &target_url,
+                cookie_mode,
+                cookie_browser,
+                cookie_browser_profile,
+                cookie_file_path,
+                cookie_skip_patterns,
+                proxy_url,
+            )
+            .await
+            {
+                Ok(room_json) if !formats_from_tiktok_stream_data_values(&room_json).is_empty() => {
+                    return Ok((room_json, target_url));
+                }
+                Ok(_) => None,
+                Err(error) => Some(error),
+            };
+            let primary_error = first_party_error
+                .map(|error| prefer_tiktok_username_lookup_error(primary_error.clone(), error))
+                .unwrap_or(primary_error);
             match fetch_tiktok_room_info_for_username(
                 username,
                 &target_url,
@@ -2639,6 +2869,26 @@ async fn fetch_tiktok_target_json(
         proxy_url,
     )
     .await;
+    if formats_from_tiktok_stream_data_values(&json).is_empty() {
+        if let Some(username) = target.username.as_deref() {
+            if let Ok(room_json) = fetch_tiktok_room_info_from_first_party_page(
+                username,
+                &target_url,
+                cookie_mode,
+                cookie_browser,
+                cookie_browser_profile,
+                cookie_file_path,
+                cookie_skip_patterns,
+                proxy_url,
+            )
+            .await
+            {
+                if !formats_from_tiktok_stream_data_values(&room_json).is_empty() {
+                    append_tiktok_page_hydration_jsons(&mut json, vec![room_json]);
+                }
+            }
+        }
+    }
     if formats_from_tiktok_stream_data_values(&json).is_empty() {
         if let Some(username) = target.username.as_deref() {
             if let Ok(room_json) = fetch_tiktok_room_info_for_username(
@@ -2690,7 +2940,10 @@ async fn fetch_tiktok_target_json_with_retry(
         )
         .await
         {
-            Ok(result) => return Ok(result),
+            Ok(result) => {
+                cache_tiktok_live_room_resolution(target, &result.0);
+                return Ok(result);
+            }
             Err(error)
                 if attempt < METADATA_FETCH_ATTEMPTS && should_retry_metadata_error(&error) =>
             {
@@ -2743,6 +2996,15 @@ fn scalar_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> 
             .or_else(|| value.as_i64().map(|number| number.to_string()))
             .or_else(|| value.as_u64().map(|number| number.to_string()))
     })
+}
+
+fn json_scalar_to_string(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .filter(|text| !text.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| value.as_i64().map(|number| number.to_string()))
+        .or_else(|| value.as_u64().map(|number| number.to_string()))
 }
 
 fn unsigned_integer_at(json: &serde_json::Value, paths: &[&str]) -> Option<u64> {
@@ -2842,7 +3104,11 @@ fn tiktok_live_session_id(
 }
 
 fn tiktok_room_id_from_json(json: &serde_json::Value) -> Option<String> {
-    scalar_string_at(
+    tiktok_room_id_from_metadata(json)
+}
+
+fn tiktok_room_id_from_metadata(json: &serde_json::Value) -> Option<String> {
+    tiktok_metadata_scalar_string_at(
         json,
         &[
             "/room_id",
@@ -2850,8 +3116,12 @@ fn tiktok_room_id_from_json(json: &serde_json::Value) -> Option<String> {
             "/data/id",
             "/data/room_id",
             "/data/live_room_id",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/id",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/roomId",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/room_id",
         ],
     )
+    .filter(|room_id| room_id.chars().all(|character| character.is_ascii_digit()))
 }
 
 fn room_owner_username(json: &serde_json::Value) -> Option<String> {
@@ -4971,6 +5241,59 @@ mod tests {
     }
 
     #[test]
+    fn room_cache_ttl_rejects_stale_and_future_entries() {
+        let entry = TikTokLiveRoomCacheEntry {
+            username: "creator".to_string(),
+            room_id: "7662757197105466133".to_string(),
+            session_id: Some("7662757197105466133".to_string()),
+            observed_at: 1_000,
+        };
+
+        assert!(tiktok_live_room_cache_is_fresh(&entry, 1_001));
+        assert!(!tiktok_live_room_cache_is_fresh(
+            &entry,
+            1_000 + TIKTOK_LIVE_ROOM_CACHE_TTL_SECONDS + 1
+        ));
+        assert!(!tiktok_live_room_cache_is_fresh(&entry, 999));
+    }
+
+    #[test]
+    fn extracts_room_id_from_first_party_hydration() {
+        let json = serde_json::json!({
+            "_youwee_page_hydration": [{
+                "LiveRoom": {
+                    "liveRoomUserInfo": {
+                        "liveRoom": {
+                            "roomId": "7662757197105466133"
+                        }
+                    }
+                }
+            }]
+        });
+
+        assert_eq!(
+            tiktok_room_id_from_metadata(&json).as_deref(),
+            Some("7662757197105466133")
+        );
+        assert_eq!(
+            recursive_tiktok_room_id(&json).as_deref(),
+            Some("7662757197105466133")
+        );
+    }
+
+    #[test]
+    fn first_party_forbidden_status_requires_sign_in_without_retry() {
+        let error = tiktok_live_http_status_error(
+            "TikTok Live page request failed with status 403".to_string(),
+            StatusCode::FORBIDDEN,
+        );
+        let wire = error.to_wire();
+
+        assert_eq!(error.code(), code::YT_SIGNIN_REQUIRED);
+        assert_eq!(wire.retryable, Some(false));
+    }
+
+    #[test]
     fn ytdlp_variants_do_not_expose_signed_urls() {
         let json = serde_json::json!({
             "formats": [{
@@ -5235,6 +5558,33 @@ mod tests {
 
         assert_eq!(values.len(), 1);
         assert_eq!(tiktok_stream_data_values_from_json(&values[0]).len(), 1);
+    }
+
+    #[test]
+    fn keeps_first_party_room_id_hydration_without_embedded_streams() {
+        let sigi_state = serde_json::json!({
+            "LiveRoom": {
+                "liveRoomUserInfo": {
+                    "liveRoom": {
+                        "roomId": "7662757197105466133"
+                    }
+                }
+            }
+        });
+        let html = format!(
+            r#"<html><script id="SIGI_STATE" type="application/json">{sigi_state}</script></html>"#
+        );
+
+        let values = tiktok_page_hydration_values_from_html(&html);
+
+        assert_eq!(values.len(), 1);
+        assert_eq!(
+            values
+                .iter()
+                .find_map(tiktok_room_id_from_metadata)
+                .as_deref(),
+            Some("7662757197105466133")
+        );
     }
 
     #[test]
@@ -5559,7 +5909,7 @@ mod tests {
         assert_eq!(unavailable.retryable, Some(true));
         assert_eq!(rate_limited.code, code::YT_RATE_LIMITED);
         assert_eq!(rate_limited.retryable, Some(true));
-        assert_eq!(forbidden.code, code::BACKEND_UNKNOWN);
+        assert_eq!(forbidden.code, code::YT_SIGNIN_REQUIRED);
         assert_eq!(forbidden.retryable, Some(false));
     }
 

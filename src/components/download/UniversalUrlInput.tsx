@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/components/ui/toast';
 import { extractUrls } from '@/lib/sources';
+import type { UniversalAddResult } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 interface UniversalUrlInputProps {
   disabled?: boolean;
-  onAddUrls: (text: string) => Promise<number>;
+  onAddUrls: (text: string) => Promise<number | UniversalAddResult>;
   onImportFile: () => Promise<number>;
   onImportClipboard: () => Promise<number>;
 }
@@ -25,6 +27,7 @@ export function UniversalUrlInput({
   onImportClipboard,
 }: UniversalUrlInputProps) {
   const { t } = useTranslation('universal');
+  const toast = useToast();
   const [value, setValue] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -46,15 +49,23 @@ export function UniversalUrlInput({
   const handleAdd = useCallback(async () => {
     setIsAdding(true);
     try {
-      const count = await onAddUrls(value);
-      if (count > 0) {
+      const result = await onAddUrls(value);
+      const added = typeof result === 'number' ? result : result.added;
+      const alreadyQueued = typeof result === 'number' ? 0 : result.alreadyQueued;
+      if (alreadyQueued > 0) {
+        toast.info({
+          title: t('urlInput.alreadyQueuedTitle'),
+          message: t('urlInput.alreadyQueuedMessage', { count: alreadyQueued }),
+        });
+      }
+      if (added > 0 || alreadyQueued > 0) {
         setValue('');
         setIsExpanded(false);
       }
     } finally {
       setIsAdding(false);
     }
-  }, [value, onAddUrls]);
+  }, [onAddUrls, t, toast, value]);
 
   const handleImportFile = async () => {
     setIsImporting(true);
