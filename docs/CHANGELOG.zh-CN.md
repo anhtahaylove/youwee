@@ -9,6 +9,16 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ### 新增
 
+## [0.19.1-custom.32] - 2026-07-17
+
+### 变更
+- **Firefox Cookie 指引** - 明确说明 Youwee 从所选配置读取 Cookie 时 Firefox 可以保持开启
+- **Gallery 认证一致性** - Gallery 下载复用浏览器配置规范化与按 URL 跳过 Cookie 的共享流程
+
+### 修复
+- **Universal 队列文件恢复** - 下载媒体文件被删除后将 Completed 项恢复为 Pending，无需重新添加 URL 即可重试
+- **队列错误导航** - 让 YouTube、Universal 与 Gallery 失败项目中的 Logs 操作正确打开日志页面以便排查问题
+
 ## [0.19.1-custom.31] - 2026-07-17
 
 ### 新增

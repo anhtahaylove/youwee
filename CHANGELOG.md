@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.32] - 2026-07-17
+
+### Changed
+- **Firefox cookie guidance** - Clarify that Firefox can remain open while Youwee reads cookies from the selected profile
+- **Gallery authentication parity** - Reuse the shared browser profile normalization and URL-scoped cookie skip pipeline for gallery downloads
+
+### Fixed
+- **Universal queue file recovery** - Return completed queue items to Pending when their downloaded media file was removed, allowing a direct retry without adding the URL again
+- **Queue failure navigation** - Make failed-item Logs actions in YouTube, Universal, and Gallery open the Logs page for troubleshooting
+
 ## [0.19.1-custom.31] - 2026-07-17
 
 ### Added

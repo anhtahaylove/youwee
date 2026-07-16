@@ -9,6 +9,16 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.32] - 2026-07-17
+
+### Thay đổi
+- **Hướng dẫn cookie Firefox** - Làm rõ Firefox có thể tiếp tục mở khi Youwee đọc cookie từ profile đã chọn
+- **Đồng bộ xác thực Gallery** - Dùng chung cơ chế chuẩn hóa browser profile và bỏ qua cookie theo URL cho tải Gallery
+
+### Sửa lỗi
+- **Khôi phục file Universal Queue** - Chuyển item Completed về Pending khi file media đã bị xóa để có thể tải lại trực tiếp mà không cần Add URL lần nữa
+- **Điều hướng lỗi Queue** - Cho nút Logs trên item thất bại ở YouTube, Universal và Gallery mở đúng trang Logs để xử lý sự cố
+
 ## [0.19.1-custom.31] - 2026-07-17
 
 ### Thêm mới
