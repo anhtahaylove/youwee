@@ -15,7 +15,10 @@ use crate::services::{
 use crate::types::{code, BackendError};
 use crate::utils::{firefox_profiles_ini_path, resolve_firefox_profile_for_cookies};
 use chrono::{Datelike, Local, Timelike, Utc};
-use reqwest::header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT};
+use reqwest::{
+    header::{HeaderMap, HeaderValue, COOKIE, ORIGIN, REFERER, USER_AGENT},
+    StatusCode,
+};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use std::collections::{hash_map::DefaultHasher, HashMap, HashSet};
@@ -2188,6 +2191,31 @@ fn tiktok_room_id_from_signed_lookup(json: &serde_json::Value) -> Option<String>
     .filter(|room_id| room_id.chars().all(|character| character.is_ascii_digit()))
 }
 
+fn tiktok_live_http_status_error(message: String, status: StatusCode) -> BackendError {
+    let retryable = status.is_server_error()
+        || status == StatusCode::REQUEST_TIMEOUT
+        || status == StatusCode::TOO_MANY_REQUESTS;
+    let error_code = if status == StatusCode::TOO_MANY_REQUESTS {
+        code::YT_RATE_LIMITED
+    } else if retryable {
+        code::NETWORK_REQUEST_FAILED
+    } else {
+        code::BACKEND_UNKNOWN
+    };
+
+    BackendError::new(error_code, message).with_retryable(retryable)
+}
+
+fn prefer_tiktok_username_lookup_error(primary_error: String, fallback_error: String) -> String {
+    let fallback = BackendError::from_message(&fallback_error);
+    if fallback.code() == code::TIKTOK_LIVE_OFFLINE || should_retry_metadata_error(&fallback_error)
+    {
+        fallback_error
+    } else {
+        primary_error
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn fetch_tiktok_room_info_for_username(
     username: &str,
@@ -2229,16 +2257,21 @@ async fn fetch_tiktok_room_info_for_username(
         .send()
         .await
         .map_err(|error| {
-            BackendError::from_message(format!(
-                "Failed to request the TikTok signed room lookup: {error}"
-            ))
+            BackendError::new(
+                code::NETWORK_REQUEST_FAILED,
+                format!("Failed to request the TikTok signed room lookup: {error}"),
+            )
+            .with_retryable(true)
             .to_wire_string()
         })?;
     if !sign_response.status().is_success() {
-        return Err(BackendError::from_message(format!(
-            "TikTok signed room lookup failed with status {}",
-            sign_response.status()
-        ))
+        let status = sign_response.status();
+        return Err(tiktok_live_http_status_error(
+            format!(
+                "TikTok signed room lookup failed with status {status}. Try again or enter the numeric TikTok room ID."
+            ),
+            status,
+        )
         .to_wire_string());
     }
     let sign_json: serde_json::Value = sign_response.json().await.map_err(|error| {
@@ -2265,14 +2298,19 @@ async fn fetch_tiktok_room_info_for_username(
         lookup_request = lookup_request.header(COOKIE, cookie);
     }
     let lookup_response = lookup_request.send().await.map_err(|error| {
-        BackendError::from_message(format!("Failed to resolve the TikTok Live room: {error}"))
-            .to_wire_string()
+        BackendError::new(
+            code::NETWORK_REQUEST_FAILED,
+            format!("Failed to resolve the TikTok Live room: {error}"),
+        )
+        .with_retryable(true)
+        .to_wire_string()
     })?;
     if !lookup_response.status().is_success() {
-        return Err(BackendError::from_message(format!(
-            "TikTok Live room lookup failed with status {}",
-            lookup_response.status()
-        ))
+        let status = lookup_response.status();
+        return Err(tiktok_live_http_status_error(
+            format!("TikTok Live room lookup failed with status {status}"),
+            status,
+        )
         .to_wire_string());
     }
     let lookup_json: serde_json::Value = lookup_response.json().await.map_err(|error| {
@@ -2569,7 +2607,13 @@ async fn fetch_tiktok_target_json(
                 Ok(room_json) if !formats_from_tiktok_stream_data_values(&room_json).is_empty() => {
                     return Ok((room_json, target_url));
                 }
-                Ok(_) | Err(_) => return Err(primary_error),
+                Ok(_) => return Err(primary_error),
+                Err(fallback_error) => {
+                    return Err(prefer_tiktok_username_lookup_error(
+                        primary_error,
+                        fallback_error,
+                    ));
+                }
             }
         }
     };
@@ -5491,6 +5535,51 @@ mod tests {
         assert!(!tiktok_live_metadata_is_offline(
             &serde_json::json!({ "is_live": true, "live_status": "is_live" })
         ));
+    }
+
+    #[test]
+    fn tiktok_lookup_status_errors_retry_only_transient_responses() {
+        let unavailable = tiktok_live_http_status_error(
+            "signed lookup unavailable".to_string(),
+            StatusCode::BAD_GATEWAY,
+        )
+        .to_wire();
+        let rate_limited = tiktok_live_http_status_error(
+            "signed lookup rate limited".to_string(),
+            StatusCode::TOO_MANY_REQUESTS,
+        )
+        .to_wire();
+        let forbidden = tiktok_live_http_status_error(
+            "signed lookup forbidden".to_string(),
+            StatusCode::FORBIDDEN,
+        )
+        .to_wire();
+
+        assert_eq!(unavailable.code, code::NETWORK_REQUEST_FAILED);
+        assert_eq!(unavailable.retryable, Some(true));
+        assert_eq!(rate_limited.code, code::YT_RATE_LIMITED);
+        assert_eq!(rate_limited.retryable, Some(true));
+        assert_eq!(forbidden.code, code::BACKEND_UNKNOWN);
+        assert_eq!(forbidden.retryable, Some(false));
+    }
+
+    #[test]
+    fn username_lookup_surfaces_retryable_fallback_instead_of_false_offline() {
+        let primary = BackendError::new(code::TIKTOK_LIVE_OFFLINE, "not currently live")
+            .with_retryable(false)
+            .to_wire_string();
+        let fallback = BackendError::new(
+            code::NETWORK_REQUEST_FAILED,
+            "signed lookup temporarily unavailable",
+        )
+        .with_retryable(true)
+        .to_wire_string();
+
+        let selected = prefer_tiktok_username_lookup_error(primary, fallback);
+        let selected = BackendError::from_message(selected).to_wire();
+
+        assert_eq!(selected.code, code::NETWORK_REQUEST_FAILED);
+        assert_eq!(selected.retryable, Some(true));
     }
 
     #[test]

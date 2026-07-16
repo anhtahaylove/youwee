@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.27] - 2026-07-16
+
+### Added
+- **TikTok Live recording telemetry** - Show exact elapsed, total, and remaining time, active room capacity, and copy/open URL actions throughout Inspect, Record, Watchlist, and completed results
+
+### Changed
+- **TikTok Live preview resilience** - Prefer dynamic TikTok covers and capture a bounded authenticated FFmpeg snapshot when a trustworthy cover is unavailable
+- **TikTok Live duration controls** - Replace raw duration input with explicit hours, minutes, and seconds controls backed by shared conversion tests
+
+### Fixed
+- **TikTok Live Library thumbnails** - Generate a durable thumbnail from completed or recovered media and resolve cached local images consistently in Library cards and summary dialogs
+- **TikTok Live username lookup** - Retry transient signed-room HTTP failures and suggest the numeric room ID instead of falsely reporting an active stream as offline
+
 ## [0.19.1-custom.26] - 2026-07-16
 
 ### Added

@@ -9,6 +9,19 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.27] - 2026-07-16
+
+### Thêm mới
+- **Telemetry ghi TikTok Live** - Hiển thị chính xác thời gian đã ghi, tổng thời lượng, thời gian còn lại, sức chứa phòng đang hoạt động và thao tác sao chép/mở URL xuyên suốt Inspect, Record, Watchlist và kết quả hoàn tất
+
+### Thay đổi
+- **Preview TikTok Live bền vững** - Ưu tiên ảnh bìa động từ TikTok và chụp snapshot FFmpeg có xác thực, giới hạn thời gian khi không có ảnh bìa đáng tin cậy
+- **Điều khiển thời lượng TikTok Live** - Thay ô nhập thời lượng thô bằng các trường giờ, phút và giây rõ ràng, dùng chung helper chuyển đổi đã có regression test
+
+### Sửa lỗi
+- **Thumbnail Library TikTok Live** - Tạo thumbnail bền vững từ media đã hoàn tất hoặc khôi phục và resolve ảnh cache local nhất quán trong thẻ Library cùng hộp thoại tóm tắt
+- **Lookup username TikTok Live** - Retry lỗi HTTP tạm thời của dịch vụ lookup phòng đã ký và gợi ý room ID dạng số thay vì báo nhầm stream đang live là offline
+
 ## [0.19.1-custom.26] - 2026-07-16
 
 ### Thêm mới
