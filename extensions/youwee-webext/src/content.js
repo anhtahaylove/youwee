@@ -26,14 +26,35 @@
   let collapsedState = false;
   let mediaMode = 'video';
 
-  const ACTION_ICONS = {
-    download:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>',
-    queue:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h10"></path><path d="M4 12h10"></path><path d="M4 17h7"></path><path d="M18 10v8"></path><path d="M14 14h8"></path></svg>',
-    summary:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z"></path><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"></path></svg>',
+  const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+  const ACTION_ICON_PATHS = {
+    download: ['M12 3v12', 'm7 10 5 5 5-5', 'M5 21h14'],
+    queue: ['M4 7h10', 'M4 12h10', 'M4 17h7', 'M18 10v8', 'M14 14h8'],
+    summary: [
+      'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z',
+      'M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z',
+    ],
   };
+
+  function createActionIcon(iconName) {
+    const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2.2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    for (const pathData of ACTION_ICON_PATHS[iconName] || []) {
+      const path = document.createElementNS(SVG_NAMESPACE, 'path');
+      path.setAttribute('d', pathData);
+      svg.appendChild(path);
+    }
+
+    return svg;
+  }
 
   function isTrustedUserEvent(event) {
     return !!event?.isTrusted;
@@ -206,7 +227,7 @@
     const options = getQualityOptions(media);
     const normalizedCurrent = ext.normalizeQuality(media, qualitySelect.value);
 
-    qualitySelect.innerHTML = '';
+    qualitySelect.replaceChildren();
     for (const option of options) {
       const item = document.createElement('option');
       item.value = option.value;
@@ -328,16 +349,40 @@
     }
   }
 
-  function createLogoMarkup(logoUrl) {
+  function createLogoElement(logoUrl) {
     if (logoUrl) {
-      return `<img class="youwee-floating__logo-img" src="${logoUrl}" alt="Youwee" />`;
+      const image = document.createElement('img');
+      image.className = 'youwee-floating__logo-img';
+      image.src = logoUrl;
+      image.alt = 'Youwee';
+      return image;
     }
 
-    return '<span class="youwee-floating__logo-fallback" aria-hidden="true">Y</span>';
+    const fallback = document.createElement('span');
+    fallback.className = 'youwee-floating__logo-fallback';
+    fallback.setAttribute('aria-hidden', 'true');
+    fallback.textContent = 'Y';
+    return fallback;
+  }
+
+  function createTextElement(tagName, className, text) {
+    const element = document.createElement(tagName);
+    element.className = className;
+    element.textContent = text;
+    return element;
+  }
+
+  function createActionButton(action, className, iconName, label) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `youwee-floating__action ${className}`;
+    button.dataset.action = action;
+    button.append(createActionIcon(iconName), createTextElement('span', '', label));
+    return button;
   }
 
   function buildWidget() {
-    const logoMarkup = createLogoMarkup(getRuntimeAssetUrl('icons/logo-64.png'));
+    const logoUrl = getRuntimeAssetUrl('icons/logo-64.png');
     const canSummarize = ext.isYouTubeUrl(location.href);
 
     const container = document.createElement('div');
@@ -350,7 +395,7 @@
     tab.type = 'button';
     tab.className = 'youwee-floating__tab';
     tab.title = ext.t('floatingExpand', 'Expand');
-    tab.innerHTML = logoMarkup;
+    tab.appendChild(createLogoElement(logoUrl));
     tab.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       setCollapsedState(false);
@@ -360,13 +405,14 @@
     launch.type = 'button';
     launch.className = 'youwee-floating__launcher';
     launch.title = ext.t('floatingLauncher', 'Youwee');
-    launch.innerHTML = `
-      <span class="youwee-floating__logo">
-        ${logoMarkup}
-      </span>
-      <span class="youwee-floating__text">${ext.t('floatingLauncher', 'Youwee')}</span>
-      <span class="youwee-floating__chevron">▾</span>
-    `;
+    const launchLogo = document.createElement('span');
+    launchLogo.className = 'youwee-floating__logo';
+    launchLogo.appendChild(createLogoElement(logoUrl));
+    launch.append(
+      launchLogo,
+      createTextElement('span', 'youwee-floating__text', ext.t('floatingLauncher', 'Youwee')),
+      createTextElement('span', 'youwee-floating__chevron', '▾'),
+    );
     launch.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       setPanelOpen(!openState);
@@ -376,56 +422,107 @@
     dropdown.className = 'youwee-floating__panel';
     dropdown.hidden = true;
 
-    dropdown.innerHTML = `
-      <div class="youwee-floating__title-row">
-        <div class="youwee-floating__title">${ext.t('floatingMenuTitle', 'Download with Youwee')}</div>
-        <div class="youwee-floating__title-actions">
-          <button
-            type="button"
-            class="youwee-floating__tiny-btn"
-            data-action="collapse"
-            title="${ext.t('floatingCollapse', 'Collapse')}"
-            aria-label="${ext.t('floatingCollapse', 'Collapse')}"
-          >—</button>
-          <button
-            type="button"
-            class="youwee-floating__tiny-btn"
-            data-action="disable"
-            title="${ext.t('floatingDisable', 'Turn off floating button')}"
-            aria-label="${ext.t('floatingDisable', 'Turn off floating button')}"
-          >×</button>
-        </div>
-      </div>
-      <label class="youwee-floating__label">${ext.t('floatingMedia', 'Media')}</label>
-      <div class="youwee-floating__toggle" role="group" aria-label="${ext.t('floatingMedia', 'Media')}">
-        <button type="button" class="youwee-floating__toggle-btn" data-media="video">
-          ${ext.t('floatingMediaVideo', 'Video')}
-        </button>
-        <button type="button" class="youwee-floating__toggle-btn" data-media="audio">
-          ${ext.t('floatingMediaAudio', 'Audio')}
-        </button>
-      </div>
-      <label class="youwee-floating__label" for="youwee-quality-select">${ext.t('floatingQuality', 'Quality')}</label>
-      <select id="youwee-quality-select" class="youwee-floating__select"></select>
-      <div class="youwee-floating__actions">
-        <button type="button" class="youwee-floating__action youwee-floating__action--primary" data-action="download_now">
-          ${ACTION_ICONS.download}<span>${ext.t('floatingButtonDownloadNow', 'Download now')}</span>
-        </button>
-        <button type="button" class="youwee-floating__action youwee-floating__action--secondary" data-action="queue_only">
-          ${ACTION_ICONS.queue}<span>${ext.t('floatingButtonAddQueue', 'Add to queue')}</span>
-        </button>
-        <button
-          type="button"
-          class="youwee-floating__action youwee-floating__action--summary"
-          data-action="summary"
-          ${canSummarize ? '' : 'disabled'}
-          title="${canSummarize ? '' : ext.t('floatingSummaryUnavailable', 'Summary is available for YouTube videos')}"
-        >
-          ${ACTION_ICONS.summary}<span>${ext.t('floatingButtonSummary', 'AI Summary')}</span>
-        </button>
-      </div>
-      <div class="youwee-floating__feedback" aria-live="polite"></div>
-    `;
+    const titleRow = document.createElement('div');
+    titleRow.className = 'youwee-floating__title-row';
+    const titleActions = document.createElement('div');
+    titleActions.className = 'youwee-floating__title-actions';
+
+    const collapseLabel = ext.t('floatingCollapse', 'Collapse');
+    const collapseButton = document.createElement('button');
+    collapseButton.type = 'button';
+    collapseButton.className = 'youwee-floating__tiny-btn';
+    collapseButton.dataset.action = 'collapse';
+    collapseButton.title = collapseLabel;
+    collapseButton.setAttribute('aria-label', collapseLabel);
+    collapseButton.textContent = '—';
+
+    const disableLabel = ext.t('floatingDisable', 'Turn off floating button');
+    const disableButton = document.createElement('button');
+    disableButton.type = 'button';
+    disableButton.className = 'youwee-floating__tiny-btn';
+    disableButton.dataset.action = 'disable';
+    disableButton.title = disableLabel;
+    disableButton.setAttribute('aria-label', disableLabel);
+    disableButton.textContent = '×';
+
+    titleActions.append(collapseButton, disableButton);
+    titleRow.append(
+      createTextElement(
+        'div',
+        'youwee-floating__title',
+        ext.t('floatingMenuTitle', 'Download with Youwee'),
+      ),
+      titleActions,
+    );
+
+    const mediaLabel = ext.t('floatingMedia', 'Media');
+    const mediaToggle = document.createElement('div');
+    mediaToggle.className = 'youwee-floating__toggle';
+    mediaToggle.setAttribute('role', 'group');
+    mediaToggle.setAttribute('aria-label', mediaLabel);
+
+    const videoButton = document.createElement('button');
+    videoButton.type = 'button';
+    videoButton.className = 'youwee-floating__toggle-btn';
+    videoButton.dataset.media = 'video';
+    videoButton.textContent = ext.t('floatingMediaVideo', 'Video');
+
+    const audioButton = document.createElement('button');
+    audioButton.type = 'button';
+    audioButton.className = 'youwee-floating__toggle-btn';
+    audioButton.dataset.media = 'audio';
+    audioButton.textContent = ext.t('floatingMediaAudio', 'Audio');
+    mediaToggle.append(videoButton, audioButton);
+
+    const nextQualitySelect = document.createElement('select');
+    nextQualitySelect.id = 'youwee-quality-select';
+    nextQualitySelect.className = 'youwee-floating__select';
+    const qualityLabel = createTextElement(
+      'label',
+      'youwee-floating__label',
+      ext.t('floatingQuality', 'Quality'),
+    );
+    qualityLabel.htmlFor = nextQualitySelect.id;
+
+    const actions = document.createElement('div');
+    actions.className = 'youwee-floating__actions';
+    const downloadButton = createActionButton(
+      'download_now',
+      'youwee-floating__action--primary',
+      'download',
+      ext.t('floatingButtonDownloadNow', 'Download now'),
+    );
+    const queueButton = createActionButton(
+      'queue_only',
+      'youwee-floating__action--secondary',
+      'queue',
+      ext.t('floatingButtonAddQueue', 'Add to queue'),
+    );
+    const summaryButton = createActionButton(
+      'summary',
+      'youwee-floating__action--summary',
+      'summary',
+      ext.t('floatingButtonSummary', 'AI Summary'),
+    );
+    summaryButton.disabled = !canSummarize;
+    summaryButton.title = canSummarize
+      ? ''
+      : ext.t('floatingSummaryUnavailable', 'Summary is available for YouTube videos');
+    actions.append(downloadButton, queueButton, summaryButton);
+
+    const nextFeedbackEl = document.createElement('div');
+    nextFeedbackEl.className = 'youwee-floating__feedback';
+    nextFeedbackEl.setAttribute('aria-live', 'polite');
+
+    dropdown.append(
+      titleRow,
+      createTextElement('label', 'youwee-floating__label', mediaLabel),
+      mediaToggle,
+      qualityLabel,
+      nextQualitySelect,
+      actions,
+      nextFeedbackEl,
+    );
 
     container.appendChild(tab);
     container.appendChild(launch);
@@ -433,18 +530,10 @@
 
     panel = dropdown;
 
-    mediaVideoBtn = /** @type {HTMLButtonElement | null} */ (
-      dropdown.querySelector('[data-media="video"]')
-    );
-    mediaAudioBtn = /** @type {HTMLButtonElement | null} */ (
-      dropdown.querySelector('[data-media="audio"]')
-    );
-    qualitySelect = /** @type {HTMLSelectElement | null} */ (
-      dropdown.querySelector('#youwee-quality-select')
-    );
-    feedbackEl = /** @type {HTMLElement | null} */ (
-      dropdown.querySelector('.youwee-floating__feedback')
-    );
+    mediaVideoBtn = videoButton;
+    mediaAudioBtn = audioButton;
+    qualitySelect = nextQualitySelect;
+    feedbackEl = nextFeedbackEl;
 
     mediaVideoBtn?.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
@@ -455,27 +544,27 @@
       setMediaValue('audio');
     });
 
-    dropdown.querySelector('[data-action="download_now"]')?.addEventListener('click', (event) => {
+    downloadButton.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       onActionClick('download_now');
     });
 
-    dropdown.querySelector('[data-action="queue_only"]')?.addEventListener('click', (event) => {
+    queueButton.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       onActionClick('queue_only');
     });
 
-    dropdown.querySelector('[data-action="summary"]')?.addEventListener('click', (event) => {
+    summaryButton.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       onActionClick('summary');
     });
 
-    dropdown.querySelector('[data-action="collapse"]')?.addEventListener('click', (event) => {
+    collapseButton.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       setCollapsedState(true);
     });
 
-    dropdown.querySelector('[data-action="disable"]')?.addEventListener('click', (event) => {
+    disableButton.addEventListener('click', (event) => {
       if (!isTrustedUserEvent(event)) return;
       setEnabled(false);
       disconnectWidget();

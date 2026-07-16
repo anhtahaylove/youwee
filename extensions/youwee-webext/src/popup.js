@@ -33,15 +33,6 @@
   const summaryBtn = document.getElementById('summaryBtn');
   let mediaMode = 'video';
 
-  const ACTION_ICONS = {
-    download:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3v12"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path></svg>',
-    queue:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 7h10"></path><path d="M4 12h10"></path><path d="M4 17h7"></path><path d="M18 10v8"></path><path d="M14 14h8"></path></svg>',
-    summary:
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3Z"></path><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"></path></svg>',
-  };
-
   function queryTabs(query) {
     if (!api?.tabs?.query) return Promise.resolve([]);
     try {
@@ -302,8 +293,7 @@
     return ext.t(key, fallback);
   }
 
-  function setActionButtonContent(button, icon, label) {
-    button.innerHTML = `${icon}<span></span>`;
+  function setActionButtonContent(button, label) {
     const labelEl = button.querySelector('span');
     if (labelEl) {
       labelEl.textContent = label;
@@ -368,7 +358,7 @@
     const media = getMediaValue();
     const current = ext.normalizeQuality(media, qualitySelect?.value || '');
     const options = getQualityOptions(media);
-    qualitySelect.innerHTML = '';
+    qualitySelect.replaceChildren();
     for (const option of options) {
       const item = document.createElement('option');
       item.value = option.value;
@@ -393,13 +383,9 @@
     qualityLabelEl.textContent = t('floatingQuality', 'Quality');
     if (mediaVideoBtn) mediaVideoBtn.textContent = t('floatingMediaVideo', 'Video');
     if (mediaAudioBtn) mediaAudioBtn.textContent = t('floatingMediaAudio', 'Audio');
-    setActionButtonContent(
-      downloadBtn,
-      ACTION_ICONS.download,
-      t('popupPrimaryAction', 'Download now with Youwee'),
-    );
-    setActionButtonContent(queueBtn, ACTION_ICONS.queue, t('popupQueueAction', 'Add to queue'));
-    setActionButtonContent(summaryBtn, ACTION_ICONS.summary, t('popupSummaryAction', 'AI Summary'));
+    setActionButtonContent(downloadBtn, t('popupPrimaryAction', 'Download now with Youwee'));
+    setActionButtonContent(queueBtn, t('popupQueueAction', 'Add to queue'));
+    setActionButtonContent(summaryBtn, t('popupSummaryAction', 'AI Summary'));
     madeWithPrefixEl.textContent = t('popupMadeWith', 'Made with');
     madeWithByEl.textContent = t('popupBy', 'by');
     updateFloatingToggleUi();
