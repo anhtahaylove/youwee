@@ -7,7 +7,10 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.33] - 2026-07-17
+
 ### Thêm mới
+- **Preset bỏ qua cookie cho nội dung public** - Thêm chip YouTube và Instagram một chạm để bổ sung pattern URL public cụ thể mà không thay thế quy tắc xác thực hiện có
 
 ## [0.19.1-custom.32] - 2026-07-17
 
