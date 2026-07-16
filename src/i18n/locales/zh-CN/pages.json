@@ -467,6 +467,8 @@
       "pollInterval": "LIVE 检查间隔",
       "intervalValue": "每 {{seconds}} 秒检查",
       "lastChecked": "上次检查",
+      "viewers": "{{count}} 人正在观看",
+      "lastViewers": "上次在线：{{count}} 位观众",
       "nextCheck": "下次检查",
       "added": "已将 TikTok Live 账号添加到监控列表。",
       "updated": "已更新监控规则。",

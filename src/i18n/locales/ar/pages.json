@@ -464,6 +464,8 @@
       "pollInterval": "التحقق من البث كل",
       "intervalValue": "Check every {{seconds}} seconds",
       "lastChecked": "آخر تحقق",
+      "viewers": "{{count}} يشاهدون الآن",
+      "lastViewers": "آخر عدد للمشاهدين: {{count}}",
       "nextCheck": "التحقق التالي",
       "added": "TikTok Live account added to the watchlist.",
       "updated": "Watchlist rules updated.",

@@ -467,6 +467,8 @@
       "pollInterval": "LIVE 確認間隔",
       "intervalValue": "{{seconds}} 秒ごとに確認",
       "lastChecked": "最終確認",
+      "viewers": "{{count}} 人が視聴中",
+      "lastViewers": "前回オンライン時：{{count}} 人",
       "nextCheck": "次回確認",
       "added": "TikTok Live アカウントを追加しました。",
       "updated": "監視ルールを更新しました。",

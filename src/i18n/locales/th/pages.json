@@ -464,6 +464,8 @@
       "pollInterval": "ตรวจสอบ LIVE ทุก",
       "intervalValue": "Check every {{seconds}} seconds",
       "lastChecked": "ตรวจสอบล่าสุด",
+      "viewers": "กำลังรับชม {{count}} คน",
+      "lastViewers": "ผู้ชมล่าสุด {{count}} คน",
       "nextCheck": "ตรวจสอบครั้งถัดไป",
       "added": "TikTok Live account added to the watchlist.",
       "updated": "Watchlist rules updated.",

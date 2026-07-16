@@ -83,6 +83,8 @@ type TikTokLiveInspectResult = {
   title: string;
   uploader?: string;
   thumbnail?: string;
+  avatar?: string;
+  viewerCount?: number;
   isLive?: boolean;
   liveStatus?: string;
   variants: TikTokLiveVariant[];
@@ -174,6 +176,8 @@ type TikTokLiveWatchEntry = {
   lastTitle?: string;
   lastUploader?: string;
   thumbnail?: string;
+  avatar?: string;
+  lastViewerCount?: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -322,6 +326,14 @@ function formatDuration(secondsValue: string): string {
   if (seconds % 3600 === 0) return `${seconds / 3600}h`;
   if (seconds % 60 === 0) return `${seconds / 60}m`;
   return `${seconds}s`;
+}
+
+function formatViewerCount(value: number, locale: string): string {
+  try {
+    return new Intl.NumberFormat(locale).format(value);
+  } catch {
+    return value.toLocaleString();
+  }
 }
 
 function TikTokLiveThumbnail({
@@ -808,6 +820,8 @@ export function TikTokLivePage() {
           title: inspectResult?.title,
           uploader: inspectResult?.uploader,
           thumbnail: inspectResult?.thumbnail,
+          avatar: inspectResult?.avatar,
+          viewerCount: inspectResult?.viewerCount,
         },
       });
       setStatus(t(editingWatchId ? 'tiktokLive.watchlist.updated' : 'tiktokLive.watchlist.added'));
@@ -1940,12 +1954,12 @@ export function TikTokLivePage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-3">
                           <TikTokLiveThumbnail
-                            src={entry.thumbnail}
+                            src={entry.avatar || entry.thumbnail}
                             alt={
                               entry.lastTitle ||
                               (entry.username ? `@${entry.username}` : entry.targetInput)
                             }
-                            className="h-16 w-12 rounded-lg"
+                            className="h-12 w-12 rounded-full"
                           />
                           <div className="min-w-0">
                             <p className="truncate text-sm font-medium">
@@ -1956,6 +1970,19 @@ export function TikTokLivePage() {
                               {entry.lastUploader ||
                                 (entry.username ? `@${entry.username}` : entry.targetUrl)}
                             </p>
+                            {entry.lastViewerCount !== undefined && (
+                              <span className="mt-1 inline-flex items-center gap-1 rounded bg-rose-500/10 px-1.5 py-0.5 text-[11px] text-rose-600 dark:text-rose-400">
+                                <Eye className="h-3 w-3" />
+                                {t(
+                                  entry.status === 'online' || entry.status === 'recording'
+                                    ? 'tiktokLive.watchlist.viewers'
+                                    : 'tiktokLive.watchlist.lastViewers',
+                                  {
+                                    count: formatViewerCount(entry.lastViewerCount, i18n.language),
+                                  },
+                                )}
+                              </span>
+                            )}
                             <p className="mt-1 truncate text-[11px] text-muted-foreground/70">
                               {entry.targetUrl}
                             </p>
@@ -2214,22 +2241,42 @@ export function TikTokLivePage() {
                 />
                 <div className="min-w-0">
                   <h2 className="truncate text-sm font-medium">{inspectResult.title}</h2>
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {inspectResult.uploader || inspectResult.targetUrl}
-                  </p>
+                  <div className="mt-1 flex min-w-0 items-center gap-2">
+                    {inspectResult.avatar && (
+                      <TikTokLiveThumbnail
+                        src={inspectResult.avatar}
+                        alt={inspectResult.uploader || inspectResult.title}
+                        className="h-6 w-6 rounded-full"
+                      />
+                    )}
+                    <p className="truncate text-xs text-muted-foreground">
+                      {inspectResult.uploader || inspectResult.targetUrl}
+                    </p>
+                  </div>
                 </div>
               </div>
-              <Badge
-                className={cn(
-                  'shrink-0 gap-1.5',
-                  inspectResult.isLive === false
-                    ? 'bg-amber-500/10 text-amber-600'
-                    : 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <Badge
+                  className={cn(
+                    'gap-1.5',
+                    inspectResult.isLive === false
+                      ? 'bg-amber-500/10 text-amber-600'
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
+                  )}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                  {inspectResult.liveStatus ||
+                    (inspectResult.isLive === false ? 'offline' : 'live')}
+                </Badge>
+                {inspectResult.viewerCount !== undefined && (
+                  <Badge className="gap-1.5 bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                    <Eye className="h-3.5 w-3.5" />
+                    {t('tiktokLive.watchlist.viewers', {
+                      count: formatViewerCount(inspectResult.viewerCount, i18n.language),
+                    })}
+                  </Badge>
                 )}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                {inspectResult.liveStatus || (inspectResult.isLive === false ? 'offline' : 'live')}
-              </Badge>
+              </div>
             </div>
             {inspectResult.selectedVariant && (
               <div className="rounded-lg border border-cyan-500/20 bg-background/40 px-3 py-2 text-xs">

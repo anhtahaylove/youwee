@@ -126,11 +126,13 @@ pub struct TikTokLiveWatchEntry {
     pub last_title: Option<String>,
     pub last_uploader: Option<String>,
     pub thumbnail: Option<String>,
+    pub avatar: Option<String>,
+    pub last_viewer_count: Option<u64>,
     pub created_at: i64,
     pub updated_at: i64,
 }
 
-const WATCH_COLUMNS: &str = "id, target_input, target_url, username, enabled, auto_record, output_dir, preferred_quality, preferred_transport, duration_seconds, cookie_mode, cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds, backoff_attempt, next_check_at, status, active_job_id, last_error, last_checked_at, last_online_at, last_recording_at, created_at, updated_at, record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome, last_completed_at, last_started_job_id, last_segment_count, last_refresh_count, last_reconnect_count, last_file_size, schedule_enabled, schedule_days, schedule_start_minute, schedule_end_minute, last_title, last_uploader, thumbnail";
+const WATCH_COLUMNS: &str = "id, target_input, target_url, username, enabled, auto_record, output_dir, preferred_quality, preferred_transport, duration_seconds, cookie_mode, cookie_browser, cookie_browser_profile, cookie_file_path, poll_interval_seconds, backoff_attempt, next_check_at, status, active_job_id, last_error, last_checked_at, last_online_at, last_recording_at, created_at, updated_at, record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome, last_completed_at, last_started_job_id, last_segment_count, last_refresh_count, last_reconnect_count, last_file_size, schedule_enabled, schedule_days, schedule_start_minute, schedule_end_minute, last_title, last_uploader, thumbnail, avatar, last_viewer_count";
 
 pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), String> {
     conn.execute(
@@ -176,6 +178,8 @@ pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), 
             last_title TEXT,
             last_uploader TEXT,
             thumbnail TEXT,
+            avatar TEXT,
+            last_viewer_count INTEGER,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
@@ -201,6 +205,8 @@ pub(crate) fn init_tiktok_live_watchlist_table(conn: &Connection) -> Result<(), 
         "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_title TEXT",
         "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_uploader TEXT",
         "ALTER TABLE tiktok_live_watchlist ADD COLUMN thumbnail TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN avatar TEXT",
+        "ALTER TABLE tiktok_live_watchlist ADD COLUMN last_viewer_count INTEGER",
     ] {
         let _ = conn.execute(migration, []);
     }
@@ -282,6 +288,10 @@ fn watch_entry_from_row(row: &Row<'_>) -> rusqlite::Result<TikTokLiveWatchEntry>
         last_title: row.get(40)?,
         last_uploader: row.get(41)?,
         thumbnail: row.get(42)?,
+        avatar: row.get(43)?,
+        last_viewer_count: row
+            .get::<_, Option<i64>>(44)?
+            .map(|value| value.max(0) as u64),
         created_at: row.get(23)?,
         updated_at: row.get(24)?,
     })
@@ -308,12 +318,13 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             record_mode, cooldown_seconds, filename_template, last_session_id, last_outcome,
             last_completed_at, last_started_job_id, last_segment_count, last_refresh_count,
             last_reconnect_count, last_file_size, schedule_enabled, schedule_days,
-            schedule_start_minute, schedule_end_minute, last_title, last_uploader, thumbnail
+            schedule_start_minute, schedule_end_minute, last_title, last_uploader, thumbnail,
+            avatar, last_viewer_count
          ) VALUES (
             ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
             ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28,
             ?29, ?30, ?31, ?32, ?33, ?34, ?35, ?36, ?37, ?38, ?39, ?40,
-            ?41, ?42, ?43
+            ?41, ?42, ?43, ?44, ?45
          )
          ON CONFLICT(id) DO UPDATE SET
             target_input = excluded.target_input,
@@ -356,6 +367,8 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             last_title = excluded.last_title,
             last_uploader = excluded.last_uploader,
             thumbnail = excluded.thumbnail,
+            avatar = excluded.avatar,
+            last_viewer_count = excluded.last_viewer_count,
             created_at = excluded.created_at,
             updated_at = excluded.updated_at",
         params![
@@ -404,6 +417,10 @@ pub fn save_tiktok_live_watch_entry_internal(entry: &TikTokLiveWatchEntry) -> Re
             entry.last_title,
             entry.last_uploader,
             entry.thumbnail,
+            entry.avatar,
+            entry
+                .last_viewer_count
+                .and_then(|value| i64::try_from(value).ok()),
         ],
     )
     .map_err(|error| format!("Failed to save TikTok Live watchlist entry: {error}"))?;
@@ -459,7 +476,9 @@ pub fn update_tiktok_live_watch_entry_internal(
                 schedule_end_minute = ?40,
                 last_title = ?41,
                 last_uploader = ?42,
-                thumbnail = ?43
+                thumbnail = ?43,
+                avatar = ?44,
+                last_viewer_count = ?45
              WHERE id = ?1",
             params![
                 entry.id,
@@ -507,6 +526,10 @@ pub fn update_tiktok_live_watch_entry_internal(
                 entry.last_title,
                 entry.last_uploader,
                 entry.thumbnail,
+                entry.avatar,
+                entry
+                    .last_viewer_count
+                    .and_then(|value| i64::try_from(value).ok()),
             ],
         )
         .map_err(|error| format!("Failed to update TikTok Live watchlist entry: {error}"))?;
@@ -658,6 +681,8 @@ mod tests {
             last_title: None,
             last_uploader: None,
             thumbnail: None,
+            avatar: None,
+            last_viewer_count: None,
             created_at: 100,
             updated_at: 100,
         }
@@ -673,6 +698,8 @@ mod tests {
         entry.last_title = Some("Creator is live".to_string());
         entry.last_uploader = Some("Creator".to_string());
         entry.thumbnail = Some("https://p16.example/live-cover.jpeg".to_string());
+        entry.avatar = Some("https://p16.example/creator-avatar.jpeg".to_string());
+        entry.last_viewer_count = Some(12_345);
         save_tiktok_live_watch_entry_internal(&entry).expect("save watch entry");
 
         let loaded = get_tiktok_live_watch_entry_internal(&entry.id)
@@ -686,6 +713,8 @@ mod tests {
         assert_eq!(loaded.last_title, entry.last_title);
         assert_eq!(loaded.last_uploader, entry.last_uploader);
         assert_eq!(loaded.thumbnail, entry.thumbnail);
+        assert_eq!(loaded.avatar, entry.avatar);
+        assert_eq!(loaded.last_viewer_count, entry.last_viewer_count);
         assert!(!loaded.schedule_enabled);
         assert!(
             get_tiktok_live_watch_entry_by_active_job_internal("missing-job")

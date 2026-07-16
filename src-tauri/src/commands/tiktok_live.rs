@@ -224,6 +224,8 @@ pub struct TikTokLiveInspectResult {
     pub title: String,
     pub uploader: Option<String>,
     pub thumbnail: Option<String>,
+    pub avatar: Option<String>,
+    pub viewer_count: Option<u64>,
     pub is_live: Option<bool>,
     pub live_status: Option<String>,
     pub variants: Vec<TikTokLiveVariant>,
@@ -307,6 +309,8 @@ pub struct SaveTikTokLiveWatchEntryInput {
     pub title: Option<String>,
     pub uploader: Option<String>,
     pub thumbnail: Option<String>,
+    pub avatar: Option<String>,
+    pub viewer_count: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2574,6 +2578,39 @@ fn scalar_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> 
     })
 }
 
+fn unsigned_integer_at(json: &serde_json::Value, paths: &[&str]) -> Option<u64> {
+    paths.iter().find_map(|path| {
+        let value = json.pointer(path)?;
+        value
+            .as_u64()
+            .or_else(|| value.as_i64().and_then(|number| u64::try_from(number).ok()))
+            .or_else(|| value.as_str()?.trim().parse::<u64>().ok())
+    })
+}
+
+fn image_url_from_value(value: &serde_json::Value) -> Option<String> {
+    value
+        .as_str()
+        .filter(|url| !url.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            value
+                .as_array()
+                .and_then(|values| values.iter().find_map(image_url_from_value))
+        })
+        .or_else(|| {
+            ["url_list", "urlList"]
+                .into_iter()
+                .find_map(|key| value.get(key).and_then(image_url_from_value))
+        })
+}
+
+fn image_url_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
+    paths
+        .iter()
+        .find_map(|path| json.pointer(path).and_then(image_url_from_value))
+}
+
 fn tiktok_metadata_string_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
     string_at(json, paths).or_else(|| {
         json.get("_youwee_page_hydration")
@@ -2591,6 +2628,26 @@ fn tiktok_metadata_scalar_string_at(json: &serde_json::Value, paths: &[&str]) ->
                     .iter()
                     .find_map(|value| scalar_string_at(value, paths))
             })
+    })
+}
+
+fn tiktok_metadata_unsigned_integer_at(json: &serde_json::Value, paths: &[&str]) -> Option<u64> {
+    unsigned_integer_at(json, paths).or_else(|| {
+        json.get("_youwee_page_hydration")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|values| {
+                values
+                    .iter()
+                    .find_map(|value| unsigned_integer_at(value, paths))
+            })
+    })
+}
+
+fn tiktok_metadata_image_url_at(json: &serde_json::Value, paths: &[&str]) -> Option<String> {
+    image_url_at(json, paths).or_else(|| {
+        json.get("_youwee_page_hydration")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|values| values.iter().find_map(|value| image_url_at(value, paths)))
     })
 }
 
@@ -2658,13 +2715,49 @@ fn tiktok_live_uploader(json: &serde_json::Value) -> Option<String> {
 }
 
 fn tiktok_live_thumbnail(json: &serde_json::Value) -> Option<String> {
-    tiktok_metadata_string_at(
+    tiktok_metadata_image_url_at(
         json,
         &[
             "/thumbnail",
-            "/data/cover/url_list/0",
-            "/data/owner/avatar_medium/url_list/0",
-            "/data/owner/avatar_thumb/url_list/0",
+            "/data/cover",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/cover",
+            "/data/owner/avatar_medium",
+            "/data/owner/avatar_thumb",
+        ],
+    )
+}
+
+fn tiktok_live_avatar(json: &serde_json::Value) -> Option<String> {
+    tiktok_metadata_image_url_at(
+        json,
+        &[
+            "/avatar",
+            "/data/owner/avatar_large",
+            "/data/owner/avatar_medium",
+            "/data/owner/avatar_thumb",
+            "/LiveRoom/liveRoomUserInfo/user/avatarLarger",
+            "/LiveRoom/liveRoomUserInfo/user/avatarMedium",
+            "/LiveRoom/liveRoomUserInfo/user/avatarThumb",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/owner/avatar_large",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/owner/avatar_medium",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/owner/avatar_thumb",
+        ],
+    )
+}
+
+fn tiktok_live_viewer_count(json: &serde_json::Value) -> Option<u64> {
+    tiktok_metadata_unsigned_integer_at(
+        json,
+        &[
+            "/viewer_count",
+            "/concurrent_view_count",
+            "/data/user_count",
+            "/data/viewer_count",
+            "/data/stats/user_count",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/user_count",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/userCount",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/stats/user_count",
+            "/LiveRoom/liveRoomUserInfo/liveRoom/stats/userCount",
         ],
     )
 }
@@ -2745,6 +2838,8 @@ pub async fn inspect_tiktok_live(
         title,
         uploader: tiktok_live_uploader(&json).or(target.username),
         thumbnail: tiktok_live_thumbnail(&json),
+        avatar: tiktok_live_avatar(&json),
+        viewer_count: tiktok_live_viewer_count(&json),
         is_live: json
             .get("is_live")
             .and_then(|v| v.as_bool())
@@ -3486,6 +3581,8 @@ pub fn save_tiktok_live_watch_entry(
         last_title: None,
         last_uploader: None,
         thumbnail: None,
+        avatar: None,
+        last_viewer_count: None,
         created_at: now,
         updated_at: now,
     });
@@ -3523,6 +3620,8 @@ pub fn save_tiktok_live_watch_entry(
         saved.last_title = None;
         saved.last_uploader = None;
         saved.thumbnail = None;
+        saved.avatar = None;
+        saved.last_viewer_count = None;
     }
     if let Some(title) = entry
         .title
@@ -3544,6 +3643,16 @@ pub fn save_tiktok_live_watch_entry(
         .filter(|value| !value.is_empty())
     {
         saved.thumbnail = Some(thumbnail);
+    }
+    if let Some(avatar) = entry
+        .avatar
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        saved.avatar = Some(avatar);
+    }
+    if entry.viewer_count.is_some() {
+        saved.last_viewer_count = entry.viewer_count;
     }
     if saved.enabled && saved.active_job_id.is_none() {
         saved.next_check_at = now;
@@ -3862,6 +3971,12 @@ async fn inspect_watch_entry(
             }
             if result.thumbnail.is_some() {
                 entry.thumbnail = result.thumbnail.clone();
+            }
+            if result.avatar.is_some() {
+                entry.avatar = result.avatar.clone();
+            }
+            if result.viewer_count.is_some() {
+                entry.last_viewer_count = result.viewer_count;
             }
             entry.last_online_at = Some(now);
             entry.backoff_attempt = 0;
@@ -4451,6 +4566,8 @@ fn ensure_tiktok_live_telegram_entry(
             title: None,
             uploader: None,
             thumbnail: None,
+            avatar: None,
+            viewer_count: None,
         },
     )
 }
@@ -4964,8 +5081,12 @@ mod tests {
                     "title": "Creator live title",
                     "owner": {
                         "display_id": "creator.user",
-                        "nickname": "Creator User"
+                        "nickname": "Creator User",
+                        "avatar_medium": {
+                            "url_list": ["https://p16.example/creator-avatar.jpeg"]
+                        }
                     },
+                    "user_count": "12345",
                     "cover": {
                         "url_list": ["https://p16.example/live-cover.jpeg"]
                     }
@@ -4983,6 +5104,11 @@ mod tests {
             Some("https://p16.example/live-cover.jpeg")
         );
         assert_eq!(
+            tiktok_live_avatar(&json).as_deref(),
+            Some("https://p16.example/creator-avatar.jpeg")
+        );
+        assert_eq!(tiktok_live_viewer_count(&json), Some(12_345));
+        assert_eq!(
             tiktok_live_session_id(
                 &json,
                 "https://www.tiktok.com/@creator.user/live",
@@ -4991,6 +5117,32 @@ mod tests {
             .as_deref(),
             Some("7654321")
         );
+    }
+
+    #[test]
+    fn extracts_avatar_and_viewers_from_sigi_live_room_hydration() {
+        let json = serde_json::json!({
+            "_youwee_page_hydration": [{
+                "LiveRoom": {
+                    "liveRoomUserInfo": {
+                        "liveRoom": {
+                            "user_count": 678
+                        },
+                        "user": {
+                            "avatarLarger": {
+                                "urlList": ["https://p16.example/sigi-avatar.jpeg"]
+                            }
+                        }
+                    }
+                }
+            }]
+        });
+
+        assert_eq!(
+            tiktok_live_avatar(&json).as_deref(),
+            Some("https://p16.example/sigi-avatar.jpeg")
+        );
+        assert_eq!(tiktok_live_viewer_count(&json), Some(678));
     }
 
     #[test]
@@ -5605,6 +5757,8 @@ mod tests {
             last_title: None,
             last_uploader: None,
             thumbnail: None,
+            avatar: None,
+            last_viewer_count: None,
             created_at: 100,
             updated_at: 100,
         }

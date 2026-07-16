@@ -467,6 +467,8 @@
       "pollInterval": "Check live status every",
       "intervalValue": "Check every {{seconds}} seconds",
       "lastChecked": "Last checked",
+      "viewers": "{{count}} watching",
+      "lastViewers": "Last seen: {{count}} viewers",
       "nextCheck": "Next check",
       "added": "TikTok Live account added to the watchlist.",
       "updated": "Watchlist rules updated.",

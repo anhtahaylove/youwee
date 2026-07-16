@@ -467,6 +467,8 @@
       "pollInterval": "Kiểm tra trạng thái LIVE mỗi",
       "intervalValue": "Kiểm tra mỗi {{seconds}} giây",
       "lastChecked": "Kiểm tra gần nhất",
+      "viewers": "{{count}} người đang xem",
+      "lastViewers": "Gần nhất: {{count}} người xem",
       "nextCheck": "Lần kiểm tra tiếp theo",
       "added": "Đã thêm tài khoản TikTok Live vào danh sách theo dõi.",
       "updated": "Đã cập nhật quy tắc theo dõi.",

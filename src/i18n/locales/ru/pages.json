@@ -464,6 +464,8 @@
       "pollInterval": "Проверять LIVE каждые",
       "intervalValue": "Check every {{seconds}} seconds",
       "lastChecked": "Последняя проверка",
+      "viewers": "Смотрят: {{count}}",
+      "lastViewers": "Последняя аудитория: {{count}}",
       "nextCheck": "Следующая проверка",
       "added": "TikTok Live account added to the watchlist.",
       "updated": "Watchlist rules updated.",

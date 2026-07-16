@@ -467,6 +467,8 @@
       "pollInterval": "Comprobar el LIVE cada",
       "intervalValue": "Comprobar cada {{seconds}} segundos",
       "lastChecked": "Última comprobación",
+      "viewers": "{{count}} espectadores",
+      "lastViewers": "Última vez: {{count}} espectadores",
       "nextCheck": "Próxima comprobación",
       "added": "Cuenta de TikTok Live añadida a la lista.",
       "updated": "Reglas de seguimiento actualizadas.",
