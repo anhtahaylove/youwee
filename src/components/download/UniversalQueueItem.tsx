@@ -13,6 +13,7 @@ import {
   Pencil,
   RefreshCw,
   Scissors,
+  ScrollText,
   Sparkles,
   X,
   XCircle,
@@ -110,6 +111,7 @@ interface UniversalQueueItemProps {
   onUpdateTimeRange: (id: string, start?: string, end?: string) => void;
   onSelectOutputFolder: (id: string) => Promise<void>;
   onRename: (id: string, newName: string) => Promise<void>;
+  onViewLogs: () => void;
   onScheduleUpcomingLive?: (config: ScheduleConfig) => void;
 }
 
@@ -121,6 +123,7 @@ export function UniversalQueueItem({
   onUpdateTimeRange,
   onSelectOutputFolder,
   onRename,
+  onViewLogs,
   onScheduleUpcomingLive,
 }: UniversalQueueItemProps) {
   const { t } = useTranslation('universal');
@@ -173,6 +176,7 @@ export function UniversalQueueItem({
   const isFetchingMeta = isPending && item.metadataStage === 'fetching';
   const isPreparingPreview = isPending && !!item.thumbnail && !thumbError && !previewReady;
   const isUpcomingLiveError = item.errorCode === 'YT_UPCOMING_LIVE';
+  const isMissingCompletedFile = isPending && item.errorCode === 'OUTPUT_FILE_MISSING';
 
   // Get saved settings for pending items
   const itemSettings = item.settings as ItemUniversalSettings | undefined;
@@ -464,6 +468,13 @@ export function UniversalQueueItem({
             </span>
           )}
 
+          {isMissingCompletedFile && (
+            <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
+              <RefreshCw className="w-3 h-3" />
+              {t('queue.status.fileMissing')}
+            </span>
+          )}
+
           {/* Settings badges for pending/downloading items */}
           {(isPending || isActive) && itemSettings && (
             <>
@@ -516,11 +527,22 @@ export function UniversalQueueItem({
           )}
 
           {/* Failed Hint - View Logs */}
-          {isError && (
+          {isError && isUpcomingLiveError && (
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70">
               <Lightbulb className="w-3 h-3" />
-              {isUpcomingLiveError ? t('queue.upcomingLive.hint') : t('queue.status.failedHint')}
+              {t('queue.upcomingLive.hint')}
             </span>
+          )}
+
+          {isError && !isUpcomingLiveError && (
+            <button
+              type="button"
+              onClick={onViewLogs}
+              className="inline-flex items-center gap-1 rounded-md border border-dashed border-red-500/35 bg-red-500/5 px-2 py-0.5 text-[11px] font-medium text-red-600 transition-colors hover:border-red-500/60 hover:bg-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/50 dark:text-red-400"
+            >
+              <ScrollText className="w-3 h-3" />
+              {t('queue.status.failedHint')}
+            </button>
           )}
 
           {isUpcomingLiveError && onScheduleUpcomingLive && (

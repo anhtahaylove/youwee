@@ -117,6 +117,7 @@
       "failed": "失敗",
       "skipped": "スキップ",
       "failedHint": "詳細はログページをご確認ください",
+      "fileMissing": "ファイルが削除されました — 再ダウンロードできます",
       "retrying": "再試行 {{current}}/{{total}} ({{seconds}}秒後)"
     },
     "summarize": "AI 要約",

@@ -25,6 +25,41 @@ export function normalizeDownloadQueueItems(items: DownloadItem[]): DownloadItem
   return items.map(normalizeQueueItem);
 }
 
+export function resetMissingCompletedQueueItems(
+  items: DownloadItem[],
+  missingFilepaths: ReadonlySet<string>,
+): DownloadItem[] {
+  let changed = false;
+  const nextItems = items.map((item) => {
+    if (
+      item.status !== 'completed' ||
+      !item.completedFilepath ||
+      !missingFilepaths.has(item.completedFilepath)
+    ) {
+      return item;
+    }
+
+    changed = true;
+    return {
+      ...item,
+      status: 'pending' as const,
+      progress: 0,
+      speed: '',
+      eta: '',
+      error: undefined,
+      errorCode: 'OUTPUT_FILE_MISSING',
+      retryState: undefined,
+      completedFilesize: undefined,
+      completedResolution: undefined,
+      completedFormat: undefined,
+      completedFilepath: undefined,
+      completedHistoryId: undefined,
+    };
+  });
+
+  return changed ? nextItems : items;
+}
+
 export function serializeDownloadQueueItems(items: DownloadItem[]): string {
   return JSON.stringify(normalizeDownloadQueueItems(items));
 }

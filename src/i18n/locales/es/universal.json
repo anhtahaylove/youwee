@@ -117,6 +117,7 @@
       "failed": "Fallida",
       "skipped": "Omitida",
       "failedHint": "Ver la página de Registros para más detalles",
+      "fileMissing": "Archivo eliminado — listo para descargar de nuevo",
       "retrying": "Reintento {{current}}/{{total}} en {{seconds}} s"
     },
     "summarize": "Resumir",

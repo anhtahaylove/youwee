@@ -117,6 +117,7 @@
       "failed": "失败",
       "skipped": "已跳过",
       "failedHint": "查看日志页面了解详情",
+      "fileMissing": "文件已删除，可重新下载",
       "retrying": "{{seconds}}秒后重试 {{current}}/{{total}}"
     },
     "summarize": "摘要",

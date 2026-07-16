@@ -173,7 +173,10 @@ function AppContent() {
           <DownloadPage onNavigateToSettings={() => openSettingsPage('general')} />
         )}
         {currentPage === 'universal' && (
-          <UniversalPage onNavigateToSettings={() => openSettingsPage('general')} />
+          <UniversalPage
+            onNavigateToSettings={() => openSettingsPage('general')}
+            onNavigateToLogs={() => setCurrentPage('logs')}
+          />
         )}
         {currentPage === 'gallery' && (
           <GalleryPage onNavigateToSettings={() => openSettingsPage('general')} />

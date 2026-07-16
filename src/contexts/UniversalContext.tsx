@@ -48,6 +48,7 @@ import {
   loadCookieSettings,
   loadProxySettings,
 } from '@/lib/network-config';
+import { resetMissingCompletedQueueItems } from '@/lib/persisted-download-queue';
 import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
@@ -269,6 +270,7 @@ interface UniversalContextType {
   removeItem: (id: string) => void;
   clearAll: () => void;
   clearCompleted: () => void;
+  reconcileCompletedFiles: () => Promise<void>;
   startDownload: () => Promise<void>;
   stopDownload: () => Promise<void>;
   updateQuality: (quality: Quality) => void;
@@ -360,6 +362,57 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     itemsRef.current = items;
   }, [items]);
+
+  const completedFilepathsFingerprint = useMemo(
+    () =>
+      items
+        .filter((item) => item.status === 'completed' && item.completedFilepath)
+        .map((item) => `${item.id}:${item.completedFilepath}`)
+        .join('\n'),
+    [items],
+  );
+
+  const reconcileCompletedFiles = useCallback(async () => {
+    const completedItems = itemsRef.current.filter(
+      (item) => item.status === 'completed' && item.completedFilepath,
+    );
+    if (completedItems.length === 0) return;
+
+    const checks = await Promise.all(
+      completedItems.map(async (item) => {
+        try {
+          const exists = await invoke<boolean>('check_file_exists', {
+            filepath: item.completedFilepath,
+          });
+          return exists ? null : item.completedFilepath;
+        } catch (error) {
+          console.error('Failed to verify completed download file:', error);
+          return null;
+        }
+      }),
+    );
+    const missingFilepaths = new Set(checks.filter((path): path is string => Boolean(path)));
+    if (missingFilepaths.size === 0) return;
+
+    setItems((currentItems) => {
+      const nextItems = resetMissingCompletedQueueItems(currentItems, missingFilepaths);
+      itemsRef.current = nextItems;
+      return nextItems;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!completedFilepathsFingerprint) return;
+    void reconcileCompletedFiles();
+  }, [completedFilepathsFingerprint, reconcileCompletedFiles]);
+
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      void reconcileCompletedFiles();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => window.removeEventListener('focus', handleWindowFocus);
+  }, [reconcileCompletedFiles]);
 
   // Keep settingsRef in sync with settings state
   useEffect(() => {
@@ -1625,6 +1678,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearAll,
       clearCompleted,
+      reconcileCompletedFiles,
       startDownload,
       stopDownload,
       updateQuality,
@@ -1659,6 +1713,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearAll,
       clearCompleted,
+      reconcileCompletedFiles,
       startDownload,
       stopDownload,
       updateQuality,

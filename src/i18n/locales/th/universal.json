@@ -117,6 +117,7 @@
       "failed": "ล้มเหลว",
       "skipped": "ข้ามแล้ว",
       "failedHint": "ดูรายละเอียดได้ที่หน้า Logs",
+      "fileMissing": "ไฟล์ถูกลบแล้ว — พร้อมดาวน์โหลดอีกครั้ง",
       "retrying": "ลองใหม่ {{current}}/{{total}} ในอีก {{seconds}} วินาที"
     },
     "summarize": "สรุป",

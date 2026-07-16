@@ -117,6 +117,7 @@
       "failed": "Thất bại",
       "skipped": "Đã bỏ qua",
       "failedHint": "Xem trang Logs để biết chi tiết",
+      "fileMissing": "File đã bị xóa — sẵn sàng tải lại",
       "retrying": "Thử lại {{current}}/{{total}} sau {{seconds}}s"
     },
     "summarize": "Tóm tắt",

@@ -117,6 +117,7 @@
       "failed": "Échec",
       "skipped": "Ignoré",
       "failedHint": "Voir la page Journaux pour les détails",
+      "fileMissing": "Fichier supprimé — prêt à être téléchargé de nouveau",
       "retrying": "Nouvelle tentative {{current}}/{{total}} dans {{seconds}}s"
     },
     "summarize": "Résumer",

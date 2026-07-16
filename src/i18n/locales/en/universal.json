@@ -117,6 +117,7 @@
       "failed": "Failed",
       "skipped": "Skipped",
       "failedHint": "View Logs page for details",
+      "fileMissing": "File removed — ready to download again",
       "retrying": "Retry {{current}}/{{total}} in {{seconds}}s"
     },
     "summarize": "Summarize",

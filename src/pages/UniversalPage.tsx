@@ -1,5 +1,5 @@
 import { Play, Square, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserCookieErrorDialog } from '@/components/BrowserCookieErrorDialog';
 import {
@@ -25,9 +25,10 @@ const FFMPEG_REQUIRED_QUALITIES: Quality[] = ['best', '8k', '4k', '2k'];
 
 interface UniversalPageProps {
   onNavigateToSettings?: () => void;
+  onNavigateToLogs: () => void;
 }
 
-export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
+export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: UniversalPageProps) {
   const { t } = useTranslation('universal');
   const {
     items,
@@ -41,6 +42,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
     removeItem,
     clearAll,
     clearCompleted,
+    reconcileCompletedFiles,
     startDownload,
     stopDownload,
     updateQuality,
@@ -62,6 +64,10 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
   const { ffmpegStatus } = useDependencies();
 
   const [showFfmpegDialog, setShowFfmpegDialog] = useState(false);
+
+  useEffect(() => {
+    void reconcileCompletedFiles();
+  }, [reconcileCompletedFiles]);
 
   const schedule = useSchedule({
     storageKey: 'youwee-schedule-universal',
@@ -150,6 +156,7 @@ export function UniversalPage({ onNavigateToSettings }: UniversalPageProps) {
             onUpdateTimeRange={updateItemTimeRange}
             onSelectOutputFolder={selectItemOutputFolder}
             onRename={renameCompletedItem}
+            onViewLogs={onNavigateToLogs}
             onClearCompleted={clearCompleted}
             onScheduleUpcomingLive={schedule.setSchedule}
           />
