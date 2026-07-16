@@ -9,6 +9,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Thêm mới
 
+## [0.19.1-custom.31] - 2026-07-17
+
+### Thêm mới
+- **Tự cập nhật tiện ích Firefox** - Cho phép tiện ích Firefox tự phân phối có chữ ký tìm và cài XPI mới hơn qua update manifest GitHub được xác minh SHA-256
+
+### Thay đổi
+- **Toàn vẹn release Firefox** - Kiểm định tiện ích theo chế độ self-hosted và yêu cầu signed XPI cùng `firefox-updates.json` trước khi phát hành release
+
 ## [0.19.1-custom.30] - 2026-07-16
 
 ### Thay đổi

@@ -73,6 +73,7 @@
     "gecko": {
       "id": "youwee@anhtahaylove.com",
       "strict_min_version": "140.0",
+      "update_url": "https://github.com/anhtahaylove/youwee/releases/latest/download/firefox-updates.json",
       "data_collection_permissions": {
         "required": ["browsingActivity"]
       }

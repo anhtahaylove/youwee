@@ -239,6 +239,9 @@ jobs:
       - name: Build and package extension archives
         run: bun run ext:package
 
+      - name: Validate Firefox self-hosted extension
+        run: bunx web-ext lint --source-dir extensions/youwee-webext/dist/firefox --self-hosted --warnings-as-errors
+
       - name: Check Firefox signing secrets
         id: firefox-signing
         env:
@@ -311,6 +314,7 @@ jobs:
             "Youwee-Windows-Full-Setup.exe.sig"
             "Youwee-Extension-Chromium.zip"
             "Youwee-Extension-Firefox.zip"
+            "Youwee-Extension-Firefox-signed.xpi"
           )
 
           for asset in "${REQUIRED_ASSETS[@]}"; do
@@ -319,10 +323,6 @@ jobs:
               exit 1
             fi
           done
-
-          if ! find artifacts -type f -name "Youwee-Extension-Firefox-signed.xpi" -print -quit | grep -q .; then
-            echo "Firefox AMO signing was skipped; publishing the developer ZIP only."
-          fi
 
       - name: Get version from tag
         id: version
@@ -505,6 +505,44 @@ jobs:
           echo "Generated latest.json:"
           cat latest.json
 
+      - name: Generate Firefox extension update manifest
+        run: |
+          FIREFOX_XPI=$(find artifacts -type f -name "Youwee-Extension-Firefox-signed.xpi" -print -quit)
+          EXTENSION_MANIFEST=$(unzip -p "$FIREFOX_XPI" manifest.json)
+          EXTENSION_ID=$(printf '%s' "$EXTENSION_MANIFEST" | jq -er '.browser_specific_settings.gecko.id')
+          EXTENSION_VERSION=$(printf '%s' "$EXTENSION_MANIFEST" | jq -er '.version')
+          EXTENSION_MIN_VERSION=$(printf '%s' "$EXTENSION_MANIFEST" | jq -er '.browser_specific_settings.gecko.strict_min_version')
+          XPI_SHA256=$(sha256sum "$FIREFOX_XPI" | cut -d' ' -f1)
+          XPI_URL="https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/Youwee-Extension-Firefox-signed.xpi"
+
+          jq -n \
+            --arg id "$EXTENSION_ID" \
+            --arg version "$EXTENSION_VERSION" \
+            --arg minVersion "$EXTENSION_MIN_VERSION" \
+            --arg link "$XPI_URL" \
+            --arg hash "$XPI_SHA256" \
+            '{
+              addons: {
+                ($id): {
+                  updates: [{
+                    version: $version,
+                    update_link: $link,
+                    update_hash: ("sha256:" + $hash),
+                    applications: {
+                      gecko: {
+                        strict_min_version: $minVersion
+                      }
+                    }
+                  }]
+                }
+              }
+            }' > firefox-updates.json
+
+          jq -e --arg id "$EXTENSION_ID" --arg version "$EXTENSION_VERSION" \
+            '.addons[$id].updates[0].version == $version' firefox-updates.json > /dev/null
+          echo "Generated firefox-updates.json:"
+          cat firefox-updates.json
+
       - name: Generate SHA256 checksums
         run: |
           cd artifacts
@@ -552,9 +590,6 @@ jobs:
           cat CHANGELOG_EXTRACT.md >> RELEASE_BODY.md
           echo "" >> RELEASE_BODY.md
           
-          # Add download section. The signed Firefox XPI is optional because it
-          # requires FIREFOX_AMO_JWT_ISSUER and FIREFOX_AMO_JWT_SECRET.
-          FIREFOX_XPI=$(find artifacts -name "Youwee-Extension-Firefox-signed.xpi" 2>/dev/null | head -1)
           cat >> RELEASE_BODY.md << 'DOWNLOADS'
           ## Download
           
@@ -570,9 +605,7 @@ jobs:
           | 🦊 **Extension (Firefox Developer)** | `Youwee-Extension-Firefox.zip` | Temporary load through `about:debugging` |
           DOWNLOADS
 
-          if [ -n "$FIREFOX_XPI" ]; then
-            echo '| 🦊 **Extension (Firefox Stable)** | `Youwee-Extension-Firefox-signed.xpi` | Signed unlisted add-on for Firefox stable |' >> RELEASE_BODY.md
-          fi
+          echo '| 🦊 **Extension (Firefox Stable)** | `Youwee-Extension-Firefox-signed.xpi` | Signed add-on with automatic updates from GitHub releases |' >> RELEASE_BODY.md
 
           cat >> RELEASE_BODY.md << 'DETAILS'
           
@@ -590,11 +623,7 @@ jobs:
           - Firefox developer build: download `Youwee-Extension-Firefox.zip` -> extract -> open `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> select `manifest.json`.
           DETAILS
 
-          if [ -n "$FIREFOX_XPI" ]; then
-            echo '- Firefox stable: download `Youwee-Extension-Firefox-signed.xpi` and open it directly to install.' >> RELEASE_BODY.md
-          else
-            echo '- Firefox stable XPI was not published because AMO signing credentials were not configured.' >> RELEASE_BODY.md
-          fi
+          echo '- Firefox stable: install `Youwee-Extension-Firefox-signed.xpi` once; later signed releases update automatically through `firefox-updates.json`.' >> RELEASE_BODY.md
 
           cat >> RELEASE_BODY.md << 'VERIFY'
 
@@ -631,5 +660,6 @@ jobs:
             artifacts/**/*.app.tar.gz.sig
             artifacts/**/*.xpi
             artifacts/**/Youwee-Extension-*.zip
+            firefox-updates.json
             latest.json
             SHA256SUMS.txt

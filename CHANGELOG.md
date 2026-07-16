@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+## [0.19.1-custom.31] - 2026-07-17
+
+### Added
+- **Firefox extension auto-updates** - Let the signed self-distributed Firefox extension discover newer signed XPI releases through a SHA-256-verified GitHub update manifest
+
+### Changed
+- **Firefox release integrity** - Validate the extension as self-hosted and require the signed XPI plus `firefox-updates.json` before publishing a release
+
 ## [0.19.1-custom.30] - 2026-07-16
 
 ### Changed
