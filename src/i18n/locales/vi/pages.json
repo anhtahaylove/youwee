@@ -405,6 +405,11 @@
     "quality": "Chất lượng",
     "transport": "Giao thức truyền",
     "duration": "Thời lượng ghi",
+    "durationFields": {
+      "hours": "Giờ",
+      "minutes": "Phút",
+      "seconds": "Giây"
+    },
     "selected": "Đã chọn",
     "presets": {
       "quickSetup": "Thiết lập nhanh",
@@ -417,8 +422,8 @@
       "advanced": "Tùy chọn nâng cao",
       "advancedRules": "Quy tắc theo dõi nâng cao",
       "custom": "Tùy chỉnh",
-      "customDurationMinutes": "Thời lượng theo phút",
-      "customDurationHelp": "Nhập số phút. Ví dụ: 15 = ghi trong 15 phút.",
+      "customDuration": "Thời lượng tùy chỉnh",
+      "customDurationHelp": "Đặt theo giờ, phút và giây. Ví dụ: 1 giờ 30 phút 5 giây.",
       "unlimited": "Không giới hạn",
       "automatic": "Tự động",
       "filenameUsername": "Tên người dùng + thời gian",
@@ -451,6 +456,11 @@
       "partialSaved": "Luồng phát đã kết thúc sau các lần kết nối lại. Đã lưu phần ghi được.",
       "cancelled": "Đã hủy ghi.",
       "failed": "Thao tác TikTok Live thất bại."
+    },
+    "progress": {
+      "elapsed": "Đã ghi {{elapsed}}",
+      "elapsedTotal": "Đã ghi {{elapsed}} / {{total}}",
+      "remaining": "Còn lại {{remaining}}"
     },
     "recordResult": {
       "title": "Ghi xong"
@@ -563,6 +573,8 @@
     "telemetry": {
       "title": "Tổng quan",
       "active": "Phòng đang ghi: {{count}}",
+      "capacity": "Phòng",
+      "capacityDescription": "Chọn số bản ghi trực tiếp hoặc Watchlist được chạy cùng lúc (tối đa {{limit}}). Thêm các streamer khác nhau vào Watchlist, rồi bật hoặc bắt đầu ghi để ghi đồng thời.",
       "watched": "Theo dõi: {{count}}",
       "recoverable": "Có thể khôi phục: {{count}}",
       "segments": "Phân đoạn: {{count}}",

@@ -1920,7 +1920,33 @@ async fn finalize_recording_segments(
     }
 }
 
+async fn generate_tiktok_live_history_thumbnail(
+    app: &AppHandle,
+    filepath: &str,
+) -> Result<String, String> {
+    let generated = super::generate_video_thumbnail(app.clone(), filepath.to_string()).await?;
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Failed to get app data directory: {error}"))?;
+    let thumbnail_dir = app_data_dir.join("thumbnails");
+    tokio::fs::create_dir_all(&thumbnail_dir)
+        .await
+        .map_err(|error| format!("Failed to create thumbnail directory: {error}"))?;
+
+    let mut hasher = DefaultHasher::new();
+    filepath.hash(&mut hasher);
+    let thumbnail_path = thumbnail_dir.join(format!("{:016x}.jpg", hasher.finish()));
+    if !thumbnail_path.exists() {
+        tokio::fs::copy(generated, &thumbnail_path)
+            .await
+            .map_err(|error| format!("Failed to preserve Library thumbnail: {error}"))?;
+    }
+    Ok(thumbnail_path.to_string_lossy().to_string())
+}
+
 async fn complete_tiktok_live_job(
+    app: &AppHandle,
     job: &mut TikTokLiveJob,
     final_path: PathBuf,
     partial: bool,
@@ -1942,6 +1968,13 @@ async fn complete_tiktok_live_job(
     job.status = TikTokLiveJobStatus::Finalizing;
     job.touch();
     save_tiktok_live_job_internal(job)?;
+
+    match generate_tiktok_live_history_thumbnail(app, &filepath).await {
+        Ok(thumbnail) => job.thumbnail = Some(thumbnail),
+        Err(error) => {
+            log::warn!("Could not generate TikTok Live Library thumbnail: {error}");
+        }
+    }
 
     let history_id = job
         .history_id
@@ -3435,6 +3468,7 @@ async fn record_tiktok_live_inner(
             .map(|path| path.to_string_lossy().to_string())
             .collect();
         let result = complete_tiktok_live_job(
+            &app,
             &mut job,
             final_path,
             partial,
@@ -4352,7 +4386,7 @@ pub async fn finalize_tiktok_live_recovery(
         .into_iter()
         .map(|path| path.to_string_lossy().to_string())
         .collect();
-    let result = complete_tiktok_live_job(&mut job, final_path, true, None).await;
+    let result = complete_tiktok_live_job(&app, &mut job, final_path, true, None).await;
     if result.is_err() {
         job.status = TikTokLiveJobStatus::Recoverable;
         job.error_message = Some(recovery_error_message());

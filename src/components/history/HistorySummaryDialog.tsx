@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { SimpleMarkdown } from '@/components/ui/simple-markdown';
+import { cacheRemoteThumbnailUrl } from '@/lib/asset-access';
 import {
   DEFAULT_SUMMARY_FONT_SIZE,
   getNextSummaryFontSize,
@@ -48,6 +49,18 @@ export function HistorySummaryDialog({
 }: HistorySummaryDialogProps) {
   const { t } = useTranslation('pages');
   const [fontSize, setFontSize] = useState<SummaryFontSize>(loadSummaryFontSize);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setThumbnailUrl(null);
+    void cacheRemoteThumbnailUrl(entry.thumbnail).then((url) => {
+      if (active) setThumbnailUrl(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [entry.thumbnail]);
 
   useEffect(() => {
     try {
@@ -66,9 +79,9 @@ export function HistorySummaryDialog({
       <DialogContent className="max-h-[86vh] max-w-3xl gap-0 overflow-hidden border-white/[0.08] bg-background/95 p-0 backdrop-blur-xl dark:border-white/[0.05]">
         <DialogHeader className="border-b border-border/50 p-4 pr-12 sm:p-5 sm:pr-12">
           <div className="flex items-start gap-3">
-            {entry.thumbnail && (
+            {thumbnailUrl && (
               <img
-                src={entry.thumbnail.replace(/^http:\/\//, 'https://')}
+                src={thumbnailUrl}
                 alt=""
                 className="hidden h-14 w-24 rounded-lg object-cover sm:block"
                 referrerPolicy="no-referrer"

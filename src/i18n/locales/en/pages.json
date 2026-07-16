@@ -405,6 +405,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "Recording duration",
+    "durationFields": {
+      "hours": "Hours",
+      "minutes": "Minutes",
+      "seconds": "Seconds"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "Quick setup",
@@ -417,8 +422,8 @@
       "advanced": "Advanced options",
       "advancedRules": "Advanced watch rules",
       "custom": "Custom",
-      "customDurationMinutes": "Duration in minutes",
-      "customDurationHelp": "Enter minutes. Example: 15 records for 15 minutes.",
+      "customDuration": "Custom duration",
+      "customDurationHelp": "Set hours, minutes, and seconds. Example: 1 h 30 m 5 s.",
       "unlimited": "Unlimited",
       "automatic": "Automatic",
       "filenameUsername": "Username + time",
@@ -451,6 +456,11 @@
       "partialSaved": "The stream ended after reconnect attempts. The partial recording was saved.",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "Recorded {{elapsed}}",
+      "elapsedTotal": "Recorded {{elapsed}} / {{total}}",
+      "remaining": "{{remaining}} remaining"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -563,6 +573,8 @@
     "telemetry": {
       "title": "Telemetry",
       "active": "Active rooms: {{count}}",
+      "capacity": "Rooms",
+      "capacityDescription": "Choose how many direct or Watchlist recordings may run at once (up to {{limit}}). Add different streamers to Watchlist, then enable or start them to record concurrently.",
       "watched": "Watchlist: {{count}}",
       "recoverable": "Recoverable: {{count}}",
       "segments": "Segments: {{count}}",

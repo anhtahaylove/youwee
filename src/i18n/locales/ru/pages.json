@@ -402,6 +402,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "Длительность записи",
+    "durationFields": {
+      "hours": "Часы",
+      "minutes": "Минуты",
+      "seconds": "Секунды"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "Быстрая настройка",
@@ -414,8 +419,8 @@
       "advanced": "Расширенные настройки",
       "advancedRules": "Расширенные правила",
       "custom": "Своё",
-      "customDurationMinutes": "Длительность в минутах",
-      "customDurationHelp": "Введите минуты. Пример: 15 = запись в течение 15 минут.",
+      "customDuration": "Своя длительность",
+      "customDurationHelp": "Укажите часы, минуты и секунды. Пример: 1 ч 30 мин 5 с.",
       "unlimited": "Без ограничений",
       "automatic": "Автоматически",
       "filenameUsername": "Имя пользователя + время",
@@ -448,6 +453,11 @@
       "partialSaved": "Поток завершился после попыток переподключения. Частичная запись сохранена.",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "Записано {{elapsed}}",
+      "elapsedTotal": "Записано {{elapsed}} / {{total}}",
+      "remaining": "Осталось {{remaining}}"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -560,6 +570,8 @@
     "telemetry": {
       "title": "Telemetry",
       "active": "Active rooms: {{count}}",
+      "capacity": "Комнаты",
+      "capacityDescription": "Выберите число одновременных прямых записей или записей Watchlist (до {{limit}}). Добавьте разных стримеров в Watchlist и включите их для параллельной записи.",
       "watched": "Watchlist: {{count}}",
       "recoverable": "Recoverable: {{count}}",
       "segments": "Segments: {{count}}",

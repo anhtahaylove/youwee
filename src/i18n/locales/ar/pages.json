@@ -402,6 +402,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "مدة التسجيل",
+    "durationFields": {
+      "hours": "الساعات",
+      "minutes": "الدقائق",
+      "seconds": "الثواني"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "إعداد سريع",
@@ -414,8 +419,8 @@
       "advanced": "خيارات متقدمة",
       "advancedRules": "قواعد مراقبة متقدمة",
       "custom": "مخصص",
-      "customDurationMinutes": "المدة بالدقائق",
-      "customDurationHelp": "أدخل عدد الدقائق. مثال: 15 يعني التسجيل لمدة 15 دقيقة.",
+      "customDuration": "مدة تسجيل مخصصة",
+      "customDurationHelp": "حدّد الساعات والدقائق والثواني. مثال: ساعة و30 دقيقة و5 ثوانٍ.",
       "unlimited": "بلا حدود",
       "automatic": "تلقائي",
       "filenameUsername": "اسم المستخدم + الوقت",
@@ -448,6 +453,11 @@
       "partialSaved": "انتهى البث بعد محاولات إعادة الاتصال. تم حفظ التسجيل الجزئي.",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "تم تسجيل {{elapsed}}",
+      "elapsedTotal": "تم تسجيل {{elapsed}} / {{total}}",
+      "remaining": "متبقي {{remaining}}"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -560,6 +570,8 @@
     "telemetry": {
       "title": "Telemetry",
       "active": "Active rooms: {{count}}",
+      "capacity": "الغرف",
+      "capacityDescription": "اختر عدد التسجيلات المباشرة أو تسجيلات قائمة المراقبة التي تعمل معًا (حتى {{limit}}). أضف بثوثًا مختلفة إلى قائمة المراقبة ثم فعّلها للتسجيل بالتوازي.",
       "watched": "Watchlist: {{count}}",
       "recoverable": "Recoverable: {{count}}",
       "segments": "Segments: {{count}}",

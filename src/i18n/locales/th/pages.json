@@ -402,6 +402,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "ระยะเวลาบันทึก",
+    "durationFields": {
+      "hours": "ชั่วโมง",
+      "minutes": "นาที",
+      "seconds": "วินาที"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "ตั้งค่าด่วน",
@@ -414,8 +419,8 @@
       "advanced": "ตัวเลือกขั้นสูง",
       "advancedRules": "กฎการติดตามขั้นสูง",
       "custom": "กำหนดเอง",
-      "customDurationMinutes": "ระยะเวลาเป็นนาที",
-      "customDurationHelp": "กรอกจำนวนนาที ตัวอย่าง: 15 = บันทึก 15 นาที",
+      "customDuration": "ระยะเวลาที่กำหนดเอง",
+      "customDurationHelp": "กำหนดชั่วโมง นาที และวินาที ตัวอย่าง: 1 ชม. 30 นาที 5 วินาที",
       "unlimited": "ไม่จำกัด",
       "automatic": "อัตโนมัติ",
       "filenameUsername": "ชื่อผู้ใช้ + เวลา",
@@ -448,6 +453,11 @@
       "partialSaved": "สตรีมสิ้นสุดหลังลองเชื่อมต่อใหม่ บันทึกส่วนที่ได้ไว้แล้ว",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "บันทึกแล้ว {{elapsed}}",
+      "elapsedTotal": "บันทึกแล้ว {{elapsed}} / {{total}}",
+      "remaining": "เหลือ {{remaining}}"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -560,6 +570,8 @@
     "telemetry": {
       "title": "Telemetry",
       "active": "Active rooms: {{count}}",
+      "capacity": "ห้อง",
+      "capacityDescription": "เลือกจำนวนการบันทึกโดยตรงหรือจาก Watchlist ที่ทำงานพร้อมกันได้ (สูงสุด {{limit}}) เพิ่มสตรีมเมอร์หลายคนใน Watchlist แล้วเปิดใช้งานเพื่อบันทึกพร้อมกัน",
       "watched": "Watchlist: {{count}}",
       "recoverable": "Recoverable: {{count}}",
       "segments": "Segments: {{count}}",

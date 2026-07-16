@@ -5,10 +5,13 @@ import { open } from '@tauri-apps/plugin-dialog';
 import {
   Activity,
   BookmarkPlus,
+  Check,
   CheckCircle2,
   ChevronDown,
   ClipboardPaste,
   Clock3,
+  Copy,
+  ExternalLink,
   Eye,
   FileCheck2,
   Folder,
@@ -59,7 +62,14 @@ import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { openFileLocation } from '@/lib/open-file-location';
 import { extractUrls } from '@/lib/sources';
-import { cn } from '@/lib/utils';
+import {
+  formatTikTokLiveDuration,
+  formatTikTokLiveDurationSetting,
+  joinTikTokLiveDuration,
+  parseTikTokLiveDurationPart,
+  splitTikTokLiveDuration,
+} from '@/lib/tiktok-live-duration';
+import { cn, isSafeUrl } from '@/lib/utils';
 
 type TikTokLiveVariant = {
   formatId: string;
@@ -315,19 +325,6 @@ function isCancellationError(error: unknown): boolean {
   return extractBackendError(error).code === 'DOWNLOAD_CANCELLED';
 }
 
-function minutesFromSeconds(seconds: number): string {
-  const minutes = seconds / 60;
-  return Number.isInteger(minutes) ? minutes.toString() : Number(minutes.toFixed(2)).toString();
-}
-
-function formatDuration(secondsValue: string): string {
-  const seconds = Number.parseInt(secondsValue, 10);
-  if (!Number.isFinite(seconds) || seconds <= 0) return '∞';
-  if (seconds % 3600 === 0) return `${seconds / 3600}h`;
-  if (seconds % 60 === 0) return `${seconds / 60}m`;
-  return `${seconds}s`;
-}
-
 function formatViewerCount(value: number, locale: string): string {
   try {
     return new Intl.NumberFormat(locale).format(value);
@@ -387,7 +384,9 @@ export function TikTokLivePage() {
   const [outputDir, setOutputDir] = useState('');
   const [duration, setDuration] = useState('60');
   const [durationMode, setDurationMode] = useState('60');
+  const [customDurationHours, setCustomDurationHours] = useState('0');
   const [customDurationMinutes, setCustomDurationMinutes] = useState('15');
+  const [customDurationSeconds, setCustomDurationSeconds] = useState('0');
   const [quality, setQuality] = useState('origin');
   const [transport, setTransport] = useState('auto');
   const [autoReconnect, setAutoReconnect] = useState(true);
@@ -399,6 +398,9 @@ export function TikTokLivePage() {
   const [isInspecting, setIsInspecting] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(null);
+  const [clockNow, setClockNow] = useState(Date.now());
+  const [copiedTargetUrl, setCopiedTargetUrl] = useState<string | null>(null);
   const [recoveryJobs, setRecoveryJobs] = useState<TikTokLiveRecoveryJob[]>([]);
   const [recoveryActionId, setRecoveryActionId] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<TikTokLiveRecoveryJob | null>(null);
@@ -429,11 +431,23 @@ export function TikTokLivePage() {
   );
   const activeInspectJobIdRef = useRef<string | null>(null);
   const activeJobIdRef = useRef<string | null>(null);
+  const recordingStartedAtRef = useRef<number | null>(null);
   const watchRulesRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     void resolveDefaultOutputPath().then(setOutputDir);
   }, []);
+
+  const hasActiveRecording =
+    isRecording || watchEntries.some((entry) => entry.status === 'recording');
+
+  useEffect(() => {
+    if (!hasActiveRecording) return;
+    const updateClock = () => setClockNow(Date.now());
+    updateClock();
+    const interval = window.setInterval(updateClock, 1000);
+    return () => window.clearInterval(interval);
+  }, [hasActiveRecording]);
 
   useEffect(() => {
     const unlistenPromise = listen<TikTokLiveStatusEvent>('tiktok-live-status', ({ payload }) => {
@@ -461,6 +475,12 @@ export function TikTokLivePage() {
       } else if (payload.state === 'merging-segments') {
         setStatus(t('tiktokLive.status.mergingSegments'));
       } else if (payload.state === 'recording') {
+        if (payload.jobId === activeJobIdRef.current && recordingStartedAtRef.current === null) {
+          const startedAt = Date.now();
+          recordingStartedAtRef.current = startedAt;
+          setRecordingStartedAt(startedAt);
+          setClockNow(startedAt);
+        }
         setStatus(
           t(
             payload.autoReconnect
@@ -542,6 +562,18 @@ export function TikTokLivePage() {
     setError('');
   }, []);
 
+  const copyTargetUrl = useCallback(async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedTargetUrl(url);
+      window.setTimeout(() => {
+        setCopiedTargetUrl((current) => (current === url ? null : current));
+      }, 1800);
+    } catch {
+      // Keep Open URL available when clipboard permissions are denied.
+    }
+  }, []);
+
   const pasteTarget = useCallback(async () => {
     try {
       const clipboardText = (await navigator.clipboard.readText()).trim();
@@ -620,6 +652,9 @@ export function TikTokLivePage() {
     if (!input.trim()) return;
     const jobId = crypto.randomUUID();
     activeJobIdRef.current = jobId;
+    recordingStartedAtRef.current = null;
+    setRecordingStartedAt(null);
+    setClockNow(Date.now());
     setIsRecording(true);
     setIsCancelling(false);
     setError('');
@@ -655,6 +690,8 @@ export function TikTokLivePage() {
       }
     } finally {
       activeJobIdRef.current = null;
+      recordingStartedAtRef.current = null;
+      setRecordingStartedAt(null);
       setIsRecording(false);
       setIsCancelling(false);
       void refreshRecoveryJobs();
@@ -711,6 +748,9 @@ export function TikTokLivePage() {
   const continueRecovery = useCallback(
     async (job: TikTokLiveRecoveryJob) => {
       activeJobIdRef.current = job.id;
+      recordingStartedAtRef.current = null;
+      setRecordingStartedAt(null);
+      setClockNow(Date.now());
       setRecoveryActionId(job.id);
       setIsRecording(true);
       setError('');
@@ -735,6 +775,8 @@ export function TikTokLivePage() {
         }
       } finally {
         activeJobIdRef.current = null;
+        recordingStartedAtRef.current = null;
+        setRecordingStartedAt(null);
         setRecoveryActionId(null);
         setIsRecording(false);
         setIsCancelling(false);
@@ -871,7 +913,10 @@ export function TikTokLivePage() {
     setDuration(durationValue);
     setDurationMode(savedDurationPreset);
     if (savedDurationPreset === 'custom') {
-      setCustomDurationMinutes(minutesFromSeconds(durationSeconds));
+      const parts = splitTikTokLiveDuration(durationSeconds);
+      setCustomDurationHours(parts.hours);
+      setCustomDurationMinutes(parts.minutes);
+      setCustomDurationSeconds(parts.seconds);
     }
     setQuality(entry.preferredQuality === 'auto' ? 'origin' : entry.preferredQuality || 'origin');
     setTransport(entry.preferredTransport || 'auto');
@@ -1005,6 +1050,19 @@ export function TikTokLivePage() {
   const parsedDuration = Number.parseInt(duration, 10);
   const hasValidDuration =
     duration === '0' || (Number.isFinite(parsedDuration) && parsedDuration > 0);
+  const directElapsedSeconds = recordingStartedAt
+    ? Math.max(0, Math.floor((clockNow - recordingStartedAt) / 1000))
+    : 0;
+  const directTotalSeconds =
+    Number.isFinite(parsedDuration) && parsedDuration > 0 ? parsedDuration : undefined;
+  const directRemainingSeconds =
+    directTotalSeconds === undefined
+      ? undefined
+      : Math.max(0, directTotalSeconds - directElapsedSeconds);
+  const directProgressPercent =
+    directTotalSeconds === undefined
+      ? undefined
+      : Math.min(100, (directElapsedSeconds / directTotalSeconds) * 100);
   const canInspect = input.trim().length > 0 && !busy;
   const canRecord = canInspect && outputDir.length > 0 && hasValidDuration;
   const canCancel = isRecording && !isCancelling;
@@ -1048,6 +1106,7 @@ export function TikTokLivePage() {
         resourceWarning: telemetrySnapshot.resourceWarning || null,
       }
     : localTelemetry;
+  const displayedActiveRooms = Math.max(telemetry.active, isRecording ? 1 : 0);
   const activeCapturePreset =
     CAPTURE_PRESETS.find(
       (preset) => preset.quality === quality && preset.transport === transport && autoReconnect,
@@ -1101,7 +1160,7 @@ export function TikTokLivePage() {
             <span
               className={cn(
                 'absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-background',
-                telemetry.active > 0 ? 'animate-pulse bg-rose-500' : 'bg-muted-foreground/40',
+                displayedActiveRooms > 0 ? 'animate-pulse bg-rose-500' : 'bg-muted-foreground/40',
               )}
             />
           </div>
@@ -1113,15 +1172,47 @@ export function TikTokLivePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="hidden gap-1.5 bg-rose-500/10 text-rose-600 sm:inline-flex dark:text-rose-400">
-            <span
-              className={cn(
-                'h-1.5 w-1.5 rounded-full',
-                telemetry.active > 0 ? 'animate-pulse bg-rose-500' : 'bg-current opacity-40',
-              )}
-            />
-            {t('tiktokLive.telemetry.active', { count: telemetry.active })}
-          </Badge>
+          <div
+            className="flex items-center gap-1.5 rounded-lg border border-border/60 bg-muted/20 p-1"
+            title={t('tiktokLive.telemetry.capacityDescription', {
+              limit: recorderConfig?.hardLimit ?? 4,
+            })}
+          >
+            <span className="hidden pl-1.5 text-xs text-muted-foreground lg:inline">
+              {t('tiktokLive.telemetry.capacity')}
+            </span>
+            <Select
+              value={maxConcurrentRecordings}
+              onValueChange={(value) => void updateRecorderLimit(value)}
+              disabled={watchBusy}
+            >
+              <SelectTrigger
+                className="h-7 w-14 border-0 bg-background/70 px-2"
+                aria-label={t('tiktokLive.watchlist.maxRooms')}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: recorderConfig?.hardLimit ?? 4 }, (_, index) => {
+                  const value = (index + 1).toString();
+                  return (
+                    <SelectItem key={value} value={value}>
+                      {value}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            <Badge className="h-7 gap-1.5 bg-rose-500/10 px-2 text-rose-600 dark:text-rose-400">
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  displayedActiveRooms > 0 ? 'animate-pulse bg-rose-500' : 'bg-current opacity-40',
+                )}
+              />
+              {displayedActiveRooms}/{recorderConfig?.maxConcurrentRecordings ?? 1}
+            </Badge>
+          </div>
           <ThemePicker />
         </div>
       </header>
@@ -1238,12 +1329,17 @@ export function TikTokLivePage() {
                 onValueChange={(value) => {
                   setDurationMode(value);
                   if (value === 'custom') {
-                    const minutes = Number.parseFloat(customDurationMinutes);
-                    setDuration(
-                      Number.isFinite(minutes) && minutes > 0
-                        ? Math.round(minutes * 60).toString()
-                        : '900',
+                    const customValue = joinTikTokLiveDuration(
+                      customDurationHours,
+                      customDurationMinutes,
+                      customDurationSeconds,
                     );
+                    if (!customValue) {
+                      setCustomDurationHours('0');
+                      setCustomDurationMinutes('15');
+                      setCustomDurationSeconds('0');
+                    }
+                    setDuration(customValue || '900');
                     return;
                   }
                   setDuration(value);
@@ -1264,41 +1360,144 @@ export function TikTokLivePage() {
                 </SelectContent>
               </Select>
               {durationMode === 'custom' && (
-                <div className="mt-2 space-y-1">
-                  <label
-                    htmlFor="tiktok-live-duration"
-                    className="text-xs font-medium text-muted-foreground"
-                  >
-                    {t('tiktokLive.presets.customDurationMinutes')}
-                  </label>
-                  <Input
-                    id="tiktok-live-duration"
-                    type="number"
-                    min="1"
-                    step="1"
-                    inputMode="numeric"
-                    value={customDurationMinutes}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      const minutes = Number.parseFloat(value);
-                      setCustomDurationMinutes(value);
-                      setDuration(
-                        Number.isFinite(minutes) && minutes > 0
-                          ? Math.round(minutes * 60).toString()
-                          : '',
-                      );
-                    }}
-                    disabled={busy}
-                    className="h-10"
-                    aria-describedby="tiktok-live-duration-help"
-                  />
+                <fieldset className="mt-2 space-y-1.5">
+                  <legend className="text-xs font-medium text-muted-foreground">
+                    {t('tiktokLive.presets.customDuration')}
+                  </legend>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="relative">
+                      <Input
+                        id="tiktok-live-duration-hours"
+                        type="number"
+                        min="0"
+                        step="1"
+                        inputMode="numeric"
+                        value={customDurationHours}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setCustomDurationHours(value);
+                          setDuration(
+                            joinTikTokLiveDuration(
+                              value,
+                              customDurationMinutes,
+                              customDurationSeconds,
+                            ),
+                          );
+                        }}
+                        onBlur={() => {
+                          const value = parseTikTokLiveDurationPart(customDurationHours).toString();
+                          setCustomDurationHours(value);
+                          setDuration(
+                            joinTikTokLiveDuration(
+                              value,
+                              customDurationMinutes,
+                              customDurationSeconds,
+                            ),
+                          );
+                        }}
+                        disabled={busy}
+                        className="h-10 pr-7"
+                        aria-label={t('tiktokLive.durationFields.hours')}
+                        aria-describedby="tiktok-live-duration-help"
+                      />
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        h
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="tiktok-live-duration-minutes"
+                        type="number"
+                        min="0"
+                        max="59"
+                        step="1"
+                        inputMode="numeric"
+                        value={customDurationMinutes}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setCustomDurationMinutes(value);
+                          setDuration(
+                            joinTikTokLiveDuration(
+                              customDurationHours,
+                              value,
+                              customDurationSeconds,
+                            ),
+                          );
+                        }}
+                        onBlur={() => {
+                          const value = parseTikTokLiveDurationPart(
+                            customDurationMinutes,
+                            59,
+                          ).toString();
+                          setCustomDurationMinutes(value);
+                          setDuration(
+                            joinTikTokLiveDuration(
+                              customDurationHours,
+                              value,
+                              customDurationSeconds,
+                            ),
+                          );
+                        }}
+                        disabled={busy}
+                        className="h-10 pr-7"
+                        aria-label={t('tiktokLive.durationFields.minutes')}
+                        aria-describedby="tiktok-live-duration-help"
+                      />
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        m
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="tiktok-live-duration-seconds"
+                        type="number"
+                        min="0"
+                        max="59"
+                        step="1"
+                        inputMode="numeric"
+                        value={customDurationSeconds}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setCustomDurationSeconds(value);
+                          setDuration(
+                            joinTikTokLiveDuration(
+                              customDurationHours,
+                              customDurationMinutes,
+                              value,
+                            ),
+                          );
+                        }}
+                        onBlur={() => {
+                          const value = parseTikTokLiveDurationPart(
+                            customDurationSeconds,
+                            59,
+                          ).toString();
+                          setCustomDurationSeconds(value);
+                          setDuration(
+                            joinTikTokLiveDuration(
+                              customDurationHours,
+                              customDurationMinutes,
+                              value,
+                            ),
+                          );
+                        }}
+                        disabled={busy}
+                        className="h-10 pr-7"
+                        aria-label={t('tiktokLive.durationFields.seconds')}
+                        aria-describedby="tiktok-live-duration-help"
+                      />
+                      <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                        s
+                      </span>
+                    </div>
+                  </div>
                   <p
                     id="tiktok-live-duration-help"
                     className="text-[11px] leading-snug text-muted-foreground"
                   >
                     {t('tiktokLive.presets.customDurationHelp')}
                   </p>
-                </div>
+                </fieldset>
               )}
             </div>
             <div>
@@ -1750,45 +1949,84 @@ export function TikTokLivePage() {
             </TabsContent>
 
             <TabsContent value="record" className="mt-0">
-              <div className="flex flex-col gap-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-500">
-                    {isRecording ? (
-                      <Radio className="h-5 w-5 animate-pulse" />
-                    ) : (
-                      <Play className="h-5 w-5" />
-                    )}
+              <div className="space-y-3 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500/10 text-rose-500">
+                      {isRecording ? (
+                        <Radio className="h-5 w-5 animate-pulse" />
+                      ) : (
+                        <Play className="h-5 w-5" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">{t('tiktokLive.actions.record')}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {captureSummary} · {formatTikTokLiveDurationSetting(duration)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{t('tiktokLive.actions.record')}</p>
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {captureSummary} · {formatDuration(duration)}
-                    </p>
-                  </div>
+                  {!isRecording ? (
+                    <Button
+                      onClick={() => void startRecording()}
+                      disabled={!canRecord}
+                      className="min-w-44 gap-2 bg-rose-600 text-white hover:bg-rose-500"
+                    >
+                      <Radio className="h-4 w-4" />
+                      {t('tiktokLive.actions.record')}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      onClick={() => void cancelRecording()}
+                      className="min-w-44 gap-2"
+                      disabled={!canCancel}
+                    >
+                      {isCancelling ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Square className="h-4 w-4" />
+                      )}
+                      {t('tiktokLive.actions.cancel')}
+                    </Button>
+                  )}
                 </div>
-                {!isRecording ? (
-                  <Button
-                    onClick={() => void startRecording()}
-                    disabled={!canRecord}
-                    className="min-w-44 gap-2 bg-rose-600 text-white hover:bg-rose-500"
-                  >
-                    <Radio className="h-4 w-4" />
-                    {t('tiktokLive.actions.record')}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="destructive"
-                    onClick={() => void cancelRecording()}
-                    className="min-w-44 gap-2"
-                    disabled={!canCancel}
-                  >
-                    {isCancelling ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Square className="h-4 w-4" />
+                {isRecording && recordingStartedAt && (
+                  <div className="space-y-2 border-t border-rose-500/15 pt-3" aria-live="polite">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <span className="font-medium text-foreground">
+                        {directTotalSeconds === undefined
+                          ? t('tiktokLive.progress.elapsed', {
+                              elapsed: formatTikTokLiveDuration(directElapsedSeconds),
+                            })
+                          : t('tiktokLive.progress.elapsedTotal', {
+                              elapsed: formatTikTokLiveDuration(directElapsedSeconds),
+                              total: formatTikTokLiveDuration(directTotalSeconds),
+                            })}
+                      </span>
+                      {directRemainingSeconds !== undefined && (
+                        <span className="text-muted-foreground">
+                          {t('tiktokLive.progress.remaining', {
+                            remaining: formatTikTokLiveDuration(directRemainingSeconds),
+                          })}
+                        </span>
+                      )}
+                    </div>
+                    {directProgressPercent !== undefined && (
+                      <div
+                        className="h-1.5 overflow-hidden rounded-full bg-rose-500/15"
+                        role="progressbar"
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round(directProgressPercent)}
+                      >
+                        <div
+                          className="h-full rounded-full bg-rose-500 transition-[width] duration-500"
+                          style={{ width: `${directProgressPercent}%` }}
+                        />
+                      </div>
                     )}
-                    {t('tiktokLive.actions.cancel')}
-                  </Button>
+                  </div>
                 )}
               </div>
             </TabsContent>
@@ -1830,7 +2068,7 @@ export function TikTokLivePage() {
           {[
             {
               icon: Activity,
-              value: t('tiktokLive.telemetry.active', { count: telemetry.active }),
+              value: t('tiktokLive.telemetry.active', { count: displayedActiveRooms }),
               detail: t('tiktokLive.telemetry.recoverable', { count: telemetry.recoverable }),
               tone: 'bg-rose-500/10 text-rose-500',
             },
@@ -1895,40 +2133,18 @@ export function TikTokLivePage() {
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                <div className="flex items-center gap-2 rounded-xl bg-muted/25 px-2 py-1">
-                  <span className="text-xs text-muted-foreground">
-                    {t('tiktokLive.watchlist.maxRooms')}
-                  </span>
-                  <Select
-                    value={maxConcurrentRecordings}
-                    onValueChange={(value) => void updateRecorderLimit(value)}
-                    disabled={watchBusy}
-                  >
-                    <SelectTrigger
-                      className="h-8 w-16"
-                      aria-label={t('tiktokLive.watchlist.maxRooms')}
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Array.from({ length: recorderConfig?.hardLimit ?? 4 }, (_, index) => {
-                        const value = (index + 1).toString();
-                        return (
-                          <SelectItem key={value} value={value}>
-                            {value}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <Badge className="bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
                   {recorderConfig
-                    ? `${recorderConfig.activeRecordings}/${recorderConfig.maxConcurrentRecordings}`
+                    ? `${displayedActiveRooms}/${recorderConfig.maxConcurrentRecordings}`
                     : watchEntries.length}
                 </Badge>
               </div>
             </div>
+            <p className="rounded-lg border border-dashed border-cyan-500/20 bg-background/30 px-3 py-2 text-xs text-muted-foreground">
+              {t('tiktokLive.telemetry.capacityDescription', {
+                limit: recorderConfig?.hardLimit ?? 4,
+              })}
+            </p>
 
             {watchEntries.length === 0 ? (
               <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-border/60 bg-background/20 px-4 py-6 text-center">
@@ -1946,6 +2162,22 @@ export function TikTokLivePage() {
                   const actionPending = watchActionId === entry.id;
                   const recording = entry.status === 'recording';
                   const recoverable = entry.status === 'recoverable';
+                  const elapsedSeconds =
+                    recording && entry.lastRecordingAt
+                      ? Math.max(0, Math.floor(clockNow / 1000) - entry.lastRecordingAt)
+                      : 0;
+                  const totalSeconds =
+                    entry.durationSeconds && entry.durationSeconds > 0
+                      ? entry.durationSeconds
+                      : undefined;
+                  const remainingSeconds =
+                    totalSeconds === undefined
+                      ? undefined
+                      : Math.max(0, totalSeconds - elapsedSeconds);
+                  const progressPercent =
+                    totalSeconds === undefined
+                      ? undefined
+                      : Math.min(100, (elapsedSeconds / totalSeconds) * 100);
                   return (
                     <article
                       key={entry.id}
@@ -2073,6 +2305,43 @@ export function TikTokLivePage() {
                           </span>
                         )}
                       </div>
+                      {recording && entry.lastRecordingAt && (
+                        <div className="mt-2 space-y-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-2.5 py-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span className="font-medium text-rose-600 dark:text-rose-400">
+                              {totalSeconds === undefined
+                                ? t('tiktokLive.progress.elapsed', {
+                                    elapsed: formatTikTokLiveDuration(elapsedSeconds),
+                                  })
+                                : t('tiktokLive.progress.elapsedTotal', {
+                                    elapsed: formatTikTokLiveDuration(elapsedSeconds),
+                                    total: formatTikTokLiveDuration(totalSeconds),
+                                  })}
+                            </span>
+                            {remainingSeconds !== undefined && (
+                              <span className="text-muted-foreground">
+                                {t('tiktokLive.progress.remaining', {
+                                  remaining: formatTikTokLiveDuration(remainingSeconds),
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          {progressPercent !== undefined && (
+                            <div
+                              className="h-1.5 overflow-hidden rounded-full bg-rose-500/15"
+                              role="progressbar"
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={Math.round(progressPercent)}
+                            >
+                              <div
+                                className="h-full rounded-full bg-rose-500 transition-[width] duration-500"
+                                style={{ width: `${progressPercent}%` }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {entry.lastError && (
                         <p className="mt-2 rounded-lg bg-amber-500/10 px-2.5 py-2 text-xs text-amber-600 dark:text-amber-400">
                           {t(`tiktokLive.watchlist.errors.${entry.lastError}`, {
@@ -2095,6 +2364,31 @@ export function TikTokLivePage() {
                           )}
                           {t('tiktokLive.watchlist.actions.inspect')}
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-2"
+                          onClick={() => void copyTargetUrl(entry.targetUrl)}
+                        >
+                          {copiedTargetUrl === entry.targetUrl ? (
+                            <Check className="h-4 w-4 text-green-500" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                          {t(
+                            copiedTargetUrl === entry.targetUrl
+                              ? 'library.item.copied'
+                              : 'library.item.copy',
+                          )}
+                        </Button>
+                        {isSafeUrl(entry.targetUrl) && (
+                          <Button size="sm" variant="outline" className="gap-2" asChild>
+                            <a href={entry.targetUrl} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4" />
+                              {t('library.item.openUrl')}
+                            </a>
+                          </Button>
+                        )}
                         {recording ? (
                           <Button
                             size="sm"
@@ -2289,6 +2583,38 @@ export function TikTokLivePage() {
                     })}
                   </Badge>
                 )}
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 border-dashed px-2.5"
+                    onClick={() => void copyTargetUrl(inspectResult.targetUrl)}
+                  >
+                    {copiedTargetUrl === inspectResult.targetUrl ? (
+                      <Check className="h-3.5 w-3.5 text-green-500" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                    {t(
+                      copiedTargetUrl === inspectResult.targetUrl
+                        ? 'library.item.copied'
+                        : 'library.item.copy',
+                    )}
+                  </Button>
+                  {isSafeUrl(inspectResult.targetUrl) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 gap-1.5 border-dashed px-2.5"
+                      asChild
+                    >
+                      <a href={inspectResult.targetUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        {t('library.item.openUrl')}
+                      </a>
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
             {inspectResult.selectedVariant && (
@@ -2357,15 +2683,44 @@ export function TikTokLivePage() {
                 )}
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="shrink-0 gap-2"
-              onClick={() => void openFileLocation(recordResult.filepath)}
-            >
-              <Folder className="h-4 w-4" />
-              {t('tiktokLive.actions.showInFolder')}
-            </Button>
+            <div className="flex shrink-0 flex-wrap gap-2">
+              {inspectResult?.targetUrl && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => void copyTargetUrl(inspectResult.targetUrl)}
+                >
+                  {copiedTargetUrl === inspectResult.targetUrl ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {t(
+                    copiedTargetUrl === inspectResult.targetUrl
+                      ? 'library.item.copied'
+                      : 'library.item.copy',
+                  )}
+                </Button>
+              )}
+              {inspectResult?.targetUrl && isSafeUrl(inspectResult.targetUrl) && (
+                <Button size="sm" variant="outline" className="gap-2" asChild>
+                  <a href={inspectResult.targetUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                    {t('library.item.openUrl')}
+                  </a>
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                onClick={() => void openFileLocation(recordResult.filepath)}
+              >
+                <Folder className="h-4 w-4" />
+                {t('tiktokLive.actions.showInFolder')}
+              </Button>
+            </div>
           </section>
         )}
       </main>

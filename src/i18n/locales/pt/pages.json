@@ -402,6 +402,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "Duração da gravação",
+    "durationFields": {
+      "hours": "Horas",
+      "minutes": "Minutos",
+      "seconds": "Segundos"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "Configuração rápida",
@@ -414,8 +419,8 @@
       "advanced": "Opções avançadas",
       "advancedRules": "Regras avançadas",
       "custom": "Personalizado",
-      "customDurationMinutes": "Duração em minutos",
-      "customDurationHelp": "Digite os minutos. Exemplo: 15 grava durante 15 minutos.",
+      "customDuration": "Duração personalizada",
+      "customDurationHelp": "Defina horas, minutos e segundos. Exemplo: 1 h 30 min 5 s.",
       "unlimited": "Sem limite",
       "automatic": "Automático",
       "filenameUsername": "Usuário + hora",
@@ -448,6 +453,11 @@
       "partialSaved": "A transmissão terminou após as tentativas. A gravação parcial foi salva.",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "Gravado {{elapsed}}",
+      "elapsedTotal": "Gravado {{elapsed}} / {{total}}",
+      "remaining": "Restam {{remaining}}"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -560,6 +570,8 @@
     "telemetry": {
       "title": "Telemetry",
       "active": "Active rooms: {{count}}",
+      "capacity": "Salas",
+      "capacityDescription": "Escolha quantas gravações diretas ou da lista podem rodar ao mesmo tempo (até {{limit}}). Adicione streamers diferentes à lista e ative-os para gravar em paralelo.",
       "watched": "Watchlist: {{count}}",
       "recoverable": "Recoverable: {{count}}",
       "segments": "Segments: {{count}}",

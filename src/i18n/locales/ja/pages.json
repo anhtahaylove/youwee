@@ -405,6 +405,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "録画時間",
+    "durationFields": {
+      "hours": "時間",
+      "minutes": "分",
+      "seconds": "秒"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "クイック設定",
@@ -417,8 +422,8 @@
       "advanced": "詳細設定",
       "advancedRules": "高度な監視ルール",
       "custom": "カスタム",
-      "customDurationMinutes": "録画時間（分）",
-      "customDurationHelp": "分単位で入力します。例：15 = 15 分間録画。",
+      "customDuration": "カスタム録画時間",
+      "customDurationHelp": "時間・分・秒を設定します。例: 1時間30分5秒。",
       "unlimited": "無制限",
       "automatic": "自動",
       "filenameUsername": "ユーザー名 + 時刻",
@@ -451,6 +456,11 @@
       "partialSaved": "再接続後に配信が終了しました。部分録画を保存しました。",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "録画済み {{elapsed}}",
+      "elapsedTotal": "録画済み {{elapsed}} / {{total}}",
+      "remaining": "残り {{remaining}}"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -563,6 +573,8 @@
     "telemetry": {
       "title": "テレメトリ",
       "active": "録画中ルーム: {{count}}",
+      "capacity": "ルーム",
+      "capacityDescription": "直接録画またはウォッチリスト録画を同時に実行できる数を選びます（最大{{limit}}）。複数の配信者をウォッチリストに追加し、有効化または開始すると同時録画できます。",
       "watched": "ウォッチリスト: {{count}}",
       "recoverable": "復元可能: {{count}}",
       "segments": "セグメント: {{count}}",

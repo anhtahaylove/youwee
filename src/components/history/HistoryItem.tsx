@@ -41,7 +41,7 @@ import { useAI } from '@/contexts/AIContext';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useHistory } from '@/contexts/HistoryContext';
 import { usePlayer } from '@/contexts/PlayerContext';
-import { normalizeThumbnailUrl } from '@/lib/asset-access';
+import { cacheRemoteThumbnailUrl } from '@/lib/asset-access';
 import {
   type LibraryDeleteFileBehavior,
   loadLibraryDeleteFileBehavior,
@@ -131,6 +131,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const [copied, setCopied] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
   const [localSummary, setLocalSummary] = useState<string | undefined>(entry.summary);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbError, setThumbError] = useState(false);
   const [thumbLoaded, setThumbLoaded] = useState(false);
   const [isRenameEditorOpen, setIsRenameEditorOpen] = useState(false);
@@ -155,7 +156,6 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const canPlayAudio = isPlayableAudioEntry(entry);
   const isCurrentAudio = currentEntry?.id === entry.id;
   const isActivePlayback = isCurrentAudio && isPlaying;
-  const thumbnailUrl = normalizeThumbnailUrl(entry.thumbnail);
   const summaryPreview = useMemo(
     () => (localSummary ? createSummaryPreview(localSummary) : ''),
     [localSummary],
@@ -168,14 +168,17 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   }, [entry.summary]);
 
   useEffect(() => {
-    if (!thumbnailUrl) {
-      setThumbLoaded(false);
-      setThumbError(false);
-      return;
-    }
+    let active = true;
+    setThumbnailUrl(null);
     setThumbLoaded(false);
     setThumbError(false);
-  }, [thumbnailUrl]);
+    void cacheRemoteThumbnailUrl(entry.thumbnail).then((url) => {
+      if (active) setThumbnailUrl(url);
+    });
+    return () => {
+      active = false;
+    };
+  }, [entry.thumbnail]);
 
   // Get background task status from context
   const task = ai.getSummaryTask(entry.id);

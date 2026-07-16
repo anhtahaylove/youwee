@@ -405,6 +405,11 @@
     "quality": "Quality",
     "transport": "Transport",
     "duration": "录制时长",
+    "durationFields": {
+      "hours": "小时",
+      "minutes": "分钟",
+      "seconds": "秒"
+    },
     "selected": "Selected",
     "presets": {
       "quickSetup": "快速设置",
@@ -417,8 +422,8 @@
       "advanced": "高级选项",
       "advancedRules": "高级监控规则",
       "custom": "自定义",
-      "customDurationMinutes": "时长（分钟）",
-      "customDurationHelp": "请输入分钟数。例如：15 表示录制 15 分钟。",
+      "customDuration": "自定义录制时长",
+      "customDurationHelp": "设置小时、分钟和秒。例如：1 小时 30 分 5 秒。",
       "unlimited": "不限时",
       "automatic": "自动",
       "filenameUsername": "用户名 + 时间",
@@ -451,6 +456,11 @@
       "partialSaved": "重连尝试后直播流已结束，已保存部分录制。",
       "cancelled": "Recording cancelled.",
       "failed": "TikTok Live action failed."
+    },
+    "progress": {
+      "elapsed": "已录制 {{elapsed}}",
+      "elapsedTotal": "已录制 {{elapsed}} / {{total}}",
+      "remaining": "剩余 {{remaining}}"
     },
     "recordResult": {
       "title": "Recording complete"
@@ -563,6 +573,8 @@
     "telemetry": {
       "title": "遥测",
       "active": "活动房间：{{count}}",
+      "capacity": "房间",
+      "capacityDescription": "选择可同时运行的直接录制或监视列表录制数量（最多 {{limit}}）。将不同主播添加到监视列表并启用或开始录制，即可并行录制。",
       "watched": "监听列表：{{count}}",
       "recoverable": "可恢复：{{count}}",
       "segments": "分段：{{count}}",
