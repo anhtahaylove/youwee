@@ -652,6 +652,8 @@
     "openSettings": "Mở Cài đặt",
     "browserMustBeClosed": "Hạn chế Cookie trên Windows",
     "browserMustBeClosedDesc": "Trên Windows, Chrome 127+ chặn truy cập cookie (App-Bound Encryption). Hãy đóng trình duyệt hoàn toàn, hoặc dùng Firefox / chế độ Cookie File.",
+    "firefoxCanStayOpen": "Firefox có thể tiếp tục mở",
+    "firefoxCanStayOpenDesc": "Youwee có thể đọc cookie từ hồ sơ Firefox đã chọn khi Firefox vẫn đang chạy. Nếu bạn vừa đăng nhập hoặc giải CAPTCHA, hãy tải lại trang rồi thử lại; chỉ đóng Firefox một lần hoặc dùng Tệp Cookie khi phiên vẫn chưa được cập nhật.",
     "cookieFile": "Tệp Cookie",
     "noFileSelected": "Chưa chọn tệp",
     "browse": "Duyệt",

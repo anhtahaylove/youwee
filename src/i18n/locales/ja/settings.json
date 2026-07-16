@@ -652,6 +652,8 @@
     "openSettings": "設定を開く",
     "browserMustBeClosed": "Windows での Cookie の制限",
     "browserMustBeClosedDesc": "Windows では Chrome 127 以降の Cookie アクセスがブロックされます。ブラウザを完全に閉じるか、Firefox / Cookie ファイルモードをご利用ください。",
+    "firefoxCanStayOpen": "Firefox は開いたままで使用できます",
+    "firefoxCanStayOpenDesc": "Youwee は Firefox の実行中でも、選択したプロファイルから Cookie を読み取れます。ログインや CAPTCHA の解決直後はサイトを再読み込みして再試行し、セッションが更新されない場合にのみ Firefox を一度閉じるか Cookie ファイルを使用してください。",
     "cookieFile": "Cookie ファイル",
     "noFileSelected": "ファイルが選択されていません",
     "browse": "参照",

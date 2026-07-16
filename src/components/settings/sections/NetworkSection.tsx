@@ -1,6 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { AlertCircle, ExternalLink, FolderOpen, Globe, KeyRound, ShieldOff, X } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink,
+  FolderOpen,
+  Globe,
+  KeyRound,
+  ShieldOff,
+  X,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -301,14 +310,38 @@ export function NetworkSection({ highlightId }: NetworkSectionProps) {
                 </div>
               )}
 
-              {/* Windows Browser Lock Warning */}
+              {/* Windows browser cookie guidance */}
               {navigator.platform.includes('Win') && (
-                <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <div
+                  className={`flex items-start gap-2 rounded-lg border p-2 ${
+                    cookieSettings.browser === 'firefox'
+                      ? 'border-emerald-500/20 bg-emerald-500/10'
+                      : 'border-amber-500/20 bg-amber-500/10'
+                  }`}
+                >
+                  {cookieSettings.browser === 'firefox' ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
+                  ) : (
+                    <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+                  )}
                   <div className="flex-1 text-xs">
-                    <p className="font-medium text-amber-500">{t('network.browserMustBeClosed')}</p>
+                    <p
+                      className={`font-medium ${
+                        cookieSettings.browser === 'firefox' ? 'text-emerald-500' : 'text-amber-500'
+                      }`}
+                    >
+                      {t(
+                        cookieSettings.browser === 'firefox'
+                          ? 'network.firefoxCanStayOpen'
+                          : 'network.browserMustBeClosed',
+                      )}
+                    </p>
                     <p className="text-muted-foreground mt-0.5">
-                      {t('network.browserMustBeClosedDesc')}
+                      {t(
+                        cookieSettings.browser === 'firefox'
+                          ? 'network.firefoxCanStayOpenDesc'
+                          : 'network.browserMustBeClosedDesc',
+                      )}
                     </p>
                   </div>
                 </div>

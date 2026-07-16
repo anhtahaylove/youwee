@@ -576,6 +576,8 @@
     "openSettings": "Открыть настройки",
     "browserMustBeClosed": "Ограничения Windows",
     "browserMustBeClosedDesc": "На Windows Chrome 127+ блокирует доступ к куки. Закройте браузер полностью, или используйте Firefox / режим Cookie File.",
+    "firefoxCanStayOpen": "Firefox можно оставить открытым",
+    "firefoxCanStayOpenDesc": "Youwee может читать cookies выбранного профиля Firefox, пока Firefox работает. Если вы только что вошли в систему или прошли CAPTCHA, обновите сайт и повторите попытку; закройте Firefox один раз или используйте файл cookies, только если сессия всё ещё не обновилась.",
     "cookieFile": "Файл куки",
     "noFileSelected": "Файл не выбран",
     "browse": "Обзор",

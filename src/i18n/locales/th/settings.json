@@ -576,6 +576,8 @@
     "openSettings": "เปิด Settings",
     "browserMustBeClosed": "ข้อจำกัดของ Cookies บน Windows",
     "browserMustBeClosedDesc": "บน Windows, Chrome 127+ จะบล็อกการเข้าถึงคุกกี้ (App-Bound Encryption) ให้ปิดเบราว์เซอร์ให้สนิท หรือใช้ Firefox / Cookie File mode เพื่อผลลัพธ์ที่ดีกว่า",
+    "firefoxCanStayOpen": "เปิด Firefox ทิ้งไว้ได้",
+    "firefoxCanStayOpenDesc": "Youwee สามารถอ่านคุกกี้จากโปรไฟล์ Firefox ที่เลือกได้ขณะ Firefox กำลังทำงาน หากเพิ่งเข้าสู่ระบบหรือแก้ CAPTCHA ให้รีเฟรชเว็บไซต์แล้วลองอีกครั้ง ปิด Firefox หนึ่งครั้งหรือใช้ไฟล์คุกกี้เฉพาะเมื่อเซสชันยังไม่อัปเดตเท่านั้น",
     "cookieFile": "ไฟล์ Cookie",
     "noFileSelected": "ยังไม่ได้เลือกไฟล์",
     "browse": "เลือก",

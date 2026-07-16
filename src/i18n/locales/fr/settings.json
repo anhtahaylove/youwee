@@ -576,6 +576,8 @@
     "openSettings": "Ouvrir les paramètres",
     "browserMustBeClosed": "Limitations des cookies sous Windows",
     "browserMustBeClosedDesc": "Sous Windows, Chrome 127+ bloque l'accès aux cookies (App-Bound Encryption). Fermez complètement votre navigateur, ou utilisez Firefox / le mode fichier cookie pour de meilleurs résultats.",
+    "firefoxCanStayOpen": "Firefox peut rester ouvert",
+    "firefoxCanStayOpenDesc": "Youwee peut lire les cookies du profil Firefox sélectionné pendant que Firefox fonctionne. Si vous venez de vous connecter ou de résoudre un CAPTCHA, actualisez le site puis réessayez ; ne fermez Firefox une fois ou n'utilisez un fichier de cookies que si la session reste obsolète.",
     "cookieFile": "Fichier cookie",
     "noFileSelected": "Aucun fichier sélectionné",
     "browse": "Parcourir",

@@ -652,6 +652,8 @@
     "openSettings": "Abrir Ajustes",
     "browserMustBeClosed": "Limitaciones de cookies en Windows",
     "browserMustBeClosedDesc": "En Windows, Chrome 127+ bloquea el acceso a las cookies (cifrado vinculado a la aplicación). Cierra completamente tu navegador o utiliza Firefox / Modo archivo de cookies para obtener mejores resultados.",
+    "firefoxCanStayOpen": "Firefox puede permanecer abierto",
+    "firefoxCanStayOpenDesc": "Youwee puede leer las cookies del perfil de Firefox seleccionado mientras Firefox está en ejecución. Si acabas de iniciar sesión o resolver un CAPTCHA, recarga el sitio e inténtalo de nuevo; cierra Firefox una vez o usa un archivo de cookies solo si la sesión sigue desactualizada.",
     "cookieFile": "Archivo de cookies",
     "noFileSelected": "Ningún archivo seleccionado",
     "browse": "Examinar",

@@ -576,6 +576,8 @@
     "openSettings": "فتح Settings",
     "browserMustBeClosed": "قيود الكوكيز في Windows",
     "browserMustBeClosedDesc": "في Windows، يمنع Chrome 127+ الوصول إلى الكوكيز (App-Bound Encryption). أغلق المتصفح تمامًا، أو استخدم Firefox / وضع Cookie File للحصول على أفضل النتائج.",
+    "firefoxCanStayOpen": "يمكن إبقاء Firefox مفتوحًا",
+    "firefoxCanStayOpenDesc": "يمكن لـ Youwee قراءة ملفات تعريف الارتباط من ملف Firefox المحدد أثناء تشغيل Firefox. إذا سجلت الدخول للتو أو حللت اختبار CAPTCHA، فحدّث الموقع وأعد المحاولة؛ أغلق Firefox مرة واحدة أو استخدم ملف تعريف الارتباط فقط إذا ظلت الجلسة غير محدثة.",
     "cookieFile": "ملف الكوكيز",
     "noFileSelected": "لم يتم اختيار ملف",
     "browse": "استعراض",
