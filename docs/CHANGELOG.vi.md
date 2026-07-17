@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.35] - 2026-07-17
+
+### Sửa lỗi
+- **Fallback changelog sau cập nhật** - Lấy metadata release qua Rust backend để bản nâng cấp từ build cũ vẫn hiển thị đầy đủ ghi chú khi WebView bị CORS chặn request tới asset GitHub
+
 ## [0.19.1-custom.34] - 2026-07-17
 
 ### Thêm mới

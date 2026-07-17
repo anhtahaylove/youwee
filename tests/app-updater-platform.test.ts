@@ -11,8 +11,8 @@ describe('app updater platform behavior', () => {
 
 describe('post-update release notes', () => {
   const update = {
-    version: '0.19.1-custom.34',
-    currentVersion: '0.19.1-custom.33',
+    version: '0.19.1-custom.35',
+    currentVersion: '0.19.1-custom.34',
     body: 'Release notes',
   };
 

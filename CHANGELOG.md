@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.35] - 2026-07-17
+
+### Fixed
+- **Post-update changelog fallback** - Fetch release metadata through the Rust backend so upgrades from older builds still show complete release notes when WebView CORS blocks GitHub asset requests
+
 ## [0.19.1-custom.34] - 2026-07-17
 
 ### Added
