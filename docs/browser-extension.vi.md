@@ -55,8 +55,8 @@ Popup vẫn gửi được trên mọi trang HTTP/HTTPS hợp lệ.
 
 | Trình duyệt | Tải về |
 |-------------|--------|
-| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Tải .zip](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Tải .xpi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Tải .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
+| **Firefox** | [Tải .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
 
 ## Hướng Dẫn Cài Đặt
 
@@ -106,8 +106,13 @@ Kết quả:
 - Thư mục build:
   - `extensions/youwee-webext/dist/chromium`
   - `extensions/youwee-webext/dist/firefox`
+  - `extensions/youwee-webext/dist/firefox-amo`
 - File đóng gói:
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Chromium.zip`
-  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-unsigned.zip`
+  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip`
+  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip`
 
 File Firefox `.xpi` signed sẽ được tạo trong pipeline release CI.
+
+- [Thông báo quyền riêng tư của extension](EXTENSION_PRIVACY.md)
+- [Bộ nội dung đăng AMO và Chrome Web Store](EXTENSION_STORE_LISTING.md)

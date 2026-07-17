@@ -18,15 +18,21 @@ function extensionVersionFromAppVersion(appVersion) {
   return match.slice(1).filter(Boolean).join('.');
 }
 
-async function buildTarget(target, appVersion, extensionVersion) {
+async function buildTarget(
+  target,
+  appVersion,
+  extensionVersion,
+  manifestTarget = target,
+  transformManifest = (manifest) => manifest,
+) {
   const outDir = path.join(distDir, target);
-  const manifestPath = path.join(extensionRoot, `manifest.${target}.json`);
+  const manifestPath = path.join(extensionRoot, `manifest.${manifestTarget}.json`);
 
   await mkdir(outDir, { recursive: true });
   await cp(srcDir, outDir, { recursive: true });
 
   const manifestContent = await readFile(manifestPath, 'utf8');
-  const manifest = JSON.parse(manifestContent);
+  const manifest = transformManifest(JSON.parse(manifestContent));
   manifest.version = extensionVersion;
   manifest.version_name = appVersion;
   await writeFile(
@@ -47,10 +53,15 @@ async function run() {
 
   await buildTarget('chromium', appVersion, extensionVersion);
   await buildTarget('firefox', appVersion, extensionVersion);
+  await buildTarget('firefox-amo', appVersion, extensionVersion, 'firefox', (manifest) => {
+    delete manifest.browser_specific_settings?.gecko?.update_url;
+    return manifest;
+  });
 
   console.log(`Built extension packages (${appVersion} -> ${extensionVersion}):`);
   console.log(`- ${path.join(distDir, 'chromium')}`);
   console.log(`- ${path.join(distDir, 'firefox')}`);
+  console.log(`- ${path.join(distDir, 'firefox-amo')}`);
 }
 
 run().catch((error) => {

@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Youwee Downloader Bridge"
+    "message": "Youwee - Tiện ích tải media"
   },
   "extensionDescription": {
-    "message": "Gửi trang video hiện tại sang ứng dụng Youwee desktop và tải nhanh."
+    "message": "Gửi trang media hiện tại sang Youwee, chọn video hoặc âm thanh và chất lượng, rồi tải ngay hoặc thêm vào hàng đợi."
   },
   "floatingButton": {
     "message": "Tải với Youwee"

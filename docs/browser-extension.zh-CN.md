@@ -55,8 +55,8 @@
 
 | 浏览器 | 下载 |
 |--------|------|
-| **Chromium**（Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc） | [下载 .zip](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [下载 .xpi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Chromium**（Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc） | [下载 .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
+| **Firefox** | [下载 .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
 
 ## 安装说明
 
@@ -106,8 +106,13 @@ bun run ext:package
 - 构建目录：
   - `extensions/youwee-webext/dist/chromium`
   - `extensions/youwee-webext/dist/firefox`
+  - `extensions/youwee-webext/dist/firefox-amo`
 - 打包文件：
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Chromium.zip`
-  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-unsigned.zip`
+  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip`
+  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip`
 
 已签名 Firefox `.xpi` 由 CI 发布流程生成。
+
+- [扩展隐私声明](EXTENSION_PRIVACY.md)
+- [AMO 与 Chrome Web Store 上架资料](EXTENSION_STORE_LISTING.md)

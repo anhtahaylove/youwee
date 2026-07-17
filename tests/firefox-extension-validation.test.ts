@@ -20,6 +20,24 @@ describe('Firefox extension validation', () => {
     });
   });
 
+  test('requests only the permissions used by both store packages', async () => {
+    for (const manifestName of ['manifest.firefox.json', 'manifest.chromium.json']) {
+      const manifest = JSON.parse(await readFile(new URL(manifestName, extensionRoot), 'utf8'));
+
+      expect(manifest.permissions).toEqual(['activeTab', 'storage', 'scripting']);
+      expect(manifest.web_accessible_resources[0].matches).not.toContain('<all_urls>');
+    }
+  });
+
+  test('builds a separate AMO package without the self-hosted update URL', async () => {
+    const buildScript = await readFile(new URL('scripts/build.mjs', extensionRoot), 'utf8');
+    const packageScript = await readFile(new URL('scripts/package.mjs', extensionRoot), 'utf8');
+
+    expect(buildScript).toContain("buildTarget('firefox-amo'");
+    expect(buildScript).toContain('delete manifest.browser_specific_settings?.gecko?.update_url');
+    expect(packageScript).toContain('Youwee-Extension-Firefox-AMO.zip');
+  });
+
   for (const sourceFile of ['src/content.js', 'src/popup.js']) {
     test(`${sourceFile} avoids innerHTML assignments rejected by AMO`, async () => {
       const source = await readFile(new URL(sourceFile, extensionRoot), 'utf8');

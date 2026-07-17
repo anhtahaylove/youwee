@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Youwee 下载桥接扩展"
+    "message": "Youwee 下载助手"
   },
   "extensionDescription": {
-    "message": "将当前视频页面发送到 Youwee 桌面应用并快速开始下载。"
+    "message": "将当前媒体页面发送到 Youwee，选择视频或音频及画质，然后立即下载或加入队列。"
   },
   "floatingButton": {
     "message": "使用 Youwee 下载"

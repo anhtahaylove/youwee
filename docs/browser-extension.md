@@ -52,8 +52,8 @@ Popup sending works for all valid HTTP/HTTPS pages.
 
 | Browser | Download |
 |---------|----------|
-| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Download .zip](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Download .xpi](https://github.com/vanloctech/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Download .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
+| **Firefox** | [Download .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
 
 ## Install Guide
 
@@ -103,8 +103,13 @@ Outputs:
 - Build folders:
   - `extensions/youwee-webext/dist/chromium`
   - `extensions/youwee-webext/dist/firefox`
+  - `extensions/youwee-webext/dist/firefox-amo`
 - Packaged files:
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Chromium.zip`
-  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-unsigned.zip`
+  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip`
+  - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip`
 
 Signed Firefox `.xpi` is generated in CI release pipeline.
+
+- [Extension privacy notice](EXTENSION_PRIVACY.md)
+- [AMO and Chrome Web Store listing kit](EXTENSION_STORE_LISTING.md)

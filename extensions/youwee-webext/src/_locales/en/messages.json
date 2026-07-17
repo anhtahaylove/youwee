@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Youwee Downloader Bridge"
+    "message": "Youwee Download Companion"
   },
   "extensionDescription": {
-    "message": "Send current video page to Youwee desktop app and start download quickly."
+    "message": "Send the current media page to Youwee, choose video or audio quality, and start or queue a download."
   },
   "floatingButton": {
     "message": "Download with Youwee"
