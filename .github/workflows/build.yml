@@ -121,6 +121,10 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-windows-dependencies.ps1
 
+      - name: Configure ad-hoc macOS code signing
+        if: matrix.os_name == 'macos'
+        run: echo "APPLE_SIGNING_IDENTITY=-" >> "$GITHUB_ENV"
+
       - name: Build Tauri app with signing
         uses: tauri-apps/tauri-action@v0
         env:
@@ -130,6 +134,13 @@ jobs:
         with:
           tauriScript: bun run tauri
           args: --target ${{ matrix.target }} ${{ matrix.bundle_args }}
+
+      - name: Verify ad-hoc macOS app signature
+        if: matrix.os_name == 'macos'
+        run: |
+          APP="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Youwee.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign --display --verbose=2 "$APP"
 
       - name: Rename artifacts with friendly names (macOS)
         if: matrix.os_name == 'macos'
@@ -652,6 +663,8 @@ jobs:
           | 🐧 **Linux** | `Youwee-Linux.AppImage` | Portable (all distros) |
           | 🌐 **Extension (Chromium)** | `Youwee-Extension-Chromium.zip` | Unzip and load unpacked on Chrome/Edge/Brave |
           | 🦊 **Extension (Firefox Developer)** | `Youwee-Extension-Firefox.zip` | Temporary load through `about:debugging` |
+
+          > **macOS:** Builds are ad-hoc signed until Apple Developer ID notarization is configured. On first launch, use **System Settings → Privacy & Security → Open Anyway** if Gatekeeper blocks the app.
           DOWNLOADS
 
           echo '| 🦊 **Extension (Firefox Stable)** | `Youwee-Extension-Firefox-signed.xpi` | Signed add-on with automatic updates from GitHub releases |' >> RELEASE_BODY.md
