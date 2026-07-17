@@ -73,6 +73,13 @@ export function UpdateDialog({
     return `${parseFloat((bytes / k ** i).toFixed(1))} ${sizes[i]}`;
   };
 
+  const formatEta = (seconds: number) => {
+    if (seconds < 60) return `${Math.max(1, seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+  };
+
   const localizedBody = getLocalizedBody(updateInfo, i18n.language);
   const canDismiss = status === 'available' || status === 'error' || status === 'installed';
   const autoRestarts =
@@ -194,7 +201,9 @@ export function UpdateDialog({
             <div className="bg-card/40 backdrop-blur-md rounded-2xl p-6 border border-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] text-center animate-in fade-in duration-500">
               <div className="flex justify-between items-end mb-3">
                 <span className="text-sm font-semibold text-foreground">
-                  {t('update.downloading')}
+                  {progress?.phase === 'installing'
+                    ? t('update.installing')
+                    : t('update.downloading')}
                 </span>
                 <span className="text-2xl font-black text-primary tracking-tighter">
                   {progressPercent}%
@@ -207,8 +216,20 @@ export function UpdateDialog({
                 />
               </div>
               {progress && progress.total > 0 && (
-                <div className="text-xs font-medium text-muted-foreground">
-                  {formatBytes(progress.downloaded)} / {formatBytes(progress.total)}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs font-medium text-muted-foreground">
+                  <span>
+                    {formatBytes(progress.downloaded)} / {formatBytes(progress.total)}
+                  </span>
+                  {progress.phase === 'installing' ? (
+                    <span>{t('update.verifying')}</span>
+                  ) : progress.bytesPerSecond > 0 && progress.etaSeconds !== null ? (
+                    <span>
+                      {formatBytes(progress.bytesPerSecond)}/s ·{' '}
+                      {t('update.timeRemaining', { time: formatEta(progress.etaSeconds) })}
+                    </span>
+                  ) : (
+                    <span>{t('update.calculating')}</span>
+                  )}
                 </div>
               )}
               {autoRestarts && (
@@ -254,7 +275,7 @@ export function UpdateDialog({
               disabled
             >
               <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-              {t('update.downloading')}
+              {progress?.phase === 'installing' ? t('update.installing') : t('update.downloading')}
             </Button>
           )}
 

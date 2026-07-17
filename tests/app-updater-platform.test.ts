@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { restoreInstalledUpdate, updaterRestartsAutomatically } from '../src/hooks/useAppUpdater';
+import {
+  calculateUpdateTransferStats,
+  restoreInstalledUpdate,
+  updaterRestartsAutomatically,
+} from '../src/hooks/useAppUpdater';
 
 describe('app updater platform behavior', () => {
   test('expects the Windows installer to restart the app automatically', () => {
@@ -24,5 +28,21 @@ describe('post-update release notes', () => {
 
   test('ignores malformed persisted state', () => {
     expect(restoreInstalledUpdate('{invalid', update.version)).toBeNull();
+  });
+});
+
+describe('update transfer statistics', () => {
+  test('calculates current speed and remaining time', () => {
+    const stats = calculateUpdateTransferStats(5_000_000, 15_000_000, 1_000_000, 2_000);
+
+    expect(stats.bytesPerSecond).toBe(2_000_000);
+    expect(stats.etaSeconds).toBe(5);
+  });
+
+  test('smooths later samples to avoid a jumping ETA', () => {
+    const stats = calculateUpdateTransferStats(3_000_000, 10_000_000, 2_000_000, 1_000, 2_000_000);
+
+    expect(stats.bytesPerSecond).toBe(1_700_000);
+    expect(stats.etaSeconds).toBe(5);
   });
 });

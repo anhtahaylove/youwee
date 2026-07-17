@@ -16,6 +16,41 @@ export interface UpdateInfo {
 export interface UpdateProgress {
   downloaded: number;
   total: number;
+  bytesPerSecond: number;
+  etaSeconds: number | null;
+  phase: 'downloading' | 'installing';
+}
+
+export function calculateUpdateTransferStats(
+  downloaded: number,
+  total: number,
+  previousDownloaded: number,
+  elapsedMs: number,
+  previousBytesPerSecond = 0,
+) {
+  if (elapsedMs <= 0 || downloaded <= previousDownloaded) {
+    return {
+      bytesPerSecond: previousBytesPerSecond,
+      etaSeconds:
+        previousBytesPerSecond > 0 && total > downloaded
+          ? Math.ceil((total - downloaded) / previousBytesPerSecond)
+          : null,
+    };
+  }
+
+  const currentBytesPerSecond = ((downloaded - previousDownloaded) * 1000) / elapsedMs;
+  const bytesPerSecond =
+    previousBytesPerSecond > 0
+      ? previousBytesPerSecond * 0.7 + currentBytesPerSecond * 0.3
+      : currentBytesPerSecond;
+
+  return {
+    bytesPerSecond,
+    etaSeconds:
+      bytesPerSecond > 0 && total > downloaded
+        ? Math.ceil((total - downloaded) / bytesPerSecond)
+        : null,
+  };
 }
 
 export type UpdateStatus =
@@ -215,7 +250,13 @@ export function useAppUpdater() {
 
   const downloadAndInstall = useCallback(async () => {
     setStatus('downloading');
-    setProgress({ downloaded: 0, total: 0 });
+    setProgress({
+      downloaded: 0,
+      total: 0,
+      bytesPerSecond: 0,
+      etaSeconds: null,
+      phase: 'downloading',
+    });
 
     try {
       if (await isExternalUpdateManaged()) {
@@ -238,19 +279,56 @@ export function useAppUpdater() {
 
       let downloaded = 0;
       let contentLength = 0;
+      let sampledDownloaded = 0;
+      let sampledAt = performance.now();
+      let bytesPerSecond = 0;
+      let etaSeconds: number | null = null;
 
       await update.downloadAndInstall((event) => {
         switch (event.event) {
           case 'Started':
             contentLength = event.data.contentLength ?? 0;
-            setProgress({ downloaded: 0, total: contentLength });
+            sampledAt = performance.now();
+            setProgress({
+              downloaded: 0,
+              total: contentLength,
+              bytesPerSecond: 0,
+              etaSeconds: null,
+              phase: 'downloading',
+            });
             break;
-          case 'Progress':
+          case 'Progress': {
             downloaded += event.data.chunkLength;
-            setProgress({ downloaded, total: contentLength });
+            const now = performance.now();
+            const elapsedMs = now - sampledAt;
+            if (elapsedMs >= 500) {
+              ({ bytesPerSecond, etaSeconds } = calculateUpdateTransferStats(
+                downloaded,
+                contentLength,
+                sampledDownloaded,
+                elapsedMs,
+                bytesPerSecond,
+              ));
+              sampledDownloaded = downloaded;
+              sampledAt = now;
+            }
+            setProgress({
+              downloaded,
+              total: contentLength,
+              bytesPerSecond,
+              etaSeconds,
+              phase: 'downloading',
+            });
             break;
+          }
           case 'Finished':
-            setProgress({ downloaded: contentLength, total: contentLength });
+            setProgress({
+              downloaded: contentLength || downloaded,
+              total: contentLength,
+              bytesPerSecond: 0,
+              etaSeconds: 0,
+              phase: 'installing',
+            });
             break;
         }
       });
