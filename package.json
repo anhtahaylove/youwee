@@ -1,7 +1,7 @@
 {
   "name": "youwee",
   "private": true,
-  "version": "0.19.1-custom.37",
+  "version": "0.19.1-custom.38",
   "type": "module",
   "scripts": {
     "dev": "vite",

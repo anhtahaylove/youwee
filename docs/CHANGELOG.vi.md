@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.38] - 2026-07-18
+
 ### Thêm mới
 - **Cài extension Chromium thân thiện cho người mới** - Kèm thư mục extension Chromium đã giải nén trong Full Installer Windows, thêm nút mở thư mục, sao chép thông tin cài đặt và hướng dẫn offline
 
