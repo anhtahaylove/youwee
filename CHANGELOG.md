@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.34] - 2026-07-17
+
+### Added
+- **Post-update release notes** - Show the localized changelog once after a successful in-app update and relaunch
+
+### Changed
+- **Quiet Windows updates** - Install per-user Windows updates without reopening the interactive installer UI
+
+### Fixed
+- **Updater temporary storage cleanup** - Remove stale Youwee updater packages from the system temporary directory after launch
+
 ## [0.19.1-custom.33] - 2026-07-17
 
 ### Added

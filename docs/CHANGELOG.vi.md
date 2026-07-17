@@ -7,6 +7,17 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.34] - 2026-07-17
+
+### Thêm mới
+- **Nhật ký sau cập nhật** - Hiển thị changelog bản địa hóa một lần sau khi cập nhật trong app thành công và mở lại Youwee
+
+### Thay đổi
+- **Cập nhật Windows yên lặng** - Cài bản cập nhật theo tài khoản người dùng mà không mở lại giao diện installer tương tác
+
+### Sửa lỗi
+- **Dọn bộ nhớ tạm updater** - Xóa các gói cập nhật Youwee cũ khỏi thư mục tạm của hệ thống sau khi app khởi động
+
 ## [0.19.1-custom.33] - 2026-07-17
 
 ### Thêm mới
