@@ -8,7 +8,7 @@ The existing Firefox add-on is **unlisted/self-distributed**. The release workfl
 
 For a public AMO listing, upload a new, unique version to the **listed** channel using `Youwee-Extension-Firefox-AMO.zip`. This package intentionally omits the self-hosted `update_url`, so AMO can manage updates.
 
-Do not upload the current `0.19.1.35` package as a listed version because that version already exists in the unlisted channel. Use a higher version, such as `0.19.1.36`, after the next app version bump.
+The previous `0.19.1.35` extension already exists in the unlisted channel. Submit `0.19.1.36` from `Youwee-Extension-Firefox-AMO.zip` to the listed channel so the version remains unique across both channels.
 
 ## Shared product identity
 

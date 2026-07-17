@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.36] - 2026-07-17
+
+### Added
+- **Updater transfer telemetry** - Show the current download speed, estimated time remaining, and the installing phase while applying an app update
+- **Public extension store kit** - Add AMO-listed packaging, localized listing copy, privacy documentation, and ready-to-upload Firefox/Chrome store graphics
+
+### Changed
+- **Minimum browser permissions** - Remove the unused tabs permission and replace broad web-accessible matches with the supported media host allowlist
+
 ## [0.19.1-custom.35] - 2026-07-17
 
 ### Fixed

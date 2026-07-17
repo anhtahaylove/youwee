@@ -7,6 +7,15 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.36] - 2026-07-17
+
+### Thêm mới
+- **Thông tin truyền tải updater** - Hiển thị tốc độ tải hiện tại, thời gian còn lại ước tính và giai đoạn đang cài đặt khi cập nhật ứng dụng
+- **Bộ phát hành extension công khai** - Thêm package AMO listed, nội dung trang sản phẩm đã bản địa hóa, tài liệu quyền riêng tư và ảnh store sẵn dùng cho Firefox/Chrome
+
+### Thay đổi
+- **Quyền trình duyệt tối thiểu** - Xóa quyền tabs không sử dụng và thay phạm vi web-accessible rộng bằng allowlist các website media được hỗ trợ
+
 ## [0.19.1-custom.35] - 2026-07-17
 
 ### Sửa lỗi
