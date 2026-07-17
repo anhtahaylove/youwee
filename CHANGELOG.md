@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Beginner Chromium extension setup** - Bundle the unpacked Chromium extension with the Windows Full Installer and provide one-click folder access, copyable setup details, and an offline install guide
+
 ## [0.19.1-custom.37] - 2026-07-17
 
 ### Changed

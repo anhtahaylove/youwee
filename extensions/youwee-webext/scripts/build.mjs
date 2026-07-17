@@ -8,6 +8,28 @@ const extensionRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(extensionRoot, '..', '..');
 const srcDir = path.join(extensionRoot, 'src');
 const distDir = path.join(extensionRoot, 'dist');
+const chromiumInstallGuide = `YOUWEE CHROMIUM EXTENSION / TIỆN ÍCH CHROMIUM YOUWEE
+
+ENGLISH
+1. Open chrome://extensions in Chrome, Edge, Brave, Opera, Vivaldi, Arc, or Coc Coc.
+2. Enable Developer mode.
+3. Choose Load unpacked.
+4. Select this Youwee-Extension-Chromium folder.
+5. Pin Youwee Download Companion for quick access.
+
+Keep this folder in place. Youwee updates its contents when the desktop app is updated.
+If the browser still shows an older version, return to chrome://extensions and click Reload.
+
+TIẾNG VIỆT
+1. Mở chrome://extensions trong Chrome, Edge, Brave, Opera, Vivaldi, Arc hoặc Cốc Cốc.
+2. Bật Chế độ dành cho nhà phát triển.
+3. Chọn Tải tiện ích đã giải nén.
+4. Chọn thư mục Youwee-Extension-Chromium này.
+5. Ghim Youwee Download Companion để truy cập nhanh.
+
+Giữ nguyên vị trí thư mục này. Youwee sẽ cập nhật nội dung khi ứng dụng desktop được cập nhật.
+Nếu trình duyệt vẫn hiển thị bản cũ, quay lại chrome://extensions và nhấn Tải lại.
+`;
 
 async function buildTarget(
   target,
@@ -31,6 +53,9 @@ async function buildTarget(
     `${JSON.stringify(manifest, null, 2)}\n`,
     'utf8',
   );
+  if (target === 'chromium') {
+    await writeFile(path.join(outDir, 'INSTALL.txt'), chromiumInstallGuide, 'utf8');
+  }
 }
 
 async function run() {

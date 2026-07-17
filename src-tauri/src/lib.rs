@@ -447,6 +447,7 @@ pub fn run() {
             commands::remove_history_from_collection,
             commands::open_file_location,
             commands::check_file_exists,
+            commands::get_bundled_chromium_extension_path,
             // Asset scope & history helpers
             commands::allow_asset_file,
             commands::sync_asset_scope_paths,

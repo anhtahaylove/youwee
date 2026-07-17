@@ -11,6 +11,7 @@ $manifestPath = Join-Path $repoRoot 'src-tauri\dependencies.windows.lock.json'
 $cacheRoot = Join-Path $repoRoot 'src-tauri\target\dependency-cache\windows'
 $extractRoot = Join-Path $cacheRoot 'extracted'
 $tauriConfigPath = Join-Path $repoRoot 'src-tauri\tauri.windows.full.conf.json'
+$chromiumExtensionPath = Join-Path $repoRoot 'extensions\youwee-webext\dist\chromium'
 
 function Get-ArtifactName {
   param([Parameter(Mandatory = $true)][string]$Url)
@@ -79,6 +80,27 @@ function Copy-DependencyFile {
 if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
   throw "Dependency lock manifest not found: $manifestPath"
 }
+
+Push-Location $repoRoot
+try {
+  & bun run ext:build
+  if ($LASTEXITCODE -ne 0) {
+    throw "Chromium extension build failed with exit code $LASTEXITCODE."
+  }
+}
+finally {
+  Pop-Location
+}
+
+$chromiumManifestPath = Join-Path $chromiumExtensionPath 'manifest.json'
+if (-not (Test-Path -LiteralPath $chromiumManifestPath -PathType Leaf)) {
+  throw "Chromium extension output was not created: $chromiumManifestPath"
+}
+$chromiumManifest = Get-Content -LiteralPath $chromiumManifestPath -Raw | ConvertFrom-Json
+if ($chromiumManifest.manifest_version -ne 3) {
+  throw "Expected Chromium Manifest V3 output at $chromiumManifestPath."
+}
+Write-Host "Prepared Chromium extension $($chromiumManifest.version): $chromiumExtensionPath"
 
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 if ($manifest.schemaVersion -ne 1 -or $manifest.platform -ne 'windows-x86_64') {
@@ -150,6 +172,7 @@ $resources = [ordered]@{
   'resources/dependencies/windows/gallery-dl.exe' = 'dependencies/gallery-dl.exe'
   'resources/dependencies/THIRD_PARTY_NOTICES.txt' = 'dependencies/THIRD_PARTY_NOTICES.txt'
   'dependencies.windows.lock.json' = 'dependencies/dependencies.windows.lock.json'
+  '../extensions/youwee-webext/dist/chromium' = 'Youwee-Extension-Chromium'
 }
 
 $fullConfig = [ordered]@{

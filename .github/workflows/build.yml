@@ -116,7 +116,7 @@ jobs:
           path: src-tauri/target/dependency-cache/windows
           key: youwee-windows-dependencies-${{ hashFiles('src-tauri/dependencies.windows.lock.json') }}
 
-      - name: Prepare Windows Full Installer dependencies
+      - name: Prepare Windows Full Installer dependencies and Chromium extension
         if: matrix.os_name == 'windows'
         shell: pwsh
         run: ./scripts/prepare-windows-dependencies.ps1
@@ -678,10 +678,12 @@ jobs:
           
           ## Included on Windows
           - **yt-dlp, FFmpeg/ffprobe, Deno and gallery-dl** are bundled in the Full installers.
+          - The unpacked Chromium extension is included too. Open **Settings → Browser Extension → Open extension folder** for guided setup.
           - App-managed dependency updates remain available in Settings and override the bundled copy.
 
           ## Browser Extension Install
-          - Chromium: download `Youwee-Extension-Chromium.zip` -> extract -> open `chrome://extensions` -> enable Developer mode -> **Load unpacked**.
+          - Chromium Full Installer: open the bundled extension folder from Youwee Settings -> open `chrome://extensions` -> enable Developer mode -> **Load unpacked**.
+          - Chromium portable/manual fallback: download `Youwee-Extension-Chromium.zip`, extract it, then load the extracted folder.
           - Firefox developer build: download `Youwee-Extension-Firefox.zip` -> extract -> open `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> select `manifest.json`.
           DETAILS
 
