@@ -28,6 +28,8 @@ static HIDE_DOCK_ON_CLOSE: AtomicBool = AtomicBool::new(false);
 
 /// Whether this launch followed a Tauri updater install of the running version.
 static LAUNCHED_AFTER_UPDATE: AtomicBool = AtomicBool::new(false);
+const UPDATER_METADATA_URL: &str =
+    "https://github.com/anhtahaylove/youwee/releases/latest/download/latest.json";
 
 /// Current UI language for tray menu translations (default: "en")
 static TRAY_LANG: Mutex<String> = Mutex::new(String::new());
@@ -97,6 +99,23 @@ fn set_hide_dock_on_close(hide: bool) {
 #[tauri::command]
 fn was_launched_after_update() -> bool {
     LAUNCHED_AFTER_UPDATE.load(Ordering::SeqCst)
+}
+
+#[tauri::command]
+async fn get_current_release_metadata() -> Result<serde_json::Value, String> {
+    let response = reqwest::Client::new()
+        .get(UPDATER_METADATA_URL)
+        .header(reqwest::header::CACHE_CONTROL, "no-cache")
+        .send()
+        .await
+        .map_err(|error| format!("Failed to fetch updater metadata: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Updater metadata request failed: {error}"))?;
+
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| format!("Failed to parse updater metadata: {error}"))
 }
 
 /// Tauri command: rebuild the system tray menu with current channel info
@@ -549,6 +568,7 @@ pub fn run() {
             // System commands
             set_hide_dock_on_close,
             was_launched_after_update,
+            get_current_release_metadata,
             rebuild_tray_menu_cmd,
             update_tray_schedule,
             update_tray_download_status,

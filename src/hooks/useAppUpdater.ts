@@ -32,8 +32,6 @@ export type UpdateStatus =
 
 export const PENDING_UPDATE_STORAGE_KEY = 'youwee:pending-update';
 const INSTALLED_UPDATE_SHOWN_STORAGE_KEY = 'youwee:installed-update-shown';
-const UPDATER_METADATA_URL =
-  'https://github.com/anhtahaylove/youwee/releases/latest/download/latest.json';
 
 export function restoreInstalledUpdate(raw: string | null, currentVersion: string) {
   if (!raw) return null;
@@ -110,9 +108,7 @@ async function loadCurrentReleaseInfo(currentVersion: string): Promise<UpdateInf
   const fallback = { version: currentVersion, currentVersion: '' };
 
   try {
-    const response = await fetch(UPDATER_METADATA_URL, { cache: 'no-store' });
-    if (!response.ok) return fallback;
-    const raw = (await response.json()) as Record<string, unknown>;
+    const raw = await invoke<Record<string, unknown>>('get_current_release_metadata');
     if (raw.version !== currentVersion) return fallback;
 
     return {
