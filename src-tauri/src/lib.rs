@@ -26,6 +26,9 @@ use tauri_plugin_deep_link::DeepLinkExt;
 /// Whether to hide the dock icon when closing the window (macOS only)
 static HIDE_DOCK_ON_CLOSE: AtomicBool = AtomicBool::new(false);
 
+/// Whether this launch followed a Tauri updater install of the running version.
+static LAUNCHED_AFTER_UPDATE: AtomicBool = AtomicBool::new(false);
+
 /// Current UI language for tray menu translations (default: "en")
 static TRAY_LANG: Mutex<String> = Mutex::new(String::new());
 
@@ -89,6 +92,11 @@ fn dispatch_external_links(app_handle: &tauri::AppHandle, links: Vec<String>) {
 #[tauri::command]
 fn set_hide_dock_on_close(hide: bool) {
     HIDE_DOCK_ON_CLOSE.store(hide, Ordering::SeqCst);
+}
+
+#[tauri::command]
+fn was_launched_after_update() -> bool {
+    LAUNCHED_AFTER_UPDATE.load(Ordering::SeqCst)
 }
 
 /// Tauri command: rebuild the system tray menu with current channel info
@@ -165,6 +173,29 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            let updater_cleanup = utils::cleanup_stale_updater_temp_dirs();
+            LAUNCHED_AFTER_UPDATE.store(
+                updater_cleanup.current_version_detected,
+                Ordering::SeqCst,
+            );
+            if updater_cleanup.removed > 0 {
+                log::info!(
+                    "Removed {} stale Youwee updater temp directorie(s)",
+                    updater_cleanup.removed
+                );
+            }
+            if updater_cleanup.failed > 0 {
+                log::warn!(
+                    "Failed to remove {} stale Youwee updater temp directorie(s)",
+                    updater_cleanup.failed
+                );
+            }
+            #[cfg(windows)]
+            std::thread::spawn(|| {
+                std::thread::sleep(std::time::Duration::from_secs(10));
+                utils::cleanup_stale_updater_temp_dirs();
+            });
+
             // Windows: remove native title bar so the frontend can render
             // a custom one that transitions seamlessly with the app theme.
             #[cfg(windows)]
@@ -517,6 +548,7 @@ pub fn run() {
             commands::install_cli_shortcut,
             // System commands
             set_hide_dock_on_close,
+            was_launched_after_update,
             rebuild_tray_menu_cmd,
             update_tray_schedule,
             update_tray_download_status,

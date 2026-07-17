@@ -53,7 +53,11 @@
     "updateNow": "立即更新",
     "restartNow": "立即重启",
     "dismiss": "忽略",
-    "retry": "重试"
+    "retry": "重试",
+    "installed": "更新成功！",
+    "installedDescription": "Youwee 已成功更新。以下是此版本的变更内容。",
+    "gotIt": "知道了",
+    "whatsNew": "新功能"
   },
   "legalDisclaimer": {
     "title": "负责任使用提示",

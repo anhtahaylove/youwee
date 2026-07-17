@@ -1,7 +1,8 @@
+import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check } from '@tauri-apps/plugin-updater';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export interface UpdateInfo {
   version: string;
@@ -18,6 +19,7 @@ export interface UpdateProgress {
 }
 
 export type UpdateStatus =
+  | 'initializing'
   | 'idle'
   | 'checking'
   | 'available'
@@ -25,15 +27,158 @@ export type UpdateStatus =
   | 'ready'
   | 'error'
   | 'external'
+  | 'installed'
   | 'up-to-date';
+
+export const PENDING_UPDATE_STORAGE_KEY = 'youwee:pending-update';
+const INSTALLED_UPDATE_SHOWN_STORAGE_KEY = 'youwee:installed-update-shown';
+const UPDATER_METADATA_URL =
+  'https://github.com/anhtahaylove/youwee/releases/latest/download/latest.json';
+
+export function restoreInstalledUpdate(raw: string | null, currentVersion: string) {
+  if (!raw) return null;
+
+  try {
+    const update = JSON.parse(raw) as Partial<UpdateInfo>;
+    if (
+      update.version !== currentVersion ||
+      typeof update.currentVersion !== 'string' ||
+      update.currentVersion.length === 0
+    ) {
+      return null;
+    }
+
+    return update as UpdateInfo;
+  } catch {
+    return null;
+  }
+}
+
+function toUpdateInfo(update: NonNullable<Awaited<ReturnType<typeof check>>>) {
+  const raw = update.rawJson as Record<string, unknown>;
+  return {
+    version: update.version,
+    currentVersion: update.currentVersion,
+    body: update.body ?? undefined,
+    bodyVi: (raw.notes_vi as string) || undefined,
+    bodyZhCN: (raw['notes_zh-CN'] as string) || undefined,
+    date: update.date ?? undefined,
+  } satisfies UpdateInfo;
+}
+
+function readPendingUpdate() {
+  try {
+    return localStorage.getItem(PENDING_UPDATE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storePendingUpdate(update: UpdateInfo) {
+  try {
+    localStorage.setItem(PENDING_UPDATE_STORAGE_KEY, JSON.stringify(update));
+  } catch {
+    // Updating should still work when web storage is unavailable.
+  }
+}
+
+function clearPendingUpdate() {
+  try {
+    localStorage.removeItem(PENDING_UPDATE_STORAGE_KEY);
+  } catch {
+    // Nothing else is required when web storage is unavailable.
+  }
+}
+
+function readShownUpdateVersion() {
+  try {
+    return localStorage.getItem(INSTALLED_UPDATE_SHOWN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeShownUpdateVersion(version: string) {
+  try {
+    localStorage.setItem(INSTALLED_UPDATE_SHOWN_STORAGE_KEY, version);
+  } catch {
+    // The dialog can still be dismissed when web storage is unavailable.
+  }
+}
+
+async function loadCurrentReleaseInfo(currentVersion: string): Promise<UpdateInfo> {
+  const fallback = { version: currentVersion, currentVersion: '' };
+
+  try {
+    const response = await fetch(UPDATER_METADATA_URL, { cache: 'no-store' });
+    if (!response.ok) return fallback;
+    const raw = (await response.json()) as Record<string, unknown>;
+    if (raw.version !== currentVersion) return fallback;
+
+    return {
+      ...fallback,
+      body: typeof raw.notes === 'string' ? raw.notes : undefined,
+      bodyVi: typeof raw.notes_vi === 'string' ? raw.notes_vi : undefined,
+      bodyZhCN: typeof raw['notes_zh-CN'] === 'string' ? raw['notes_zh-CN'] : undefined,
+      date: typeof raw.pub_date === 'string' ? raw.pub_date : undefined,
+    };
+  } catch {
+    return fallback;
+  }
+}
 
 export const updaterRestartsAutomatically = (platform: string) => platform.includes('Win');
 
 export function useAppUpdater() {
-  const [status, setStatus] = useState<UpdateStatus>('idle');
+  const [status, setStatus] = useState<UpdateStatus>('initializing');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const restoreUpdateState = async () => {
+      try {
+        const currentVersion = await getVersion();
+        if (!active) return;
+        const raw = readPendingUpdate();
+        const installedUpdate = restoreInstalledUpdate(raw, currentVersion);
+        if (installedUpdate) {
+          setUpdateInfo(installedUpdate);
+          setStatus('installed');
+          return;
+        }
+
+        if (raw) clearPendingUpdate();
+        if (readShownUpdateVersion() === currentVersion) {
+          setStatus('idle');
+          return;
+        }
+
+        const launchedAfterUpdate = await invoke<boolean>('was_launched_after_update').catch(
+          () => false,
+        );
+        if (!active) return;
+        if (launchedAfterUpdate) {
+          const releaseInfo = await loadCurrentReleaseInfo(currentVersion);
+          if (!active) return;
+          setUpdateInfo(releaseInfo);
+          setStatus('installed');
+        } else {
+          setStatus('idle');
+        }
+      } catch {
+        if (active) setStatus('idle');
+      }
+    };
+
+    void restoreUpdateState();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const isExternalUpdateManaged = useCallback(async () => {
     try {
@@ -57,15 +202,7 @@ export function useAppUpdater() {
       const update = await check();
 
       if (update) {
-        const raw = update.rawJson as Record<string, unknown>;
-        setUpdateInfo({
-          version: update.version,
-          currentVersion: update.currentVersion,
-          body: update.body ?? undefined,
-          bodyVi: (raw.notes_vi as string) || undefined,
-          bodyZhCN: (raw['notes_zh-CN'] as string) || undefined,
-          date: update.date ?? undefined,
-        });
+        setUpdateInfo(toUpdateInfo(update));
         setStatus('available');
         return true;
       } else {
@@ -99,6 +236,10 @@ export function useAppUpdater() {
         return;
       }
 
+      const pendingUpdate = toUpdateInfo(update);
+      setUpdateInfo(pendingUpdate);
+      storePendingUpdate(pendingUpdate);
+
       let downloaded = 0;
       let contentLength = 0;
 
@@ -131,9 +272,13 @@ export function useAppUpdater() {
   }, []);
 
   const dismissUpdate = useCallback(() => {
+    if (status === 'installed') {
+      if (updateInfo) storeShownUpdateVersion(updateInfo.version);
+      clearPendingUpdate();
+    }
     setStatus('idle');
     setUpdateInfo(null);
-  }, []);
+  }, [status, updateInfo]);
 
   return {
     status,

@@ -93,7 +93,7 @@ export function SettingsPage({
   }, []);
 
   // Updater state helpers
-  const isAppChecking = updater.status === 'checking';
+  const isAppChecking = updater.status === 'initializing' || updater.status === 'checking';
   const isAppUpdateAvailable = updater.status === 'available';
   const isAppUpToDate = updater.status === 'up-to-date';
   const isAppError = updater.status === 'error';

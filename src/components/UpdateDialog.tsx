@@ -53,6 +53,7 @@ export function UpdateDialog({
 
   // Only show dialog for specific states
   if (
+    status === 'initializing' ||
     status === 'idle' ||
     status === 'checking' ||
     status === 'up-to-date' ||
@@ -73,7 +74,7 @@ export function UpdateDialog({
   };
 
   const localizedBody = getLocalizedBody(updateInfo, i18n.language);
-  const canDismiss = status === 'available' || status === 'error';
+  const canDismiss = status === 'available' || status === 'error' || status === 'installed';
   const autoRestarts =
     typeof navigator !== 'undefined' && updaterRestartsAutomatically(navigator.platform);
 
@@ -103,14 +104,14 @@ export function UpdateDialog({
                 'relative flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-lg border border-white/10 text-white transform transition-transform duration-500',
                 status === 'error'
                   ? 'bg-gradient-to-br from-red-500 to-red-600'
-                  : status === 'ready'
+                  : status === 'ready' || status === 'installed'
                     ? 'bg-gradient-to-br from-green-500 to-green-600'
                     : 'bg-gradient-to-br from-primary to-primary/80',
               )}
             >
               {status === 'error' ? (
                 <Info className="w-6 h-6 sm:w-7 sm:h-7" />
-              ) : status === 'ready' ? (
+              ) : status === 'ready' || status === 'installed' ? (
                 <Check className="w-6 h-6 sm:w-7 sm:h-7" />
               ) : (
                 <Rocket className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -124,15 +125,21 @@ export function UpdateDialog({
                 ? t('update.error')
                 : status === 'ready'
                   ? t('update.ready')
-                  : t('update.available')}
+                  : status === 'installed'
+                    ? t('update.installed')
+                    : t('update.available')}
             </h2>
 
             {updateInfo && status !== 'error' && (
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-muted/50 border border-border/50 text-xs sm:text-sm font-semibold shadow-sm backdrop-blur-md">
-                <span className="text-muted-foreground opacity-60 line-through decoration-muted-foreground/50">
-                  v{updateInfo.currentVersion}
-                </span>
-                <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+                {updateInfo.currentVersion && updateInfo.currentVersion !== updateInfo.version && (
+                  <>
+                    <span className="text-muted-foreground opacity-60 line-through decoration-muted-foreground/50">
+                      v{updateInfo.currentVersion}
+                    </span>
+                    <ArrowRight className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+                  </>
+                )}
                 <span className="text-foreground bg-clip-text text-transparent bg-gradient-to-r from-primary to-primary/80">
                   v{updateInfo.version}
                 </span>
@@ -143,14 +150,19 @@ export function UpdateDialog({
 
         {/* Changelog Content */}
         <div className="px-6 sm:px-8 pb-6 relative z-10 flex-1 min-h-0 overflow-y-auto">
-          {status === 'available' && (
+          {(status === 'available' || status === 'installed') && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               {localizedBody ? (
                 <div className="flex flex-col">
+                  {status === 'installed' && (
+                    <p className="mb-5 text-sm text-muted-foreground">
+                      {t('update.installedDescription')}
+                    </p>
+                  )}
                   <div className="flex items-center gap-2 mb-3">
                     <Sparkles className="w-4 h-4 text-primary" />
                     <h3 className="text-xs font-bold text-foreground uppercase tracking-widest">
-                      {t('update.description')}
+                      {status === 'installed' ? t('update.whatsNew') : t('update.description')}
                     </h3>
                   </div>
                   <div className="pr-2">
@@ -170,7 +182,9 @@ export function UpdateDialog({
                 </div>
               ) : (
                 <p className="text-center text-sm text-muted-foreground">
-                  {t('update.description')}
+                  {status === 'installed'
+                    ? t('update.installedDescription')
+                    : t('update.description')}
                 </p>
               )}
             </div>
@@ -251,6 +265,16 @@ export function UpdateDialog({
             >
               {t('update.restartNow')}
               <RotateCcw className="w-4 h-4 ml-2" />
+            </Button>
+          )}
+
+          {status === 'installed' && (
+            <Button
+              onClick={onDismiss}
+              className="w-full h-12 rounded-xl font-bold bg-green-500 text-white hover:bg-green-600 shadow-xl shadow-green-500/20"
+            >
+              {t('update.gotIt')}
+              <Sparkles className="w-4 h-4 ml-2" />
             </Button>
           )}
 

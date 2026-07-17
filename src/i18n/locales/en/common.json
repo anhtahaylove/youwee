@@ -53,7 +53,11 @@
     "updateNow": "Update Now",
     "restartNow": "Restart Now",
     "dismiss": "Dismiss",
-    "retry": "Retry"
+    "retry": "Retry",
+    "installed": "Update Complete",
+    "installedDescription": "Youwee was updated successfully. Here is what changed in this version.",
+    "gotIt": "Got it",
+    "whatsNew": "What's new"
   },
   "legalDisclaimer": {
     "title": "Responsible use notice",

@@ -53,7 +53,11 @@
     "updateNow": "Atualizar Agora",
     "restartNow": "Reiniciar Agora",
     "dismiss": "Fechar",
-    "retry": "Tentar Novamente"
+    "retry": "Tentar Novamente",
+    "installed": "Atualização concluída",
+    "installedDescription": "O Youwee foi atualizado. Veja o que mudou nesta versão.",
+    "gotIt": "Entendi",
+    "whatsNew": "Novidades"
   },
   "legalDisclaimer": {
     "title": "Aviso de uso responsável",

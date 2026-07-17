@@ -53,7 +53,11 @@
     "updateNow": "今すぐアップデート",
     "restartNow": "今すぐ再起動",
     "dismiss": "閉じる",
-    "retry": "再試行"
+    "retry": "再試行",
+    "installed": "アップデート完了",
+    "installedDescription": "Youwee が正常に更新されました。このバージョンの変更点をご確認ください。",
+    "gotIt": "了解",
+    "whatsNew": "新機能"
   },
   "legalDisclaimer": {
     "title": "利用規約と免責事項",

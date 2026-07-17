@@ -29,14 +29,14 @@ export function UpdaterProvider({ children, autoCheck }: UpdaterProviderProps) {
 
   // Auto check for updates on mount if enabled
   useEffect(() => {
-    if (!autoCheck) return;
+    if (!autoCheck || updater.status !== 'idle') return;
 
     const timer = setTimeout(() => {
       updater.checkForUpdate();
     }, 2000); // Wait 2s after app start
 
     return () => clearTimeout(timer);
-  }, [autoCheck, updater.checkForUpdate]);
+  }, [autoCheck, updater.checkForUpdate, updater.status]);
 
   return <UpdaterContext.Provider value={updater}>{children}</UpdaterContext.Provider>;
 }
