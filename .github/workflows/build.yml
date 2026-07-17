@@ -257,23 +257,72 @@ jobs:
 
       - name: Sign Firefox extension (AMO unlisted)
         if: steps.firefox-signing.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set +e
+          SIGN_LOG=$(mktemp)
           bunx web-ext sign \
             --source-dir extensions/youwee-webext/dist/firefox \
             --artifacts-dir extensions/youwee-webext/dist/packages \
             --channel unlisted \
             --api-key "${{ secrets.FIREFOX_AMO_JWT_ISSUER }}" \
-            --api-secret "${{ secrets.FIREFOX_AMO_JWT_SECRET }}"
+            --api-secret "${{ secrets.FIREFOX_AMO_JWT_SECRET }}" 2>&1 | tee "$SIGN_LOG"
+          SIGN_STATUS=${PIPESTATUS[0]}
+          set -e
+
+          if [ "$SIGN_STATUS" -eq 0 ]; then
+            exit 0
+          fi
+
+          EXTENSION_VERSION=$(jq -er '.version' extensions/youwee-webext/dist/firefox/manifest.json)
+          if ! grep -Fq "Version $EXTENSION_VERSION already exists." "$SIGN_LOG"; then
+            exit "$SIGN_STATUS"
+          fi
+
+          echo "AMO already has Firefox extension $EXTENSION_VERSION; recovering its signed XPI from the latest matching workflow artifact."
+          ARTIFACT_ID=$(gh api \
+            "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=youwee-extension-packages&per_page=100" \
+            --jq ".artifacts[] | select(.expired == false and .workflow_run.id != $GITHUB_RUN_ID) | .id" \
+            | head -1)
+          if [ -z "$ARTIFACT_ID" ]; then
+            echo "No non-expired extension artifact is available for AMO version $EXTENSION_VERSION."
+            exit "$SIGN_STATUS"
+          fi
+
+          RECOVERY_DIR=$(mktemp -d)
+          gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RECOVERY_DIR/artifact.zip"
+          unzip -q "$RECOVERY_DIR/artifact.zip" -d "$RECOVERY_DIR/artifact"
+          RECOVERED_XPI=$(find "$RECOVERY_DIR/artifact" -type f -name 'Youwee-Extension-Firefox-signed.xpi' -print -quit)
+          if [ -z "$RECOVERED_XPI" ]; then
+            echo "The recovery artifact does not contain a signed Firefox XPI."
+            exit "$SIGN_STATUS"
+          fi
+
+          CURRENT_EXTENSION_ID=$(jq -er '.browser_specific_settings.gecko.id' extensions/youwee-webext/dist/firefox/manifest.json)
+          RECOVERED_MANIFEST=$(unzip -p "$RECOVERED_XPI" manifest.json)
+          RECOVERED_VERSION=$(printf '%s' "$RECOVERED_MANIFEST" | jq -er '.version')
+          RECOVERED_EXTENSION_ID=$(printf '%s' "$RECOVERED_MANIFEST" | jq -er '.browser_specific_settings.gecko.id')
+          if [ "$RECOVERED_VERSION" != "$EXTENSION_VERSION" ] || [ "$RECOVERED_EXTENSION_ID" != "$CURRENT_EXTENSION_ID" ]; then
+            echo "Recovered XPI identity mismatch: $RECOVERED_EXTENSION_ID $RECOVERED_VERSION"
+            exit "$SIGN_STATUS"
+          fi
+
+          cp "$RECOVERED_XPI" extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi
+          echo "Recovered signed Firefox XPI $RECOVERED_VERSION from artifact $ARTIFACT_ID."
 
       - name: Rename signed Firefox XPI
         if: steps.firefox-signing.outputs.enabled == 'true'
         run: |
-          SIGNED_XPI=$(find extensions/youwee-webext/dist/packages -name "*.xpi" | head -1)
-          if [ -z "$SIGNED_XPI" ]; then
-            echo "Signed Firefox XPI not found."
-            exit 1
+          TARGET_XPI="extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi"
+          if [ ! -f "$TARGET_XPI" ]; then
+            SIGNED_XPI=$(find extensions/youwee-webext/dist/packages -name "*.xpi" | head -1)
+            if [ -z "$SIGNED_XPI" ]; then
+              echo "Signed Firefox XPI not found."
+              exit 1
+            fi
+            mv "$SIGNED_XPI" "$TARGET_XPI"
           fi
-          mv "$SIGNED_XPI" "extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi"
           ls -la extensions/youwee-webext/dist/packages
 
       - name: Upload extension artifacts
