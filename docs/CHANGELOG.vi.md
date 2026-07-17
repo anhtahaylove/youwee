@@ -7,6 +7,14 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.37] - 2026-07-17
+
+### Thay đổi
+- **Tách version extension** - Đọc version tiện ích từ manifest để release ứng dụng desktop không còn xung đột số version trên AMO
+
+### Sửa lỗi
+- **Tương thích Gatekeeper trên macOS** - Ký ad-hoc và xác minh app bundle macOS để người dùng Apple Silicon có thể mở build thủ công qua Quyền riêng tư & Bảo mật trước khi có Developer ID notarization
+
 ## [0.19.1-custom.36] - 2026-07-17
 
 ### Thêm mới

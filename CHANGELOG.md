@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.37] - 2026-07-17
+
+### Changed
+- **Independent extension versioning** - Read the browser extension version from its manifests so desktop releases no longer collide with AMO version numbers
+
+### Fixed
+- **macOS Gatekeeper compatibility** - Ad-hoc sign and verify macOS application bundles so Apple Silicon users can open manual builds through Privacy & Security before Developer ID notarization is available
+
 ## [0.19.1-custom.36] - 2026-07-17
 
 ### Added

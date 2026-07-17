@@ -9,15 +9,6 @@ const repoRoot = path.resolve(extensionRoot, '..', '..');
 const srcDir = path.join(extensionRoot, 'src');
 const distDir = path.join(extensionRoot, 'dist');
 
-function extensionVersionFromAppVersion(appVersion) {
-  const match = appVersion.match(/^(\d+)\.(\d+)\.(\d+)(?:-custom\.(\d+))?$/);
-  if (!match) {
-    throw new Error(`Cannot derive a browser extension version from '${appVersion}'.`);
-  }
-
-  return match.slice(1).filter(Boolean).join('.');
-}
-
 async function buildTarget(
   target,
   appVersion,
@@ -46,7 +37,15 @@ async function run() {
   const packageJsonPath = path.join(repoRoot, 'package.json');
   const packageJson = JSON.parse(await readFile(packageJsonPath, 'utf8'));
   const appVersion = typeof packageJson.version === 'string' ? packageJson.version : '0.0.0';
-  const extensionVersion = extensionVersionFromAppVersion(appVersion);
+  const manifests = await Promise.all(
+    ['chromium', 'firefox'].map(async (target) =>
+      JSON.parse(await readFile(path.join(extensionRoot, `manifest.${target}.json`), 'utf8')),
+    ),
+  );
+  const extensionVersion = manifests[0].version;
+  if (!/^\d+(?:\.\d+){2,3}$/.test(extensionVersion) || manifests[1].version !== extensionVersion) {
+    throw new Error('Chromium and Firefox manifests must share a valid extension version.');
+  }
 
   await rm(distDir, { recursive: true, force: true });
   await mkdir(distDir, { recursive: true });
