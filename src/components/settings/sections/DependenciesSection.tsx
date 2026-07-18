@@ -39,6 +39,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useDownload } from '@/contexts/DownloadContext';
+import { resolveManagedDependencyUpdateState } from '@/lib/dependency-update-state';
 import type { DependencySource, YtdlpChannel } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { SettingsCard, SettingsSection } from '../SettingsSection';
@@ -197,6 +198,21 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
       ? 'system'
       : 'app';
   const isFfmpegSystemSource = ffmpegSourceUi === 'system';
+  const ffmpegUpdateState = resolveManagedDependencyUpdateState({
+    updateInfo: ffmpegUpdateInfo,
+    isSystem: isFfmpegSystemSource,
+    isBundled: ffmpegStatus?.is_bundled === true,
+  });
+  const denoUpdateState = resolveManagedDependencyUpdateState({
+    updateInfo: denoUpdateInfo,
+    isSystem: denoStatus?.is_system === true,
+    isBundled: denoStatus?.is_bundled === true,
+  });
+  const galleryDlUpdateState = resolveManagedDependencyUpdateState({
+    updateInfo: galleryDlUpdateInfo,
+    isSystem: galleryDlStatus?.is_system === true,
+    isBundled: galleryDlStatus?.is_bundled === true,
+  });
 
   const getUpdatePolicy = (isSystem: boolean, isBundled = false) => {
     if (isSystem) return t('dependencies.updatePolicySystem');
@@ -594,16 +610,18 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                           ? t('dependencies.systemFfmpegNotFound')
                           : t('dependencies.requiredFor2K4K8K')}
                       </span>
-                    ) : ffmpegStatus?.is_bundled ? (
-                      t('dependencies.packagedWithYouwee')
-                    ) : ffmpegUpdateInfo?.has_update ? (
+                    ) : ffmpegUpdateState === 'update-available' ? (
                       <span className="text-primary">
-                        {t('dependencies.available', { version: ffmpegUpdateInfo.latest_version })}
+                        {t('dependencies.available', {
+                          version: ffmpegUpdateInfo?.latest_version,
+                        })}
                       </span>
-                    ) : isFfmpegSystemSource ? (
+                    ) : ffmpegUpdateState === 'system' ? (
                       t('dependencies.systemFfmpeg')
-                    ) : ffmpegUpdateInfo && !ffmpegUpdateInfo.has_update ? (
+                    ) : ffmpegUpdateState === 'up-to-date' ? (
                       <span className="text-emerald-500">{t('dependencies.upToDate')}</span>
+                    ) : ffmpegUpdateState === 'packaged' ? (
+                      t('dependencies.packagedWithYouwee')
                     ) : (
                       t('dependencies.audioVideoProcessing')
                     )}
@@ -750,18 +768,18 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                       </span>
                     ) : denoError ? (
                       <span className="text-destructive">{denoError}</span>
-                    ) : denoStatus?.is_bundled ? (
-                      t('dependencies.packagedWithYouwee')
-                    ) : denoUpdateInfo?.has_update ? (
+                    ) : denoUpdateState === 'update-available' ? (
                       <span className="text-primary">
-                        {t('dependencies.available', { version: denoUpdateInfo.latest_version })}
+                        {t('dependencies.available', { version: denoUpdateInfo?.latest_version })}
                       </span>
-                    ) : denoUpdateInfo && !denoUpdateInfo.has_update ? (
+                    ) : denoUpdateState === 'up-to-date' ? (
                       <span className="text-emerald-500">{t('dependencies.upToDate')}</span>
                     ) : !denoStatus?.installed ? (
                       <span className="text-amber-500">{t('dependencies.requiredForYoutube')}</span>
-                    ) : denoStatus?.is_system ? (
+                    ) : denoUpdateState === 'system' ? (
                       t('dependencies.systemDeno')
+                    ) : denoUpdateState === 'packaged' ? (
+                      t('dependencies.packagedWithYouwee')
                     ) : (
                       t('dependencies.jsRuntimeForYoutube')
                     )}
@@ -872,17 +890,17 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                       <span className="text-emerald-500">{t('dependencies.updated')}</span>
                     ) : galleryDlError ? (
                       <span className="text-destructive">{galleryDlError}</span>
-                    ) : galleryDlUpdateInfo?.has_update ? (
+                    ) : galleryDlUpdateState === 'update-available' ? (
                       <span className="text-primary">
                         {t('dependencies.available', {
-                          version: galleryDlUpdateInfo.latest_version,
+                          version: galleryDlUpdateInfo?.latest_version,
                         })}
                       </span>
-                    ) : galleryDlUpdateInfo && !galleryDlUpdateInfo.has_update ? (
+                    ) : galleryDlUpdateState === 'up-to-date' ? (
                       <span className="text-emerald-500">{t('dependencies.upToDate')}</span>
-                    ) : galleryDlStatus?.is_system ? (
+                    ) : galleryDlUpdateState === 'system' ? (
                       t('dependencies.systemGallerydl')
-                    ) : galleryDlStatus?.is_bundled ? (
+                    ) : galleryDlUpdateState === 'packaged' ? (
                       t('dependencies.packagedWithYouwee')
                     ) : galleryDlStatus?.installed ? (
                       t('dependencies.localGallerydl')
