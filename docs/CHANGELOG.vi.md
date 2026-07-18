@@ -7,6 +7,19 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.41] - 2026-07-18
+
+### Thêm mới
+- **Khuyến nghị cookie được quản lý** - Làm mới danh mục bỏ qua cookie toàn cục đã xác thực với cache 24 giờ, đồng thời giữ quy tắc cá nhân ở máy người dùng và cấu hình độc lập
+
+### Thay đổi
+- **Thay thế dependency an toàn hơn** - Cập nhật FFmpeg và ffprobe thành một cặp đã xác minh, có thể rollback, đồng thời kiểm tra binary Deno tải về trước khi kích hoạt
+- **Mặc định cookie thận trọng** - Giữ danh mục khuyến nghị toàn cục trống cho đến khi một website thực sự ổn định hơn khi bỏ qua xác thực, nhưng vẫn bảo toàn quy tắc cá nhân và migration cũ
+
+### Sửa lỗi
+- **Tên file Facebook Reel trên Windows** - Giới hạn title template theo thư mục output thực tế để các file video/audio trung gian có tiêu đề dài hoặc Unicode vẫn ghi được
+- **Trạng thái dependency đồng nhất** - Hiển thị Đã mới nhất cho FFmpeg, Deno và gallery-dl sau khi kiểm tra thành công thay vì quay về nhãn được đóng gói cùng Youwee
+
 ## [0.19.1-custom.39] - 2026-07-18
 
 ### Thêm mới

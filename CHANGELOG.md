@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.41] - 2026-07-18
+
+### Added
+- **Managed cookie recommendations** - Refresh a validated global cookie-skip catalog with a 24-hour cache while keeping personal rules local and independently configurable
+
+### Changed
+- **Safer dependency replacement** - Update FFmpeg and ffprobe as one verified rollback-safe pair and verify downloaded Deno binaries before activation
+- **Conservative cookie defaults** - Keep the global recommendation catalog empty until a site consistently benefits from skipping authentication, while preserving personal rules and legacy migration
+
+### Fixed
+- **Facebook Reel Windows filenames** - Limit plain title templates against the effective output directory so long or non-ASCII intermediate video and audio files remain writable
+- **Dependency status consistency** - Show Up to date for FFmpeg, Deno, and gallery-dl after a successful managed update check instead of falling back to the packaged-source label
+
 ## [0.19.1-custom.39] - 2026-07-18
 
 ### Added
