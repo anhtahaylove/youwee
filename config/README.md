@@ -11,6 +11,8 @@ When changing the catalog:
 1. Validate it against `cookie-skip-rules.schema.json`.
 2. Update `revision` and `updatedAt`.
 3. Keep rules normalized and review whether skipping authentication can expose private-only URLs.
+   Add a rule only when cookies consistently break public extraction; do not use the catalog to
+   bypass authentication by default when cookies can expose better formats or metadata.
 4. Push the change to `main`. Clients refresh at most once every 24 hours and retain the last
    valid cache when the network or catalog is unavailable.
 

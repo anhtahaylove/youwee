@@ -2,17 +2,18 @@ import type { CookieSettings, ProxySettings } from '@/lib/types';
 
 export const COOKIE_STORAGE_KEY = 'youwee-cookie-settings';
 export const PROXY_STORAGE_KEY = 'youwee-proxy-settings';
-export const COOKIE_SKIP_CATALOG_CACHE_KEY = 'youwee-cookie-skip-catalog-v1';
+export const COOKIE_SKIP_CATALOG_CACHE_KEY = 'youwee-cookie-skip-catalog-v2';
 export const COOKIE_SKIP_CATALOG_URL =
   'https://raw.githubusercontent.com/anhtahaylove/youwee/main/config/cookie-skip-rules.json';
 export const COOKIE_SKIP_CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
-export const DEFAULT_COOKIE_SKIP_PATTERNS = ['facebook.com/reel'];
+export const DEFAULT_COOKIE_SKIP_PATTERNS: string[] = [];
 
 const COOKIE_SKIP_CATALOG_TIMEOUT_MS = 10_000;
 const MAX_COOKIE_SKIP_CATALOG_BYTES = 32 * 1024;
 const MAX_COOKIE_SKIP_PATTERNS = 50;
 const MAX_COOKIE_SKIP_PATTERN_LENGTH = 128;
-const DEFAULT_COOKIE_SKIP_CATALOG_REVISION = 'bundled-2026-07-18';
+const DEFAULT_COOKIE_SKIP_CATALOG_REVISION = 'bundled-2026-07-18.2';
+const LEGACY_RECOMMENDED_COOKIE_SKIP_PATTERNS = ['facebook.com/reel'];
 let activeCookieSkipCatalogRefresh: Promise<CookieSkipCatalogState> | null = null;
 
 export type CookieSkipCatalogSource = 'remote' | 'cache' | 'fallback';
@@ -285,7 +286,7 @@ export async function refreshCookieSkipRecommendations(options?: {
 
 export function normalizeCookieSettings(settings: CookieSettings): CookieSettings {
   const legacyPatterns = sanitizeCookieSkipPatterns(settings.cookieSkipPatterns, []);
-  const hasLegacyRecommendedPattern = DEFAULT_COOKIE_SKIP_PATTERNS.some((pattern) =>
+  const hasLegacyRecommendedPattern = LEGACY_RECOMMENDED_COOKIE_SKIP_PATTERNS.some((pattern) =>
     legacyPatterns.includes(pattern),
   );
   const hasExplicitRecommendationSetting =
@@ -295,7 +296,9 @@ export function normalizeCookieSettings(settings: CookieSettings): CookieSetting
     : !Array.isArray(settings.cookieSkipPatterns) || hasLegacyRecommendedPattern;
   const personalPatterns =
     !hasExplicitRecommendationSetting && hasLegacyRecommendedPattern
-      ? legacyPatterns.filter((pattern) => !DEFAULT_COOKIE_SKIP_PATTERNS.includes(pattern))
+      ? legacyPatterns.filter(
+          (pattern) => !LEGACY_RECOMMENDED_COOKIE_SKIP_PATTERNS.includes(pattern),
+        )
       : legacyPatterns;
 
   return {

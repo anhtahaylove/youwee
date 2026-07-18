@@ -21,7 +21,7 @@ describe('cookie skip patterns', () => {
   });
 
   test('defaults missing saved patterns but preserves an explicit empty list', () => {
-    expect(sanitizeCookieSkipPatterns(undefined)).toEqual(['facebook.com/reel']);
+    expect(sanitizeCookieSkipPatterns(undefined)).toEqual([]);
     expect(sanitizeCookieSkipPatterns([])).toEqual([]);
   });
 
@@ -106,7 +106,7 @@ describe('cookie skip patterns', () => {
 
   test('accepts the checked-in global catalog used by production clients', async () => {
     const raw = await Bun.file('config/cookie-skip-rules.json').text();
-    expect(parseCookieSkipCatalog(raw).patterns).toEqual(['facebook.com/reel']);
+    expect(parseCookieSkipCatalog(raw).patterns).toEqual([]);
     expect(await Bun.file('config/cookie-skip-rules.schema.json').json()).toMatchObject({
       title: 'Youwee recommended cookie skip rules',
       properties: { schemaVersion: { const: 1 } },

@@ -30,8 +30,8 @@ use crate::database::{
 };
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
-    enqueue_post_download_workflow, get_bundled_ytdlp_fallback_path, get_deno_path,
-    get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
+    calc_trim_filenames_bytes, enqueue_post_download_workflow, get_bundled_ytdlp_fallback_path,
+    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
     resolve_download_workflow_snapshot, run_ytdlp_with_stderr, system_ytdlp_not_found_message,
 };
 use crate::types::{
@@ -670,6 +670,15 @@ fn build_output_template(filename_template: Option<String>, item_prefix: &str) -
         item_prefix,
         normalize_filename_template(filename_template)
     )
+}
+
+fn constrain_title_template_for_output(template: String, output_directory: &str) -> String {
+    if !cfg!(target_os = "windows") {
+        return template;
+    }
+
+    let title_limit = calc_trim_filenames_bytes(output_directory);
+    template.replace("%(title)s", &format!("%(title).{title_limit}B"))
 }
 
 fn build_chapter_output_template(item_prefix: &str, number_chapter_files: bool) -> String {
@@ -1413,7 +1422,10 @@ pub async fn download_video(
         auto_organize_collections_enabled,
         playlist_collection_name.as_deref(),
     );
-    let output_template = build_output_template(filename_template, &item_prefix);
+    let output_template = constrain_title_template_for_output(
+        build_output_template(filename_template, &item_prefix),
+        &output_directory,
+    );
 
     // Use a temp file to capture the final filepath from yt-dlp.
     // On Windows with non-UTF-8 locales (e.g. Chinese/GBK), stdout is encoded
@@ -1549,7 +1561,7 @@ pub async fn download_video(
     }
 
     push_overwrite_args(&mut args, skip_existing);
-    push_filename_safety_args(&mut args, Some(&sanitized_path));
+    push_filename_safety_args(&mut args, Some(&output_directory));
 
     // Playlist handling
     if !download_playlist {
@@ -3321,6 +3333,26 @@ mod tests {
             build_output_template(Some("%(title)s.%(ext)s".to_string()), &regular_queue_prefix,),
             "07 - %(title)s.%(ext)s"
         );
+    }
+
+    #[test]
+    fn windows_output_template_limits_plain_titles_for_intermediate_files() {
+        let output_directory = r"\\?\C:\Users\Administrator\Downloads";
+        let template = constrain_title_template_for_output(
+            build_output_template(Some(DEFAULT_FILENAME_TEMPLATE.to_string()), ""),
+            output_directory,
+        );
+        let explicit_precision = constrain_title_template_for_output(
+            "%(title).120B.%(ext)s".to_string(),
+            output_directory,
+        );
+
+        if cfg!(target_os = "windows") {
+            assert_eq!(template, "%(title).180B.%(ext)s");
+        } else {
+            assert_eq!(template, DEFAULT_FILENAME_TEMPLATE);
+        }
+        assert_eq!(explicit_precision, "%(title).120B.%(ext)s");
     }
 
     #[test]
