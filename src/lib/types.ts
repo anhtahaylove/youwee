@@ -978,6 +978,7 @@ export interface CookieSettings {
   browser?: BrowserType;
   browserProfile?: string;
   filePath?: string;
+  useRecommendedCookieSkipPatterns?: boolean;
   cookieSkipPatterns?: string[];
 }
 

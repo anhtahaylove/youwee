@@ -143,6 +143,18 @@ pub async fn get_ffmpeg_path(app: &AppHandle) -> Option<PathBuf> {
     )
 }
 
+/// Resolve ffprobe from the same managed/system directory as the selected FFmpeg binary.
+pub async fn get_ffprobe_path(app: &AppHandle) -> Option<PathBuf> {
+    #[cfg(windows)]
+    let binary_name = "ffprobe.exe";
+    #[cfg(not(windows))]
+    let binary_name = "ffprobe";
+
+    let ffmpeg_path = get_ffmpeg_path(app).await?;
+    let ffprobe_path = ffmpeg_path.parent()?.join(binary_name);
+    ffprobe_path.is_file().then_some(ffprobe_path)
+}
+
 /// Check FFmpeg status
 pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, String> {
     if let Some(ffmpeg_path) = get_ffmpeg_path(app).await {
@@ -190,36 +202,41 @@ pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, Stri
 /// Parse FFmpeg version from output
 pub fn parse_ffmpeg_version(output: &str) -> String {
     if let Some(line) = output.lines().next() {
-        if let Some(version_part) = line.strip_prefix("ffmpeg version ") {
-            return version_part
-                .split_whitespace()
-                .next()
-                .unwrap_or("unknown")
-                .to_string();
+        for prefix in ["ffmpeg version ", "ffprobe version "] {
+            if let Some(version_part) = line.strip_prefix(prefix) {
+                return version_part
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or("unknown")
+                    .to_string();
+            }
         }
     }
     "unknown".to_string()
 }
 
-/// Extract date string (YYYY-MM-DD) from version string
+/// Extract a sortable date from common FFmpeg build version formats.
 /// Examples:
 /// - "git-2026-01-25-1e1dde8" -> "2026-01-25"
-/// - "2026-01-25" -> "2026-01-25"
+/// - "2026.01.25" -> "2026-01-25"
+/// - "n8.1.2-22-g94138f6973-20260717" -> "2026-07-17"
 fn extract_date_from_version(version: &str) -> Option<String> {
-    // Look for YYYY-MM-DD pattern
-    let re = regex::Regex::new(r"(\d{4})-(\d{2})-(\d{2})").ok()?;
-    if let Some(caps) = re.captures(version) {
-        Some(format!("{}-{}-{}", &caps[1], &caps[2], &caps[3]))
-    } else {
-        None
+    let re = regex::Regex::new(r"(?:^|\D)(\d{4})[-.]?(\d{2})[-.]?(\d{2})(?:\D|$)").ok()?;
+    let caps = re.captures(version)?;
+    let year = caps[1].parse::<u16>().ok()?;
+    let month = caps[2].parse::<u8>().ok()?;
+    let day = caps[3].parse::<u8>().ok()?;
+
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
     }
+
+    Some(format!("{year:04}-{month:02}-{day:02}"))
 }
 
 fn ffmpeg_version_has_update(current_version: &str, latest_version: &str) -> bool {
-    let current_normalized = current_version.replace('.', "-");
-    let latest_normalized = latest_version.replace('.', "-");
-    let current_date = extract_date_from_version(&current_normalized);
-    let latest_date = extract_date_from_version(&latest_normalized);
+    let current_date = extract_date_from_version(current_version);
+    let latest_date = extract_date_from_version(latest_version);
 
     match (current_date, latest_date) {
         (Some(curr), Some(lat)) => lat > curr,
@@ -353,6 +370,18 @@ pub fn normalize_ffmpeg_release_version(tag_name: &str) -> String {
         .to_string()
 }
 
+fn select_ffmpeg_release_version(
+    tag_name: &str,
+    release_name: Option<&str>,
+    published_at: Option<&str>,
+) -> String {
+    [Some(tag_name), release_name, published_at]
+        .into_iter()
+        .flatten()
+        .find_map(extract_date_from_version)
+        .unwrap_or_else(|| normalize_ffmpeg_release_version(tag_name))
+}
+
 pub async fn get_latest_ffmpeg_release_info() -> Result<FfmpegReleaseInfo, String> {
     let api_url = get_ffmpeg_release_api_url();
     if api_url.is_empty() {
@@ -386,7 +415,11 @@ pub async fn get_latest_ffmpeg_release_info() -> Result<FfmpegReleaseInfo, Strin
     let tag_name = json["tag_name"].as_str().ok_or("No tag_name in release")?;
 
     Ok(FfmpegReleaseInfo {
-        version: normalize_ffmpeg_release_version(tag_name),
+        version: select_ffmpeg_release_version(
+            tag_name,
+            json["name"].as_str(),
+            json["published_at"].as_str(),
+        ),
         html_url: json["html_url"].as_str().map(|s| s.to_string()),
     })
 }
@@ -439,7 +472,10 @@ pub async fn check_ffmpeg_update_internal(app: &AppHandle) -> Result<FfmpegUpdat
 
 #[cfg(test)]
 mod tests {
-    use super::{ffmpeg_version_has_update, normalize_ffmpeg_release_version};
+    use super::{
+        ffmpeg_version_has_update, normalize_ffmpeg_release_version, parse_ffmpeg_version,
+        select_ffmpeg_release_version,
+    };
 
     #[test]
     fn normalizes_ffmpeg_macos_release_tags() {
@@ -460,5 +496,42 @@ mod tests {
             "2026.06.11"
         ));
         assert!(!ffmpeg_version_has_update("2026.06.11", "2026.06.11"));
+    }
+
+    #[test]
+    fn compares_compact_btb_n_build_dates() {
+        assert!(ffmpeg_version_has_update(
+            "n8.1.2-22-g94138f6973-20260717",
+            "2026-07-18"
+        ));
+        assert!(!ffmpeg_version_has_update(
+            "n8.1.2-22-g94138f6973-20260717",
+            "Latest Auto-Build (2026-07-17 13:22)"
+        ));
+    }
+
+    #[test]
+    fn derives_btb_n_version_from_release_name_when_tag_is_latest() {
+        assert_eq!(
+            select_ffmpeg_release_version(
+                "latest",
+                Some("Latest Auto-Build (2026-07-17 13:22)"),
+                Some("2026-07-17T14:32:32Z")
+            ),
+            "2026-07-17"
+        );
+    }
+
+    #[test]
+    fn parses_ffmpeg_and_ffprobe_versions() {
+        let version = "n8.1.2-22-g94138f6973-20260717";
+        assert_eq!(
+            parse_ffmpeg_version(&format!("ffmpeg version {version} Copyright")),
+            version
+        );
+        assert_eq!(
+            parse_ffmpeg_version(&format!("ffprobe version {version} Copyright")),
+            version
+        );
     }
 }

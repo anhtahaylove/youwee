@@ -4,6 +4,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useReducer, useRef } f
 import { useAI } from '@/contexts/AIContext';
 import { useDownload } from '@/contexts/DownloadContext';
 import { localizeUnknownError } from '@/lib/backend-error';
+import { resolveCookieSkipPatterns } from '@/lib/network-config';
 import {
   createInitialSummarySessionState,
   DEFAULT_LONG_SUMMARY_WORDS,
@@ -149,7 +150,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           cookieBrowser: cookieSettings.browser || null,
           cookieBrowserProfile: cookieSettings.browserProfile || null,
           cookieFilePath: cookieSettings.filePath || null,
-          cookieSkipPatterns: cookieSettings.cookieSkipPatterns || [],
+          cookieSkipPatterns: resolveCookieSkipPatterns(cookieSettings),
           proxyUrl: getProxyUrl() || null,
         });
 
@@ -168,7 +169,7 @@ export function SummarySessionProvider({ children }: { children: ReactNode }) {
           cookieBrowser: cookieSettings.browser || null,
           cookieBrowserProfile: cookieSettings.browserProfile || null,
           cookieFilePath: cookieSettings.filePath || null,
-          cookieSkipPatterns: cookieSettings.cookieSkipPatterns || [],
+          cookieSkipPatterns: resolveCookieSkipPatterns(cookieSettings),
           proxyUrl: getProxyUrl() || null,
         });
 

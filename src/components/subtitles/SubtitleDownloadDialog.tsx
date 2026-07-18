@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useDownload } from '@/contexts/DownloadContext';
 import { useSubtitle } from '@/contexts/SubtitleContext';
 import { localizeUnknownError } from '@/lib/backend-error';
+import { resolveCookieSkipPatterns } from '@/lib/network-config';
 import { cn } from '@/lib/utils';
 
 interface SubtitleDownloadInfo {
@@ -45,7 +46,7 @@ export function SubtitleDownloadDialog({ open, onClose }: SubtitleDownloadDialog
         cookieBrowser: cookieSettings?.browser,
         cookieBrowserProfile: cookieSettings?.browserProfile,
         cookieFilePath: cookieSettings?.filePath,
-        cookieSkipPatterns: cookieSettings?.cookieSkipPatterns || [],
+        cookieSkipPatterns: cookieSettings ? resolveCookieSkipPatterns(cookieSettings) : [],
         proxyUrl: proxyUrl || undefined,
       });
       setSubtitles(result);

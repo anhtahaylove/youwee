@@ -1,0 +1,7 @@
+{
+  "$schema": "./cookie-skip-rules.schema.json",
+  "schemaVersion": 1,
+  "revision": "2026-07-18.1",
+  "updatedAt": "2026-07-18T00:00:00Z",
+  "recommendedPatterns": ["facebook.com/reel"]
+}

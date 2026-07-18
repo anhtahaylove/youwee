@@ -158,6 +158,10 @@ pub fn get_deno_download_url() -> &'static str {
     }
 }
 
+pub fn get_deno_checksum_url() -> String {
+    format!("{}.sha256sum", get_deno_download_url())
+}
+
 /// Deno update info
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DenoUpdateInfo {
@@ -238,4 +242,17 @@ pub async fn check_deno_update_internal(app: &AppHandle) -> Result<DenoUpdateInf
         latest_version: Some(latest_version),
         release_url: html_url,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_deno_checksum_url, get_deno_download_url};
+
+    #[test]
+    fn checksum_url_tracks_the_selected_deno_archive() {
+        let download_url = get_deno_download_url();
+        if !download_url.is_empty() {
+            assert_eq!(get_deno_checksum_url(), format!("{download_url}.sha256sum"));
+        }
+    }
 }

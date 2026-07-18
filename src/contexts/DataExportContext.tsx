@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
 import { localizeUnknownError } from '@/lib/backend-error';
+import { resolveCookieSkipPatterns } from '@/lib/network-config';
 import type { ExportRow, ExportSource, ExtractDataRowsOutput } from '@/lib/types';
 import { useDownload } from './DownloadContext';
 
@@ -95,7 +96,7 @@ export function DataExportProvider({ children }: { children: ReactNode }) {
           cookieBrowser: cookieSettings.browser || null,
           cookieBrowserProfile: cookieSettings.browserProfile || null,
           cookieFilePath: cookieSettings.filePath || null,
-          cookieSkipPatterns: cookieSettings.cookieSkipPatterns || [],
+          cookieSkipPatterns: resolveCookieSkipPatterns(cookieSettings),
           proxyUrl: getProxyUrl() || null,
         },
       });

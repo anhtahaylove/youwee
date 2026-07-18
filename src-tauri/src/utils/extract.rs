@@ -13,6 +13,7 @@ pub fn extract_tar_gz_sync(
     let decoder = GzDecoder::new(Cursor::new(data));
     let mut archive = Archive::new(decoder);
     let mut found_target = false;
+    let mut found_ffprobe = false;
 
     for entry in archive
         .entries()
@@ -30,6 +31,8 @@ pub fn extract_tar_gz_sync(
             if name_str == target_binary || name_str == "ffprobe" {
                 if name_str == target_binary {
                     found_target = true;
+                } else {
+                    found_ffprobe = true;
                 }
                 let dest_path = dest_dir.join(&*name_str);
                 entry
@@ -41,6 +44,9 @@ pub fn extract_tar_gz_sync(
 
     if !found_target {
         return Err(format!("{} not found in archive", target_binary));
+    }
+    if !found_ffprobe {
+        return Err("ffprobe not found in archive".to_string());
     }
 
     Ok(())
@@ -58,6 +64,7 @@ pub fn extract_tar_xz_sync(
     let decoder = XzDecoder::new(Cursor::new(data));
     let mut archive = Archive::new(decoder);
     let mut found_target = false;
+    let mut found_ffprobe = false;
 
     for entry in archive
         .entries()
@@ -74,6 +81,8 @@ pub fn extract_tar_xz_sync(
             if name_str == target_binary || name_str == "ffprobe" {
                 if name_str == target_binary {
                     found_target = true;
+                } else {
+                    found_ffprobe = true;
                 }
                 let dest_path = dest_dir.join(&*name_str);
                 entry
@@ -85,6 +94,9 @@ pub fn extract_tar_xz_sync(
 
     if !found_target {
         return Err(format!("{} not found in archive", target_binary));
+    }
+    if !found_ffprobe {
+        return Err("ffprobe not found in archive".to_string());
     }
 
     Ok(())
@@ -101,6 +113,7 @@ pub fn extract_zip_sync(
     let cursor = Cursor::new(data);
     let mut archive = ZipArchive::new(cursor).map_err(|e| format!("Failed to open zip: {}", e))?;
     let mut found_target = false;
+    let mut found_ffprobe = false;
 
     for i in 0..archive.len() {
         let mut file = archive
@@ -119,6 +132,8 @@ pub fn extract_zip_sync(
         if is_target || file_name_str == "ffprobe" || file_name_str == "ffprobe.exe" {
             if is_target {
                 found_target = true;
+            } else {
+                found_ffprobe = true;
             }
             let dest_path = dest_dir.join(file_name);
 
@@ -131,6 +146,9 @@ pub fn extract_zip_sync(
 
     if !found_target {
         return Err(format!("{} not found in archive", target_binary));
+    }
+    if !found_ffprobe {
+        return Err("ffprobe not found in archive".to_string());
     }
 
     Ok(())
@@ -229,4 +247,41 @@ pub async fn extract_deno_zip(
     tokio::task::spawn_blocking(move || extract_deno_zip_sync(data, dest_dir, target_binary))
         .await
         .map_err(|e| format!("Task join error: {}", e))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_zip_sync;
+    use std::io::{Cursor, Write};
+
+    fn ffmpeg_zip(include_ffprobe: bool) -> Vec<u8> {
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        let options = zip::write::FileOptions::default();
+        archive.start_file("bin/ffmpeg", options).unwrap();
+        archive.write_all(b"ffmpeg").unwrap();
+        if include_ffprobe {
+            archive.start_file("bin/ffprobe", options).unwrap();
+            archive.write_all(b"ffprobe").unwrap();
+        }
+        archive.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn ffmpeg_archive_requires_the_matching_ffprobe_binary() {
+        let output_dir = std::env::temp_dir().join(format!(
+            "youwee-ffmpeg-extract-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::create_dir_all(&output_dir).unwrap();
+
+        extract_zip_sync(ffmpeg_zip(true), output_dir.clone(), "ffmpeg".to_string()).unwrap();
+        assert!(output_dir.join("ffmpeg").is_file());
+        assert!(output_dir.join("ffprobe").is_file());
+
+        let error = extract_zip_sync(ffmpeg_zip(false), output_dir.clone(), "ffmpeg".to_string())
+            .unwrap_err();
+        assert_eq!(error, "ffprobe not found in archive");
+
+        std::fs::remove_dir_all(output_dir).unwrap();
+    }
 }

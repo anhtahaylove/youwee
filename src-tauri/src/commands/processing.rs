@@ -10,10 +10,9 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::database::get_db;
-use crate::services::{generate_raw, get_ffmpeg_path, AIConfig};
+use crate::services::{generate_raw, get_ffmpeg_path, get_ffprobe_path, AIConfig};
 use crate::utils::{
-    args_to_display_command, find_system_binary, parse_ffmpeg_command_args,
-    unix_system_binary_dirs, validate_ffmpeg_args, CommandExt,
+    args_to_display_command, parse_ffmpeg_command_args, validate_ffmpeg_args, CommandExt,
 };
 
 #[path = "processing/attachments.rs"]
@@ -1166,40 +1165,6 @@ pub async fn generate_quick_action_command(
         output_path,
         warnings: vec![],
     })
-}
-
-async fn get_ffprobe_path(app: &AppHandle) -> Option<std::path::PathBuf> {
-    if let Ok(app_data_dir) = app.path().app_data_dir() {
-        let bin_dir = app_data_dir.join("bin");
-        #[cfg(windows)]
-        let ffprobe_path = bin_dir.join("ffprobe.exe");
-        #[cfg(not(windows))]
-        let ffprobe_path = bin_dir.join("ffprobe");
-
-        if ffprobe_path.exists() {
-            return Some(ffprobe_path);
-        }
-    }
-
-    #[cfg(windows)]
-    let binary_name = "ffprobe.exe";
-    #[cfg(not(windows))]
-    let binary_name = "ffprobe";
-
-    if let Some(path) = find_system_binary(binary_name, &unix_system_binary_dirs()) {
-        return Some(path);
-    }
-
-    if let Some(ffmpeg_path) = get_ffmpeg_path(app).await {
-        if let Some(parent) = ffmpeg_path.parent() {
-            let ffprobe_path = parent.join(binary_name);
-            if ffprobe_path.exists() {
-                return Some(ffprobe_path);
-            }
-        }
-    }
-
-    None
 }
 
 async fn load_ai_config(app: &AppHandle) -> Result<AIConfig, String> {

@@ -1,11 +1,11 @@
 use crate::services::{
     check_deno_internal, check_deno_update_internal, check_ffmpeg_internal,
     check_ffmpeg_update_internal, check_gallerydl_internal, check_gallerydl_update_internal,
-    get_all_ytdlp_versions, get_channel_api_url, get_deno_download_url, get_ffmpeg_download_info,
-    get_ffmpeg_path, get_ffmpeg_source, get_latest_ffmpeg_release_info, get_ytdlp_channel,
-    get_ytdlp_channel_download_url, get_ytdlp_channel_version, get_ytdlp_download_info,
-    get_ytdlp_source, get_ytdlp_version_internal, parse_ffmpeg_version, set_ffmpeg_source,
-    set_ytdlp_channel, set_ytdlp_source, system_ffmpeg_upgrade_message,
+    get_all_ytdlp_versions, get_channel_api_url, get_deno_checksum_url, get_deno_download_url,
+    get_ffmpeg_download_info, get_ffmpeg_path, get_ffmpeg_source, get_latest_ffmpeg_release_info,
+    get_ytdlp_channel, get_ytdlp_channel_download_url, get_ytdlp_channel_version,
+    get_ytdlp_download_info, get_ytdlp_source, get_ytdlp_version_internal, parse_ffmpeg_version,
+    set_ffmpeg_source, set_ytdlp_channel, set_ytdlp_source, system_ffmpeg_upgrade_message,
     system_ytdlp_upgrade_message, update_gallerydl_internal, verify_sha256,
     write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo, GalleryDlUpdateInfo,
 };
@@ -19,6 +19,7 @@ use crate::utils::{
 };
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
@@ -31,6 +32,78 @@ struct DownloadProgress {
     percent: u8,
     downloaded: u64,
     total: u64,
+}
+
+fn dependency_backup_path(target: &Path) -> PathBuf {
+    let file_name = target
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("dependency");
+    target.with_file_name(format!("{file_name}.youwee-backup"))
+}
+
+async fn restore_dependency_backups(backups: &[(PathBuf, PathBuf)]) {
+    for (target, backup) in backups.iter().rev() {
+        if target.exists() {
+            let _ = tokio::fs::remove_file(target).await;
+        }
+        if backup.exists() {
+            let _ = tokio::fs::rename(backup, target).await;
+        }
+    }
+}
+
+async fn install_verified_dependency_pair(binaries: [(PathBuf, PathBuf); 2]) -> Result<(), String> {
+    let backups = binaries
+        .iter()
+        .map(|(_, target)| (target.clone(), dependency_backup_path(target)))
+        .collect::<Vec<_>>();
+
+    for (target, backup) in &backups {
+        if backup.exists() {
+            if target.exists() {
+                tokio::fs::remove_file(backup)
+                    .await
+                    .map_err(|error| format!("Failed to remove stale backup: {error}"))?;
+            } else {
+                tokio::fs::rename(backup, target)
+                    .await
+                    .map_err(|error| format!("Failed to restore dependency backup: {error}"))?;
+            }
+        }
+    }
+
+    let mut backed_up = Vec::new();
+    for (target, backup) in &backups {
+        if !target.exists() {
+            continue;
+        }
+        if let Err(error) = tokio::fs::rename(target, backup).await {
+            restore_dependency_backups(&backed_up).await;
+            return Err(format!("Failed to prepare dependency update: {error}"));
+        }
+        backed_up.push((target.clone(), backup.clone()));
+    }
+
+    for (staged, target) in &binaries {
+        if let Err(error) = tokio::fs::rename(staged, target).await {
+            for (_, installed_target) in &binaries {
+                if installed_target.exists() {
+                    let _ = tokio::fs::remove_file(installed_target).await;
+                }
+            }
+            restore_dependency_backups(&backups).await;
+            return Err(format!("Failed to install dependency pair: {error}"));
+        }
+    }
+
+    for (_, backup) in &backups {
+        if backup.exists() {
+            let _ = tokio::fs::remove_file(backup).await;
+        }
+    }
+
+    Ok(())
 }
 
 #[derive(Deserialize)]
@@ -671,33 +744,100 @@ pub async fn download_ffmpeg(app: AppHandle) -> Result<String, String> {
     let ffmpeg_binary = "ffmpeg.exe";
     #[cfg(not(windows))]
     let ffmpeg_binary = "ffmpeg";
+    #[cfg(windows)]
+    let ffprobe_binary = "ffprobe.exe";
+    #[cfg(not(windows))]
+    let ffprobe_binary = "ffprobe";
 
     let ffmpeg_path = bin_dir.join(ffmpeg_binary);
+    let ffprobe_path = bin_dir.join(ffprobe_binary);
+    let staging_dir = bin_dir.join(format!(".ffmpeg-update-{}", uuid::Uuid::new_v4()));
+    tokio::fs::create_dir_all(&staging_dir)
+        .await
+        .map_err(|error| format!("Failed to create FFmpeg staging directory: {error}"))?;
+    let staged_ffmpeg_path = staging_dir.join(ffmpeg_binary);
+    let staged_ffprobe_path = staging_dir.join(ffprobe_binary);
 
-    match info.archive_type {
-        "tar.gz" => extract_tar_gz(&bytes, &bin_dir, ffmpeg_binary).await?,
-        "tar.xz" => extract_tar_xz(&bytes, &bin_dir, ffmpeg_binary).await?,
-        "zip" => extract_zip(&bytes, &bin_dir, ffmpeg_binary).await?,
-        _ => return Err("Unsupported archive type".to_string()),
+    let installation = async {
+        match info.archive_type {
+            "tar.gz" => extract_tar_gz(&bytes, &staging_dir, ffmpeg_binary).await?,
+            "tar.xz" => extract_tar_xz(&bytes, &staging_dir, ffmpeg_binary).await?,
+            "zip" => extract_zip(&bytes, &staging_dir, ffmpeg_binary).await?,
+            _ => return Err("Unsupported archive type".to_string()),
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            for binary_path in [&staged_ffmpeg_path, &staged_ffprobe_path] {
+                let mut perms = tokio::fs::metadata(binary_path)
+                    .await
+                    .map_err(|e| format!("Failed to get file metadata: {}", e))?
+                    .permissions();
+                perms.set_mode(0o755);
+                tokio::fs::set_permissions(binary_path, perms)
+                    .await
+                    .map_err(|e| format!("Failed to set permissions: {}", e))?;
+            }
+        }
+
+        let mut installed_versions = Vec::with_capacity(2);
+        for (name, binary_path) in [
+            ("FFmpeg", &staged_ffmpeg_path),
+            ("ffprobe", &staged_ffprobe_path),
+        ] {
+            let mut cmd = Command::new(binary_path);
+            cmd.args(["-version"])
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped());
+            cmd.hide_window();
+            let output = cmd
+                .output()
+                .await
+                .map_err(|e| format!("Failed to verify {name} installation: {e}"))?;
+
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let details = if !stderr.is_empty() {
+                    stderr
+                } else if !stdout.is_empty() {
+                    stdout
+                } else {
+                    format!("exit code {}", output.status)
+                };
+
+                return Err(format!("Failed to verify {name} installation: {details}"));
+            }
+
+            installed_versions.push(parse_ffmpeg_version(&String::from_utf8_lossy(
+                &output.stdout,
+            )));
+        }
+
+        let binary_version = installed_versions[0].clone();
+        if installed_versions[1] != binary_version {
+            return Err(format!(
+                "FFmpeg and ffprobe versions do not match: {} != {}",
+                binary_version, installed_versions[1]
+            ));
+        }
+
+        install_verified_dependency_pair([
+            (staged_ffmpeg_path.clone(), ffmpeg_path.clone()),
+            (staged_ffprobe_path.clone(), ffprobe_path.clone()),
+        ])
+        .await?;
+
+        Ok(binary_version)
     }
+    .await;
 
-    // Clean up temp file
     let _ = tokio::fs::remove_file(&temp_path).await;
+    let _ = tokio::fs::remove_dir_all(&staging_dir).await;
+    let binary_version = installation?;
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = tokio::fs::metadata(&ffmpeg_path)
-            .await
-            .map_err(|e| format!("Failed to get file metadata: {}", e))?
-            .permissions();
-        perms.set_mode(0o755);
-        tokio::fs::set_permissions(&ffmpeg_path, perms)
-            .await
-            .map_err(|e| format!("Failed to set permissions: {}", e))?;
-    }
-
-    // Emit: Complete
+    // Emit only after both verified binaries have replaced the previous pair.
     let _ = app.emit(
         "ffmpeg-download-progress",
         DownloadProgress {
@@ -707,32 +847,6 @@ pub async fn download_ffmpeg(app: AppHandle) -> Result<String, String> {
             total: total_size,
         },
     );
-
-    let mut cmd = Command::new(&ffmpeg_path);
-    cmd.args(["-version"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    cmd.hide_window();
-    let output = cmd
-        .output()
-        .await
-        .map_err(|e| format!("Failed to verify FFmpeg installation: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let details = if !stderr.is_empty() {
-            stderr
-        } else if !stdout.is_empty() {
-            stdout
-        } else {
-            format!("exit code {}", output.status)
-        };
-
-        return Err(format!("Failed to verify FFmpeg installation: {}", details));
-    }
-
-    let binary_version = parse_ffmpeg_version(&String::from_utf8_lossy(&output.stdout));
     let latest_release = get_latest_ffmpeg_release_info().await.ok();
 
     if let Some(release) = latest_release {
@@ -778,6 +892,7 @@ pub async fn check_deno_update(app: AppHandle) -> Result<DenoUpdateInfo, String>
 #[tauri::command]
 pub async fn download_deno(app: AppHandle) -> Result<String, String> {
     let download_url = get_deno_download_url();
+    let checksum_url = get_deno_checksum_url();
 
     if download_url.is_empty() {
         return Err("Unsupported platform".to_string());
@@ -809,6 +924,27 @@ pub async fn download_deno(app: AppHandle) -> Result<String, String> {
         .user_agent("Youwee/0.6.0")
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let checksum_response = client
+        .get(&checksum_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download Deno checksum: {}", e))?;
+    if !checksum_response.status().is_success() {
+        return Err(format!(
+            "Failed to download Deno checksum: HTTP {}",
+            checksum_response.status()
+        ));
+    }
+    let expected_hash = checksum_response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read Deno checksum: {}", e))?
+        .split_whitespace()
+        .next()
+        .filter(|hash| hash.len() == 64)
+        .ok_or("Invalid Deno checksum response")?
+        .to_string();
 
     let response = client
         .get(download_url)
@@ -869,10 +1005,25 @@ pub async fn download_deno(app: AppHandle) -> Result<String, String> {
         .map_err(|e| format!("Failed to flush file: {}", e))?;
     drop(file);
 
-    // Read file for extraction
+    // Read file for checksum verification and extraction
     let bytes = tokio::fs::read(&temp_path)
         .await
         .map_err(|e| format!("Failed to read downloaded file: {}", e))?;
+
+    let _ = app.emit(
+        "deno-download-progress",
+        DownloadProgress {
+            stage: "verifying".to_string(),
+            percent: 100,
+            downloaded,
+            total: total_size,
+        },
+    );
+
+    if !verify_sha256(&bytes, &expected_hash) {
+        let _ = tokio::fs::remove_file(&temp_path).await;
+        return Err("Security error: Deno SHA256 checksum verification failed.".to_string());
+    }
 
     // Emit: Extracting
     let _ = app.emit(
@@ -931,6 +1082,13 @@ pub async fn download_deno(app: AppHandle) -> Result<String, String> {
         .output()
         .await
         .map_err(|e| format!("Failed to verify Deno installation: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Failed to verify Deno installation: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
 
     // Parse version from "deno 2.1.2 (...)" format
     let version_output = String::from_utf8_lossy(&output.stdout);
@@ -1333,4 +1491,55 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
     }
 
     Ok(profiles)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{dependency_backup_path, install_verified_dependency_pair};
+
+    #[tokio::test]
+    async fn dependency_pair_install_rolls_back_when_the_second_binary_is_missing() {
+        let root = std::env::temp_dir().join(format!(
+            "youwee-dependency-pair-test-{}",
+            uuid::Uuid::new_v4()
+        ));
+        let staging = root.join("staging");
+        let target = root.join("target");
+        tokio::fs::create_dir_all(&staging).await.unwrap();
+        tokio::fs::create_dir_all(&target).await.unwrap();
+
+        let staged_ffmpeg = staging.join("ffmpeg");
+        let staged_ffprobe = staging.join("ffprobe");
+        let target_ffmpeg = target.join("ffmpeg");
+        let target_ffprobe = target.join("ffprobe");
+        tokio::fs::write(&staged_ffmpeg, b"new ffmpeg")
+            .await
+            .unwrap();
+        tokio::fs::write(&target_ffmpeg, b"old ffmpeg")
+            .await
+            .unwrap();
+        tokio::fs::write(&target_ffprobe, b"old ffprobe")
+            .await
+            .unwrap();
+
+        let result = install_verified_dependency_pair([
+            (staged_ffmpeg, target_ffmpeg.clone()),
+            (staged_ffprobe, target_ffprobe.clone()),
+        ])
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(
+            tokio::fs::read(&target_ffmpeg).await.unwrap(),
+            b"old ffmpeg"
+        );
+        assert_eq!(
+            tokio::fs::read(&target_ffprobe).await.unwrap(),
+            b"old ffprobe"
+        );
+        assert!(!dependency_backup_path(&target_ffmpeg).exists());
+        assert!(!dependency_backup_path(&target_ffprobe).exists());
+
+        tokio::fs::remove_dir_all(root).await.unwrap();
+    }
 }

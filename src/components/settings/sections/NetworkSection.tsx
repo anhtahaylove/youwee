@@ -3,10 +3,13 @@ import { open } from '@tauri-apps/plugin-dialog';
 import {
   AlertCircle,
   CheckCircle2,
+  Cloud,
   ExternalLink,
   FolderOpen,
   Globe,
   KeyRound,
+  Loader2,
+  RefreshCw,
   ShieldOff,
   X,
 } from 'lucide-react';
@@ -21,9 +24,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { TagInput } from '@/components/ui/tag-input';
 import { useDownload } from '@/contexts/DownloadContext';
-import { isValidCookieSkipPattern, normalizeCookieSkipPattern } from '@/lib/network-config';
+import {
+  isValidCookieSkipPattern,
+  loadCookieSkipRecommendations,
+  normalizeCookieSkipPattern,
+  refreshCookieSkipRecommendations,
+  resolveCookieSkipPatterns,
+} from '@/lib/network-config';
 import type { BrowserProfile, BrowserType, CookieMode, ProxyMode } from '@/lib/types';
 import { BROWSER_OPTIONS } from '@/lib/types';
 import { SettingsCard, SettingsSection } from '../SettingsSection';
@@ -44,6 +54,50 @@ export function NetworkSection({ highlightId }: NetworkSectionProps) {
   const [browserProfiles, setBrowserProfiles] = useState<BrowserProfile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [useCustomProfile, setUseCustomProfile] = useState(false);
+  const [cookieSkipCatalog, setCookieSkipCatalog] = useState(() => loadCookieSkipRecommendations());
+  const [isRefreshingCookieSkipCatalog, setIsRefreshingCookieSkipCatalog] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void refreshCookieSkipRecommendations().then((catalog) => {
+      if (active) {
+        setCookieSkipCatalog(catalog);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const refreshCookieSkipCatalog = async () => {
+    setIsRefreshingCookieSkipCatalog(true);
+    try {
+      const catalog = await refreshCookieSkipRecommendations({ force: true });
+      setCookieSkipCatalog(catalog);
+      updateCookieSettings({});
+    } finally {
+      setIsRefreshingCookieSkipCatalog(false);
+    }
+  };
+
+  const recommendedCookieSkipRulesEnabled =
+    cookieSettings.useRecommendedCookieSkipPatterns !== false;
+  const effectiveCookieSkipPatterns = resolveCookieSkipPatterns(
+    cookieSettings,
+    cookieSkipCatalog.patterns,
+  );
+  const cookieSkipCatalogSourceLabel = {
+    remote: t('network.cookieSkipSourceRemote'),
+    cache: t('network.cookieSkipSourceCache'),
+    fallback: t('network.cookieSkipSourceFallback'),
+  }[cookieSkipCatalog.source];
+  const cookieSkipCatalogCheckedAt = cookieSkipCatalog.fetchedAt
+    ? new Intl.DateTimeFormat(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(cookieSkipCatalog.fetchedAt)
+    : null;
+
   // Detect browsers
   useEffect(() => {
     const detectBrowsers = async () => {
@@ -396,27 +450,111 @@ export function NetworkSection({ highlightId }: NetworkSectionProps) {
           )}
 
           {cookieSettings.mode !== 'off' && (
-            <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
+            <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
               <div className="flex items-center gap-2">
                 <ShieldOff className="w-3.5 h-3.5 text-muted-foreground" />
-                <label className="text-sm font-medium" htmlFor="cookie-skip-patterns-input">
-                  {t('network.cookieSkipPatterns')}
-                </label>
+                <span className="text-sm font-medium">{t('network.cookieSkipPatterns')}</span>
               </div>
               <p className="text-xs text-muted-foreground">{t('network.cookieSkipPatternsDesc')}</p>
-              <TagInput
-                id="cookie-skip-patterns-input"
-                value={cookieSettings.cookieSkipPatterns || []}
-                onChange={(cookieSkipPatterns) => updateCookieSettings({ cookieSkipPatterns })}
-                placeholder={t('network.cookieSkipPatternsPlaceholder')}
-                normalizeTag={normalizeCookieSkipPattern}
-                validateTag={isValidCookieSkipPattern}
-                removeLabel={(pattern) => t('network.cookieSkipPatternsRemove', { pattern })}
-                className="min-h-[72px] content-start items-start"
-                inputClassName="font-mono text-xs"
-              />
-              <p className="text-[11px] text-muted-foreground/70">
-                {t('network.cookieSkipPatternsHelp')}
+
+              <div className="rounded-lg bg-blue-500/5 px-3 py-3 space-y-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Cloud className="w-3.5 h-3.5 text-blue-500" />
+                      <span className="text-sm font-medium">
+                        {t('network.cookieSkipRecommended')}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t('network.cookieSkipRecommendedDesc')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={recommendedCookieSkipRulesEnabled}
+                    onCheckedChange={(useRecommendedCookieSkipPatterns) =>
+                      updateCookieSettings({ useRecommendedCookieSkipPatterns })
+                    }
+                    aria-label={t('network.cookieSkipRecommended')}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {cookieSkipCatalog.patterns.length > 0 ? (
+                    cookieSkipCatalog.patterns.map((pattern) => (
+                      <span
+                        key={pattern}
+                        className="rounded bg-blue-500/10 px-2 py-1 font-mono text-[11px] text-blue-600 dark:text-blue-400"
+                      >
+                        {pattern}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {t('network.cookieSkipNoRecommended')}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>
+                    {cookieSkipCatalogSourceLabel}
+                    {cookieSkipCatalogCheckedAt
+                      ? ` · ${t('network.cookieSkipLastChecked', { date: cookieSkipCatalogCheckedAt })}`
+                      : ''}
+                    {cookieSkipCatalog.stale ? ` · ${t('network.cookieSkipStale')}` : ''}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 border-dashed px-2 text-xs"
+                    disabled={isRefreshingCookieSkipCatalog}
+                    onClick={refreshCookieSkipCatalog}
+                  >
+                    {isRefreshingCookieSkipCatalog ? (
+                      <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3 h-3 mr-1.5" />
+                    )}
+                    {t('network.cookieSkipRefresh')}
+                  </Button>
+                </div>
+                {cookieSkipCatalog.error && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    {t('network.cookieSkipRefreshFailed')}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium" htmlFor="cookie-skip-patterns-input">
+                  {t('network.cookieSkipPersonal')}
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {t('network.cookieSkipPersonalDesc')}
+                </p>
+                <TagInput
+                  id="cookie-skip-patterns-input"
+                  value={cookieSettings.cookieSkipPatterns || []}
+                  onChange={(cookieSkipPatterns) => updateCookieSettings({ cookieSkipPatterns })}
+                  placeholder={t('network.cookieSkipPatternsPlaceholder')}
+                  normalizeTag={normalizeCookieSkipPattern}
+                  validateTag={isValidCookieSkipPattern}
+                  removeLabel={(pattern) => t('network.cookieSkipPatternsRemove', { pattern })}
+                  className="min-h-[72px] content-start items-start"
+                  inputClassName="font-mono text-xs"
+                />
+                <p className="text-[11px] text-muted-foreground/70">
+                  {t('network.cookieSkipPatternsHelp')}
+                </p>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">
+                {t('network.cookieSkipEffective', {
+                  count: effectiveCookieSkipPatterns.length,
+                  patterns: effectiveCookieSkipPatterns.join(', ') || t('network.cookieSkipNone'),
+                })}
               </p>
             </div>
           )}

@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import { resolveCookieSkipPatterns } from '@/lib/network-config';
 import { extractUrls } from '@/lib/sources';
 import { useDownload } from './DownloadContext';
 
@@ -229,7 +230,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
           cookieBrowser: cookieSettings.browser || null,
           cookieBrowserProfile: cookieSettings.browserProfile || null,
           cookieFilePath: cookieSettings.filePath || null,
-          cookieSkipPatterns: cookieSettings.cookieSkipPatterns || [],
+          cookieSkipPatterns: resolveCookieSkipPatterns(cookieSettings),
           // Proxy settings
           proxyUrl: getProxyUrl() || null,
         });

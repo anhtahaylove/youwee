@@ -47,6 +47,7 @@ import {
   buildProxyUrl,
   loadCookieSettings,
   loadProxySettings,
+  refreshCookieSkipRecommendations,
   saveCookieSettings,
   saveProxySettings,
 } from '@/lib/network-config';
@@ -476,6 +477,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   // Initial sync on mount
   useEffect(() => {
     syncPollingNetworkConfig(loadCookieSettings(), loadProxySettings());
+    void refreshCookieSkipRecommendations().then(() => {
+      syncPollingNetworkConfig(loadCookieSettings(), loadProxySettings());
+    });
   }, [syncPollingNetworkConfig]);
 
   useEffect(() => {

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/anhtahaylove/youwee/main/config/cookie-skip-rules.schema.json",
+  "title": "Youwee recommended cookie skip rules",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "revision", "updatedAt", "recommendedPatterns"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "revision": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "recommendedPatterns": {
+      "type": "array",
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 128,
+        "pattern": "^[^\\s:/?#]+\\.[^\\s:/?#]+(?:/[^\\s?#]*)?$"
+      }
+    }
+  }
+}
