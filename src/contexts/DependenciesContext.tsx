@@ -56,6 +56,13 @@ export interface DenoUpdateInfo {
   release_url: string | null;
 }
 
+export interface GalleryDlUpdateInfo {
+  has_update: boolean;
+  current_version: string | null;
+  latest_version: string | null;
+  release_url: string | null;
+}
+
 // Download progress from backend
 export interface DownloadProgress {
   stage: 'checksum' | 'downloading' | 'verifying' | 'extracting' | 'complete';
@@ -137,8 +144,14 @@ interface DependenciesContextType {
   // gallery-dl state/actions
   galleryDlStatus: GalleryDlStatus | null;
   galleryDlLoading: boolean;
+  galleryDlUpdating: boolean;
+  galleryDlCheckingUpdate: boolean;
   galleryDlError: string | null;
+  galleryDlSuccess: boolean;
+  galleryDlUpdateInfo: GalleryDlUpdateInfo | null;
   checkGalleryDl: () => Promise<GalleryDlStatus | null>;
+  checkGalleryDlUpdate: () => Promise<void>;
+  updateGalleryDl: () => Promise<void>;
 }
 
 const DependenciesContext = createContext<DependenciesContextType | null>(null);
@@ -155,7 +168,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   // yt-dlp channel state
-  const [ytdlpChannel, setYtdlpChannelState] = useState<YtdlpChannel>('stable'); // Default to stable
+  const [ytdlpChannel, setYtdlpChannelState] = useState<YtdlpChannel>('bundled');
   const [ytdlpAllVersions, setYtdlpAllVersions] = useState<YtdlpAllVersions | null>(null);
   const [ytdlpChannelUpdateInfo, setYtdlpChannelUpdateInfo] =
     useState<YtdlpChannelUpdateInfo | null>(null);
@@ -191,7 +204,11 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
   const [denoDownloadProgress, setDenoDownloadProgress] = useState<DownloadProgress | null>(null);
   const [galleryDlStatus, setGalleryDlStatus] = useState<GalleryDlStatus | null>(null);
   const [galleryDlLoading, setGalleryDlLoading] = useState(false);
+  const [galleryDlUpdating, setGalleryDlUpdating] = useState(false);
+  const [galleryDlCheckingUpdate, setGalleryDlCheckingUpdate] = useState(false);
   const [galleryDlError, setGalleryDlError] = useState<string | null>(null);
+  const [galleryDlSuccess, setGalleryDlSuccess] = useState(false);
+  const [galleryDlUpdateInfo, setGalleryDlUpdateInfo] = useState<GalleryDlUpdateInfo | null>(null);
 
   // Load yt-dlp version (only once on first mount)
   const refreshYtdlpVersion = useCallback(async () => {
@@ -207,7 +224,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Refresh all yt-dlp versions (bundled, stable, nightly)
+  // Refresh all yt-dlp channel installation and version details.
   const refreshAllYtdlpVersions = useCallback(async () => {
     setIsChannelLoading(true);
     setChannelError(null);
@@ -248,6 +265,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
       try {
         await invoke('set_ytdlp_channel_cmd', { channel });
         setYtdlpChannelState(channel);
+        setYtdlpChannelUpdateInfo(null);
         // Refresh yt-dlp version info to reflect the change
         await refreshYtdlpVersion();
       } catch (err) {
@@ -467,6 +485,9 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     try {
       const status = await invoke<GalleryDlStatus>('check_gallerydl');
       setGalleryDlStatus(status);
+      if (!status.installed || status.is_system) {
+        setGalleryDlUpdateInfo(null);
+      }
       return status;
     } catch (err) {
       setGalleryDlError(localizeUnknownError(err));
@@ -476,7 +497,42 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Initialize on first mount - auto download Deno and yt-dlp stable if not installed
+  const checkGalleryDlUpdate = useCallback(async () => {
+    setGalleryDlCheckingUpdate(true);
+    setGalleryDlError(null);
+    try {
+      const updateInfo = await invoke<GalleryDlUpdateInfo>('check_gallerydl_update');
+      setGalleryDlUpdateInfo(updateInfo);
+    } catch (err) {
+      setGalleryDlError(localizeUnknownError(err));
+    } finally {
+      setGalleryDlCheckingUpdate(false);
+    }
+  }, []);
+
+  const updateGalleryDl = useCallback(async () => {
+    setGalleryDlUpdating(true);
+    setGalleryDlError(null);
+    setGalleryDlSuccess(false);
+    try {
+      const version = await invoke<string>('update_gallerydl');
+      setGalleryDlUpdateInfo({
+        has_update: false,
+        current_version: version,
+        latest_version: version,
+        release_url: null,
+      });
+      setGalleryDlSuccess(true);
+      await checkGalleryDl();
+      setTimeout(() => setGalleryDlSuccess(false), 3000);
+    } catch (err) {
+      setGalleryDlError(localizeUnknownError(err));
+    } finally {
+      setGalleryDlUpdating(false);
+    }
+  }, [checkGalleryDl]);
+
+  // Initialize on first mount and bootstrap missing app-managed dependencies.
   useEffect(() => {
     if (!initialized) {
       setInitialized(true);
@@ -495,10 +551,10 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
         }
 
         if (ySource !== 'system') {
-          // Load channel info and auto-download stable if needed
+          // Load channel info and auto-download the selected downloaded channel if needed.
           refreshAllYtdlpVersions().then(async (versions) => {
             if (!versions) return;
-            // Auto-download stable if channel is stable/nightly but binary not installed
+            // Downloaded channels use bundled fallback until their binary is installed.
             if (versions.using_fallback && versions.current_channel !== 'bundled') {
               setIsAutoDownloadingYtdlp(true);
               setIsChannelDownloading(true);
@@ -552,11 +608,19 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
             setDenoDownloading(false);
             // Keep isAutoDownloadingDeno true until user dismisses or success auto-closes
           }
+        } else if (!status.is_system) {
+          checkDenoUpdate().catch(() => {
+            // Silently fail - update checks are non-critical.
+          });
         }
       });
 
-      checkGalleryDl().catch(() => {
-        // gallery-dl is optional, so failure here is non-fatal
+      checkGalleryDl().then((status) => {
+        if (status?.installed && !status.is_system) {
+          checkGalleryDlUpdate().catch(() => {
+            // gallery-dl update checks are non-critical.
+          });
+        }
       });
     }
   }, [
@@ -566,7 +630,9 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     checkFfmpeg,
     checkFfmpegUpdate,
     checkDeno,
+    checkDenoUpdate,
     checkGalleryDl,
+    checkGalleryDlUpdate,
   ]);
 
   // Listen to download progress events
@@ -699,8 +765,14 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
         downloadDeno,
         galleryDlStatus,
         galleryDlLoading,
+        galleryDlUpdating,
+        galleryDlCheckingUpdate,
         galleryDlError,
+        galleryDlSuccess,
+        galleryDlUpdateInfo,
         checkGalleryDl,
+        checkGalleryDlUpdate,
+        updateGalleryDl,
       }}
     >
       {children}

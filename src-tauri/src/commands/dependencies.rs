@@ -1,12 +1,13 @@
 use crate::services::{
     check_deno_internal, check_deno_update_internal, check_ffmpeg_internal,
-    check_ffmpeg_update_internal, check_gallerydl_internal, get_all_ytdlp_versions,
-    get_channel_api_url, get_deno_download_url, get_ffmpeg_download_info, get_ffmpeg_path,
-    get_ffmpeg_source, get_latest_ffmpeg_release_info, get_ytdlp_channel,
-    get_ytdlp_channel_download_url, get_ytdlp_download_info, get_ytdlp_source,
-    get_ytdlp_version_internal, parse_ffmpeg_version, set_ffmpeg_source, set_ytdlp_channel,
-    set_ytdlp_source, system_ffmpeg_upgrade_message, system_ytdlp_upgrade_message, verify_sha256,
-    write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo,
+    check_ffmpeg_update_internal, check_gallerydl_internal, check_gallerydl_update_internal,
+    get_all_ytdlp_versions, get_channel_api_url, get_deno_download_url, get_ffmpeg_download_info,
+    get_ffmpeg_path, get_ffmpeg_source, get_latest_ffmpeg_release_info, get_ytdlp_channel,
+    get_ytdlp_channel_download_url, get_ytdlp_channel_version, get_ytdlp_download_info,
+    get_ytdlp_source, get_ytdlp_version_internal, parse_ffmpeg_version, set_ffmpeg_source,
+    set_ytdlp_channel, set_ytdlp_source, system_ffmpeg_upgrade_message,
+    system_ytdlp_upgrade_message, update_gallerydl_internal, verify_sha256,
+    write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo, GalleryDlUpdateInfo,
 };
 use crate::types::{
     BackendError, DenoStatus, DependencySource, FfmpegStatus, GalleryDlStatus, YtdlpAllVersions,
@@ -249,50 +250,6 @@ pub async fn get_all_ytdlp_versions_cmd(app: AppHandle) -> Result<YtdlpAllVersio
     Ok(get_all_ytdlp_versions(&app).await)
 }
 
-async fn get_installed_channel_version(app: &AppHandle, channel: &YtdlpChannel) -> Option<String> {
-    if matches!(channel, YtdlpChannel::Bundled) {
-        return None;
-    }
-
-    let app_data_dir = app.path().app_data_dir().ok()?;
-
-    #[cfg(windows)]
-    let binary_name = match channel {
-        YtdlpChannel::Bundled => return None,
-        YtdlpChannel::Stable => "yt-dlp-stable.exe",
-        YtdlpChannel::Nightly => "yt-dlp-nightly.exe",
-    };
-    #[cfg(not(windows))]
-    let binary_name = match channel {
-        YtdlpChannel::Bundled => return None,
-        YtdlpChannel::Stable => "yt-dlp-stable",
-        YtdlpChannel::Nightly => "yt-dlp-nightly",
-    };
-
-    let binary_path = app_data_dir.join("bin").join(binary_name);
-    if !binary_path.exists() {
-        return None;
-    }
-
-    let mut cmd = Command::new(&binary_path);
-    cmd.args(["--version"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    cmd.hide_window();
-
-    let output = cmd.output().await.ok()?;
-    if !output.status.success() {
-        return None;
-    }
-
-    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if version.is_empty() {
-        None
-    } else {
-        Some(version)
-    }
-}
-
 #[tauri::command]
 pub async fn check_ytdlp_channel_update(
     app: AppHandle,
@@ -304,9 +261,7 @@ pub async fn check_ytdlp_channel_update(
     let api_url =
         get_channel_api_url(&channel_enum).ok_or("Cannot check updates for bundled channel")?;
 
-    // Get current installed version from the channel binary itself.
-    // get_all_ytdlp_versions only checks file existence and does not include versions.
-    let current_version = get_installed_channel_version(&app, &channel_enum).await;
+    let current_version = get_ytdlp_channel_version(&app, &channel_enum).await;
 
     // Fetch latest version from GitHub
     let client = reqwest::Client::builder()
@@ -385,12 +340,14 @@ pub async fn download_ytdlp_channel(app: AppHandle, channel: String) -> Result<S
         YtdlpChannel::Bundled => "yt-dlp.exe",
         YtdlpChannel::Stable => "yt-dlp-stable.exe",
         YtdlpChannel::Nightly => "yt-dlp-nightly.exe",
+        YtdlpChannel::Master => "yt-dlp-master.exe",
     };
     #[cfg(not(windows))]
     let binary_name = match channel_enum {
         YtdlpChannel::Bundled => "yt-dlp",
         YtdlpChannel::Stable => "yt-dlp-stable",
         YtdlpChannel::Nightly => "yt-dlp-nightly",
+        YtdlpChannel::Master => "yt-dlp-master",
     };
 
     let binary_path = bin_dir.join(binary_name);
@@ -409,6 +366,9 @@ pub async fn download_ytdlp_channel(app: AppHandle, channel: String) -> Result<S
         }
         YtdlpChannel::Nightly => {
             "https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/SHA2-256SUMS"
+        }
+        YtdlpChannel::Master => {
+            "https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest/download/SHA2-256SUMS"
         }
     };
 
@@ -798,6 +758,16 @@ pub async fn check_deno(app: AppHandle) -> Result<DenoStatus, String> {
 #[tauri::command]
 pub async fn check_gallerydl(app: AppHandle) -> Result<GalleryDlStatus, String> {
     check_gallerydl_internal(&app).await
+}
+
+#[tauri::command]
+pub async fn check_gallerydl_update(app: AppHandle) -> Result<GalleryDlUpdateInfo, String> {
+    check_gallerydl_update_internal(&app).await
+}
+
+#[tauri::command]
+pub async fn update_gallerydl(app: AppHandle) -> Result<String, String> {
+    update_gallerydl_internal(&app).await
 }
 
 #[tauri::command]

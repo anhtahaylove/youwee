@@ -156,12 +156,14 @@ fn get_channel_binary_name(channel: &YtdlpChannel) -> &'static str {
         YtdlpChannel::Bundled => "yt-dlp.exe",
         YtdlpChannel::Stable => "yt-dlp-stable.exe",
         YtdlpChannel::Nightly => "yt-dlp-nightly.exe",
+        YtdlpChannel::Master => "yt-dlp-master.exe",
     }
     #[cfg(not(windows))]
     match channel {
         YtdlpChannel::Bundled => "yt-dlp",
         YtdlpChannel::Stable => "yt-dlp-stable",
         YtdlpChannel::Nightly => "yt-dlp-nightly",
+        YtdlpChannel::Master => "yt-dlp-master",
     }
 }
 
@@ -206,45 +208,86 @@ fn get_bundled_ytdlp_path() -> Option<PathBuf> {
     None
 }
 
-/// Get info for all yt-dlp channels (lightweight - no binary execution)
+async fn read_ytdlp_binary_version(path: Option<&Path>) -> Option<String> {
+    let path = path.filter(|path| path.exists())?;
+    let mut cmd = Command::new(path);
+    cmd.args(["--version"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    cmd.hide_window();
+
+    let output = cmd.output().await.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!version.is_empty()).then_some(version)
+}
+
+pub async fn get_ytdlp_channel_version(app: &AppHandle, channel: &YtdlpChannel) -> Option<String> {
+    let path = match channel {
+        YtdlpChannel::Bundled => get_bundled_ytdlp_path(),
+        _ => get_channel_binary_path(app, channel),
+    };
+    read_ytdlp_binary_version(path.as_deref()).await
+}
+
+/// Get installation and version info for all yt-dlp channels.
 pub async fn get_all_ytdlp_versions(app: &AppHandle) -> YtdlpAllVersions {
     let current_channel = get_ytdlp_channel(app).await;
 
-    // Just check file existence - no --version calls needed
     let bundled_path = get_bundled_ytdlp_path();
     let stable_path = get_channel_binary_path(app, &YtdlpChannel::Stable);
     let nightly_path = get_channel_binary_path(app, &YtdlpChannel::Nightly);
+    let master_path = get_channel_binary_path(app, &YtdlpChannel::Master);
 
     let bundled_exists = bundled_path.as_ref().map(|p| p.exists()).unwrap_or(false);
     let stable_exists = stable_path.as_ref().map(|p| p.exists()).unwrap_or(false);
     let nightly_exists = nightly_path.as_ref().map(|p| p.exists()).unwrap_or(false);
+    let master_exists = master_path.as_ref().map(|p| p.exists()).unwrap_or(false);
+
+    let (bundled_version, stable_version, nightly_version, master_version) = tokio::join!(
+        read_ytdlp_binary_version(bundled_path.as_deref()),
+        read_ytdlp_binary_version(stable_path.as_deref()),
+        read_ytdlp_binary_version(nightly_path.as_deref()),
+        read_ytdlp_binary_version(master_path.as_deref()),
+    );
 
     let bundled = YtdlpChannelInfo {
         channel: "bundled".to_string(),
-        version: None,
+        version: bundled_version,
         installed: bundled_exists,
         binary_path: bundled_path.map(|p| p.to_string_lossy().to_string()),
     };
 
     let stable = YtdlpChannelInfo {
         channel: "stable".to_string(),
-        version: None,
+        version: stable_version,
         installed: stable_exists,
         binary_path: stable_path.map(|p| p.to_string_lossy().to_string()),
     };
 
     let nightly = YtdlpChannelInfo {
         channel: "nightly".to_string(),
-        version: None,
+        version: nightly_version,
         installed: nightly_exists,
         binary_path: nightly_path.map(|p| p.to_string_lossy().to_string()),
     };
 
-    // Check if using fallback (channel is stable/nightly but binary not installed)
+    let master = YtdlpChannelInfo {
+        channel: "master".to_string(),
+        version: master_version,
+        installed: master_exists,
+        binary_path: master_path.map(|p| p.to_string_lossy().to_string()),
+    };
+
+    // Downloaded channels fall back to the bundled binary until their binary exists.
     let using_fallback = match current_channel {
         YtdlpChannel::Bundled => false,
         YtdlpChannel::Stable => !stable_exists,
         YtdlpChannel::Nightly => !nightly_exists,
+        YtdlpChannel::Master => !master_exists,
     };
 
     YtdlpAllVersions {
@@ -253,6 +296,7 @@ pub async fn get_all_ytdlp_versions(app: &AppHandle) -> YtdlpAllVersions {
         bundled,
         stable,
         nightly,
+        master,
     }
 }
 
@@ -307,6 +351,24 @@ pub fn get_ytdlp_channel_download_url(
                 None
             }
         }
+        YtdlpChannel::Master => {
+            #[cfg(target_os = "macos")]
+            {
+                Some(("https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest/download/yt-dlp_macos", "yt-dlp_macos"))
+            }
+            #[cfg(target_os = "linux")]
+            {
+                Some(("https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest/download/yt-dlp_linux", "yt-dlp_linux"))
+            }
+            #[cfg(target_os = "windows")]
+            {
+                Some(("https://github.com/yt-dlp/yt-dlp-master-builds/releases/latest/download/yt-dlp.exe", "yt-dlp.exe"))
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+            {
+                None
+            }
+        }
     }
 }
 
@@ -317,6 +379,9 @@ pub fn get_channel_api_url(channel: &YtdlpChannel) -> Option<&'static str> {
         YtdlpChannel::Stable => Some("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"),
         YtdlpChannel::Nightly => {
             Some("https://api.github.com/repos/yt-dlp/yt-dlp-nightly-builds/releases/latest")
+        }
+        YtdlpChannel::Master => {
+            Some("https://api.github.com/repos/yt-dlp/yt-dlp-master-builds/releases/latest")
         }
     }
 }
@@ -344,7 +409,7 @@ pub async fn get_ytdlp_path(app: &AppHandle) -> Option<(PathBuf, bool)> {
                 return Some((legacy_binary, false));
             }
         }
-        YtdlpChannel::Stable | YtdlpChannel::Nightly => {
+        YtdlpChannel::Stable | YtdlpChannel::Nightly | YtdlpChannel::Master => {
             // Check channel-specific binary first
             if let Some(channel_path) = get_channel_binary_path(app, &channel) {
                 if channel_path.exists() {
@@ -1239,6 +1304,19 @@ pub async fn run_ytdlp_with_stderr_and_cookies(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn master_channel_uses_official_canary_builds() {
+        assert_eq!(
+            get_channel_api_url(&YtdlpChannel::Master),
+            Some("https://api.github.com/repos/yt-dlp/yt-dlp-master-builds/releases/latest")
+        );
+
+        let (download_url, filename) = get_ytdlp_channel_download_url(&YtdlpChannel::Master)
+            .expect("master builds should support this platform");
+        assert!(download_url.contains("yt-dlp-master-builds/releases/latest/download"));
+        assert!(!filename.is_empty());
+    }
 
     #[test]
     fn build_site_header_args_adds_bilibili_headers() {

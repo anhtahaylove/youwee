@@ -418,6 +418,8 @@ pub fn run() {
             commands::check_deno_update,
             commands::download_deno,
             commands::check_gallerydl,
+            commands::check_gallerydl_update,
+            commands::update_gallerydl,
             // Browser detection
             commands::detect_installed_browsers,
             commands::get_browser_profiles,

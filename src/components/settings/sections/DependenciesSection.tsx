@@ -3,6 +3,7 @@ import { faGlobe as faGlobeIcon } from '@fortawesome/free-solid-svg-icons';
 import {
   AlertCircle,
   Check,
+  ChevronDown,
   Download,
   ExternalLink,
   Film,
@@ -48,6 +49,7 @@ interface DependenciesSectionProps {
 
 export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
   const { t } = useTranslation('settings');
+  const [showAdvancedYtdlpChannels, setShowAdvancedYtdlpChannels] = useState(false);
   const [pendingSourceChange, setPendingSourceChange] = useState<{
     tool: 'ytdlp' | 'ffmpeg';
     source: Exclude<DependencySource, 'auto'>;
@@ -58,14 +60,8 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     ytdlpSource,
     ytdlpInfo,
     isLoading,
-    isChecking,
-    isUpdating,
-    latestVersion,
-    updateSuccess,
     error,
     refreshYtdlpVersion,
-    checkForUpdate,
-    updateYtdlp,
     // yt-dlp channel
     ytdlpChannel,
     ytdlpAllVersions,
@@ -78,6 +74,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     isAutoDownloadingYtdlp,
     setYtdlpSource,
     setYtdlpChannel,
+    refreshAllYtdlpVersions,
     checkChannelUpdate,
     downloadChannelBinary,
     // FFmpeg
@@ -107,23 +104,21 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     downloadDeno,
     galleryDlStatus,
     galleryDlLoading,
+    galleryDlUpdating,
+    galleryDlCheckingUpdate,
     galleryDlError,
+    galleryDlSuccess,
+    galleryDlUpdateInfo,
     checkGalleryDl,
+    checkGalleryDlUpdate,
+    updateGalleryDl,
   } = useDependencies();
-
-  // Compare versions with normalization to avoid false positives (e.g. "v2026.02.04")
-  const normalizeVersion = (v: string) => v.trim().replace(/^v/i, '');
-  const isUpdateAvailable =
-    latestVersion && ytdlpInfo?.version
-      ? normalizeVersion(latestVersion) !== normalizeVersion(ytdlpInfo.version)
-      : false;
 
   // Check if current channel needs download (not installed)
   const needsDownload = () => {
     if (ytdlpChannel === 'bundled') return false;
     if (!ytdlpAllVersions) return false;
-    const info = ytdlpChannel === 'stable' ? ytdlpAllVersions.stable : ytdlpAllVersions.nightly;
-    return !info.installed;
+    return !ytdlpAllVersions[ytdlpChannel].installed;
   };
 
   // Handle channel change
@@ -132,8 +127,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     await setYtdlpChannel(channel);
     // If the channel binary is not installed, download it
     if (channel !== 'bundled') {
-      const versions = ytdlpAllVersions;
-      const info = channel === 'stable' ? versions?.stable : versions?.nightly;
+      const info = ytdlpAllVersions?.[channel];
       if (!info?.installed) {
         await downloadChannelBinary(channel);
       }
@@ -203,6 +197,87 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
       ? 'system'
       : 'app';
   const isFfmpegSystemSource = ffmpegSourceUi === 'system';
+
+  const getUpdatePolicy = (isSystem: boolean, isBundled = false) => {
+    if (isSystem) return t('dependencies.updatePolicySystem');
+    if (isBundled) return t('dependencies.updatePolicyBundled');
+    return t('dependencies.updatePolicyAppManaged');
+  };
+
+  const renderYtdlpChannel = (channel: YtdlpChannel) => {
+    const isActive = ytdlpChannel === channel;
+    const channelInfo = ytdlpAllVersions?.[channel];
+    const isInstalled =
+      channel === 'bundled' ? (channelInfo?.installed ?? true) : channelInfo?.installed;
+    const channelName = channel.charAt(0).toUpperCase() + channel.slice(1);
+
+    return (
+      <button
+        key={channel}
+        type="button"
+        onClick={() => handleChannelChange(channel)}
+        disabled={isChannelLoading || isChannelDownloading}
+        className={cn(
+          'w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all',
+          'disabled:opacity-50 disabled:cursor-not-allowed',
+          isActive ? 'bg-primary/[0.06] ring-1 ring-primary/30' : 'hover:bg-muted/50',
+        )}
+      >
+        <div
+          className={cn(
+            'mt-0.5 w-3.5 h-3.5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors',
+            isActive ? 'border-primary bg-primary' : 'border-muted-foreground/30',
+          )}
+        >
+          {isActive && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={cn(
+                'text-xs font-medium leading-none',
+                isActive ? 'text-foreground' : 'text-muted-foreground',
+              )}
+            >
+              {t(`dependencies.channel${channelName}`)}
+            </span>
+            {channel === 'master' && (
+              <Badge className="border-0 bg-amber-500/10 px-1.5 py-0 text-[9px] text-amber-600 dark:text-amber-400">
+                {t('dependencies.channelExperimental')}
+              </Badge>
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">
+            {t(`dependencies.channel${channelName}Desc`)}
+          </p>
+        </div>
+
+        <div className="flex max-w-[45%] shrink-0 flex-wrap items-center justify-end gap-1">
+          {channelInfo?.version && (
+            <Badge
+              variant="secondary"
+              className="max-w-full truncate border-0 px-1.5 py-0 font-mono text-[9px]"
+              title={channelInfo.binary_path || undefined}
+            >
+              {channelInfo.version}
+            </Badge>
+          )}
+          {isActive ? (
+            <Badge className="shrink-0 border-0 bg-primary/10 px-1.5 py-0 text-[10px] text-primary">
+              {t('dependencies.channelActive')}
+            </Badge>
+          ) : (
+            !isInstalled && (
+              <span className="shrink-0 text-[10px] text-muted-foreground/50">
+                {t('dependencies.notInstalled')}
+              </span>
+            )
+          )}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <>
@@ -274,7 +349,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {isUpdating || isChannelDownloading ? (
+                    {isChannelDownloading ? (
                       <span className="flex items-center gap-1 text-primary">
                         <Loader2 className="w-3 h-3 animate-spin" />
                         {isAutoDownloadingYtdlp
@@ -283,7 +358,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                             ? t('dependencies.installing')
                             : t('dependencies.updating')}
                       </span>
-                    ) : updateSuccess || channelDownloadSuccess ? (
+                    ) : channelDownloadSuccess ? (
                       <span className="text-emerald-500">{t('dependencies.updated')}</span>
                     ) : error || channelError ? (
                       <span className="text-destructive">{error || channelError}</span>
@@ -299,12 +374,6 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                           {t('dependencies.systemYtdlpNotFound')}
                         </span>
                       )
-                    ) : ytdlpChannel === 'bundled' && isUpdateAvailable && latestVersion ? (
-                      <span className="text-primary">
-                        {t('dependencies.available', {
-                          version: latestVersion,
-                        })}
-                      </span>
                     ) : ytdlpChannelUpdateInfo?.update_available ? (
                       <span className="text-primary">
                         {t('dependencies.available', {
@@ -324,18 +393,21 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                 size="icon"
                 onClick={() => {
                   if (ytdlpSource === 'system') {
-                    refreshYtdlpVersion();
+                    void refreshYtdlpVersion();
                   } else if (ytdlpChannel === 'bundled') {
-                    checkForUpdate();
+                    void Promise.all([refreshYtdlpVersion(), refreshAllYtdlpVersions()]);
                   } else {
-                    checkChannelUpdate(ytdlpChannel);
+                    void checkChannelUpdate(ytdlpChannel);
                   }
                 }}
-                disabled={
-                  isChecking || isUpdating || isChannelCheckingUpdate || isChannelDownloading
+                disabled={isChannelLoading || isChannelCheckingUpdate || isChannelDownloading}
+                title={
+                  ytdlpChannel === 'bundled'
+                    ? t('dependencies.refreshInstalledVersions')
+                    : t('dependencies.checkForUpdates')
                 }
               >
-                {isChecking || isChannelCheckingUpdate ? (
+                {isChannelLoading || isChannelCheckingUpdate ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
                   <RefreshCw className="w-4 h-4" />
@@ -356,7 +428,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                       key={`ytdlp-source-${option.value}`}
                       type="button"
                       onClick={() => handleYtdlpSourceChange(option.value)}
-                      disabled={isChannelLoading || isChannelDownloading || isUpdating}
+                      disabled={isChannelLoading || isChannelDownloading}
                       className={cn(
                         'rounded-md px-2 py-1.5 text-xs transition-all border border-dashed',
                         isActive
@@ -374,72 +446,29 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
             {/* Channel selector + action */}
             {ytdlpSource !== 'system' && (
               <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
-                {/* Channel list */}
+                {/* Standard channels */}
                 <div className="space-y-1">
-                  {(['bundled', 'stable', 'nightly'] as YtdlpChannel[]).map((ch) => {
-                    const isActive = ytdlpChannel === ch;
-                    const chInstalled =
-                      ch === 'bundled' || (ytdlpAllVersions?.[ch]?.installed ?? false);
+                  {(['bundled', 'stable', 'nightly'] as YtdlpChannel[]).map(renderYtdlpChannel)}
 
-                    return (
-                      <button
-                        key={ch}
-                        type="button"
-                        onClick={() => handleChannelChange(ch)}
-                        disabled={isChannelLoading || isChannelDownloading}
-                        className={cn(
-                          'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all',
-                          'disabled:opacity-50 disabled:cursor-not-allowed',
-                          isActive
-                            ? 'bg-primary/[0.06] ring-1 ring-primary/30'
-                            : 'hover:bg-muted/50',
-                        )}
-                      >
-                        {/* Radio indicator */}
-                        <div
-                          className={cn(
-                            'w-3.5 h-3.5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 transition-colors',
-                            isActive ? 'border-primary bg-primary' : 'border-muted-foreground/30',
-                          )}
-                        >
-                          {isActive && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
-                        </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-full justify-between border border-dashed text-xs text-muted-foreground"
+                    aria-expanded={showAdvancedYtdlpChannels}
+                    onClick={() => setShowAdvancedYtdlpChannels((current) => !current)}
+                  >
+                    {t('dependencies.channelAdvanced')}
+                    <ChevronDown
+                      className={cn(
+                        'h-3.5 w-3.5 transition-transform',
+                        showAdvancedYtdlpChannels && 'rotate-180',
+                      )}
+                    />
+                  </Button>
 
-                        {/* Channel info */}
-                        <div className="flex-1 min-w-0">
-                          <span
-                            className={cn(
-                              'text-xs font-medium leading-none',
-                              isActive ? 'text-foreground' : 'text-muted-foreground',
-                            )}
-                          >
-                            {t(`dependencies.channel${ch.charAt(0).toUpperCase()}${ch.slice(1)}`)}
-                          </span>
-                          <p className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">
-                            {t(
-                              `dependencies.channel${ch.charAt(0).toUpperCase()}${ch.slice(1)}Desc`,
-                            )}
-                          </p>
-                        </div>
-
-                        {/* Status */}
-                        {isActive ? (
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] shrink-0 bg-primary/10 text-primary border-0 px-1.5 py-0"
-                          >
-                            {t('dependencies.channelActive')}
-                          </Badge>
-                        ) : (
-                          !chInstalled && (
-                            <span className="text-[10px] text-muted-foreground/50 shrink-0">
-                              {t('dependencies.notInstalled')}
-                            </span>
-                          )
-                        )}
-                      </button>
-                    );
-                  })}
+                  {(showAdvancedYtdlpChannels || ytdlpChannel === 'master') &&
+                    renderYtdlpChannel('master')}
                 </div>
 
                 {/* Update / Install button */}
@@ -479,20 +508,17 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                       )}
                     </Button>
                   )}
-                {ytdlpChannel === 'bundled' && isUpdateAvailable && (
-                  <Button size="sm" className="w-full" onClick={updateYtdlp} disabled={isUpdating}>
-                    {isUpdating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4 mr-1.5" />
-                        {t('dependencies.update')}
-                      </>
-                    )}
-                  </Button>
-                )}
               </div>
             )}
+
+            <p className="mt-3 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">{t('dependencies.updatePolicy')}:</span>{' '}
+              {ytdlpSource === 'system'
+                ? t('dependencies.updatePolicySystem')
+                : ytdlpChannel === 'bundled'
+                  ? t('dependencies.updatePolicyBundled')
+                  : t('dependencies.updatePolicyAppManaged')}
+            </p>
 
             {/* Footer: GitHub link */}
             <a
@@ -569,7 +595,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                           : t('dependencies.requiredFor2K4K8K')}
                       </span>
                     ) : ffmpegStatus?.is_bundled ? (
-                      t('dependencies.channelBundledDesc')
+                      t('dependencies.packagedWithYouwee')
                     ) : ffmpegUpdateInfo?.has_update ? (
                       <span className="text-primary">
                         {t('dependencies.available', { version: ffmpegUpdateInfo.latest_version })}
@@ -653,6 +679,11 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
               </div>
             </div>
 
+            <p className="mt-3 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">{t('dependencies.updatePolicy')}:</span>{' '}
+              {getUpdatePolicy(isFfmpegSystemSource)}
+            </p>
+
             <a
               href="https://ffmpeg.org"
               target="_blank"
@@ -720,7 +751,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                     ) : denoError ? (
                       <span className="text-destructive">{denoError}</span>
                     ) : denoStatus?.is_bundled ? (
-                      t('dependencies.channelBundledDesc')
+                      t('dependencies.packagedWithYouwee')
                     ) : denoUpdateInfo?.has_update ? (
                       <span className="text-primary">
                         {t('dependencies.available', { version: denoUpdateInfo.latest_version })}
@@ -777,6 +808,10 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                 </Button>
               </div>
             </div>
+            <p className="mt-3 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">{t('dependencies.updatePolicy')}:</span>{' '}
+              {getUpdatePolicy(denoStatus?.is_system === true)}
+            </p>
             <a
               href="https://deno.land"
               target="_blank"
@@ -799,7 +834,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{t('dependencies.gallerydl')}</span>
-                    {galleryDlLoading ? (
+                    {galleryDlLoading || galleryDlUpdating ? (
                       <Badge variant="secondary" className="font-mono text-xs">
                         <Loader2 className="w-3 h-3 animate-spin" />
                       </Badge>
@@ -818,17 +853,39 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    {galleryDlLoading ? (
+                    {galleryDlUpdating ? (
+                      <span className="flex items-center gap-1 text-primary">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        {t('dependencies.updating')}
+                      </span>
+                    ) : galleryDlLoading ? (
+                      <span className="flex items-center gap-1 text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        {t('dependencies.checkingDependencyStatus')}
+                      </span>
+                    ) : galleryDlCheckingUpdate ? (
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Loader2 className="w-3 h-3 animate-spin" />
                         {t('dependencies.checkingUpdates')}
                       </span>
+                    ) : galleryDlSuccess ? (
+                      <span className="text-emerald-500">{t('dependencies.updated')}</span>
                     ) : galleryDlError ? (
                       <span className="text-destructive">{galleryDlError}</span>
-                    ) : galleryDlStatus?.is_bundled ? (
-                      t('dependencies.channelBundledDesc')
-                    ) : galleryDlStatus?.installed ? (
+                    ) : galleryDlUpdateInfo?.has_update ? (
+                      <span className="text-primary">
+                        {t('dependencies.available', {
+                          version: galleryDlUpdateInfo.latest_version,
+                        })}
+                      </span>
+                    ) : galleryDlUpdateInfo && !galleryDlUpdateInfo.has_update ? (
+                      <span className="text-emerald-500">{t('dependencies.upToDate')}</span>
+                    ) : galleryDlStatus?.is_system ? (
                       t('dependencies.systemGallerydl')
+                    ) : galleryDlStatus?.is_bundled ? (
+                      t('dependencies.packagedWithYouwee')
+                    ) : galleryDlStatus?.installed ? (
+                      t('dependencies.localGallerydl')
                     ) : (
                       <span className="text-amber-500">
                         {t('dependencies.systemGallerydlNotFound')}
@@ -837,23 +894,53 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                   </p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => void checkGalleryDl()}
-                disabled={galleryDlLoading}
-                title={t('dependencies.checkForUpdates')}
-              >
-                {galleryDlLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
+              <div className="flex items-center gap-2">
+                {galleryDlUpdateInfo?.has_update && !galleryDlStatus?.is_system && (
+                  <Button size="sm" onClick={updateGalleryDl} disabled={galleryDlUpdating}>
+                    {galleryDlUpdating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      t('dependencies.update')
+                    )}
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    void checkGalleryDl().then((status) => {
+                      if (status?.installed && !status.is_system) {
+                        void checkGalleryDlUpdate();
+                      }
+                    });
+                  }}
+                  disabled={galleryDlLoading || galleryDlUpdating || galleryDlCheckingUpdate}
+                  title={
+                    galleryDlStatus?.installed && !galleryDlStatus.is_system
+                      ? t('dependencies.checkForUpdates')
+                      : t('dependencies.refreshDependencyStatus')
+                  }
+                >
+                  {galleryDlLoading || galleryDlCheckingUpdate ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             <p className="mt-3 text-xs text-muted-foreground">
               {t('dependencies.galleryCollectionsEngine')}
+            </p>
+
+            <p className="mt-3 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+              <span className="font-medium text-foreground">{t('dependencies.updatePolicy')}:</span>{' '}
+              {galleryDlStatus?.is_system
+                ? t('dependencies.updatePolicySystem')
+                : galleryDlStatus?.installed
+                  ? t('dependencies.updatePolicyAppManaged')
+                  : t('dependencies.updatePolicyUnavailable')}
             </p>
 
             <a

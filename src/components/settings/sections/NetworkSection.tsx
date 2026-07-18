@@ -23,13 +23,7 @@ import {
 } from '@/components/ui/select';
 import { TagInput } from '@/components/ui/tag-input';
 import { useDownload } from '@/contexts/DownloadContext';
-import {
-  isValidCookieSkipPattern,
-  mergeCookieSkipPatterns,
-  normalizeCookieSkipPattern,
-  PUBLIC_COOKIE_SKIP_PRESETS,
-  sanitizeCookieSkipPatterns,
-} from '@/lib/network-config';
+import { isValidCookieSkipPattern, normalizeCookieSkipPattern } from '@/lib/network-config';
 import type { BrowserProfile, BrowserType, CookieMode, ProxyMode } from '@/lib/types';
 import { BROWSER_OPTIONS } from '@/lib/types';
 import { SettingsCard, SettingsSection } from '../SettingsSection';
@@ -50,15 +44,6 @@ export function NetworkSection({ highlightId }: NetworkSectionProps) {
   const [browserProfiles, setBrowserProfiles] = useState<BrowserProfile[]>([]);
   const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [useCustomProfile, setUseCustomProfile] = useState(false);
-  const cookieSkipPatterns = sanitizeCookieSkipPatterns(cookieSettings.cookieSkipPatterns);
-  const cookieSkipPatternKeys = new Set(cookieSkipPatterns.map((pattern) => pattern.toLowerCase()));
-
-  const addCookieSkipPreset = (patterns: readonly string[]) => {
-    updateCookieSettings({
-      cookieSkipPatterns: mergeCookieSkipPatterns(cookieSettings.cookieSkipPatterns, patterns),
-    });
-  };
-
   // Detect browsers
   useEffect(() => {
     const detectBrowsers = async () => {
@@ -430,35 +415,6 @@ export function NetworkSection({ highlightId }: NetworkSectionProps) {
                 className="min-h-[72px] content-start items-start"
                 inputClassName="font-mono text-xs"
               />
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-medium text-muted-foreground">
-                  {t('network.cookieSkipPresets')}
-                </span>
-                {Object.entries(PUBLIC_COOKIE_SKIP_PRESETS).map(([preset, patterns]) => {
-                  const isAdded = patterns.every((pattern) =>
-                    cookieSkipPatternKeys.has(pattern.toLowerCase()),
-                  );
-
-                  return (
-                    <Button
-                      key={preset}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isAdded}
-                      onClick={() => addCookieSkipPreset(patterns)}
-                      className="h-7 border-dashed px-2 text-[11px]"
-                    >
-                      {t(
-                        `network.cookieSkipPreset${preset === 'youtube' ? 'YouTube' : 'Instagram'}`,
-                      )}
-                    </Button>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
-                {t('network.cookieSkipPresetsHelp')}
-              </p>
               <p className="text-[11px] text-muted-foreground/70">
                 {t('network.cookieSkipPatternsHelp')}
               </p>

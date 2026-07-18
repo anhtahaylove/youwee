@@ -13,10 +13,6 @@ import {
   writeYtdlpAutoUpdateLastNotified,
 } from '@/lib/ytdlp-auto-update';
 
-function normalizeVersion(version: string) {
-  return version.trim().replace(/^v/i, '');
-}
-
 export function useYtdlpAutoUpdateToast({
   onOpenDependencies,
 }: {
@@ -26,17 +22,13 @@ export function useYtdlpAutoUpdateToast({
   const toast = useToast();
   const {
     ytdlpSource,
-    ytdlpInfo,
     ytdlpChannel,
     ytdlpAllVersions,
     isLoading,
     isChannelLoading,
-    isUpdating,
     isChannelDownloading,
     isAutoDownloadingYtdlp,
-    checkForUpdate,
     checkChannelUpdate,
-    updateYtdlp,
     downloadChannelBinary,
   } = useDependencies();
   const checkStartedRef = useRef(false);
@@ -44,10 +36,11 @@ export function useYtdlpAutoUpdateToast({
   useEffect(() => {
     if (checkStartedRef.current) return;
     if (ytdlpSource === 'system') return;
-    if (!ytdlpInfo || isLoading || isChannelLoading || isUpdating || isChannelDownloading) return;
+    if (ytdlpChannel === 'bundled') return;
+    if (isLoading || isChannelLoading || isChannelDownloading) return;
     if (isAutoDownloadingYtdlp) return;
     if (!isYtdlpAutoUpdateCheckDue(readYtdlpAutoUpdateLastChecked())) return;
-    if (ytdlpChannel !== 'bundled' && !ytdlpAllVersions) return;
+    if (!ytdlpAllVersions) return;
 
     checkStartedRef.current = true;
 
@@ -57,18 +50,9 @@ export function useYtdlpAutoUpdateToast({
       let updateAvailable = false;
 
       try {
-        if (channel === 'bundled') {
-          latestVersion = await checkForUpdate({ silent: true });
-          updateAvailable = Boolean(
-            latestVersion &&
-              ytdlpInfo.version &&
-              normalizeVersion(latestVersion) !== normalizeVersion(ytdlpInfo.version),
-          );
-        } else {
-          const updateInfo = await checkChannelUpdate(channel, { silent: true });
-          latestVersion = updateInfo?.latest_version ?? null;
-          updateAvailable = updateInfo?.update_available === true;
-        }
+        const updateInfo = await checkChannelUpdate(channel, { silent: true });
+        latestVersion = updateInfo?.latest_version ?? null;
+        updateAvailable = updateInfo?.update_available === true;
 
         const noticeKey = shouldNotifyYtdlpUpdate(
           updateAvailable,
@@ -91,13 +75,7 @@ export function useYtdlpAutoUpdateToast({
               toastId,
               dismissToast: toast.dismiss,
               openDependencies: onOpenDependencies ?? (() => {}),
-              startUpdate: () => {
-                if (channel === 'bundled') {
-                  void updateYtdlp();
-                } else {
-                  void downloadChannelBinary(channel);
-                }
-              },
+              startUpdate: () => void downloadChannelBinary(channel),
             }),
           },
         });
@@ -109,20 +87,16 @@ export function useYtdlpAutoUpdateToast({
     void runAutoCheck();
   }, [
     checkChannelUpdate,
-    checkForUpdate,
     downloadChannelBinary,
     isAutoDownloadingYtdlp,
     isChannelDownloading,
     isChannelLoading,
     isLoading,
-    isUpdating,
     onOpenDependencies,
     t,
     toast,
-    updateYtdlp,
     ytdlpAllVersions,
     ytdlpChannel,
-    ytdlpInfo,
     ytdlpSource,
   ]);
 }

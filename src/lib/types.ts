@@ -1239,7 +1239,7 @@ export const QUICK_ACTIONS: QuickAction[] = [
 
 export type DependencySource = 'auto' | 'app' | 'system';
 
-export type YtdlpChannel = 'bundled' | 'stable' | 'nightly';
+export type YtdlpChannel = 'bundled' | 'stable' | 'nightly' | 'master';
 
 export interface YtdlpChannelInfo {
   channel: string;
@@ -1254,6 +1254,7 @@ export interface YtdlpAllVersions {
   bundled: YtdlpChannelInfo;
   stable: YtdlpChannelInfo;
   nightly: YtdlpChannelInfo;
+  master: YtdlpChannelInfo;
 }
 
 export interface YtdlpChannelUpdateInfo {

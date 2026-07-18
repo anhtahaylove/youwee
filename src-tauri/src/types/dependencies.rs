@@ -32,10 +32,11 @@ impl DependencySource {
 #[derive(Clone, Serialize, Deserialize, Debug, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum YtdlpChannel {
-    Bundled,
     #[default]
+    Bundled,
     Stable,
     Nightly,
+    Master,
 }
 
 impl YtdlpChannel {
@@ -44,6 +45,7 @@ impl YtdlpChannel {
             YtdlpChannel::Bundled => "bundled",
             YtdlpChannel::Stable => "stable",
             YtdlpChannel::Nightly => "nightly",
+            YtdlpChannel::Master => "master",
         }
     }
 
@@ -51,6 +53,7 @@ impl YtdlpChannel {
         match s.to_lowercase().as_str() {
             "stable" => YtdlpChannel::Stable,
             "nightly" => YtdlpChannel::Nightly,
+            "master" => YtdlpChannel::Master,
             _ => YtdlpChannel::Bundled,
         }
     }
@@ -73,6 +76,7 @@ pub struct YtdlpAllVersions {
     pub bundled: YtdlpChannelInfo,
     pub stable: YtdlpChannelInfo,
     pub nightly: YtdlpChannelInfo,
+    pub master: YtdlpChannelInfo,
 }
 
 /// yt-dlp channel update info
