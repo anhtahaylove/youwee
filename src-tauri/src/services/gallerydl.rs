@@ -155,6 +155,7 @@ fn command_output_text(stdout: &[u8], stderr: &[u8]) -> String {
 fn parse_gallerydl_update_check(
     output: &str,
     fallback_current_version: Option<String>,
+    command_succeeded: bool,
 ) -> Result<GalleryDlUpdateInfo, String> {
     for line in output.lines() {
         if let Some((_, versions)) = line.split_once("A new release is available:") {
@@ -182,11 +183,15 @@ fn parse_gallerydl_update_check(
         }
     }
 
-    Err(BackendError::from_message(format!(
-        "gallery-dl returned an unrecognized update status: {}",
-        output.trim()
-    ))
-    .to_wire_string())
+    let message = if command_succeeded {
+        format!(
+            "gallery-dl returned an unrecognized update status: {}",
+            output.trim()
+        )
+    } else {
+        format!("gallery-dl update check failed: {}", output.trim())
+    };
+    Err(BackendError::from_message(message).to_wire_string())
 }
 
 pub async fn check_gallerydl_update_internal(
@@ -222,14 +227,7 @@ pub async fn check_gallerydl_update_internal(
                 .to_wire_string()
         })?;
     let output_text = command_output_text(&output.stdout, &output.stderr);
-    if !output.status.success() {
-        return Err(BackendError::from_message(format!(
-            "gallery-dl update check failed: {output_text}"
-        ))
-        .to_wire_string());
-    }
-
-    parse_gallerydl_update_check(&output_text, status.version)
+    parse_gallerydl_update_check(&output_text, status.version, output.status.success())
 }
 
 async fn ensure_app_managed_gallerydl(app: &AppHandle, source: &Path) -> Result<PathBuf, String> {
@@ -368,6 +366,7 @@ mod tests {
         let info = parse_gallerydl_update_check(
             "[update][info] A new release is available: 1.32.7-dev:2026.07.16 -> 2026.07.18",
             Some("1.32.7-dev:2026.07.16".to_string()),
+            true,
         )
         .expect("update output should parse");
 
@@ -388,6 +387,7 @@ mod tests {
         let info = parse_gallerydl_update_check(
             "[update][info] gallery-dl is up to date (1.32.6)",
             Some("1.32.6".to_string()),
+            false,
         )
         .expect("up-to-date output should parse");
 
@@ -398,6 +398,8 @@ mod tests {
 
     #[test]
     fn rejects_unknown_update_output() {
-        assert!(parse_gallerydl_update_check("unexpected", Some("1.32.6".to_string())).is_err());
+        assert!(
+            parse_gallerydl_update_check("unexpected", Some("1.32.6".to_string()), true).is_err()
+        );
     }
 }

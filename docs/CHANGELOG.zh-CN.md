@@ -7,6 +7,18 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.19.1-custom.39] - 2026-07-18
+
+### 新增
+- **应用管理的 gallery-dl 更新** - 运行时检查 gallery-dl 官方发布通道，并在用户明确确认后更新由应用管理的二进制文件
+- **清晰的 yt-dlp 通道** - 显示 Bundled、Stable、Nightly 和实验性 Master 通道的已安装及可用版本
+
+### 变更
+- **简化 Cookie 设置** - 移除 Quick presets 芯片，同时保留 Facebook Reel 默认跳过 Cookie 规则及用户明确配置
+
+### 修复
+- **gallery-dl 已是最新状态** - 当输出确认应用管理的二进制文件已是最新版本时，接受 gallery-dl 的非零退出码
+
 ## [0.19.1-custom.38] - 2026-07-18
 
 ### 新增

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.39] - 2026-07-18
+
+### Added
+- **Managed gallery-dl updates** - Check the official gallery-dl release channel at runtime and let users update the app-managed binary with explicit confirmation
+- **Clear yt-dlp channels** - Show installed and available versions for Bundled, Stable, Nightly, and the experimental Master channel
+
+### Changed
+- **Simplified cookie settings** - Remove Quick preset chips while preserving the default Facebook Reel cookie-skip rule and explicit user configuration
+
+### Fixed
+- **gallery-dl up-to-date status** - Accept gallery-dl's non-zero exit code when its output confirms the app-managed binary is already current
+
 ## [0.19.1-custom.38] - 2026-07-18
 
 ### Added

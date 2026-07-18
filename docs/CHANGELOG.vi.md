@@ -7,6 +7,18 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.39] - 2026-07-18
+
+### Thêm mới
+- **Cập nhật gallery-dl do ứng dụng quản lý** - Kiểm tra kênh phát hành gallery-dl chính thức khi chạy và cho phép người dùng cập nhật binary do ứng dụng quản lý sau khi xác nhận
+- **Kênh yt-dlp rõ ràng** - Hiển thị phiên bản đã cài và khả dụng cho Bundled, Stable, Nightly và kênh Master thử nghiệm
+
+### Thay đổi
+- **Đơn giản hóa cài đặt cookie** - Xóa các chip Quick presets nhưng vẫn giữ quy tắc bỏ qua cookie mặc định cho Facebook Reel và cấu hình rõ ràng của người dùng
+
+### Sửa lỗi
+- **Trạng thái gallery-dl đã mới nhất** - Chấp nhận mã thoát khác 0 của gallery-dl khi nội dung trả về xác nhận binary do ứng dụng quản lý đã là bản mới nhất
+
 ## [0.19.1-custom.38] - 2026-07-18
 
 ### Thêm mới
