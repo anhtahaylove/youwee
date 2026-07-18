@@ -1,3 +1,4 @@
+import { open } from '@tauri-apps/plugin-dialog';
 import {
   AlertCircle,
   Check,
@@ -9,6 +10,7 @@ import {
   FileVideo,
   Folder,
   FolderOpen,
+  FolderSearch,
   HardDrive,
   Hash,
   Loader2,
@@ -118,6 +120,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
     deleteEntry,
     renameEntry,
     redownload,
+    relinkHistoryFile,
     getRedownloadTask,
     setAdvancedFilters,
     refreshHistory,
@@ -127,6 +130,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const { currentEntry, isPlaying, playFrom, togglePlay } = usePlayer();
   const [isDeleting, setIsDeleting] = useState(false);
   const [redownloadError, setRedownloadError] = useState<string | null>(null);
+  const [relinkError, setRelinkError] = useState<string | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
@@ -143,6 +147,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const [deleteFileBehavior, setDeleteFileBehavior] = useState<LibraryDeleteFileBehavior>('ask');
   const [renameName, setRenameName] = useState('');
   const [isRenaming, setIsRenaming] = useState(false);
+  const [isRelinking, setIsRelinking] = useState(false);
 
   // Get redownload task from context (persists across page changes)
   const redownloadTask = getRedownloadTask(entry.id);
@@ -235,6 +240,32 @@ export function HistoryItem({ entry }: HistoryItemProps) {
       setRedownloadError(message);
     }
   }, [redownload, entry, t]);
+
+  const handleLocateMovedFile = useCallback(async () => {
+    setRelinkError(null);
+    setIsRelinking(true);
+    try {
+      const separatorIndex = Math.max(
+        entry.filepath.lastIndexOf('/'),
+        entry.filepath.lastIndexOf('\\'),
+      );
+      const defaultPath = separatorIndex > 0 ? entry.filepath.slice(0, separatorIndex) : undefined;
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        defaultPath,
+        title: t('library.item.locateMovedFileDialogTitle'),
+      });
+      if (typeof selected === 'string' && selected) {
+        await relinkHistoryFile(entry.id, selected);
+      }
+    } catch (error) {
+      console.error('Failed to relink moved media file:', error);
+      setRelinkError(error instanceof Error ? error.message : t('library.item.relinkFailed'));
+    } finally {
+      setIsRelinking(false);
+    }
+  }, [entry.filepath, entry.id, relinkHistoryFile, t]);
 
   const handleOpenRenameEditor = useCallback(() => {
     setRenameName(entry.title);
@@ -556,9 +587,9 @@ export function HistoryItem({ entry }: HistoryItemProps) {
         </div>
 
         {/* Error message */}
-        {!isDataExport && (redownloadError || redownloadTask?.error) && (
+        {!isDataExport && (relinkError || redownloadError || redownloadTask?.error) && (
           <p className="text-xs text-destructive mt-2">
-            {redownloadError || redownloadTask?.error}
+            {relinkError || redownloadError || redownloadTask?.error}
           </p>
         )}
         {renameError && <p className="text-xs text-destructive mt-2">{renameError}</p>}
@@ -630,23 +661,42 @@ export function HistoryItem({ entry }: HistoryItemProps) {
               )}
             </>
           ) : !isDataExport ? (
-            <button
-              type="button"
-              onClick={handleRedownload}
-              disabled={isRedownloading}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-                'bg-primary/10 hover:bg-primary/20 text-primary transition-colors',
-                isRedownloading && 'opacity-50',
-              )}
-            >
-              {isRedownloading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Download className="w-3.5 h-3.5" />
-              )}
-              {t('library.item.redownload')}
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleLocateMovedFile}
+                disabled={isRelinking || isRedownloading}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-md border border-dashed px-2.5 py-1.5 text-xs font-medium',
+                  'border-border text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary',
+                  (isRelinking || isRedownloading) && 'opacity-50',
+                )}
+              >
+                {isRelinking ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <FolderSearch className="w-3.5 h-3.5" />
+                )}
+                {t('library.item.locateMovedFile')}
+              </button>
+              <button
+                type="button"
+                onClick={handleRedownload}
+                disabled={isRedownloading || isRelinking}
+                className={cn(
+                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                  'bg-primary/10 hover:bg-primary/20 text-primary transition-colors',
+                  (isRedownloading || isRelinking) && 'opacity-50',
+                )}
+              >
+                {isRedownloading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                {t('library.item.redownload')}
+              </button>
+            </>
           ) : null}
 
           {!isDataExport && (

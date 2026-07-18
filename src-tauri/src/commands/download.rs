@@ -465,6 +465,37 @@ fn is_facebook_reel_url(url: &str) -> bool {
     is_facebook && (path == "/reel" || path.starts_with("/reel/"))
 }
 
+fn is_placeholder_facebook_title(title: &str) -> bool {
+    let title = title.trim();
+    title.is_empty()
+        || title.eq_ignore_ascii_case("video")
+        || title.eq_ignore_ascii_case("facebook video")
+        || reqwest::Url::parse(title).is_ok()
+}
+
+fn escape_metadata_replacement(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('$', "\\$")
+}
+
+fn push_facebook_title_replacement_args(args: &mut Vec<String>, url: &str, title: Option<&str>) {
+    let Some(title) = title
+        .map(str::trim)
+        .filter(|title| !is_placeholder_facebook_title(title))
+    else {
+        return;
+    };
+    if !is_facebook_reel_url(url) {
+        return;
+    }
+
+    args.extend([
+        "--replace-in-metadata".to_string(),
+        "title".to_string(),
+        r"(?i)^(?:video|facebook video|https?://\S+)$".to_string(),
+        escape_metadata_replacement(title),
+    ]);
+}
+
 fn is_facebook_parse_failure(recent_lines: &[String]) -> bool {
     recent_lines.iter().any(|line| {
         let lower = line.to_ascii_lowercase();
@@ -670,6 +701,38 @@ fn build_output_template(filename_template: Option<String>, item_prefix: &str) -
         item_prefix,
         normalize_filename_template(filename_template)
     )
+}
+
+fn output_collision_suffix(policy: Option<&str>, job_id: &str) -> Result<Option<String>, String> {
+    match policy.unwrap_or("overwrite") {
+        "overwrite" => Ok(None),
+        "unique" => {
+            let suffix: String = job_id
+                .chars()
+                .filter(|character| character.is_ascii_alphanumeric())
+                .take(8)
+                .collect();
+            Ok(Some(if suffix.is_empty() {
+                "copy".to_string()
+            } else {
+                format!("copy-{suffix}")
+            }))
+        }
+        value => Err(format!("Unsupported output collision policy: {value}")),
+    }
+}
+
+fn apply_output_collision_suffix(mut template: String, suffix: Option<&str>) -> String {
+    let Some(suffix) = suffix else {
+        return template;
+    };
+    let label = format!(" [{suffix}]");
+    if let Some(extension_index) = template.rfind(".%(ext") {
+        template.insert_str(extension_index, &label);
+    } else {
+        template.push_str(&label);
+    }
+    template
 }
 
 fn constrain_title_template_for_output(template: String, output_directory: &str) -> String {
@@ -993,6 +1056,8 @@ fn facebook_reel_core_fallback_args(
     url: &str,
     output_directory: &str,
     item_prefix: &str,
+    title: Option<&str>,
+    collision_suffix: Option<&str>,
 ) -> Vec<String> {
     let mut fallback_args = Vec::with_capacity(args.len() + 4);
     let mut index = 0;
@@ -1010,14 +1075,19 @@ fn facebook_reel_core_fallback_args(
     push_arg_before_url(&mut fallback_args, "--downloader", "native");
     push_arg_before_url(&mut fallback_args, "--impersonate", "chrome");
     replace_output_path(&mut fallback_args, output_directory);
-    replace_output_template(
-        &mut fallback_args,
-        format!(
-            "{}{}.%(ext)s",
-            item_prefix,
-            facebook_reel_fallback_basename(url)
-        ),
-    );
+    if title.is_none_or(is_placeholder_facebook_title) {
+        replace_output_template(
+            &mut fallback_args,
+            apply_output_collision_suffix(
+                format!(
+                    "{}{}.%(ext)s",
+                    item_prefix,
+                    facebook_reel_fallback_basename(url)
+                ),
+                collision_suffix,
+            ),
+        );
+    }
     fallback_args
 }
 
@@ -1060,7 +1130,8 @@ fn thumbnail_from_info_json(json: &serde_json::Value) -> Option<String> {
 
 fn metadata_from_info_json(json: &serde_json::Value) -> CoreFallbackMetadata {
     CoreFallbackMetadata {
-        title: json_string_field(json, "title"),
+        title: json_string_field(json, "title")
+            .filter(|title| !is_placeholder_facebook_title(title)),
         thumbnail: thumbnail_from_info_json(json).map(|value| {
             if let Some(rest) = value.strip_prefix("http://") {
                 format!("https://{}", rest)
@@ -1301,6 +1372,7 @@ pub async fn download_video(
     use_actual_player_js: Option<bool>,
     youtube_player_client: Option<String>,
     history_id: Option<String>,
+    output_collision_policy: Option<String>,
     // Cookie settings
     cookie_mode: Option<String>,
     cookie_browser: Option<String>,
@@ -1422,8 +1494,13 @@ pub async fn download_video(
         auto_organize_collections_enabled,
         playlist_collection_name.as_deref(),
     );
+    let collision_suffix = output_collision_suffix(output_collision_policy.as_deref(), &id)
+        .map_err(|error| BackendError::from_message(error).to_wire_string())?;
     let output_template = constrain_title_template_for_output(
-        build_output_template(filename_template, &item_prefix),
+        apply_output_collision_suffix(
+            build_output_template(filename_template, &item_prefix),
+            collision_suffix.as_deref(),
+        ),
         &output_directory,
     );
 
@@ -1464,7 +1541,10 @@ pub async fn download_video(
         args.push("-o".to_string());
         args.push(format!(
             "chapter:{}",
-            build_chapter_output_template(&item_prefix, number_chapter_files,)
+            apply_output_collision_suffix(
+                build_chapter_output_template(&item_prefix, number_chapter_files),
+                collision_suffix.as_deref(),
+            )
         ));
     }
 
@@ -1629,6 +1709,8 @@ pub async fn download_video(
         }
     }
 
+    push_facebook_title_replacement_args(&mut args, &url, title.as_deref());
+
     args.push("--".to_string());
     args.push(url.clone());
 
@@ -1787,6 +1869,7 @@ pub async fn download_video(
             auto_collection_names.clone(),
             auto_organize_collections_enabled,
             split_embedded_chapters,
+            collision_suffix,
             Some(core_fallback),
         )
         .await;
@@ -2412,6 +2495,7 @@ pub async fn download_video(
                 auto_collection_names,
                 auto_organize_collections_enabled,
                 split_embedded_chapters,
+                collision_suffix,
                 None,
             )
             .await
@@ -2442,6 +2526,7 @@ async fn handle_tokio_download(
     auto_collection_names: Vec<String>,
     auto_organize_collections_enabled: bool,
     split_embedded_chapters: bool,
+    collision_suffix: Option<String>,
     core_fallback: Option<CoreDownloadFallback>,
 ) -> Result<(), String> {
     let stdout = process
@@ -2879,6 +2964,8 @@ async fn handle_tokio_download(
                     &url,
                     &output_directory,
                     &item_prefix,
+                    current_title.as_deref(),
+                    collision_suffix.as_deref(),
                 );
                 add_log_internal(
                     "info",
@@ -2899,9 +2986,13 @@ async fn handle_tokio_download(
                 )
                 .ok();
                 std::fs::remove_file(&filepath_tmp).ok();
-                let fallback_metadata = probe_core_facebook_reel_metadata(fallback, &url)
-                    .await
-                    .unwrap_or_default();
+                let fallback_metadata = if current_title.is_some() && thumbnail.is_some() {
+                    CoreFallbackMetadata::default()
+                } else {
+                    probe_core_facebook_reel_metadata(fallback, &url)
+                        .await
+                        .unwrap_or_default()
+                };
                 let fallback_title = fallback_metadata.title.or_else(|| current_title.clone());
                 let fallback_thumbnail = fallback_metadata.thumbnail.or_else(|| thumbnail.clone());
 
@@ -2930,6 +3021,7 @@ async fn handle_tokio_download(
                             auto_collection_names.clone(),
                             auto_organize_collections_enabled,
                             split_embedded_chapters,
+                            collision_suffix,
                             None,
                         ))
                         .await;
@@ -3317,6 +3409,21 @@ mod tests {
     }
 
     #[test]
+    fn explicit_duplicate_downloads_get_a_unique_output_suffix() {
+        let suffix = output_collision_suffix(Some("unique"), "12345678-90ab").unwrap();
+        assert_eq!(suffix.as_deref(), Some("copy-12345678"));
+        assert_eq!(
+            apply_output_collision_suffix("%(title)s.%(ext)s".to_string(), suffix.as_deref()),
+            "%(title)s [copy-12345678].%(ext)s"
+        );
+        assert_eq!(
+            output_collision_suffix(Some("overwrite"), "job").unwrap(),
+            None
+        );
+        assert!(output_collision_suffix(Some("invalid"), "job").is_err());
+    }
+
+    #[test]
     fn output_template_numbers_playlist_and_regular_queue_items() {
         let expanded_playlist_prefix =
             build_item_prefix(true, false, Some(3), Some(120), true, Some(7), Some(42));
@@ -3632,6 +3739,8 @@ mod tests {
             "https://www.facebook.com/reel/1889836315019111",
             "C:/Downloads",
             "02 - ",
+            None,
+            None,
         );
 
         assert!(!fallback_args
@@ -3674,6 +3783,42 @@ mod tests {
     }
 
     #[test]
+    fn facebook_reel_recovered_title_is_reused_for_metadata_and_core_output() {
+        let mut args = vec![
+            "-o".to_string(),
+            "%(title)s.%(ext)s".to_string(),
+            "--".to_string(),
+            "https://www.facebook.com/reel/123".to_string(),
+        ];
+        push_facebook_title_replacement_args(
+            &mut args,
+            "https://www.facebook.com/reel/123",
+            Some("Tiêu đề thật $5"),
+        );
+        let replacement = args
+            .windows(4)
+            .find(|window| window[0] == "--replace-in-metadata")
+            .expect("metadata replacement args");
+        assert_eq!(replacement[1], "title");
+        assert_eq!(replacement[3], "Tiêu đề thật \\$5");
+
+        let fallback_args = facebook_reel_core_fallback_args(
+            &args,
+            "https://www.facebook.com/reel/123",
+            "C:/Downloads",
+            "",
+            Some("Tiêu đề thật $5"),
+            Some("copy-12345678"),
+        );
+        let output = fallback_args
+            .windows(2)
+            .find(|pair| pair[0] == "-o")
+            .map(|pair| pair[1].as_str())
+            .unwrap();
+        assert_eq!(output, "%(title)s.%(ext)s");
+    }
+
+    #[test]
     fn core_fallback_metadata_prefers_title_and_best_thumbnail() {
         let json = serde_json::json!({
             "title": "Public Reel Title",
@@ -3701,6 +3846,22 @@ mod tests {
 
         let metadata = metadata_from_info_json(&json);
 
+        assert_eq!(
+            metadata.thumbnail.as_deref(),
+            Some("https://example.com/thumb.jpg")
+        );
+    }
+
+    #[test]
+    fn core_fallback_metadata_does_not_replace_recovered_title_with_placeholder() {
+        let json = serde_json::json!({
+            "title": "Video",
+            "thumbnail": "https://example.com/thumb.jpg"
+        });
+
+        let metadata = metadata_from_info_json(&json);
+
+        assert_eq!(metadata.title, None);
         assert_eq!(
             metadata.thumbnail.as_deref(),
             Some("https://example.com/thumb.jpg")

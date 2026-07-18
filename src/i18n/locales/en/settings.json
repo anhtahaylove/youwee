@@ -680,6 +680,8 @@
     "cookieSkipPatternsRemove": "Remove {{pattern}}",
     "cookieSkipRecommended": "Youwee recommended rules",
     "cookieSkipRecommendedDesc": "Public domain/path rules maintained by Youwee and refreshed at most once a day. No cookies, profiles, or proxy settings are uploaded.",
+    "cookieSkipSuggest": "Suggest a rule",
+    "cookieSkipSuggestDesc": "Propose a narrow, testable rule in GitHub Discussions for maintainer review.",
     "cookieSkipNoRecommended": "No recommended rules are currently published.",
     "cookieSkipSourceRemote": "Source: live config",
     "cookieSkipSourceCache": "Source: cached config",

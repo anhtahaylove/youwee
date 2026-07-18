@@ -1,5 +1,9 @@
 import { normalizeUniversalUrl } from '@/lib/sources';
-import type { DownloadDuplicateIdentity } from '@/lib/types';
+import type {
+  DownloadDuplicateCandidate,
+  DownloadDuplicateIdentity,
+  DownloadDuplicateMatch,
+} from '@/lib/types';
 import { extractYouTubeVideoId } from '@/lib/youtube-url';
 
 function stripUrlFragment(url: string): string {
@@ -41,12 +45,86 @@ export function getDownloadDuplicateIdentityKey(identity: DownloadDuplicateIdent
   return '';
 }
 
-export function partitionDownloadQueueUrls<T extends { id: string; url: string }>(
+function getDownloadDuplicateIdentityKeys(identity: DownloadDuplicateIdentity): string[] {
+  return [
+    getDownloadDuplicateIdentityKey({ mediaId: identity.mediaId }),
+    getDownloadDuplicateIdentityKey({ canonicalUrl: identity.canonicalUrl }),
+  ].filter(Boolean);
+}
+
+export interface DownloadDuplicateResolution<T extends DownloadDuplicateCandidate> {
+  available: T[];
+  existing: Array<{ candidate: T; duplicate: DownloadDuplicateMatch }>;
+}
+
+export function resolveDownloadedDuplicateCandidates<T extends DownloadDuplicateCandidate>(
+  candidates: T[],
+  matches: DownloadDuplicateMatch[],
+): DownloadDuplicateResolution<T> {
+  const matchByKey = new Map<string, DownloadDuplicateMatch>();
+  for (const match of matches) {
+    for (const key of getDownloadDuplicateIdentityKeys(match)) {
+      matchByKey.set(key, match);
+    }
+  }
+
+  const available: T[] = [];
+  const existing: Array<{ candidate: T; duplicate: DownloadDuplicateMatch }> = [];
+
+  for (const candidate of candidates) {
+    const duplicate = getDownloadDuplicateIdentityKeys(candidate.duplicateIdentity)
+      .map((key) => matchByKey.get(key))
+      .find(Boolean);
+    if (!duplicate) {
+      available.push(candidate);
+    } else if (duplicate.fileExists) {
+      existing.push({ candidate, duplicate });
+    } else {
+      available.push({
+        ...candidate,
+        historyId: duplicate.historyId,
+        outputCollisionPolicy: 'overwrite',
+      });
+    }
+  }
+
+  return { available, existing };
+}
+
+export function isActiveDownloadQueueItem(item: { status?: string }): boolean {
+  return item.status !== 'completed' && item.status !== 'skipped';
+}
+
+export function markInactiveQueueDuplicatesUnique<T extends DownloadDuplicateCandidate>(
+  candidates: T[],
+  items: Array<{ url: string; status?: string }>,
+): T[] {
+  const inactiveIdentityKeys = new Set(
+    items
+      .filter((item) => !isActiveDownloadQueueItem(item))
+      .flatMap((item) =>
+        getDownloadDuplicateIdentityKeys(buildDownloadDuplicateIdentity(item.url)),
+      ),
+  );
+
+  if (inactiveIdentityKeys.size === 0) return candidates;
+
+  return candidates.map((candidate) =>
+    getDownloadDuplicateIdentityKeys(candidate.duplicateIdentity).some((key) =>
+      inactiveIdentityKeys.has(key),
+    )
+      ? { ...candidate, outputCollisionPolicy: 'unique' as const }
+      : candidate,
+  );
+}
+
+export function partitionDownloadQueueUrls<T extends { id: string; url: string; status?: string }>(
   urls: string[],
   items: T[],
 ): { alreadyQueuedItems: T[]; newUrls: string[] } {
   const itemByIdentity = new Map(
     items
+      .filter(isActiveDownloadQueueItem)
       .map(
         (item) =>
           [

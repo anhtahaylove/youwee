@@ -193,10 +193,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let updater_cleanup = utils::cleanup_stale_updater_temp_dirs();
-            LAUNCHED_AFTER_UPDATE.store(
-                updater_cleanup.current_version_detected,
-                Ordering::SeqCst,
-            );
+            LAUNCHED_AFTER_UPDATE.store(updater_cleanup.current_version_detected, Ordering::SeqCst);
             if updater_cleanup.removed > 0 {
                 log::info!(
                     "Removed {} stale Youwee updater temp directorie(s)",
@@ -434,6 +431,8 @@ pub fn run() {
             commands::add_history,
             commands::get_history,
             commands::get_history_entries_by_ids,
+            commands::get_history_file_states,
+            commands::relink_history_file,
             commands::find_duplicate_downloads,
             commands::delete_history,
             commands::clear_history,

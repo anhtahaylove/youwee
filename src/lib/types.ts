@@ -128,6 +128,8 @@ export interface DownloadRetryState {
   remainingSeconds: number;
 }
 
+export type OutputCollisionPolicy = 'overwrite' | 'unique';
+
 export interface DownloadItem {
   id: string;
   url: string;
@@ -159,6 +161,7 @@ export interface DownloadItem {
   completedFormat?: string; // e.g. "mp4"
   completedFilepath?: string; // Absolute path of downloaded file
   completedHistoryId?: string; // Related history entry id after completion
+  outputCollisionPolicy?: OutputCollisionPolicy;
   // Source detection
   extractor?: string; // e.g. "youtube", "tiktok", "instagram"
   // Settings snapshot when item was added to queue
@@ -238,11 +241,19 @@ export interface DownloadDuplicateMatch {
   fileExists: boolean;
 }
 
+export interface HistoryFileState {
+  historyId: string;
+  filepath: string;
+  fileExists: boolean;
+}
+
 export interface DownloadDuplicateCandidate {
   url: string;
   title: string;
   thumbnail?: string;
   duplicateIdentity: DownloadDuplicateIdentity;
+  historyId?: string;
+  outputCollisionPolicy?: OutputCollisionPolicy;
 }
 
 export interface DownloadDuplicateFilterOptions {
@@ -740,6 +751,8 @@ export interface VideoInfo {
   thumbnail: string;
   duration: number;
   channel: string;
+  uploader?: string;
+  description?: string;
   upload_date: string;
   view_count: number;
   is_playlist: boolean;

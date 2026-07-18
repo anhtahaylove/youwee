@@ -604,6 +604,8 @@
     "cookieSkipPatternsRemove": "Удалить {{pattern}}",
     "cookieSkipRecommended": "Рекомендованные правила Youwee",
     "cookieSkipRecommendedDesc": "Публичные правила доменов/путей, поддерживаемые Youwee и обновляемые не чаще одного раза в день. Cookie, профили и настройки прокси не отправляются.",
+    "cookieSkipSuggest": "Предложить правило",
+    "cookieSkipSuggestDesc": "Предложите в GitHub Discussions узкое и проверяемое правило для рассмотрения сопровождающим.",
     "cookieSkipNoRecommended": "Сейчас нет опубликованных рекомендованных правил.",
     "cookieSkipSourceRemote": "Источник: онлайн-конфигурация",
     "cookieSkipSourceCache": "Источник: кэшированная конфигурация",

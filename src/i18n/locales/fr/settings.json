@@ -604,6 +604,8 @@
     "cookieSkipPatternsRemove": "Supprimer {{pattern}}",
     "cookieSkipRecommended": "Règles recommandées par Youwee",
     "cookieSkipRecommendedDesc": "Règles publiques de domaine/chemin maintenues par Youwee et actualisées au maximum une fois par jour. Aucun cookie, profil ou réglage proxy n'est envoyé.",
+    "cookieSkipSuggest": "Proposer une règle",
+    "cookieSkipSuggestDesc": "Proposez dans GitHub Discussions une règle précise et vérifiable pour examen par le mainteneur.",
     "cookieSkipNoRecommended": "Aucune règle recommandée n'est publiée actuellement.",
     "cookieSkipSourceRemote": "Source : configuration en ligne",
     "cookieSkipSourceCache": "Source : configuration en cache",

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Faster CI feedback** - Cancel superseded CI runs on the same branch or pull request and use checkout v6 across GitHub-hosted workflows
+- **Safer custom releases** - Add a dry-run-first version helper that validates synchronized app versions, promotes all three changelogs, derives the Windows Installer version, and leaves the extension store version independent
+
 ## [0.19.1-custom.41] - 2026-07-18
 
 ### Added

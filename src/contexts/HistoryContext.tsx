@@ -22,6 +22,7 @@ import type {
   HistoryAdvancedFilters,
   HistoryCollection,
   HistoryEntry,
+  HistoryFileState,
   HistoryFilter,
   HistorySort,
   HistoryTag,
@@ -61,6 +62,7 @@ interface HistoryContextType {
   clearHistory: () => Promise<void>;
   openFileLocation: (filepath: string) => Promise<void>;
   checkFileExists: (filepath: string) => Promise<boolean>;
+  relinkHistoryFile: (historyId: string, filepath: string) => Promise<void>;
   renameEntry: (entryId: string, newName: string) => Promise<void>;
   createCollection: (name: string, color?: string | null) => Promise<void>;
   renameCollection: (id: string, name: string) => Promise<void>;
@@ -74,6 +76,15 @@ interface HistoryContextType {
 }
 
 const HistoryContext = createContext<HistoryContextType | null>(null);
+
+export function buildHistoryRedownloadIdentity(entry: HistoryEntry) {
+  return {
+    historyId: entry.id,
+    title: entry.title,
+    thumbnail: entry.thumbnail ?? null,
+    source: entry.source ?? null,
+  };
+}
 
 const HISTORY_SORT_KEY = 'youwee_history_sort';
 
@@ -236,6 +247,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
   const [totalCount, setTotalCount] = useState(0);
   const [redownloadTasks, setRedownloadTasks] = useState<Map<string, RedownloadTask>>(new Map());
   const lastAssetScopeKeyRef = useRef('');
+  const fileStateRefreshInFlightRef = useRef(false);
 
   useEffect(() => {
     entriesRef.current = entries;
@@ -413,6 +425,60 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshVisibleFileStates = useCallback(async () => {
+    if (fileStateRefreshInFlightRef.current || entriesRef.current.length === 0) return;
+    fileStateRefreshInFlightRef.current = true;
+
+    try {
+      const historyIds = entriesRef.current.map((entry) => entry.id);
+      const states = await invoke<HistoryFileState[]>('get_history_file_states', { historyIds });
+      const stateByHistoryId = new Map(states.map((state) => [state.historyId, state]));
+      let changed = false;
+      const nextEntries = entriesRef.current.map((entry) => {
+        const state = stateByHistoryId.get(entry.id);
+        if (
+          !state ||
+          (entry.filepath === state.filepath && entry.file_exists === state.fileExists)
+        ) {
+          return entry;
+        }
+
+        changed = true;
+        return {
+          ...entry,
+          filepath: state.filepath,
+          file_exists: state.fileExists,
+        };
+      });
+
+      if (changed) {
+        entriesRef.current = nextEntries;
+        setEntries(nextEntries);
+        setHistoryVersion((previous) => previous + 1);
+      }
+    } catch (error) {
+      console.error('Failed to refresh Library file states:', error);
+    } finally {
+      fileStateRefreshInFlightRef.current = false;
+    }
+  }, []);
+
+  const relinkHistoryFile = useCallback(async (historyId: string, filepath: string) => {
+    const state = await invoke<HistoryFileState>('relink_history_file', { historyId, filepath });
+    const nextEntries = entriesRef.current.map((entry) =>
+      entry.id === historyId
+        ? {
+            ...entry,
+            filepath: state.filepath,
+            file_exists: state.fileExists,
+          }
+        : entry,
+    );
+    entriesRef.current = nextEntries;
+    setEntries(nextEntries);
+    setHistoryVersion((previous) => previous + 1);
+  }, []);
+
   const renameEntry = useCallback(
     async (entryId: string, newName: string) => {
       const entry = entries.find((e) => e.id === entryId);
@@ -533,7 +599,6 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
-      let skipExisting = false;
       let organizeBySource = false;
       let savedOutputPath = '';
       try {
@@ -546,7 +611,6 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
-          skipExisting = parsed.skipExisting === true;
           organizeBySource = parsed.organizeBySource === true;
           savedOutputPath = parsed.outputPath || '';
         }
@@ -604,7 +668,9 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           url: entry.url,
           outputPath,
           filenameTemplate,
-          skipExisting,
+          // A restore must recreate the missing output even when the global
+          // "skip existing" preference is enabled for ordinary downloads.
+          skipExisting: false,
           organizeBySource,
           quality,
           format,
@@ -630,7 +696,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useBunRuntime,
           useActualPlayerJs,
           youtubePlayerClient,
-          historyId: entry.id,
+          ...buildHistoryRedownloadIdentity(entry),
+          outputCollisionPolicy: 'overwrite',
           ...networkOptions,
           // External downloader settings
           useAria2,
@@ -689,6 +756,24 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
     refreshTaxonomy();
   }, [refreshTaxonomy]);
 
+  // Reconcile the currently loaded Library entries quickly after external file moves/deletes.
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshVisibleFileStates();
+      }
+    };
+    const interval = window.setInterval(refreshWhenVisible, 3000);
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [refreshVisibleFileStates]);
+
   // Auto-refresh every 30 seconds when page is visible
   useEffect(() => {
     const interval = setInterval(() => {
@@ -737,6 +822,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
         clearHistory,
         openFileLocation,
         checkFileExists,
+        relinkHistoryFile,
         renameEntry,
         createCollection,
         renameCollection,

@@ -202,6 +202,21 @@ fn duplicate_match_from_values(
     }
 }
 
+fn prefer_existing_duplicate(
+    candidates: impl IntoIterator<Item = DownloadDuplicateMatch>,
+) -> Option<DownloadDuplicateMatch> {
+    let mut newest_missing = None;
+    for candidate in candidates {
+        if candidate.file_exists {
+            return Some(candidate);
+        }
+        if newest_missing.is_none() {
+            newest_missing = Some(candidate);
+        }
+    }
+    newest_missing
+}
+
 fn find_legacy_duplicate_download(
     conn: &Connection,
     media_id: Option<&str>,
@@ -220,6 +235,7 @@ fn find_legacy_duplicate_download(
         .query([])
         .map_err(|e| format!("Failed to query legacy duplicate lookup: {}", e))?;
 
+    let mut candidates = Vec::new();
     while let Some(row) = rows
         .next()
         .map_err(|e| format!("Failed to read legacy duplicate lookup: {}", e))?
@@ -238,7 +254,7 @@ fn find_legacy_duplicate_download(
             canonical_url.is_some_and(|expected| expected == row_canonical_url);
 
         if media_id_matches || canonical_url_matches {
-            return Ok(Some(duplicate_match_from_values(
+            candidates.push(duplicate_match_from_values(
                 row.get(0)
                     .map_err(|e| format!("Failed to read legacy duplicate id: {}", e))?,
                 row.get(1)
@@ -251,11 +267,11 @@ fn find_legacy_duplicate_download(
                     .map_err(|e| format!("Failed to read legacy duplicate date: {}", e))?,
                 row_media_id,
                 Some(row_canonical_url),
-            )));
+            ));
         }
     }
 
-    Ok(None)
+    Ok(prefer_existing_duplicate(candidates))
 }
 
 fn history_search_fts_available(conn: &Connection) -> bool {
@@ -780,34 +796,43 @@ pub fn find_duplicate_downloads_in_history_db(
                  FROM history
                  WHERE (?1 IS NOT NULL AND media_id = ?1)
                     OR (?2 IS NOT NULL AND canonical_url = ?2)
-                 ORDER BY downloaded_at DESC
-                 LIMIT 1",
+                 ORDER BY downloaded_at DESC",
             )
             .map_err(|e| format!("Failed to prepare duplicate lookup: {}", e))?;
 
-        let row = stmt.query_row(params![media_id, canonical_url.as_deref()], |row| {
-            let filepath: String = row.get(3)?;
-            Ok(duplicate_match_from_values(
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                filepath,
-                row.get(4)?,
-                row.get(5)?,
-                row.get(6)?,
-            ))
-        });
+        let rows = stmt
+            .query_map(params![media_id, canonical_url.as_deref()], |row| {
+                let filepath: String = row.get(3)?;
+                Ok(duplicate_match_from_values(
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    filepath,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            })
+            .map_err(|error| format!("Failed to query duplicate downloads: {error}"))?;
+        let modern = prefer_existing_duplicate(
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|error| format!("Failed to read duplicate download: {error}"))?,
+        );
+        let should_check_legacy = modern
+            .as_ref()
+            .map(|item| !item.file_exists)
+            .unwrap_or(true);
+        let legacy = if should_check_legacy {
+            find_legacy_duplicate_download(&conn, media_id, canonical_url.as_deref())?
+        } else {
+            None
+        };
 
-        match row {
-            Ok(item) => matches.push(item),
-            Err(rusqlite::Error::QueryReturnedNoRows) => {
-                if let Some(item) =
-                    find_legacy_duplicate_download(&conn, media_id, canonical_url.as_deref())?
-                {
-                    matches.push(item);
-                }
-            }
-            Err(error) => return Err(format!("Failed to lookup duplicate download: {}", error)),
+        match (modern, legacy) {
+            (Some(_modern), Some(legacy)) if legacy.file_exists => matches.push(legacy),
+            (Some(modern), _) => matches.push(modern),
+            (None, Some(legacy)) => matches.push(legacy),
+            (None, None) => {}
         }
     }
 
@@ -845,6 +870,20 @@ pub fn update_history_filepath_and_title_by_id(
         )
         .map_err(|e| format!("Failed to update history filepath/title by id: {}", e))?;
     if rows == 0 {
+        return Err("History entry not found".to_string());
+    }
+    Ok(())
+}
+
+pub fn update_history_filepath_by_id(id: String, filepath: String) -> Result<(), String> {
+    let conn = get_db()?;
+    let updated = conn
+        .execute(
+            "UPDATE history SET filepath = ?1 WHERE id = ?2",
+            params![filepath, id],
+        )
+        .map_err(|e| format!("Failed to relink history file: {}", e))?;
+    if updated == 0 {
         return Err("History entry not found".to_string());
     }
     Ok(())
@@ -1575,7 +1614,9 @@ mod tests {
         let _guard = db_test_guard();
         ensure_test_history_tables();
         let history_id = uuid::Uuid::new_v4().to_string();
+        let untouched_history_id = uuid::Uuid::new_v4().to_string();
         insert_history_row(&history_id, "");
+        insert_history_row(&untouched_history_id, "C:/Downloads/untouched.mp4");
 
         update_history_download(
             history_id.clone(),
@@ -1613,17 +1654,27 @@ mod tests {
         )
         .expect("update with metadata");
 
-        let (title, thumbnail): (String, Option<String>) = {
+        let (title, thumbnail, untouched_filepath): (String, Option<String>, String) = {
             let conn = get_db().expect("get db");
-            conn.query_row(
-                "SELECT title, thumbnail FROM history WHERE id = ?1",
-                params![history_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .expect("read refreshed history metadata")
+            let (title, thumbnail) = conn
+                .query_row(
+                    "SELECT title, thumbnail FROM history WHERE id = ?1",
+                    params![history_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .expect("read refreshed history metadata");
+            let untouched_filepath = conn
+                .query_row(
+                    "SELECT filepath FROM history WHERE id = ?1",
+                    params![untouched_history_id],
+                    |row| row.get(0),
+                )
+                .expect("read untouched history row");
+            (title, thumbnail, untouched_filepath)
         };
         assert_eq!(title, "Recovered Facebook title");
         assert_eq!(thumbnail.as_deref(), Some("https://example.com/thumb.jpg"));
+        assert_eq!(untouched_filepath, "C:/Downloads/untouched.mp4");
 
         update_history_download(
             history_id.clone(),
@@ -1946,6 +1997,76 @@ mod tests {
             matches[2].canonical_url.as_deref(),
             Some("https://www.youtube.com/watch?v=legacy123")
         );
+    }
+
+    #[test]
+    fn duplicate_lookup_prefers_an_older_existing_file_over_a_newer_missing_file() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        let existing = make_temp_file("existing.mp4");
+        let existing_id = uuid::Uuid::new_v4().to_string();
+        let missing_id = uuid::Uuid::new_v4().to_string();
+        let canonical_url = "https://example.com/video/duplicate";
+
+        {
+            let conn = get_db().expect("get db");
+            conn.execute(
+                "INSERT INTO history (id, url, title, filepath, downloaded_at, canonical_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![existing_id, canonical_url, "existing", existing.to_string_lossy(), 1_i64, canonical_url],
+            )
+            .expect("insert existing duplicate");
+            conn.execute(
+                "INSERT INTO history (id, url, title, filepath, downloaded_at, canonical_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![missing_id, canonical_url, "missing", "C:/missing-newer.mp4", 2_i64, canonical_url],
+            )
+            .expect("insert missing duplicate");
+        }
+
+        let matches = find_duplicate_downloads_in_history_db(vec![DownloadDuplicateIdentity {
+            media_id: None,
+            canonical_url: Some(canonical_url.to_string()),
+        }])
+        .expect("find preferred duplicate");
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].history_id, existing_id);
+        assert!(matches[0].file_exists);
+
+        let _ = fs::remove_file(&existing);
+        let _ = fs::remove_dir_all(existing.parent().unwrap_or_else(|| Path::new("/")));
+    }
+
+    #[test]
+    fn duplicate_lookup_uses_the_newest_row_when_all_files_are_missing() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        let older_id = uuid::Uuid::new_v4().to_string();
+        let newer_id = uuid::Uuid::new_v4().to_string();
+        let canonical_url = "https://example.com/video/missing-duplicate";
+
+        {
+            let conn = get_db().expect("get db");
+            conn.execute(
+                "INSERT INTO history (id, url, title, filepath, downloaded_at, canonical_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![older_id, canonical_url, "older", "C:/missing-older.mp4", 1_i64, canonical_url],
+            )
+            .expect("insert older missing duplicate");
+            conn.execute(
+                "INSERT INTO history (id, url, title, filepath, downloaded_at, canonical_url) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![newer_id, canonical_url, "newer", "C:/missing-newer.mp4", 2_i64, canonical_url],
+            )
+            .expect("insert newer missing duplicate");
+        }
+
+        let matches = find_duplicate_downloads_in_history_db(vec![DownloadDuplicateIdentity {
+            media_id: None,
+            canonical_url: Some(canonical_url.to_string()),
+        }])
+        .expect("find newest missing duplicate");
+
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].history_id, newer_id);
+        assert!(!matches[0].file_exists);
     }
 
     #[test]

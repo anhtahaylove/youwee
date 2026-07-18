@@ -9,6 +9,7 @@ import {
   Globe,
   KeyRound,
   Loader2,
+  MessageSquarePlus,
   RefreshCw,
   ShieldOff,
   X,
@@ -504,21 +505,39 @@ export function NetworkSection({ highlightId }: NetworkSectionProps) {
                       : ''}
                     {cookieSkipCatalog.stale ? ` · ${t('network.cookieSkipStale')}` : ''}
                   </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 border-dashed px-2 text-xs"
-                    disabled={isRefreshingCookieSkipCatalog}
-                    onClick={refreshCookieSkipCatalog}
-                  >
-                    {isRefreshingCookieSkipCatalog ? (
-                      <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-3 h-3 mr-1.5" />
-                    )}
-                    {t('network.cookieSkipRefresh')}
-                  </Button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button
+                      asChild
+                      variant="outline"
+                      size="sm"
+                      className="h-7 border-dashed px-2 text-xs"
+                    >
+                      <a
+                        href="https://github.com/anhtahaylove/youwee/discussions/new?category=cookie-rule-proposals"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={t('network.cookieSkipSuggestDesc')}
+                      >
+                        <MessageSquarePlus className="mr-1.5 h-3 w-3" />
+                        {t('network.cookieSkipSuggest')}
+                      </a>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 border-dashed px-2 text-xs"
+                      disabled={isRefreshingCookieSkipCatalog}
+                      onClick={refreshCookieSkipCatalog}
+                    >
+                      {isRefreshingCookieSkipCatalog ? (
+                        <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-3 h-3 mr-1.5" />
+                      )}
+                      {t('network.cookieSkipRefresh')}
+                    </Button>
+                  </div>
                 </div>
                 {cookieSkipCatalog.error && (
                   <p className="text-[11px] text-amber-600 dark:text-amber-400">

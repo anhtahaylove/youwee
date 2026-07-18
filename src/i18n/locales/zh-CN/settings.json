@@ -680,6 +680,8 @@
     "cookieSkipPatternsRemove": "移除 {{pattern}}",
     "cookieSkipRecommended": "Youwee 推荐规则",
     "cookieSkipRecommendedDesc": "由 Youwee 维护的公开域名/路径规则，每天最多刷新一次。不会上传 Cookie、浏览器配置或代理设置。",
+    "cookieSkipSuggest": "建议规则",
+    "cookieSkipSuggestDesc": "在 GitHub Discussions 中提交范围明确且可测试的规则，供维护者审核。",
     "cookieSkipNoRecommended": "当前没有已发布的推荐规则。",
     "cookieSkipSourceRemote": "来源：在线配置",
     "cookieSkipSourceCache": "来源：缓存配置",

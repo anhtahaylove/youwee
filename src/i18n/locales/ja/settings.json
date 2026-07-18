@@ -680,6 +680,8 @@
     "cookieSkipPatternsRemove": "{{pattern}} を削除",
     "cookieSkipRecommended": "Youwee 推奨ルール",
     "cookieSkipRecommendedDesc": "Youwee が管理する公開ドメイン/パスのルールです。更新は1日最大1回で、Cookie、プロファイル、プロキシ設定は送信されません。",
+    "cookieSkipSuggest": "ルールを提案",
+    "cookieSkipSuggestDesc": "GitHub Discussions で範囲が狭く検証可能なルールを提案し、メンテナーの確認を受けます。",
     "cookieSkipNoRecommended": "現在公開されている推奨ルールはありません。",
     "cookieSkipSourceRemote": "ソース：オンライン設定",
     "cookieSkipSourceCache": "ソース：キャッシュ設定",

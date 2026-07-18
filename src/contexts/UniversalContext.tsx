@@ -33,6 +33,8 @@ import {
 } from '@/lib/backend-error';
 import {
   buildDownloadDuplicateIdentity,
+  isActiveDownloadQueueItem,
+  markInactiveQueueDuplicatesUnique,
   partitionDownloadQueueUrls,
 } from '@/lib/download-duplicates';
 import {
@@ -48,7 +50,10 @@ import {
   loadCookieSettings,
   loadProxySettings,
 } from '@/lib/network-config';
-import { resetMissingCompletedQueueItems } from '@/lib/persisted-download-queue';
+import {
+  isDownloadProgressForItem,
+  reconcileDownloadQueueFileStates,
+} from '@/lib/persisted-download-queue';
 import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
@@ -59,6 +64,7 @@ import {
 import { detectExtractorFromUrl, normalizeUniversalUrl, parseUniversalUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
+  DownloadDuplicateCandidate,
   DownloadItem,
   DownloadProgress,
   ExternalEnqueueOptions,
@@ -363,55 +369,49 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     itemsRef.current = items;
   }, [items]);
 
-  const completedFilepathsFingerprint = useMemo(
+  const queueFileStateFingerprint = useMemo(
     () =>
       items
-        .filter((item) => item.status === 'completed' && item.completedFilepath)
-        .map((item) => `${item.id}:${item.completedFilepath}`)
+        .filter((item) => item.completedHistoryId || item.completedFilepath)
+        .map(
+          (item) =>
+            `${item.id}:${item.status}:${item.completedHistoryId ?? ''}:${item.completedFilepath ?? ''}:${item.errorCode ?? ''}`,
+        )
         .join('\n'),
     [items],
   );
 
   const reconcileCompletedFiles = useCallback(async () => {
-    const completedItems = itemsRef.current.filter(
-      (item) => item.status === 'completed' && item.completedFilepath,
-    );
-    if (completedItems.length === 0) return;
-
-    const checks = await Promise.all(
-      completedItems.map(async (item) => {
-        try {
-          const exists = await invoke<boolean>('check_file_exists', {
-            filepath: item.completedFilepath,
-          });
-          return exists ? null : item.completedFilepath;
-        } catch (error) {
-          console.error('Failed to verify completed download file:', error);
-          return null;
-        }
-      }),
-    );
-    const missingFilepaths = new Set(checks.filter((path): path is string => Boolean(path)));
-    if (missingFilepaths.size === 0) return;
-
-    setItems((currentItems) => {
-      const nextItems = resetMissingCompletedQueueItems(currentItems, missingFilepaths);
+    try {
+      const nextItems = await reconcileDownloadQueueFileStates(itemsRef.current);
+      if (nextItems === itemsRef.current) return;
       itemsRef.current = nextItems;
-      return nextItems;
-    });
+      setItems(nextItems);
+    } catch (error) {
+      console.error('Failed to reconcile Universal queue file states:', error);
+    }
   }, []);
 
   useEffect(() => {
-    if (!completedFilepathsFingerprint) return;
+    if (!queueFileStateFingerprint) return;
     void reconcileCompletedFiles();
-  }, [completedFilepathsFingerprint, reconcileCompletedFiles]);
+  }, [queueFileStateFingerprint, reconcileCompletedFiles]);
 
   useEffect(() => {
     const handleWindowFocus = () => {
       void reconcileCompletedFiles();
     };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void reconcileCompletedFiles();
+      }
+    };
     window.addEventListener('focus', handleWindowFocus);
-    return () => window.removeEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [reconcileCompletedFiles]);
 
   // Keep settingsRef in sync with settings state
@@ -481,9 +481,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       }
 
       if (progress.status === 'error' && progress.error_code === 'DOWNLOAD_CANCELLED') {
-        setItems((currentItems) =>
-          currentItems.map((item) =>
-            item.id === progress.id
+        setItems((currentItems) => {
+          const nextItems = currentItems.map<DownloadItem>((item) =>
+            isDownloadProgressForItem(item, progress)
               ? {
                   ...item,
                   status: 'pending',
@@ -494,14 +494,16 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                   retryState: undefined,
                 }
               : item,
-          ),
-        );
+          );
+          itemsRef.current = nextItems;
+          return nextItems;
+        });
         return;
       }
 
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === progress.id
+      setItems((currentItems) => {
+        const nextItems = currentItems.map<DownloadItem>((item) =>
+          isDownloadProgressForItem(item, progress)
             ? {
                 ...item,
                 progress: progress.percent,
@@ -535,14 +537,17 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                       completedFilesize: progress.filesize,
                       completedResolution: progress.resolution,
                       completedFormat: progress.format_ext,
-                      completedFilepath: progress.filepath,
-                      completedHistoryId: progress.history_id,
+                      completedFilepath: progress.filepath || item.completedFilepath,
+                      completedHistoryId: progress.history_id || item.completedHistoryId,
+                      outputCollisionPolicy: undefined,
                     }
                   : {}),
               }
             : item,
-        ),
-      );
+        );
+        itemsRef.current = nextItems;
+        return nextItems;
+      });
     });
 
     return () => {
@@ -693,7 +698,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         url: item.url,
         title: item.title || null,
         thumbnail: item.thumbnailSource || item.thumbnail || null,
-        historyId: null,
+        historyId: item.completedHistoryId ?? null,
         timeRange,
         downloadKind: 'universal',
         workflowRunId: null,
@@ -732,7 +737,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         url: item.url,
         title: item.title || null,
         thumbnail: item.thumbnailSource || item.thumbnail || null,
-        historyId: null,
+        historyId: item.completedHistoryId ?? null,
         timeRange,
         downloadKind: 'universal',
         workflowRunId: null,
@@ -808,15 +813,21 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         fetchMetadataForItems(refreshItems);
       }
 
-      const candidates = newUrls.map((url) => ({
-        url,
-        title: url,
-        duplicateIdentity: buildDownloadDuplicateIdentity(url),
-      }));
+      const candidates = markInactiveQueueDuplicatesUnique<DownloadDuplicateCandidate>(
+        newUrls.map((url) => ({
+          url,
+          title: url,
+          duplicateIdentity: buildDownloadDuplicateIdentity(url),
+        })),
+        currentItems,
+      );
       const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
       const currentItemsAfterReview = itemsRef.current;
       const enqueueCandidates = filteredCandidates.filter(
-        (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+        (candidate) =>
+          !currentItemsAfterReview.some(
+            (item) => isActiveDownloadQueueItem(item) && item.url === candidate.url,
+          ),
       );
       const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
       const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
@@ -830,6 +841,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         metadataStage: 'fetching',
         queueIndex: currentItemsAfterReview.length + index + 1,
         queueTotal,
+        completedHistoryId: candidate.historyId,
+        outputCollisionPolicy: candidate.outputCollisionPolicy,
         // Store settings snapshot
         settings: settingsSnapshot,
       }));
@@ -894,6 +907,19 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         return { added: false, itemId: existingItem.id };
       }
 
+      const candidates = markInactiveQueueDuplicatesUnique<DownloadDuplicateCandidate>(
+        [
+          {
+            url: normalizedUrl,
+            title: normalizedUrl,
+            duplicateIdentity: buildDownloadDuplicateIdentity(normalizedUrl),
+          },
+        ],
+        itemsRef.current,
+      );
+      const [candidate] = await filterDownloadedDuplicateCandidates(candidates);
+      if (!candidate) return { added: false, itemId: null };
+
       const currentSettings = settingsRef.current;
       let outputPath = options?.outputPath || currentSettings.outputPath;
       if (!outputPath) {
@@ -945,7 +971,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const newItem: DownloadItem = {
         id: crypto.randomUUID(),
         url: normalizedUrl,
-        title: normalizedUrl,
+        title: candidate.title,
         status: 'pending',
         progress: 0,
         speed: '',
@@ -953,6 +979,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         metadataStage: 'fetching',
         queueIndex: itemsRef.current.length + 1,
         queueTotal: itemsRef.current.length + 1,
+        completedHistoryId: candidate.historyId,
+        outputCollisionPolicy: candidate.outputCollisionPolicy,
         settings: settingsSnapshot,
       };
 
@@ -974,6 +1002,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       downloadSettings.splitEmbeddedChapters,
       downloadSettings.youtubePlayerClient,
       enqueueQueuedWorkflowForItems,
+      filterDownloadedDuplicateCandidates,
       fetchMetadataForItems,
       focusItem,
     ],
@@ -1322,6 +1351,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
               itemSettings?.timeRangeStart && itemSettings?.timeRangeEnd
                 ? `*${itemSettings.timeRangeStart}-${itemSettings.timeRangeEnd}`
                 : null,
+            historyId: item.completedHistoryId || null,
+            outputCollisionPolicy: item.outputCollisionPolicy ?? 'overwrite',
             // Title from video info fetch
             title: item.title || null,
             // Thumbnail from video info fetch (for non-YouTube sites)

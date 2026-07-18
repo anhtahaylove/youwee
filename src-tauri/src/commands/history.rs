@@ -7,11 +7,11 @@ use crate::database::{
     get_collections_from_db, get_history_count_from_db, get_history_entries_by_ids_from_db,
     get_history_from_db, get_tags_from_db, remove_history_from_collection_in_db,
     remove_history_tag_from_db, rename_collection_in_db, update_history_filepath_and_title,
-    update_history_filepath_and_title_by_id, update_history_summary,
+    update_history_filepath_and_title_by_id, update_history_filepath_by_id, update_history_summary,
 };
 use crate::types::{
     DownloadDuplicateIdentity, DownloadDuplicateMatch, HistoryAdvancedFilters, HistoryCollection,
-    HistoryEntry, HistorySort, HistoryTag,
+    HistoryEntry, HistoryFileState, HistorySort, HistoryTag,
 };
 
 #[tauri::command]
@@ -64,6 +64,43 @@ pub fn get_history(
 #[tauri::command]
 pub fn get_history_entries_by_ids(ids: Vec<String>) -> Result<Vec<HistoryEntry>, String> {
     get_history_entries_by_ids_from_db(ids)
+}
+
+#[tauri::command]
+pub fn get_history_file_states(history_ids: Vec<String>) -> Result<Vec<HistoryFileState>, String> {
+    Ok(get_history_entries_by_ids_from_db(history_ids)?
+        .into_iter()
+        .map(|entry| HistoryFileState {
+            history_id: entry.id,
+            filepath: entry.filepath,
+            file_exists: entry.file_exists,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn relink_history_file(
+    history_id: String,
+    filepath: String,
+) -> Result<HistoryFileState, String> {
+    let filepath = filepath.trim().to_string();
+    if filepath.is_empty() {
+        return Err("File path cannot be empty".to_string());
+    }
+
+    let metadata = std::fs::metadata(&filepath)
+        .map_err(|error| format!("Failed to inspect selected media file: {error}"))?;
+    if !metadata.is_file() {
+        return Err("Selected path is not a media file".to_string());
+    }
+
+    update_history_filepath_by_id(history_id.clone(), filepath.clone())?;
+
+    Ok(HistoryFileState {
+        history_id,
+        filepath,
+        file_exists: true,
+    })
 }
 
 #[tauri::command]
@@ -577,5 +614,55 @@ mod tests {
                 .parent()
                 .unwrap_or_else(|| Path::new("/")),
         );
+    }
+
+    #[test]
+    fn relink_history_file_updates_only_the_selected_row() {
+        let _guard = db_test_guard();
+        ensure_test_history_table();
+        let selected_id = uuid::Uuid::new_v4().to_string();
+        let untouched_id = uuid::Uuid::new_v4().to_string();
+        let moved = make_temp_file("moved-video.mp4");
+
+        {
+            let conn = get_db().expect("get db");
+            conn.execute(
+                "INSERT INTO history (id, url, title, filepath, downloaded_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![selected_id, "https://example.com/selected", "selected", "C:/missing-selected.mp4", 0_i64],
+            )
+            .expect("insert selected history row");
+            conn.execute(
+                "INSERT INTO history (id, url, title, filepath, downloaded_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![untouched_id, "https://example.com/untouched", "untouched", "C:/missing-untouched.mp4", 0_i64],
+            )
+            .expect("insert untouched history row");
+        }
+
+        let state = relink_history_file(selected_id.clone(), moved.to_string_lossy().to_string())
+            .expect("relink selected history row");
+        assert_eq!(state.history_id, selected_id);
+        assert!(state.file_exists);
+
+        let conn = get_db().expect("get db");
+        let selected_filepath: String = conn
+            .query_row(
+                "SELECT filepath FROM history WHERE id = ?1",
+                params![selected_id],
+                |row| row.get(0),
+            )
+            .expect("selected filepath");
+        let untouched_filepath: String = conn
+            .query_row(
+                "SELECT filepath FROM history WHERE id = ?1",
+                params![untouched_id],
+                |row| row.get(0),
+            )
+            .expect("untouched filepath");
+        assert_eq!(selected_filepath, moved.to_string_lossy());
+        assert_eq!(untouched_filepath, "C:/missing-untouched.mp4");
+        drop(conn);
+
+        let _ = fs::remove_file(&moved);
+        let _ = fs::remove_dir_all(moved.parent().unwrap_or_else(|| Path::new("/")));
     }
 }

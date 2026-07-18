@@ -604,6 +604,8 @@
     "cookieSkipPatternsRemove": "ลบ {{pattern}}",
     "cookieSkipRecommended": "กฎที่ Youwee แนะนำ",
     "cookieSkipRecommendedDesc": "กฎโดเมน/พาธสาธารณะที่ดูแลโดย Youwee และรีเฟรชไม่เกินวันละครั้ง โดยไม่มีการอัปโหลดคุกกี้ โปรไฟล์ หรือการตั้งค่าพร็อกซี",
+    "cookieSkipSuggest": "เสนอแนะกฎ",
+    "cookieSkipSuggestDesc": "เสนอกฎที่มีขอบเขตแคบและทดสอบได้ใน GitHub Discussions เพื่อให้ผู้ดูแลตรวจสอบ",
     "cookieSkipNoRecommended": "ขณะนี้ยังไม่มีกฎแนะนำที่เผยแพร่",
     "cookieSkipSourceRemote": "แหล่งที่มา: การตั้งค่าออนไลน์",
     "cookieSkipSourceCache": "แหล่งที่มา: การตั้งค่าแคช",

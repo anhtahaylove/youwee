@@ -604,6 +604,8 @@
     "cookieSkipPatternsRemove": "إزالة {{pattern}}",
     "cookieSkipRecommended": "قواعد Youwee الموصى بها",
     "cookieSkipRecommendedDesc": "قواعد عامة للنطاق/المسار تديرها Youwee ويتم تحديثها مرة واحدة يوميًا كحد أقصى. لا يتم رفع ملفات تعريف الارتباط أو الملفات الشخصية أو إعدادات الوكيل.",
+    "cookieSkipSuggest": "اقتراح قاعدة",
+    "cookieSkipSuggestDesc": "اقترح قاعدة محددة وقابلة للاختبار في مناقشات GitHub لمراجعة المشرف.",
     "cookieSkipNoRecommended": "لا توجد قواعد موصى بها منشورة حاليًا.",
     "cookieSkipSourceRemote": "المصدر: إعداد مباشر",
     "cookieSkipSourceCache": "المصدر: إعداد مخزن مؤقتًا",

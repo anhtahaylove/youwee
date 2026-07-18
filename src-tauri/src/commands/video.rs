@@ -9,6 +9,8 @@ use crate::types::{
     VideoInfo, VideoInfoResponse,
 };
 use crate::utils::{normalize_url, validate_url};
+use regex::Regex;
+use std::sync::LazyLock;
 use std::time::Duration;
 use tauri::AppHandle;
 use tokio::time::timeout;
@@ -55,19 +57,83 @@ fn default_transcript_languages(url: &str) -> Vec<String> {
     vec!["en".to_string()]
 }
 
-fn parse_basic_video_info_output(
-    output: &str,
-) -> Result<
-    (
-        String,
-        Option<String>,
-        Option<f64>,
-        Option<String>,
-        Option<String>,
-        Option<String>,
-    ),
-    String,
-> {
+static FACEBOOK_ENGAGEMENT_PREFIX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(?ix)^\s*(?:(?:\d+(?:[.,]\d+)?[kmb]?\s*(?:comments?|reactions?|views?|likes?|shares?))\s*(?:[|·•—–-]\s*)?)+",
+    )
+    .expect("valid Facebook engagement-prefix regex")
+});
+
+fn is_facebook_reel_url(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    parsed
+        .host_str()
+        .is_some_and(|host| host == "facebook.com" || host.ends_with(".facebook.com"))
+        && parsed.path().starts_with("/reel/")
+}
+
+fn collapse_whitespace(value: &str) -> String {
+    value.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn truncate_unicode(value: &str, max_chars: usize) -> String {
+    let mut chars = value.chars();
+    let truncated: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        truncated.trim_end().to_string()
+    } else {
+        value.to_string()
+    }
+}
+
+fn normalize_facebook_title_candidate(value: &str) -> Option<String> {
+    let collapsed = collapse_whitespace(value);
+    let without_engagement = FACEBOOK_ENGAGEMENT_PREFIX.replace(&collapsed, "");
+    let normalized = without_engagement
+        .trim_start_matches([' ', '|', '·', '•', '—', '–', '-', ':'])
+        .trim();
+    (!normalized.is_empty()).then(|| truncate_unicode(normalized, 180))
+}
+
+fn is_placeholder_video_title(title: Option<&str>) -> bool {
+    let Some(title) = title.map(str::trim).filter(|title| !title.is_empty()) else {
+        return true;
+    };
+    title.eq_ignore_ascii_case("video")
+        || title.eq_ignore_ascii_case("facebook video")
+        || reqwest::Url::parse(title).is_ok()
+}
+
+fn recover_facebook_reel_title(
+    title: Option<&str>,
+    description: Option<&str>,
+    uploader: Option<&str>,
+    media_id: Option<&str>,
+) -> String {
+    if !is_placeholder_video_title(title) {
+        return normalize_facebook_title_candidate(title.unwrap_or_default())
+            .unwrap_or_else(|| title.unwrap_or_default().to_string());
+    }
+
+    description
+        .and_then(normalize_facebook_title_candidate)
+        .or_else(|| {
+            uploader
+                .and_then(normalize_facebook_title_candidate)
+                .map(|name| format!("{name} — Facebook Reel"))
+        })
+        .or_else(|| {
+            media_id
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(|id| format!("Facebook Reel {id}"))
+        })
+        .unwrap_or_else(|| "Facebook Reel".to_string())
+}
+
+fn parse_basic_video_info_output(output: &str, url: &str) -> Result<VideoInfo, String> {
     let line = output
         .lines()
         .map(str::trim)
@@ -83,10 +149,20 @@ fn parse_basic_video_info_output(
             .filter(|value| !value.is_empty() && *value != "NA")
             .map(str::to_string)
     };
-    let title = string_field("title").ok_or_else(|| "Failed to fetch video title".to_string())?;
-    if title.is_empty() {
-        return Err("Failed to fetch video title".to_string());
-    }
+    let raw_title = string_field("title");
+    let id = string_field("id");
+    let uploader = string_field("uploader");
+    let description = string_field("description");
+    let title = if is_facebook_reel_url(url) {
+        recover_facebook_reel_title(
+            raw_title.as_deref(),
+            description.as_deref(),
+            uploader.as_deref(),
+            id.as_deref(),
+        )
+    } else {
+        raw_title.ok_or_else(|| "Failed to fetch video title".to_string())?
+    };
 
     let duration = json.get("duration").and_then(|value| {
         value
@@ -94,14 +170,24 @@ fn parse_basic_video_info_output(
             .or_else(|| value.as_str()?.trim().parse::<f64>().ok())
     });
 
-    Ok((
+    Ok(VideoInfo {
+        id: id.unwrap_or_default(),
         title,
-        string_field("thumbnail"),
+        thumbnail: string_field("thumbnail"),
         duration,
-        string_field("id"),
-        string_field("extractor"),
-        string_field("channel").or_else(|| string_field("uploader")),
-    ))
+        channel: string_field("channel").or_else(|| uploader.clone()),
+        uploader,
+        upload_date: None,
+        view_count: None,
+        description,
+        is_playlist: false,
+        playlist_count: None,
+        extractor: string_field("extractor"),
+        extractor_key: None,
+        is_live: None,
+        was_live: None,
+        live_status: None,
+    })
 }
 
 /// Get video transcript/subtitles for AI summarization
@@ -866,7 +952,9 @@ pub async fn get_video_basic_info(
     }
 
     args.push("--print".to_string());
-    args.push("%(.{id,title,thumbnail,duration,extractor,channel,uploader})j".to_string());
+    args.push(
+        "%(.{id,title,thumbnail,duration,extractor,channel,uploader,description})j".to_string(),
+    );
     args.push("--".to_string());
     args.push(url.clone());
 
@@ -925,28 +1013,8 @@ pub async fn get_video_basic_info(
         return Err(parsed_error.to_wire_string());
     }
 
-    let (title, thumbnail, duration, id, extractor, channel) =
-        parse_basic_video_info_output(&output.stdout)
-            .map_err(|e| BackendError::from_message(e).to_wire_string())?;
-
-    let info = VideoInfo {
-        id: id.unwrap_or_default(),
-        title,
-        thumbnail,
-        duration,
-        channel,
-        uploader: None,
-        upload_date: None,
-        view_count: None,
-        description: None,
-        is_playlist: false,
-        playlist_count: None,
-        extractor,
-        extractor_key: None,
-        is_live: None,
-        was_live: None,
-        live_status: None,
-    };
+    let info = parse_basic_video_info_output(&output.stdout, &url)
+        .map_err(|e| BackendError::from_message(e).to_wire_string())?;
 
     add_log_internal(
         "info",
@@ -1489,35 +1557,94 @@ mod tests {
 
     #[test]
     fn parse_basic_video_info_output_reads_printed_fields() {
-        let output = r#"{"id":"ePPilLkDn0s","title":"Кто попадет в команду ChatGPT: учёный или программист? (Ответ тебя удивит)","thumbnail":"https://i.ytimg.com/vi/ePPilLkDn0s/maxresdefault.jpg","duration":3623,"extractor":"youtube","channel":"Example"}"#;
+        let output = r#"{"id":"ePPilLkDn0s","title":"Кто попадет в команду ChatGPT: учёный или программист? (Ответ тебя удивит)","thumbnail":"https://i.ytimg.com/vi/ePPilLkDn0s/maxresdefault.jpg","duration":3623,"extractor":"youtube","channel":"Example","uploader":"Uploader","description":"Description"}"#;
 
-        let (title, thumbnail, duration, id, extractor, channel) =
-            parse_basic_video_info_output(output).unwrap();
+        let info =
+            parse_basic_video_info_output(output, "https://www.youtube.com/watch?v=ePPilLkDn0s")
+                .unwrap();
 
         assert_eq!(
-            title,
+            info.title,
             "Кто попадет в команду ChatGPT: учёный или программист? (Ответ тебя удивит)"
         );
         assert_eq!(
-            thumbnail.as_deref(),
+            info.thumbnail.as_deref(),
             Some("https://i.ytimg.com/vi/ePPilLkDn0s/maxresdefault.jpg")
         );
-        assert_eq!(duration, Some(3623.0));
-        assert_eq!(id.as_deref(), Some("ePPilLkDn0s"));
-        assert_eq!(extractor.as_deref(), Some("youtube"));
-        assert_eq!(channel.as_deref(), Some("Example"));
+        assert_eq!(info.duration, Some(3623.0));
+        assert_eq!(info.id, "ePPilLkDn0s");
+        assert_eq!(info.extractor.as_deref(), Some("youtube"));
+        assert_eq!(info.channel.as_deref(), Some("Example"));
+        assert_eq!(info.uploader.as_deref(), Some("Uploader"));
+        assert_eq!(info.description.as_deref(), Some("Description"));
     }
 
     #[test]
     fn parse_basic_video_info_output_ignores_missing_optional_fields() {
-        let (title, thumbnail, duration, id, extractor, channel) =
-            parse_basic_video_info_output(r#"{"title":"Video title"}"#).unwrap();
+        let info = parse_basic_video_info_output(
+            r#"{"title":"Video title"}"#,
+            "https://example.com/video",
+        )
+        .unwrap();
 
-        assert_eq!(title, "Video title");
-        assert_eq!(thumbnail, None);
-        assert_eq!(duration, None);
-        assert_eq!(id, None);
-        assert_eq!(extractor, None);
-        assert_eq!(channel, None);
+        assert_eq!(info.title, "Video title");
+        assert_eq!(info.thumbnail, None);
+        assert_eq!(info.duration, None);
+        assert!(info.id.is_empty());
+        assert_eq!(info.extractor, None);
+        assert_eq!(info.channel, None);
+    }
+
+    #[test]
+    fn facebook_placeholder_title_recovers_description_without_another_request() {
+        let output = r#"{"id":"792410310628126","title":"Video","description":"4 comments | Tool Text-to-Speech ElevenLabs cho ae làm content Ưu điểm: Không mất tiền credit","uploader":"Nguyễn Trọng","extractor":"facebook"}"#;
+
+        let info =
+            parse_basic_video_info_output(output, "https://www.facebook.com/reel/792410310628126")
+                .unwrap();
+
+        assert_eq!(
+            info.title,
+            "Tool Text-to-Speech ElevenLabs cho ae làm content Ưu điểm: Không mất tiền credit"
+        );
+        assert_eq!(info.uploader.as_deref(), Some("Nguyễn Trọng"));
+    }
+
+    #[test]
+    fn facebook_placeholder_title_falls_back_to_uploader_then_media_id() {
+        let uploader_info = parse_basic_video_info_output(
+            r#"{"id":"123","title":"Facebook video","uploader":"Người phát"}"#,
+            "https://www.facebook.com/reel/123",
+        )
+        .unwrap();
+        assert_eq!(uploader_info.title, "Người phát — Facebook Reel");
+
+        let id_info = parse_basic_video_info_output(
+            r#"{"id":"456","title":"https://www.facebook.com/reel/456"}"#,
+            "https://www.facebook.com/reel/456",
+        )
+        .unwrap();
+        assert_eq!(id_info.title, "Facebook Reel 456");
+    }
+
+    #[test]
+    fn facebook_real_title_and_unicode_boundary_are_preserved() {
+        let real = parse_basic_video_info_output(
+            r#"{"id":"123","title":"Một tiêu đề thật"}"#,
+            "https://www.facebook.com/reel/123",
+        )
+        .unwrap();
+        assert_eq!(real.title, "Một tiêu đề thật");
+
+        let long_description = "ả".repeat(220);
+        let output = serde_json::json!({
+            "id": "123",
+            "title": "Video",
+            "description": long_description,
+        })
+        .to_string();
+        let truncated =
+            parse_basic_video_info_output(&output, "https://www.facebook.com/reel/123").unwrap();
+        assert_eq!(truncated.title.chars().count(), 180);
     }
 }

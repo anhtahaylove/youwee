@@ -33,6 +33,10 @@ import {
 import {
   buildDownloadDuplicateIdentity,
   getDownloadDuplicateIdentityKey,
+  isActiveDownloadQueueItem,
+  markInactiveQueueDuplicatesUnique,
+  partitionDownloadQueueUrls,
+  resolveDownloadedDuplicateCandidates,
 } from '@/lib/download-duplicates';
 import {
   AUTO_RETRY_LIMITS,
@@ -51,6 +55,10 @@ import {
   saveCookieSettings,
   saveProxySettings,
 } from '@/lib/network-config';
+import {
+  isDownloadProgressForItem,
+  reconcileDownloadQueueFileStates,
+} from '@/lib/persisted-download-queue';
 import {
   enqueuePluginWorkflowTrigger,
   loadPluginWorkflowSnapshots,
@@ -521,6 +529,52 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
     itemsRef.current = items;
   }, [items]);
 
+  const queueFileStateFingerprint = useMemo(
+    () =>
+      items
+        .filter(
+          (item) =>
+            item.completedHistoryId ||
+            (item.status === 'completed' && Boolean(item.completedFilepath)),
+        )
+        .map(
+          (item) =>
+            `${item.id}:${item.status}:${item.completedHistoryId ?? ''}:${item.completedFilepath ?? ''}`,
+        )
+        .join('\n'),
+    [items],
+  );
+
+  const reconcileCompletedFiles = useCallback(async () => {
+    try {
+      const nextItems = await reconcileDownloadQueueFileStates(itemsRef.current);
+      if (nextItems === itemsRef.current) return;
+      itemsRef.current = nextItems;
+      setItems(nextItems);
+    } catch (error) {
+      console.error('Failed to reconcile YouTube queue file state:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!queueFileStateFingerprint) return;
+    void reconcileCompletedFiles();
+  }, [queueFileStateFingerprint, reconcileCompletedFiles]);
+
+  useEffect(() => {
+    const reconcileWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void reconcileCompletedFiles();
+      }
+    };
+    window.addEventListener('focus', reconcileWhenVisible);
+    document.addEventListener('visibilitychange', reconcileWhenVisible);
+    return () => {
+      window.removeEventListener('focus', reconcileWhenVisible);
+      document.removeEventListener('visibilitychange', reconcileWhenVisible);
+    };
+  }, [reconcileCompletedFiles]);
+
   // Keep settingsRef in sync with settings state
   useEffect(() => {
     settingsRef.current = settings;
@@ -579,9 +633,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       }
 
       if (progress.status === 'error' && progress.error_code === 'DOWNLOAD_CANCELLED') {
-        setItems((currentItems) =>
-          currentItems.map((item) =>
-            item.id === progress.id
+        setItems((currentItems) => {
+          const nextItems = currentItems.map<DownloadItem>((item) =>
+            isDownloadProgressForItem(item, progress)
               ? {
                   ...item,
                   status: 'pending',
@@ -592,14 +646,16 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
                   retryState: undefined,
                 }
               : item,
-          ),
-        );
+          );
+          itemsRef.current = nextItems;
+          return nextItems;
+        });
         return;
       }
 
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === progress.id
+      setItems((currentItems) => {
+        const nextItems = currentItems.map<DownloadItem>((item) =>
+          isDownloadProgressForItem(item, progress)
             ? {
                 ...item,
                 progress: progress.percent,
@@ -631,14 +687,17 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
                       completedFilesize: progress.filesize,
                       completedResolution: progress.resolution,
                       completedFormat: progress.format_ext,
-                      completedFilepath: progress.filepath,
-                      completedHistoryId: progress.history_id,
+                      completedFilepath: progress.filepath || item.completedFilepath,
+                      completedHistoryId: progress.history_id || item.completedHistoryId,
+                      outputCollisionPolicy: undefined,
                     }
                   : {}),
               }
             : item,
-        ),
-      );
+        );
+        itemsRef.current = nextItems;
+        return nextItems;
+      });
     });
 
     return () => {
@@ -702,76 +761,74 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       options: DownloadDuplicateFilterOptions = {},
     ): Promise<T[]> => {
       const currentSettings = settingsRef.current;
-      if (
-        !currentSettings.rememberDownloadedVideos ||
-        currentSettings.duplicateDownloadHandling === 'allow' ||
-        candidates.length === 0
-      ) {
-        return candidates;
+      const queueSafeCandidates = markInactiveQueueDuplicatesUnique(candidates, itemsRef.current);
+      if (!currentSettings.rememberDownloadedVideos || queueSafeCandidates.length === 0) {
+        return queueSafeCandidates;
       }
 
       try {
-        const identities = candidates.map((candidate) => candidate.duplicateIdentity);
+        const identities = queueSafeCandidates.map((candidate) => candidate.duplicateIdentity);
         const matches = await invoke<DownloadDuplicateMatch[]>('find_duplicate_downloads', {
           identities,
         });
-        if (matches.length === 0) return candidates;
+        if (matches.length === 0) return queueSafeCandidates;
 
-        const matchByKey = new Map<string, DownloadDuplicateMatch>();
-        for (const match of matches) {
-          for (const key of [
-            getDownloadDuplicateIdentityKey({ mediaId: match.mediaId }),
-            getDownloadDuplicateIdentityKey({ canonicalUrl: match.canonicalUrl }),
-          ]) {
-            if (key) {
-              matchByKey.set(key, match);
-            }
-          }
-        }
-        if (matchByKey.size === 0) return candidates;
+        const { available, existing } = resolveDownloadedDuplicateCandidates(
+          queueSafeCandidates,
+          matches,
+        );
+        if (existing.length === 0) return available;
 
-        const duplicateItems: { candidate: T; duplicate: DownloadDuplicateMatch }[] = [];
-        for (const candidate of candidates) {
-          const duplicate = matchByKey.get(
+        const availableByKey = new Map(
+          available.map((candidate) => [
             getDownloadDuplicateIdentityKey(candidate.duplicateIdentity),
-          );
-          if (duplicate) {
-            duplicateItems.push({ candidate, duplicate });
-          }
-        }
+            candidate,
+          ]),
+        );
+        const existingByKey = new Map(
+          existing.map(({ candidate }) => [
+            getDownloadDuplicateIdentityKey(candidate.duplicateIdentity),
+            candidate,
+          ]),
+        );
+        const selectCandidates = (includeExisting: boolean): T[] =>
+          queueSafeCandidates.flatMap((candidate) => {
+            const key = getDownloadDuplicateIdentityKey(candidate.duplicateIdentity);
+            const availableCandidate = availableByKey.get(key);
+            if (availableCandidate) return [availableCandidate];
 
-        if (duplicateItems.length === 0) return candidates;
+            const existingCandidate = existingByKey.get(key);
+            return includeExisting && existingCandidate
+              ? [{ ...existingCandidate, outputCollisionPolicy: 'unique' as const }]
+              : [];
+          });
 
         const skipDuplicates = () => {
-          const duplicateKeys = new Set(
-            duplicateItems.map((item) =>
-              getDownloadDuplicateIdentityKey(item.candidate.duplicateIdentity),
-            ),
-          );
           if (options.notify !== false) {
-            setDuplicateSkipNotice({ count: duplicateItems.length });
+            setDuplicateSkipNotice({ count: existing.length });
           }
-          return candidates.filter(
-            (candidate) =>
-              !duplicateKeys.has(getDownloadDuplicateIdentityKey(candidate.duplicateIdentity)),
-          );
+          return selectCandidates(false);
         };
+
+        if (currentSettings.duplicateDownloadHandling === 'allow') {
+          return selectCandidates(true);
+        }
 
         if (currentSettings.duplicateDownloadHandling === 'skip' || options.ask === false) {
           return skipDuplicates();
         }
 
         const action = await requestDuplicateReview({
-          duplicates: duplicateItems.map((item) => ({
+          duplicates: existing.map((item) => ({
             url: item.candidate.url,
             title: item.candidate.title,
             thumbnail: item.candidate.thumbnail,
             duplicate: item.duplicate,
           })),
-          newCount: candidates.length - duplicateItems.length,
+          newCount: available.length,
         });
 
-        if (action === 'add') return candidates;
+        if (action === 'add') return selectCandidates(true);
         if (action === 'skip') return skipDuplicates();
         return [];
       } catch (error) {
@@ -803,7 +860,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         url: item.url,
         title: item.title || null,
         thumbnail: item.thumbnail || null,
-        historyId: null,
+        historyId: item.completedHistoryId ?? null,
         timeRange,
         downloadKind: 'download',
         workflowRunId: null,
@@ -839,7 +896,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         url: item.url,
         title: item.title || null,
         thumbnail: item.thumbnail || null,
-        historyId: null,
+        historyId: item.completedHistoryId ?? null,
         timeRange,
         downloadKind: 'download',
         workflowRunId: null,
@@ -897,7 +954,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
-      const nextUrls = urls.filter((url) => !currentItems.some((item) => item.url === url));
+      const { newUrls: nextUrls } = partitionDownloadQueueUrls(urls, currentItems);
       const candidates = nextUrls.map<DownloadQueueCandidate>((url) => ({
         url,
         title: url,
@@ -906,7 +963,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
       const currentItemsAfterReview = itemsRef.current;
       const enqueueCandidates = filteredCandidates.filter(
-        (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+        (candidate) =>
+          !currentItemsAfterReview.some(
+            (item) => isActiveDownloadQueueItem(item) && item.url === candidate.url,
+          ),
       );
       const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
       const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
@@ -923,6 +983,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         playlistTotal: playlistId ? urls.length : undefined,
         queueIndex: playlistId ? undefined : currentItemsAfterReview.length + index + 1,
         queueTotal: playlistId ? undefined : queueTotal,
+        completedHistoryId: candidate.historyId,
+        outputCollisionPolicy: candidate.outputCollisionPolicy,
         // Store settings snapshot
         settings: settingsSnapshot,
       }));
@@ -959,7 +1021,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       const normalizedUrl = url.trim();
       if (!normalizedUrl) return { added: false, itemId: null };
 
-      const existingItem = itemsRef.current.find((item) => item.url === normalizedUrl);
+      const existingItem = partitionDownloadQueueUrls([normalizedUrl], itemsRef.current)
+        .alreadyQueuedItems[0];
       if (existingItem) {
         focusItem(existingItem.id);
         return { added: false, itemId: existingItem.id };
@@ -1019,10 +1082,20 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         autoRetryDelaySeconds: currentSettings.autoRetryDelaySeconds,
       };
 
+      const candidates: DownloadDuplicateCandidate[] = [
+        {
+          url: normalizedUrl,
+          title: normalizedUrl,
+          duplicateIdentity: buildDownloadDuplicateIdentity(normalizedUrl),
+        },
+      ];
+      const [candidate] = await filterDownloadedDuplicateCandidates(candidates);
+      if (!candidate) return { added: false, itemId: null };
+
       const newItem: DownloadItem = {
         id: crypto.randomUUID(),
         url: normalizedUrl,
-        title: normalizedUrl,
+        title: candidate.title,
         status: 'pending',
         progress: 0,
         speed: '',
@@ -1030,6 +1103,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         isPlaylist: false,
         queueIndex: itemsRef.current.length + 1,
         queueTotal: itemsRef.current.length + 1,
+        completedHistoryId: candidate.historyId,
+        outputCollisionPolicy: candidate.outputCollisionPolicy,
         settings: settingsSnapshot,
       };
 
@@ -1040,7 +1115,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       enqueueQueuedWorkflowForItems([newItem]);
       return { added: true, itemId: newItem.id };
     },
-    [enqueueQueuedWorkflowForItems, focusItem],
+    [enqueueQueuedWorkflowForItems, filterDownloadedDuplicateCandidates, focusItem],
   );
 
   const addSearchResultsToQueue = useCallback(
@@ -1081,9 +1156,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       };
 
       const currentItems = itemsRef.current;
-      const seenUrls = new Set(currentItems.map((item) => item.url));
+      const activeCurrentItems = currentItems.filter(isActiveDownloadQueueItem);
+      const seenUrls = new Set(activeCurrentItems.map((item) => item.url));
       const seenYoutubeIds = new Set(
-        currentItems
+        activeCurrentItems
           .map((item) => extractYouTubeVideoId(item.url))
           .filter((id): id is string => id !== null),
       );
@@ -1118,9 +1194,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
       const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
       const currentItemsAfterReview = itemsRef.current;
+      const activeItemsAfterReview = currentItemsAfterReview.filter(isActiveDownloadQueueItem);
       let nextQueueIndex = currentItemsAfterReview.length + 1;
       const currentYoutubeIdsAfterReview = new Set(
-        currentItemsAfterReview
+        activeItemsAfterReview
           .map((item) => extractYouTubeVideoId(item.url))
           .filter((id): id is string => id !== null),
       );
@@ -1128,7 +1205,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       for (const candidate of filteredCandidates) {
         const videoId = extractYouTubeVideoId(candidate.url);
         if (
-          currentItemsAfterReview.some((item) => item.url === candidate.url) ||
+          activeItemsAfterReview.some((item) => item.url === candidate.url) ||
           (videoId && currentYoutubeIdsAfterReview.has(videoId))
         ) {
           continue;
@@ -1150,6 +1227,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           channel: candidate.channel,
           extractor: candidate.extractor,
           queueIndex: nextQueueIndex,
+          completedHistoryId: candidate.historyId,
+          outputCollisionPolicy: candidate.outputCollisionPolicy,
           settings: settingsSnapshot,
         });
         nextQueueIndex += 1;
@@ -1230,11 +1309,19 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             playlistTotal: entries.length,
             duplicateIdentity: buildDownloadDuplicateIdentity(entry.url, entry.id),
           }))
-          .filter((candidate) => !currentItems.some((item) => item.url === candidate.url));
+          .filter(
+            (candidate) =>
+              !currentItems.some(
+                (item) => isActiveDownloadQueueItem(item) && item.url === candidate.url,
+              ),
+          );
         const filteredCandidates = await filterDownloadedDuplicateCandidates(candidates);
         const currentItemsAfterReview = itemsRef.current;
         const enqueueCandidates = filteredCandidates.filter(
-          (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
+          (candidate) =>
+            !currentItemsAfterReview.some(
+              (item) => isActiveDownloadQueueItem(item) && item.url === candidate.url,
+            ),
         );
         const newItems: DownloadItem[] = enqueueCandidates.map((candidate) => ({
           id: crypto.randomUUID(),
@@ -1250,6 +1337,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           channel: candidate.channel,
           playlistIndex: candidate.playlistIndex,
           playlistTotal: candidate.playlistTotal,
+          completedHistoryId: candidate.historyId,
+          outputCollisionPolicy: candidate.outputCollisionPolicy,
           // Store settings snapshot
           settings: settingsSnapshot,
         }));
@@ -1663,8 +1752,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
               itemSettings?.timeRangeStart && itemSettings?.timeRangeEnd
                 ? `*${itemSettings.timeRangeStart}-${itemSettings.timeRangeEnd}`
                 : null,
-            // No history_id for new downloads
-            historyId: null,
+            // Restore the exact history row when re-downloading a missing output.
+            historyId: item.completedHistoryId || null,
+            outputCollisionPolicy: item.outputCollisionPolicy ?? 'overwrite',
             // Title from video info fetch
             title: item.title || null,
             // Thumbnail from video info fetch

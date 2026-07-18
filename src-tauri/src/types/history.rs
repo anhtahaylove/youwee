@@ -59,6 +59,14 @@ pub struct DownloadDuplicateMatch {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryFileState {
+    pub history_id: String,
+    pub filepath: String,
+    pub file_exists: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum HistorySort {
     #[default]
