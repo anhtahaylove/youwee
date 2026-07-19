@@ -491,7 +491,8 @@ fn push_facebook_title_replacement_args(args: &mut Vec<String>, url: &str, title
     args.extend([
         "--replace-in-metadata".to_string(),
         "title".to_string(),
-        r"(?i)^(?:video|facebook video|https?://\S+)$".to_string(),
+        r"(?is)^\s*(?:video|facebook video|https?://\S+|(?:(?:\d+(?:[.,]\d+)?[kmb]?\s*(?:comments?|reactions?|views?|likes?|shares?))\s*(?:[|·•—–-]\s*)?)+.*)$"
+            .to_string(),
         escape_metadata_replacement(title),
     ]);
 }
@@ -3800,6 +3801,11 @@ mod tests {
             .find(|window| window[0] == "--replace-in-metadata")
             .expect("metadata replacement args");
         assert_eq!(replacement[1], "title");
+        let title_pattern = regex::Regex::new(&replacement[2]).expect("valid title pattern");
+        assert!(title_pattern.is_match("Video"));
+        assert!(title_pattern
+            .is_match("4 comments | Tool Text-to-Speech ElevenLabs cho ae làm content"));
+        assert!(!title_pattern.is_match("Một tiêu đề thật"));
         assert_eq!(replacement[3], "Tiêu đề thật \\$5");
 
         let fallback_args = facebook_reel_core_fallback_args(
