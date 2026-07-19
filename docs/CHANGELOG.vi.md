@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.43] - 2026-07-20
+
+### Sửa lỗi
+- **Tên file Facebook Reel nhất quán** - Dùng lại tiêu đề metadata đã khôi phục cho cả placeholder `Video` khi có cookie và tiêu đề có tiền tố tương tác khi không dùng cookie, giúp Queue, Library và file tải về đồng bộ
+
 ## [0.19.1-custom.42] - 2026-07-19
 
 ### Thay đổi

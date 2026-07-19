@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.43] - 2026-07-20
+
+### Fixed
+- **Consistent Facebook Reel filenames** - Reuse recovered metadata titles for both cookie-mode `Video` placeholders and unauthenticated engagement-prefixed titles, keeping Queue, Library, and downloaded filenames aligned
+
 ## [0.19.1-custom.42] - 2026-07-19
 
 ### Changed
