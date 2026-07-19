@@ -285,6 +285,7 @@ interface DownloadContextType {
   removeItem: (id: string) => void;
   clearAll: () => void;
   clearCompleted: () => void;
+  reconcileCompletedFiles: () => Promise<void>;
   startDownload: () => Promise<void>;
   stopDownload: () => Promise<void>;
   updateSettings: (updates: Partial<DownloadSettings>) => void;
@@ -2306,6 +2307,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearAll,
       clearCompleted,
+      reconcileCompletedFiles,
       startDownload,
       stopDownload,
       updateSettings,
@@ -2374,6 +2376,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       removeItem,
       clearAll,
       clearCompleted,
+      reconcileCompletedFiles,
       startDownload,
       stopDownload,
       updateSettings,

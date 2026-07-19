@@ -77,7 +77,7 @@ export function isDownloadProgressForItem(
 export function reconcileQueueItemsWithHistoryStates(
   items: DownloadItem[],
   historyStates: readonly HistoryFileState[],
-  missingLegacyFilepaths: ReadonlySet<string> = new Set(),
+  missingFilepaths: ReadonlySet<string> = new Set(),
 ): DownloadItem[] {
   const stateByHistoryId = new Map(historyStates.map((state) => [state.historyId, state]));
   let changed = false;
@@ -87,7 +87,7 @@ export function reconcileQueueItemsWithHistoryStates(
       if (
         item.status === 'completed' &&
         item.completedFilepath &&
-        missingLegacyFilepaths.has(item.completedFilepath)
+        missingFilepaths.has(item.completedFilepath)
       ) {
         changed = true;
         return resetCompletedItemForMissingOutput(item);
@@ -96,7 +96,27 @@ export function reconcileQueueItemsWithHistoryStates(
     }
 
     const state = stateByHistoryId.get(item.completedHistoryId);
-    if (!state) return item;
+    if (!state) {
+      const isMissingOutput =
+        !item.completedFilepath || missingFilepaths.has(item.completedFilepath);
+      const isRecoverableQueueState =
+        item.status === 'completed' ||
+        (item.status === 'pending' && item.errorCode === 'OUTPUT_FILE_MISSING');
+      if (!isRecoverableQueueState) return item;
+
+      changed = true;
+      if (!isMissingOutput && item.status === 'completed') {
+        return {
+          ...item,
+          completedHistoryId: undefined,
+        };
+      }
+
+      return {
+        ...resetCompletedItemForMissingOutput(item),
+        completedHistoryId: undefined,
+      };
+    }
 
     if (!state.fileExists) {
       if (item.status !== 'completed') return item;
@@ -165,26 +185,33 @@ export async function reconcileDownloadQueueFileStates(
         .filter((historyId): historyId is string => Boolean(historyId)),
     ),
   );
-  const legacyCompletedItems = items.filter(
-    (item) => item.status === 'completed' && !item.completedHistoryId && item.completedFilepath,
-  );
-
-  const [historyStates, legacyChecks] = await Promise.all([
+  const historyStates =
     historyIds.length > 0
-      ? invoke<HistoryFileState[]>('get_history_file_states', { historyIds })
-      : Promise.resolve([]),
-    Promise.all(
-      legacyCompletedItems.map(async (item) => {
-        const filepath = item.completedFilepath as string;
-        const fileExists = await invoke<boolean>('check_file_exists', { filepath });
-        return fileExists ? null : filepath;
-      }),
+      ? await invoke<HistoryFileState[]>('get_history_file_states', { historyIds })
+      : [];
+  const existingHistoryIds = new Set(historyStates.map((state) => state.historyId));
+  const filepathsToCheck = Array.from(
+    new Set(
+      items
+        .filter(
+          (item) =>
+            item.status === 'completed' &&
+            item.completedFilepath &&
+            (!item.completedHistoryId || !existingHistoryIds.has(item.completedHistoryId)),
+        )
+        .map((item) => item.completedFilepath as string),
     ),
-  ]);
+  );
+  const fileChecks = await Promise.all(
+    filepathsToCheck.map(async (filepath) => {
+      const fileExists = await invoke<boolean>('check_file_exists', { filepath });
+      return fileExists ? null : filepath;
+    }),
+  );
 
   return reconcileQueueItemsWithHistoryStates(
     items,
     historyStates,
-    new Set(legacyChecks.filter((filepath): filepath is string => Boolean(filepath))),
+    new Set(fileChecks.filter((filepath): filepath is string => Boolean(filepath))),
   );
 }

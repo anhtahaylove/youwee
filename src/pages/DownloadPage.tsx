@@ -1,5 +1,5 @@
 import { ArrowLeft, Play, Square, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserCookieErrorDialog } from '@/components/BrowserCookieErrorDialog';
 import {
@@ -47,6 +47,7 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
     removeItem,
     clearAll,
     clearCompleted,
+    reconcileCompletedFiles,
     startDownload,
     stopDownload,
     updateQuality,
@@ -75,6 +76,11 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
 
   const [showFfmpegDialog, setShowFfmpegDialog] = useState(false);
   const [activeView, setActiveView] = useState<'download' | 'keywordSearch'>('download');
+
+  useEffect(() => {
+    void reconcileCompletedFiles();
+  }, [reconcileCompletedFiles]);
+
   const queuedVideoIds = useMemo(
     () =>
       new Set(

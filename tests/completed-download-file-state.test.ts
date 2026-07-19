@@ -85,6 +85,87 @@ describe('resetMissingCompletedQueueItems', () => {
     expect(result[0]?.errorCode).toBeUndefined();
   });
 
+  test('preserves the history identity when only the output file was removed', () => {
+    const item = {
+      id: 'download-1',
+      url: 'https://example.com/video',
+      title: 'Video',
+      status: 'completed',
+      progress: 100,
+      speed: '',
+      eta: '',
+      completedHistoryId: 'history-1',
+      completedFilepath: 'C:\\Downloads\\missing.mp4',
+    } satisfies DownloadItem;
+
+    const result = reconcileQueueItemsWithHistoryStates(
+      [item],
+      [
+        {
+          historyId: 'history-1',
+          filepath: 'C:\\Downloads\\missing.mp4',
+          fileExists: false,
+        },
+      ],
+    );
+
+    expect(result[0]).toMatchObject({
+      status: 'pending',
+      errorCode: 'OUTPUT_FILE_MISSING',
+      completedHistoryId: 'history-1',
+    });
+  });
+
+  test('returns a completed item to pending when its history row and output were deleted', () => {
+    const item = {
+      id: 'download-1',
+      url: 'https://example.com/video',
+      title: 'Video',
+      status: 'completed',
+      progress: 100,
+      speed: '',
+      eta: '',
+      completedHistoryId: 'deleted-history',
+      completedFilepath: 'C:\\Downloads\\deleted.mp4',
+    } satisfies DownloadItem;
+
+    const result = reconcileQueueItemsWithHistoryStates(
+      [item],
+      [],
+      new Set(['C:\\Downloads\\deleted.mp4']),
+    );
+
+    expect(result[0]).toMatchObject({
+      status: 'pending',
+      progress: 0,
+      errorCode: 'OUTPUT_FILE_MISSING',
+    });
+    expect(result[0]?.completedHistoryId).toBeUndefined();
+    expect(result[0]?.completedFilepath).toBeUndefined();
+  });
+
+  test('keeps an existing output completed but drops a deleted history identity', () => {
+    const item = {
+      id: 'download-1',
+      url: 'https://example.com/video',
+      title: 'Video',
+      status: 'completed',
+      progress: 100,
+      speed: '',
+      eta: '',
+      completedHistoryId: 'deleted-history',
+      completedFilepath: 'C:\\Downloads\\existing.mp4',
+    } satisfies DownloadItem;
+
+    const result = reconcileQueueItemsWithHistoryStates([item], [], new Set());
+
+    expect(result[0]).toMatchObject({
+      status: 'completed',
+      completedFilepath: 'C:\\Downloads\\existing.mp4',
+    });
+    expect(result[0]?.completedHistoryId).toBeUndefined();
+  });
+
   test('matches progress by job id or preserved history id', () => {
     const item = { id: 'queue-1', completedHistoryId: 'history-1' };
 
