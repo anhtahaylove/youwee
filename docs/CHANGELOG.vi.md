@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.42] - 2026-07-19
+
 ### Thay đổi
 - **Phản hồi CI nhanh hơn** - Hủy lượt CI cũ trên cùng branch hoặc pull request và dùng checkout v6 cho các workflow chạy trên GitHub-hosted runner
 - **Phát hành custom an toàn hơn** - Thêm helper bump version mặc định dry-run, kiểm tra ba version ứng dụng đồng bộ, chuyển Unreleased của cả ba changelog, suy ra version Windows Installer và giữ version extension store độc lập
