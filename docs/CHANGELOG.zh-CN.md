@@ -7,6 +7,12 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.20.0-custom.45] - 2026-07-21
+
+### 修复
+
+- **队列缺失文件同步** - Universal 和 YouTube 队列现在会在队列页面保持打开时自动检测已完成文件被删除的情况，将项目恢复为 Pending，并重新启用 Start Download，无需先进入 Library。
+
 ## [0.20.0-custom.1] - 2026-07-20
 
 ### 变更

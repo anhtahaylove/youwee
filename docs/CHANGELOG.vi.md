@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.45] - 2026-07-21
+
+### Sửa lỗi
+
+- **Đồng bộ file bị thiếu trong hàng đợi** - Universal và YouTube Queue giờ tự nhận diện file Completed đã bị xóa ngay khi vẫn đang đứng ở trang Queue, chuyển item về Pending và bật lại Start Download mà không cần mở Library trước.
+
 ## [0.20.0-custom.1] - 2026-07-20
 
 ### Thay đổi

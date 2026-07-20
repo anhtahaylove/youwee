@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.45] - 2026-07-21
+
+### Fixed
+
+- **Queue file-missing reconciliation** - Universal and YouTube queue items now detect deleted completed files while the queue page stays open, return to Pending, and re-enable Start Download without visiting Library first.
+
 ## [0.20.0-custom.1] - 2026-07-20
 
 ### Changed
