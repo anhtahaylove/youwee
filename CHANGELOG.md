@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.1] - 2026-07-20
+
+### Changed
+- **Custom base version alignment** - Align the custom release train with upstream Youwee v0.20.0 while preserving the custom updater channel and existing custom patches
+
 ## [0.19.1-custom.44] - 2026-07-20
 
 ### Fixed

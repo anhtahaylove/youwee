@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.1] - 2026-07-20
+
+### Thay đổi
+- **Đồng bộ nền version custom** - Căn nhánh phát hành custom theo upstream Youwee v0.20.0 nhưng vẫn giữ kênh updater custom và toàn bộ patch custom hiện có
+
 ## [0.19.1-custom.44] - 2026-07-20
 
 ### Sửa lỗi
