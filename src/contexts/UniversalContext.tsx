@@ -398,6 +398,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   }, [queueFileStateFingerprint, reconcileCompletedFiles]);
 
   useEffect(() => {
+    if (!queueFileStateFingerprint) return;
+    const timer = window.setInterval(() => {
+      void reconcileCompletedFiles();
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [queueFileStateFingerprint, reconcileCompletedFiles]);
+
+  useEffect(() => {
     const handleWindowFocus = () => {
       void reconcileCompletedFiles();
     };
