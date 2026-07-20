@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.19.1-custom.44] - 2026-07-20
+
+### Sửa lỗi
+- **Khôi phục Queue sau khi xóa trong Library** - Đối chiếu lại item Universal và YouTube đã lưu khi file tải xuống cùng bản ghi lịch sử bị xóa, đưa item về Pending để có thể tải lại mà không cần thêm URL lần nữa
+
 ## [0.19.1-custom.43] - 2026-07-20
 
 ### Sửa lỗi

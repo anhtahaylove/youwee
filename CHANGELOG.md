@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1-custom.44] - 2026-07-20
+
+### Fixed
+- **Queue recovery after Library deletion** - Reconcile persisted Universal and YouTube items when their downloaded file and history record are removed, returning them to Pending so they can be downloaded again without adding the URL again
+
 ## [0.19.1-custom.43] - 2026-07-20
 
 ### Fixed
