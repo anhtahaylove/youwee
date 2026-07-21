@@ -1,0 +1,18 @@
+{
+  "addons": {
+    "youwee@anhtahaylove.com": {
+      "updates": [
+        {
+          "version": "0.19.1.37",
+          "update_link": "https://addons.mozilla.org/firefox/downloads/file/4904844/youwee_download_companion-0.19.1.37.xpi",
+          "update_hash": "sha256:e71f177072f008d1990762573185f66334be8ce22adf52cbcb575503732dd7fd",
+          "applications": {
+            "gecko": {
+              "strict_min_version": "140.0"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

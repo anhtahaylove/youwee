@@ -31,13 +31,7 @@ Giữ nguyên vị trí thư mục này. Youwee sẽ cập nhật nội dung khi
 Nếu trình duyệt vẫn hiển thị bản cũ, quay lại chrome://extensions và nhấn Tải lại.
 `;
 
-async function buildTarget(
-  target,
-  appVersion,
-  extensionVersion,
-  manifestTarget = target,
-  transformManifest = (manifest) => manifest,
-) {
+async function buildTarget(target, appVersion, extensionVersion, manifestTarget = target) {
   const outDir = path.join(distDir, target);
   const manifestPath = path.join(extensionRoot, `manifest.${manifestTarget}.json`);
 
@@ -45,7 +39,7 @@ async function buildTarget(
   await cp(srcDir, outDir, { recursive: true });
 
   const manifestContent = await readFile(manifestPath, 'utf8');
-  const manifest = transformManifest(JSON.parse(manifestContent));
+  const manifest = JSON.parse(manifestContent);
   manifest.version = extensionVersion;
   manifest.version_name = appVersion;
   await writeFile(
@@ -77,10 +71,7 @@ async function run() {
 
   await buildTarget('chromium', appVersion, extensionVersion);
   await buildTarget('firefox', appVersion, extensionVersion);
-  await buildTarget('firefox-amo', appVersion, extensionVersion, 'firefox', (manifest) => {
-    delete manifest.browser_specific_settings?.gecko?.update_url;
-    return manifest;
-  });
+  await buildTarget('firefox-amo', appVersion, extensionVersion, 'firefox');
 
   console.log(`Built extension packages (${appVersion} -> ${extensionVersion}):`);
   console.log(`- ${path.join(distDir, 'chromium')}`);

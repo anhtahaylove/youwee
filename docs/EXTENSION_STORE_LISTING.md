@@ -4,11 +4,11 @@ This document is the source of truth for the Firefox Add-ons (AMO) and Chrome We
 
 ## Current distribution status
 
-The existing Firefox add-on is **unlisted/self-distributed**. The release workflow signs it with `web-ext sign --channel unlisted`, and the Firefox manifest points updates to GitHub. Therefore, the AMO product URL is visible only to the owner, developers, and reviewers.
+The Firefox add-on is **public and listed on AMO** at <https://addons.mozilla.org/firefox/addon/youwee-download-companion/>. AMO approved version `0.19.1.37`, which is now the canonical stable Firefox channel.
 
-For a public AMO listing, upload a new, unique version to the **listed** channel using `Youwee-Extension-Firefox-AMO.zip`. This package intentionally omits the self-hosted `update_url`, so AMO can manage updates.
+The Firefox source manifest intentionally omits `update_url`, so Firefox receives future stable updates from AMO. GitHub releases retain a validated one-time `firefox-updates.json` bridge that moves older self-hosted installs to the signed AMO `0.19.1.37` XPI.
 
-The previous `0.19.1.35` extension already exists in the unlisted channel. Submit `0.19.1.36` from `Youwee-Extension-Firefox-AMO.zip` to the listed channel so the version remains unique across both channels.
+Use `Youwee-Extension-Firefox-AMO.zip` only when submitting a new, unique listed version. Do not publish new unlisted stable builds or reuse a version that already exists on AMO.
 
 ## Shared product identity
 
@@ -200,15 +200,12 @@ Chrome requires at least one 1280x800 screenshot and a 440x280 small promotional
 
 ## Public AMO publication sequence
 
-1. Keep the current unlisted extension active until the public replacement is approved.
-2. Complete **Edit Product Page** using the localized copy above.
-3. In **Manage Authors & License**, keep `anhtahaylove` as owner, select MIT, and add original-project credit.
-4. Bump the app/extension version so the new listed version is unique across both AMO channels.
-5. Run `bun run ext:package` and validate `Youwee-Extension-Firefox-AMO.zip`.
-6. In **Manage Status & Versions**, upload that AMO package as a new **listed / On this site** version for Firefox Desktop only.
-7. Add the reviewer notes and submit for review. Do not mark it experimental if the release has passed the normal smoke tests.
-8. After approval, make AMO the canonical stable Firefox channel. Do not publish the same version number to both listed and unlisted channels.
-9. Ask existing self-hosted users to install the AMO listing once unless a separately tested migration bridge is implemented.
+1. Bump the independent extension version in both source manifests; do not couple it to the desktop app version.
+2. Run `bun run ext:package` and validate `Youwee-Extension-Firefox-AMO.zip`.
+3. In **Manage Status & Versions**, upload that package as a new **listed / On this site** version for Firefox Desktop.
+4. Add reviewer notes, submit for review, and wait for AMO approval before calling the version stable.
+5. After approval, update the AMO migration bridge only when older self-hosted users need a newer handoff target.
+6. Keep the add-on ID `youwee@anhtahaylove.com`; changing it would create a separate extension and lose the migration path.
 
 ## Chrome Web Store publication sequence
 

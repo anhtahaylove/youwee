@@ -7,6 +7,10 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Thay đổi
+
+- **Kênh Firefox stable** - Chuyển nguồn extension stable chính thức sang trang AMO công khai và giữ bridge một lần đã xác minh cho các bản self-hosted cũ.
+
 ## [0.20.0-custom.45] - 2026-07-21
 
 ### Sửa lỗi

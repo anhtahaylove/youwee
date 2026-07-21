@@ -129,7 +129,7 @@ Use Youwee only with content you own, have permission to use, or are legally all
 | Browser | Download |
 |---------|----------|
 | **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | Bundled with the custom Windows installer, or use upstream extension assets |
-| **Firefox** | Bundled with the custom Windows installer, or use upstream extension assets |
+| **Firefox** | [Install from Mozilla Add-ons](https://addons.mozilla.org/firefox/addon/youwee-download-companion/) |
 
 - One-click send current page to Youwee with `Download now` or `Add to queue`
 - Floating button supports `Video/Audio` + quality selection on supported sites

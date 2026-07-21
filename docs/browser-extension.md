@@ -53,7 +53,7 @@ Popup sending works for all valid HTTP/HTTPS pages.
 | Browser | Download |
 |---------|----------|
 | **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Download .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Download .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Firefox** | [Install from Mozilla Add-ons](https://addons.mozilla.org/firefox/addon/youwee-download-companion/) |
 
 ## Install Guide
 
@@ -67,9 +67,9 @@ Popup sending works for all valid HTTP/HTTPS pages.
 
 ### Firefox
 
-1. Download `Youwee-Extension-Firefox-signed.xpi`.
-2. Drag and drop the `.xpi` into Firefox (or open it directly).
-3. Confirm installation.
+1. Open [Youwee Download Companion on Mozilla Add-ons](https://addons.mozilla.org/firefox/addon/youwee-download-companion/).
+2. Select **Add to Firefox**.
+3. Confirm the requested permissions. Firefox and AMO manage future stable updates automatically.
 
 ## Prerequisites
 
@@ -109,7 +109,7 @@ Outputs:
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip`
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip`
 
-Signed Firefox `.xpi` is generated in CI release pipeline.
+The stable Firefox channel is reviewed, signed, and updated by AMO. The ZIP files are for development and future store submissions only.
 
 - [Extension privacy notice](EXTENSION_PRIVACY.md)
 - [AMO and Chrome Web Store listing kit](EXTENSION_STORE_LISTING.md)

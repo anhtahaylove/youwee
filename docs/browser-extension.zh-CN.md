@@ -56,7 +56,7 @@
 | 浏览器 | 下载 |
 |--------|------|
 | **Chromium**（Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc） | [下载 .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [下载 .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Firefox** | [从 Mozilla Add-ons 安装](https://addons.mozilla.org/zh-CN/firefox/addon/youwee-download-companion/) |
 
 ## 安装说明
 
@@ -70,9 +70,9 @@
 
 ### Firefox
 
-1. 下载 `Youwee-Extension-Firefox-signed.xpi`。
-2. 将 `.xpi` 拖放到 Firefox（或直接打开该文件）。
-3. 确认安装。
+1. 打开 [Mozilla Add-ons 上的 Youwee Download Companion](https://addons.mozilla.org/zh-CN/firefox/addon/youwee-download-companion/)。
+2. 点击 **添加到 Firefox**。
+3. 确认所需权限。后续稳定版更新由 Firefox 和 AMO 自动管理。
 
 ## 前置条件
 
@@ -112,7 +112,7 @@ bun run ext:package
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip`
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip`
 
-已签名 Firefox `.xpi` 由 CI 发布流程生成。
+Firefox 稳定渠道由 AMO 审核、签名并更新。ZIP 文件仅用于开发和后续商店提交。
 
 - [扩展隐私声明](EXTENSION_PRIVACY.md)
 - [AMO 与 Chrome Web Store 上架资料](EXTENSION_STORE_LISTING.md)

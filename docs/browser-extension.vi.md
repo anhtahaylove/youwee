@@ -56,7 +56,7 @@ Popup vẫn gửi được trên mọi trang HTTP/HTTPS hợp lệ.
 | Trình duyệt | Tải về |
 |-------------|--------|
 | **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Tải .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Tải .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Firefox** | [Cài từ Mozilla Add-ons](https://addons.mozilla.org/vi/firefox/addon/youwee-download-companion/) |
 
 ## Hướng Dẫn Cài Đặt
 
@@ -70,9 +70,9 @@ Popup vẫn gửi được trên mọi trang HTTP/HTTPS hợp lệ.
 
 ### Firefox
 
-1. Tải `Youwee-Extension-Firefox-signed.xpi`.
-2. Kéo thả file `.xpi` vào Firefox (hoặc mở trực tiếp file).
-3. Xác nhận cài đặt.
+1. Mở [Youwee Download Companion trên Mozilla Add-ons](https://addons.mozilla.org/vi/firefox/addon/youwee-download-companion/).
+2. Bấm **Thêm vào Firefox**.
+3. Xác nhận quyền được yêu cầu. Firefox và AMO sẽ tự quản lý các bản cập nhật stable tiếp theo.
 
 ## Điều Kiện Cần Có
 
@@ -112,7 +112,7 @@ Kết quả:
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip`
   - `extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip`
 
-File Firefox `.xpi` signed sẽ được tạo trong pipeline release CI.
+Kênh Firefox stable được AMO kiểm duyệt, ký và cập nhật. Các file ZIP chỉ dùng cho development và lần submit store tiếp theo.
 
 - [Thông báo quyền riêng tư của extension](EXTENSION_PRIVACY.md)
 - [Bộ nội dung đăng AMO và Chrome Web Store](EXTENSION_STORE_LISTING.md)

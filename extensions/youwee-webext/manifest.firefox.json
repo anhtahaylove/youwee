@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
-  "version": "0.19.1.36",
+  "version": "0.19.1.37",
   "default_locale": "en",
   "icons": {
     "16": "icons/logo-16.png",
@@ -90,7 +90,6 @@
     "gecko": {
       "id": "youwee@anhtahaylove.com",
       "strict_min_version": "140.0",
-      "update_url": "https://github.com/anhtahaylove/youwee/releases/latest/download/firefox-updates.json",
       "data_collection_permissions": {
         "required": ["browsingActivity"]
       }

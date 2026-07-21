@@ -250,91 +250,8 @@ jobs:
       - name: Build and package extension archives
         run: bun run ext:package
 
-      - name: Validate Firefox self-hosted extension
-        run: bunx web-ext lint --source-dir extensions/youwee-webext/dist/firefox --self-hosted --warnings-as-errors
-
-      - name: Check Firefox signing secrets
-        id: firefox-signing
-        env:
-          FIREFOX_AMO_JWT_ISSUER: ${{ secrets.FIREFOX_AMO_JWT_ISSUER }}
-          FIREFOX_AMO_JWT_SECRET: ${{ secrets.FIREFOX_AMO_JWT_SECRET }}
-        run: |
-          if [ -n "$FIREFOX_AMO_JWT_ISSUER" ] && [ -n "$FIREFOX_AMO_JWT_SECRET" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "Firefox AMO secrets are not configured; skipping Firefox extension signing."
-          fi
-
-      - name: Sign Firefox extension (AMO unlisted)
-        if: steps.firefox-signing.outputs.enabled == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set +e
-          SIGN_LOG=$(mktemp)
-          bunx web-ext sign \
-            --source-dir extensions/youwee-webext/dist/firefox \
-            --artifacts-dir extensions/youwee-webext/dist/packages \
-            --channel unlisted \
-            --api-key "${{ secrets.FIREFOX_AMO_JWT_ISSUER }}" \
-            --api-secret "${{ secrets.FIREFOX_AMO_JWT_SECRET }}" 2>&1 | tee "$SIGN_LOG"
-          SIGN_STATUS=${PIPESTATUS[0]}
-          set -e
-
-          if [ "$SIGN_STATUS" -eq 0 ]; then
-            exit 0
-          fi
-
-          EXTENSION_VERSION=$(jq -er '.version' extensions/youwee-webext/dist/firefox/manifest.json)
-          if ! grep -Fq "Version $EXTENSION_VERSION already exists." "$SIGN_LOG"; then
-            exit "$SIGN_STATUS"
-          fi
-
-          echo "AMO already has Firefox extension $EXTENSION_VERSION; recovering its signed XPI from the latest matching workflow artifact."
-          ARTIFACT_ID=$(gh api \
-            "/repos/$GITHUB_REPOSITORY/actions/artifacts?name=youwee-extension-packages&per_page=100" \
-            --jq ".artifacts[] | select(.expired == false and .workflow_run.id != $GITHUB_RUN_ID) | .id" \
-            | head -1)
-          if [ -z "$ARTIFACT_ID" ]; then
-            echo "No non-expired extension artifact is available for AMO version $EXTENSION_VERSION."
-            exit "$SIGN_STATUS"
-          fi
-
-          RECOVERY_DIR=$(mktemp -d)
-          gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip" > "$RECOVERY_DIR/artifact.zip"
-          unzip -q "$RECOVERY_DIR/artifact.zip" -d "$RECOVERY_DIR/artifact"
-          RECOVERED_XPI=$(find "$RECOVERY_DIR/artifact" -type f -name 'Youwee-Extension-Firefox-signed.xpi' -print -quit)
-          if [ -z "$RECOVERED_XPI" ]; then
-            echo "The recovery artifact does not contain a signed Firefox XPI."
-            exit "$SIGN_STATUS"
-          fi
-
-          CURRENT_EXTENSION_ID=$(jq -er '.browser_specific_settings.gecko.id' extensions/youwee-webext/dist/firefox/manifest.json)
-          RECOVERED_MANIFEST=$(unzip -p "$RECOVERED_XPI" manifest.json)
-          RECOVERED_VERSION=$(printf '%s' "$RECOVERED_MANIFEST" | jq -er '.version')
-          RECOVERED_EXTENSION_ID=$(printf '%s' "$RECOVERED_MANIFEST" | jq -er '.browser_specific_settings.gecko.id')
-          if [ "$RECOVERED_VERSION" != "$EXTENSION_VERSION" ] || [ "$RECOVERED_EXTENSION_ID" != "$CURRENT_EXTENSION_ID" ]; then
-            echo "Recovered XPI identity mismatch: $RECOVERED_EXTENSION_ID $RECOVERED_VERSION"
-            exit "$SIGN_STATUS"
-          fi
-
-          cp "$RECOVERED_XPI" extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi
-          echo "Recovered signed Firefox XPI $RECOVERED_VERSION from artifact $ARTIFACT_ID."
-
-      - name: Rename signed Firefox XPI
-        if: steps.firefox-signing.outputs.enabled == 'true'
-        run: |
-          TARGET_XPI="extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi"
-          if [ ! -f "$TARGET_XPI" ]; then
-            SIGNED_XPI=$(find extensions/youwee-webext/dist/packages -name "*.xpi" | head -1)
-            if [ -z "$SIGNED_XPI" ]; then
-              echo "Signed Firefox XPI not found."
-              exit 1
-            fi
-            mv "$SIGNED_XPI" "$TARGET_XPI"
-          fi
-          ls -la extensions/youwee-webext/dist/packages
+      - name: Validate Firefox AMO package
+        run: bunx web-ext lint --source-dir extensions/youwee-webext/dist/firefox-amo --warnings-as-errors
 
       - name: Upload extension artifacts
         uses: actions/upload-artifact@v6
@@ -343,7 +260,7 @@ jobs:
           path: |
             extensions/youwee-webext/dist/packages/Youwee-Extension-Chromium.zip
             extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox.zip
-            extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-signed.xpi
+            extensions/youwee-webext/dist/packages/Youwee-Extension-Firefox-AMO.zip
           if-no-files-found: error
 
   # Create release after all builds complete
@@ -374,7 +291,7 @@ jobs:
             "Youwee-Windows-Full-Setup.exe.sig"
             "Youwee-Extension-Chromium.zip"
             "Youwee-Extension-Firefox.zip"
-            "Youwee-Extension-Firefox-signed.xpi"
+            "Youwee-Extension-Firefox-AMO.zip"
           )
 
           for asset in "${REQUIRED_ASSETS[@]}"; do
@@ -565,42 +482,33 @@ jobs:
           echo "Generated latest.json:"
           cat latest.json
 
-      - name: Generate Firefox extension update manifest
+      - name: Validate Firefox AMO migration bridge
         run: |
-          FIREFOX_XPI=$(find artifacts -type f -name "Youwee-Extension-Firefox-signed.xpi" -print -quit)
-          EXTENSION_MANIFEST=$(unzip -p "$FIREFOX_XPI" manifest.json)
-          EXTENSION_ID=$(printf '%s' "$EXTENSION_MANIFEST" | jq -er '.browser_specific_settings.gecko.id')
-          EXTENSION_VERSION=$(printf '%s' "$EXTENSION_MANIFEST" | jq -er '.version')
-          EXTENSION_MIN_VERSION=$(printf '%s' "$EXTENSION_MANIFEST" | jq -er '.browser_specific_settings.gecko.strict_min_version')
-          XPI_SHA256=$(sha256sum "$FIREFOX_XPI" | cut -d' ' -f1)
-          XPI_URL="https://github.com/${{ github.repository }}/releases/download/$GITHUB_REF_NAME/Youwee-Extension-Firefox-signed.xpi"
+          BRIDGE=extensions/youwee-webext/firefox-amo-bridge.json
+          EXTENSION_ID=$(jq -er '.browser_specific_settings.gecko.id' extensions/youwee-webext/manifest.firefox.json)
+          EXTENSION_VERSION=$(jq -er '.version' extensions/youwee-webext/manifest.firefox.json)
+          EXTENSION_MIN_VERSION=$(jq -er '.browser_specific_settings.gecko.strict_min_version' extensions/youwee-webext/manifest.firefox.json)
+          UPDATE=$(jq -cer --arg id "$EXTENSION_ID" '.addons[$id].updates[0]' "$BRIDGE")
+          UPDATE_URL=$(printf '%s' "$UPDATE" | jq -er '.update_link')
+          UPDATE_HASH=$(printf '%s' "$UPDATE" | jq -er '.update_hash')
 
-          jq -n \
-            --arg id "$EXTENSION_ID" \
+          printf '%s' "$UPDATE_URL" | grep -Eq '^https://addons\.mozilla\.org/'
+          printf '%s' "$UPDATE_HASH" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          printf '%s' "$UPDATE" | jq -e \
             --arg version "$EXTENSION_VERSION" \
             --arg minVersion "$EXTENSION_MIN_VERSION" \
-            --arg link "$XPI_URL" \
-            --arg hash "$XPI_SHA256" \
-            '{
-              addons: {
-                ($id): {
-                  updates: [{
-                    version: $version,
-                    update_link: $link,
-                    update_hash: ("sha256:" + $hash),
-                    applications: {
-                      gecko: {
-                        strict_min_version: $minVersion
-                      }
-                    }
-                  }]
-                }
-              }
-            }' > firefox-updates.json
+            '.version == $version and .applications.gecko.strict_min_version == $minVersion' > /dev/null
 
-          jq -e --arg id "$EXTENSION_ID" --arg version "$EXTENSION_VERSION" \
-            '.addons[$id].updates[0].version == $version' firefox-updates.json > /dev/null
-          echo "Generated firefox-updates.json:"
+          curl --fail --location --retry 3 "$UPDATE_URL" -o /tmp/youwee-amo.xpi
+          printf '%s  %s\n' "${UPDATE_HASH#sha256:}" /tmp/youwee-amo.xpi | sha256sum --check
+          AMO_MANIFEST=$(unzip -p /tmp/youwee-amo.xpi manifest.json)
+          printf '%s' "$AMO_MANIFEST" | jq -e \
+            --arg id "$EXTENSION_ID" \
+            --arg version "$EXTENSION_VERSION" \
+            '.version == $version and .browser_specific_settings.gecko.id == $id and (.browser_specific_settings.gecko.update_url == null)' > /dev/null
+
+          cp "$BRIDGE" firefox-updates.json
+          echo "Validated one-time migration bridge to AMO:"
           cat firefox-updates.json
 
       - name: Generate SHA256 checksums
@@ -667,7 +575,7 @@ jobs:
           > **macOS:** Builds are ad-hoc signed until Apple Developer ID notarization is configured. On first launch, use **System Settings → Privacy & Security → Open Anyway** if Gatekeeper blocks the app.
           DOWNLOADS
 
-          echo '| 🦊 **Extension (Firefox Stable)** | `Youwee-Extension-Firefox-signed.xpi` | Signed add-on with automatic updates from GitHub releases |' >> RELEASE_BODY.md
+          echo '| 🦊 **Extension (Firefox Stable)** | [Install from AMO](https://addons.mozilla.org/firefox/addon/youwee-download-companion/) | Public reviewed add-on with updates managed by Firefox/AMO |' >> RELEASE_BODY.md
 
           cat >> RELEASE_BODY.md << 'DETAILS'
           
@@ -687,7 +595,7 @@ jobs:
           - Firefox developer build: download `Youwee-Extension-Firefox.zip` -> extract -> open `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> select `manifest.json`.
           DETAILS
 
-          echo '- Firefox stable: install `Youwee-Extension-Firefox-signed.xpi` once; later signed releases update automatically through `firefox-updates.json`.' >> RELEASE_BODY.md
+          echo '- Firefox stable: install from [Mozilla Add-ons](https://addons.mozilla.org/firefox/addon/youwee-download-companion/). Existing self-hosted installs receive a one-time bridge to the AMO build.' >> RELEASE_BODY.md
 
           cat >> RELEASE_BODY.md << 'VERIFY'
 
@@ -722,7 +630,6 @@ jobs:
             artifacts/**/*.exe.sig
             artifacts/**/*.app.tar.gz
             artifacts/**/*.app.tar.gz.sig
-            artifacts/**/*.xpi
             artifacts/**/Youwee-Extension-*.zip
             firefox-updates.json
             latest.json

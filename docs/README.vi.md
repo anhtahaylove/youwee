@@ -108,7 +108,7 @@ Chỉ sử dụng Youwee với nội dung bạn sở hữu, được phép sử 
 | Trình duyệt | Tải về |
 |-------------|--------|
 | **Chromium** (Chrome/Edge/Brave/Opera/Vivaldi/Arc/Coc Coc) | [Tải .zip](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip) |
-| **Firefox** | [Tải .xpi](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi) |
+| **Firefox** | [Cài từ Mozilla Add-ons](https://addons.mozilla.org/vi/firefox/addon/youwee-download-companion/) |
 
 - Gửi link từ tab hiện tại sang Youwee chỉ với 1 lần bấm (`Download now` hoặc `Add to queue`)
 - Nút nổi hỗ trợ chọn `Video/Audio` + chất lượng trên các trang được hỗ trợ
