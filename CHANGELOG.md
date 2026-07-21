@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.46] - 2026-07-21
+
 ### Changed
 
 - **Firefox stable channel** - Make the public AMO listing the canonical stable extension source and retain a verified one-time bridge for older self-hosted installs.
