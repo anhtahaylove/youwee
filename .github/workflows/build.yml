@@ -114,9 +114,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: src-tauri/target/dependency-cache/windows
-          key: youwee-windows-dependencies-${{ hashFiles('src-tauri/dependencies.windows.lock.json') }}
+          key: youwee-windows-dependencies-${{ hashFiles('src-tauri/dependencies.windows.lock.json', 'extensions/youwee-webext/firefox-amo-bridge.json') }}
 
-      - name: Prepare Windows Full Installer dependencies and Chromium extension
+      - name: Prepare Windows Full Installer dependencies and browser extensions
         if: matrix.os_name == 'windows'
         shell: pwsh
         run: ./scripts/prepare-windows-dependencies.ps1
@@ -587,6 +587,7 @@ jobs:
           ## Included on Windows
           - **yt-dlp, FFmpeg/ffprobe, Deno and gallery-dl** are bundled in the Full installers.
           - The unpacked Chromium extension is included too. Open **Settings → Browser Extension → Open extension folder** for guided setup.
+          - A signed Firefox XPI is included for offline recovery. Mozilla Add-ons remains the recommended path for automatic extension updates.
           - App-managed dependency updates remain available in Settings and override the bundled copy.
 
           ## Browser Extension Install

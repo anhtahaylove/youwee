@@ -449,6 +449,7 @@ pub fn run() {
             commands::open_file_location,
             commands::check_file_exists,
             commands::get_bundled_chromium_extension_path,
+            commands::get_bundled_firefox_extension_path,
             // Asset scope & history helpers
             commands::allow_asset_file,
             commands::sync_asset_scope_paths,

@@ -12,6 +12,9 @@ $cacheRoot = Join-Path $repoRoot 'src-tauri\target\dependency-cache\windows'
 $extractRoot = Join-Path $cacheRoot 'extracted'
 $tauriConfigPath = Join-Path $repoRoot 'src-tauri\tauri.windows.full.conf.json'
 $chromiumExtensionPath = Join-Path $repoRoot 'extensions\youwee-webext\dist\chromium'
+$firefoxManifestPath = Join-Path $repoRoot 'extensions\youwee-webext\manifest.firefox.json'
+$firefoxBridgePath = Join-Path $repoRoot 'extensions\youwee-webext\firefox-amo-bridge.json'
+$firefoxExtensionPath = Join-Path $cacheRoot 'Youwee-Extension-Firefox-signed.xpi'
 
 function Get-ArtifactName {
   param([Parameter(Mandatory = $true)][string]$Url)
@@ -110,6 +113,39 @@ if ($manifest.schemaVersion -ne 1 -or $manifest.platform -ne 'windows-x86_64') {
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $extractRoot | Out-Null
 
+$firefoxManifest = Get-Content -LiteralPath $firefoxManifestPath -Raw | ConvertFrom-Json
+$firefoxExtensionId = [string]$firefoxManifest.browser_specific_settings.gecko.id
+$firefoxBridge = Get-Content -LiteralPath $firefoxBridgePath -Raw | ConvertFrom-Json
+$firefoxAddon = $firefoxBridge.addons.PSObject.Properties[$firefoxExtensionId].Value
+$firefoxUpdate = @($firefoxAddon.updates)[0]
+$firefoxExpectedHash = ([string]$firefoxUpdate.update_hash) -replace '^sha256:', ''
+
+if (-not $firefoxUpdate -or -not $firefoxExpectedHash) {
+  throw "Firefox AMO bridge does not contain an update for '$firefoxExtensionId'."
+}
+
+$needsFirefoxDownload = $ForceDownload -or -not (Test-Path -LiteralPath $firefoxExtensionPath -PathType Leaf)
+if (-not $needsFirefoxDownload) {
+  try {
+    Assert-Sha256 -Path $firefoxExtensionPath -Expected $firefoxExpectedHash
+  }
+  catch {
+    Remove-Item -LiteralPath $firefoxExtensionPath -Force
+    $needsFirefoxDownload = $true
+  }
+}
+
+if ($needsFirefoxDownload) {
+  $temporaryFirefoxPath = "$firefoxExtensionPath.download"
+  Remove-Item -LiteralPath $temporaryFirefoxPath -Force -ErrorAction SilentlyContinue
+  Invoke-WebRequest -Uri ([string]$firefoxUpdate.update_link) -OutFile $temporaryFirefoxPath
+  Assert-Sha256 -Path $temporaryFirefoxPath -Expected $firefoxExpectedHash
+  Move-Item -LiteralPath $temporaryFirefoxPath -Destination $firefoxExtensionPath -Force
+}
+
+Assert-Sha256 -Path $firefoxExtensionPath -Expected $firefoxExpectedHash
+Write-Host "Prepared signed Firefox extension $($firefoxUpdate.version): $firefoxExtensionPath"
+
 foreach ($dependency in $manifest.dependencies) {
   $artifactName = Get-ArtifactName -Url ([string]$dependency.url)
   $artifactPath = Join-Path $cacheRoot $artifactName
@@ -173,6 +209,7 @@ $resources = [ordered]@{
   'resources/dependencies/THIRD_PARTY_NOTICES.txt' = 'dependencies/THIRD_PARTY_NOTICES.txt'
   'dependencies.windows.lock.json' = 'dependencies/dependencies.windows.lock.json'
   '../extensions/youwee-webext/dist/chromium' = 'Youwee-Extension-Chromium'
+  'target/dependency-cache/windows/Youwee-Extension-Firefox-signed.xpi' = 'Youwee-Extension-Firefox-signed.xpi'
 }
 
 $fullConfig = [ordered]@{

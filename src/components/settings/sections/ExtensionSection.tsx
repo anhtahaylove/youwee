@@ -44,12 +44,16 @@ export function ExtensionSection({ highlightId }: ExtensionSectionProps) {
   const { t } = useTranslation('settings');
   const toast = useToast();
   const [bundledChromiumPath, setBundledChromiumPath] = useState<string | null>(null);
+  const [bundledFirefoxPath, setBundledFirefoxPath] = useState<string | null>(null);
   const [copiedValue, setCopiedValue] = useState<'path' | 'address' | null>(null);
 
   useEffect(() => {
     invoke<string | null>('get_bundled_chromium_extension_path')
       .then((path) => setBundledChromiumPath(path ? normalizeAssetPath(path) : null))
       .catch(() => setBundledChromiumPath(null));
+    invoke<string | null>('get_bundled_firefox_extension_path')
+      .then((path) => setBundledFirefoxPath(path ? normalizeAssetPath(path) : null))
+      .catch(() => setBundledFirefoxPath(null));
   }, []);
 
   const copyValue = async (value: string, kind: 'path' | 'address') => {
@@ -68,6 +72,18 @@ export function ExtensionSection({ highlightId }: ExtensionSectionProps) {
     if (!bundledChromiumPath) return;
     try {
       await openFileLocation(bundledChromiumPath);
+    } catch (error) {
+      toast.error({
+        title: t('extension.openBundledFolderError'),
+        message: String(error),
+      });
+    }
+  };
+
+  const openBundledFirefoxPackage = async () => {
+    if (!bundledFirefoxPath) return;
+    try {
+      await openFileLocation(bundledFirefoxPath);
     } catch (error) {
       toast.error({
         title: t('extension.openBundledFolderError'),
@@ -153,7 +169,9 @@ export function ExtensionSection({ highlightId }: ExtensionSectionProps) {
           <SettingsRow
             id="extension-firefox"
             label={t('extension.firefox')}
-            description={t('extension.firefoxDesc')}
+            description={t(
+              bundledFirefoxPath ? 'extension.firefoxBundledDesc' : 'extension.firefoxDesc',
+            )}
             highlight={highlightId === 'extension-firefox'}
             controlClassName="md:max-w-md"
           >
@@ -163,6 +181,12 @@ export function ExtensionSection({ highlightId }: ExtensionSectionProps) {
                   <Check className="mr-1 h-3 w-3" />
                   {t('extension.recommended')}
                 </Badge>
+                {bundledFirefoxPath && (
+                  <Badge variant="secondary">
+                    <Check className="mr-1 h-3 w-3" />
+                    {t('extension.bundledReady')}
+                  </Badge>
+                )}
                 <Button asChild size="sm" className="h-9 gap-1.5">
                   <a href={FIREFOX_AMO_URL} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-3.5 w-3.5" />
@@ -186,18 +210,36 @@ export function ExtensionSection({ highlightId }: ExtensionSectionProps) {
                 <CollapsibleContent>
                   <div className="mt-2 flex flex-col gap-2 rounded-md bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-xs text-muted-foreground">
-                      {t('extension.firefoxAdvancedDesc')}
+                      {t(
+                        bundledFirefoxPath
+                          ? 'extension.firefoxBundledAdvancedDesc'
+                          : 'extension.firefoxAdvancedDesc',
+                      )}
                     </p>
-                    <a
-                      href={FIREFOX_DOWNLOAD_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={cn(actionButtonClass, 'h-8 shrink-0 text-xs')}
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>{t('extension.downloadXpi')}</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {bundledFirefoxPath && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 gap-1.5 border-dashed text-xs"
+                          onClick={openBundledFirefoxPackage}
+                        >
+                          <FolderOpen className="h-3.5 w-3.5" />
+                          {t('extension.openBundledXpi')}
+                        </Button>
+                      )}
+                      <a
+                        href={FIREFOX_DOWNLOAD_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={cn(actionButtonClass, 'h-8 shrink-0 text-xs')}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>{t('extension.downloadXpi')}</span>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </div>
                   </div>
                 </CollapsibleContent>
               </Collapsible>

@@ -4,6 +4,9 @@ import { readdir, readFile } from 'node:fs/promises';
 const repoRoot = new URL('../', import.meta.url);
 const bundledExtensionResource = '../extensions/youwee-webext/dist/chromium';
 const bundledExtensionTarget = 'Youwee-Extension-Chromium';
+const bundledFirefoxResource =
+  'target/dependency-cache/windows/Youwee-Extension-Firefox-signed.xpi';
+const bundledFirefoxTarget = 'Youwee-Extension-Firefox-signed.xpi';
 const localizedKeys = [
   'chromiumBundledDesc',
   'bundledReady',
@@ -18,6 +21,9 @@ const localizedKeys = [
   'installFromAmo',
   'firefoxAdvanced',
   'firefoxAdvancedDesc',
+  'firefoxBundledDesc',
+  'firefoxBundledAdvancedDesc',
+  'openBundledXpi',
 ];
 
 describe('Windows Chromium extension installer', () => {
@@ -30,6 +36,8 @@ describe('Windows Chromium extension installer', () => {
     expect(script).toContain('& bun run ext:build');
     expect(script).toContain('$chromiumManifest.manifest_version -ne 3');
     expect(script).toContain(`'${bundledExtensionResource}' = '${bundledExtensionTarget}'`);
+    expect(script).toContain('firefox-amo-bridge.json');
+    expect(script).toContain(`'${bundledFirefoxResource}' = '${bundledFirefoxTarget}'`);
   });
 
   test('adds an offline bilingual install guide to the Chromium bundle', async () => {
@@ -65,6 +73,9 @@ describe('Windows Chromium extension installer', () => {
       'https://addons.mozilla.org/firefox/downloads/latest/youwee-download-companion/latest.xpi',
     );
     expect(section).not.toContain('Youwee-Extension-Firefox-signed.xpi');
+    expect(section).toContain("invoke<string | null>('get_bundled_firefox_extension_path')");
+    expect(section).toContain('openBundledFirefoxPackage');
+    expect(section).toContain("t('extension.openBundledXpi')");
     expect(section).toContain("t('extension.installFromAmo')");
     expect(section).toContain("t('extension.firefoxAdvanced')");
     expect(section).toContain('<CollapsibleContent>');
