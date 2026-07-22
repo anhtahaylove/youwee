@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.48] - 2026-07-22
+
+### Thêm mới
+
+- **XPI Firefox đi kèm** - Đóng gói XPI Firefox đã ký từ AMO trong Full Installer Windows để khôi phục ngoại tuyến, đồng thời vẫn khuyên dùng Mozilla Add-ons cho cập nhật tự động.
+
 ## [0.20.0-custom.47] - 2026-07-22
 
 ### Thay đổi

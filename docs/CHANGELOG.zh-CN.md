@@ -7,6 +7,12 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.20.0-custom.48] - 2026-07-22
+
+### 新增
+
+- **内置 Firefox 备用包** - 在 Windows 完整安装包中包含 AMO 签名的 Firefox XPI，用于离线恢复，同时继续推荐 Mozilla Add-ons 自动更新渠道。
+
 ## [0.20.0-custom.47] - 2026-07-22
 
 ### 变更

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.48] - 2026-07-22
+
+### Added
+
+- **Bundled Firefox fallback** - Include the AMO-signed Firefox XPI in Windows Full Installers for offline recovery while keeping Mozilla Add-ons as the recommended automatic-update channel.
+
 ## [0.20.0-custom.47] - 2026-07-22
 
 ### Changed
