@@ -1,9 +1,19 @@
 import { invoke } from '@tauri-apps/api/core';
-import { BookOpen, Check, Copy, Download, ExternalLink, FolderOpen, Puzzle } from 'lucide-react';
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  Copy,
+  Download,
+  ExternalLink,
+  FolderOpen,
+  Puzzle,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/components/ui/toast';
 import { normalizeAssetPath } from '@/lib/asset-paths';
 import { openFileLocation } from '@/lib/open-file-location';
@@ -18,6 +28,7 @@ const RELEASES_LATEST_URL = 'https://github.com/anhtahaylove/youwee/releases/lat
 const EXTENSION_DOCS_URL = 'https://youwee.app/docs/browser-extension';
 const CHROMIUM_DOWNLOAD_URL =
   'https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip';
+const FIREFOX_AMO_URL = 'https://addons.mozilla.org/firefox/addon/youwee-download-companion/';
 const FIREFOX_DOWNLOAD_URL =
   'https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi';
 const CHROMIUM_EXTENSIONS_PAGE = 'chrome://extensions';
@@ -144,17 +155,53 @@ export function ExtensionSection({ highlightId }: ExtensionSectionProps) {
             label={t('extension.firefox')}
             description={t('extension.firefoxDesc')}
             highlight={highlightId === 'extension-firefox'}
+            controlClassName="md:max-w-md"
           >
-            <a
-              href={FIREFOX_DOWNLOAD_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={actionButtonClass}
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>{t('extension.downloadXpi')}</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            <div className="flex w-full flex-col gap-2 md:items-end">
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <Check className="mr-1 h-3 w-3" />
+                  {t('extension.recommended')}
+                </Badge>
+                <Button asChild size="sm" className="h-9 gap-1.5">
+                  <a href={FIREFOX_AMO_URL} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    <span>{t('extension.installFromAmo')}</span>
+                  </a>
+                </Button>
+              </div>
+
+              <Collapsible className="w-full">
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="group ml-auto h-8 gap-1.5 px-2 text-xs text-muted-foreground"
+                  >
+                    {t('extension.firefoxAdvanced')}
+                    <ChevronDown className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-180" />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="mt-2 flex flex-col gap-2 rounded-md bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      {t('extension.firefoxAdvancedDesc')}
+                    </p>
+                    <a
+                      href={FIREFOX_DOWNLOAD_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn(actionButtonClass, 'h-8 shrink-0 text-xs')}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>{t('extension.downloadXpi')}</span>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           </SettingsRow>
 
           <SettingsRow

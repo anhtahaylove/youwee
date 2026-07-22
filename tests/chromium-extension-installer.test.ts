@@ -14,6 +14,10 @@ const localizedKeys = [
   'chromiumBundledStep2',
   'openBundledFolderError',
   'copyInstallValueError',
+  'recommended',
+  'installFromAmo',
+  'firefoxAdvanced',
+  'firefoxAdvancedDesc',
 ];
 
 describe('Windows Chromium extension installer', () => {
@@ -46,6 +50,23 @@ describe('Windows Chromium extension installer', () => {
     );
 
     expect(section).toContain('normalizeAssetPath(path)');
+  });
+
+  test('recommends AMO while keeping the signed XPI in advanced installation', async () => {
+    const section = await readFile(
+      new URL('src/components/settings/sections/ExtensionSection.tsx', repoRoot),
+      'utf8',
+    );
+
+    expect(section).toContain(
+      'https://addons.mozilla.org/firefox/addon/youwee-download-companion/',
+    );
+    expect(section).toContain("t('extension.installFromAmo')");
+    expect(section).toContain("t('extension.firefoxAdvanced')");
+    expect(section).toContain('<CollapsibleContent>');
+    expect(section.indexOf('FIREFOX_AMO_URL')).toBeLessThan(
+      section.indexOf('FIREFOX_DOWNLOAD_URL'),
+    );
   });
 
   test('provides beginner setup copy in every locale', async () => {
