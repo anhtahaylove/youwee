@@ -7,6 +7,16 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.47] - 2026-07-22
+
+### Thay đổi
+
+- **Cài Firefox khuyên dùng** - Đưa Mozilla Add-ons thành thao tác cài Firefox chính trong Settings và giữ XPI đã ký trong Nâng cao / Cài đặt ngoại tuyến.
+
+### Sửa lỗi
+
+- **XPI dự phòng cho Firefox** - Tải bản XPI đã ký trực tiếp từ AMO thay vì asset GitHub Release đã bị gỡ và trả về lỗi 404.
+
 ## [0.20.0-custom.46] - 2026-07-21
 
 ### Thay đổi

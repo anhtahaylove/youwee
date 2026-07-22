@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.47] - 2026-07-22
+
+### Changed
+
+- **Recommended Firefox installation** - Make Mozilla Add-ons the primary Firefox setup action in Settings while keeping the signed XPI fallback under Advanced / Offline installation.
+
+### Fixed
+
+- **Firefox XPI fallback** - Download the signed fallback directly from AMO instead of a removed GitHub release asset that returned 404.
+
 ## [0.20.0-custom.46] - 2026-07-21
 
 ### Changed

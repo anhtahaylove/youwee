@@ -7,6 +7,16 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.20.0-custom.47] - 2026-07-22
+
+### 变更
+
+- **推荐的 Firefox 安装方式** - 在设置中将 Mozilla Add-ons 设为 Firefox 的主要安装入口，并将已签名 XPI 保留在“高级 / 离线安装”中。
+
+### 修复
+
+- **Firefox XPI 备用下载** - 改为直接从 AMO 下载已签名 XPI，避免访问已移除且返回 404 的 GitHub Release 资源。
+
 ## [0.20.0-custom.46] - 2026-07-21
 
 ### 变更
