@@ -61,6 +61,10 @@ describe('Windows Chromium extension installer', () => {
     expect(section).toContain(
       'https://addons.mozilla.org/firefox/addon/youwee-download-companion/',
     );
+    expect(section).toContain(
+      'https://addons.mozilla.org/firefox/downloads/latest/youwee-download-companion/latest.xpi',
+    );
+    expect(section).not.toContain('Youwee-Extension-Firefox-signed.xpi');
     expect(section).toContain("t('extension.installFromAmo')");
     expect(section).toContain("t('extension.firefoxAdvanced')");
     expect(section).toContain('<CollapsibleContent>');

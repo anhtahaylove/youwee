@@ -30,7 +30,7 @@ const CHROMIUM_DOWNLOAD_URL =
   'https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Chromium.zip';
 const FIREFOX_AMO_URL = 'https://addons.mozilla.org/firefox/addon/youwee-download-companion/';
 const FIREFOX_DOWNLOAD_URL =
-  'https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Extension-Firefox-signed.xpi';
+  'https://addons.mozilla.org/firefox/downloads/latest/youwee-download-companion/latest.xpi';
 const CHROMIUM_EXTENSIONS_PAGE = 'chrome://extensions';
 
 const actionButtonClass = cn(
