@@ -7,6 +7,13 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.49] - 2026-07-26
+
+### Sửa lỗi
+
+- **Xác thực Facebook Reel bằng trình duyệt** - Khôi phục profile Firefox mặc định đã đổi tên và chỉ giả lập trình duyệt cho URL Facebook Reel thật để tải nội dung xác thực ổn định hơn.
+- **Cập nhật Deno Runtime** - Hỗ trợ định dạng checksum PowerShell hiện tại của Deno trong khi vẫn bắt buộc xác minh SHA-256.
+
 ## [0.20.0-custom.48] - 2026-07-22
 
 ### Thêm mới

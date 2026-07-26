@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.49] - 2026-07-26
+
+### Fixed
+
+- **Facebook Reel browser authentication** - Recover renamed Firefox default profiles and use browser impersonation only for real Facebook Reel URLs so authenticated downloads remain reliable.
+- **Deno runtime updates** - Accept the current PowerShell-style Deno checksum response while keeping SHA-256 verification mandatory.
+
 ## [0.20.0-custom.48] - 2026-07-22
 
 ### Added

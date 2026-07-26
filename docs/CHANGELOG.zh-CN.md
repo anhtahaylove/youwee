@@ -7,6 +7,13 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.20.0-custom.49] - 2026-07-26
+
+### 修复
+
+- **Facebook Reel 浏览器认证** - 恢复已重命名的 Firefox 默认配置文件，并仅对真实的 Facebook Reel URL 使用浏览器模拟，以提高认证下载的可靠性。
+- **Deno Runtime 更新** - 支持 Deno 当前的 PowerShell 风格校验和响应，同时继续强制执行 SHA-256 验证。
+
 ## [0.20.0-custom.48] - 2026-07-22
 
 ### 新增
