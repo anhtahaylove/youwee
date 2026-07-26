@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.51] - 2026-07-26
+
+### Sửa lỗi
+
+- **Ảnh xem trước metadata Facebook Reel** - Tạo và cache ảnh xem trước từ khung hình đầu của luồng Facebook đã chọn khi extractor không trả thumbnail, đồng thời giữ tiêu đề đã khôi phục và không làm lộ URL luồng đã ký.
+
 ## [0.20.0-custom.50] - 2026-07-26
 
 ### Thêm mới

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.51] - 2026-07-26
+
+### Fixed
+
+- **Facebook Reel metadata previews** - Generate and cache a first-frame preview from the selected Facebook stream when the extractor omits a thumbnail, while keeping recovered titles and signed stream URLs private.
+
 ## [0.20.0-custom.50] - 2026-07-26
 
 ### Added
