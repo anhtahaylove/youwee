@@ -162,6 +162,13 @@ pub fn get_deno_checksum_url() -> String {
     format!("{}.sha256sum", get_deno_download_url())
 }
 
+pub fn parse_deno_checksum_response(response: &str) -> Option<String> {
+    response
+        .split_whitespace()
+        .find(|value| value.len() == 64 && value.chars().all(|c| c.is_ascii_hexdigit()))
+        .map(str::to_string)
+}
+
 /// Deno update info
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct DenoUpdateInfo {
@@ -246,7 +253,7 @@ pub async fn check_deno_update_internal(app: &AppHandle) -> Result<DenoUpdateInf
 
 #[cfg(test)]
 mod tests {
-    use super::{get_deno_checksum_url, get_deno_download_url};
+    use super::{get_deno_checksum_url, get_deno_download_url, parse_deno_checksum_response};
 
     #[test]
     fn checksum_url_tracks_the_selected_deno_archive() {
@@ -254,5 +261,20 @@ mod tests {
         if !download_url.is_empty() {
             assert_eq!(get_deno_checksum_url(), format!("{download_url}.sha256sum"));
         }
+    }
+
+    #[test]
+    fn checksum_parser_accepts_current_deno_powershell_and_legacy_formats() {
+        let hash = "68ED08B05C56CF887E9AA509947DC3F468F7E12F47A13E5C1ABD51D46D1453EF";
+        let powershell =
+            format!("Algorithm : SHA256\nHash      : {hash}\nPath      : C:\\deno.zip");
+        let legacy = format!("{hash}  deno-x86_64-pc-windows-msvc.zip");
+
+        assert_eq!(
+            parse_deno_checksum_response(&powershell).as_deref(),
+            Some(hash)
+        );
+        assert_eq!(parse_deno_checksum_response(&legacy).as_deref(), Some(hash));
+        assert_eq!(parse_deno_checksum_response("Hash: unavailable"), None);
     }
 }

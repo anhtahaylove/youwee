@@ -4,10 +4,11 @@ use crate::services::{
     get_all_ytdlp_versions, get_channel_api_url, get_deno_checksum_url, get_deno_download_url,
     get_ffmpeg_download_info, get_ffmpeg_path, get_ffmpeg_source, get_latest_ffmpeg_release_info,
     get_ytdlp_channel, get_ytdlp_channel_download_url, get_ytdlp_channel_version,
-    get_ytdlp_download_info, get_ytdlp_source, get_ytdlp_version_internal, parse_ffmpeg_version,
-    set_ffmpeg_source, set_ytdlp_channel, set_ytdlp_source, system_ffmpeg_upgrade_message,
-    system_ytdlp_upgrade_message, update_gallerydl_internal, verify_sha256,
-    write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo, GalleryDlUpdateInfo,
+    get_ytdlp_download_info, get_ytdlp_source, get_ytdlp_version_internal,
+    parse_deno_checksum_response, parse_ffmpeg_version, set_ffmpeg_source, set_ytdlp_channel,
+    set_ytdlp_source, system_ffmpeg_upgrade_message, system_ytdlp_upgrade_message,
+    update_gallerydl_internal, verify_sha256, write_app_ffmpeg_release_version, DenoUpdateInfo,
+    FfmpegUpdateInfo, GalleryDlUpdateInfo,
 };
 use crate::types::{
     BackendError, DenoStatus, DependencySource, FfmpegStatus, GalleryDlStatus, YtdlpAllVersions,
@@ -936,15 +937,12 @@ pub async fn download_deno(app: AppHandle) -> Result<String, String> {
             checksum_response.status()
         ));
     }
-    let expected_hash = checksum_response
+    let checksum_text = checksum_response
         .text()
         .await
-        .map_err(|e| format!("Failed to read Deno checksum: {}", e))?
-        .split_whitespace()
-        .next()
-        .filter(|hash| hash.len() == 64)
-        .ok_or("Invalid Deno checksum response")?
-        .to_string();
+        .map_err(|e| format!("Failed to read Deno checksum: {}", e))?;
+    let expected_hash = parse_deno_checksum_response(&checksum_text)
+        .ok_or("Deno checksum response did not contain a SHA-256 hash")?;
 
     let response = client
         .get(download_url)
