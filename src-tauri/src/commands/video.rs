@@ -1,18 +1,22 @@
 use crate::database::add_log_internal;
 use crate::services::{
-    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ytdlp_path,
-    parse_ytdlp_error, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr,
+    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ffmpeg_path,
+    get_ytdlp_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr,
     run_ytdlp_with_stderr_and_cookies,
 };
 use crate::types::{
     parse_wire_error_string, BackendError, FormatOption, PlaylistVideoEntry, SubtitleInfo,
     VideoInfo, VideoInfoResponse,
 };
-use crate::utils::{normalize_url, validate_url};
+use crate::utils::{normalize_url, validate_url, CommandExt};
 use regex::Regex;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::process::Stdio;
 use std::sync::LazyLock;
 use std::time::Duration;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
+use tokio::process::Command;
 use tokio::time::timeout;
 use uuid::Uuid;
 
@@ -134,15 +138,21 @@ fn recover_facebook_reel_title(
         .unwrap_or_else(|| "Facebook Reel".to_string())
 }
 
-fn parse_basic_video_info_output(output: &str, url: &str) -> Result<VideoInfo, String> {
+fn parse_basic_video_info_json(output: &str) -> Result<serde_json::Value, String> {
     let line = output
         .lines()
         .map(str::trim)
         .find(|line| !line.is_empty())
         .ok_or_else(|| "Failed to fetch video information".to_string())?;
 
-    let json: serde_json::Value = serde_json::from_str(line)
-        .map_err(|error| format!("Failed to parse basic video information: {error}"))?;
+    serde_json::from_str(line)
+        .map_err(|error| format!("Failed to parse basic video information: {error}"))
+}
+
+fn parse_basic_video_info_json_value(
+    json: &serde_json::Value,
+    url: &str,
+) -> Result<VideoInfo, String> {
     let string_field = |key: &str| {
         json.get(key)
             .and_then(serde_json::Value::as_str)
@@ -189,6 +199,80 @@ fn parse_basic_video_info_output(output: &str, url: &str) -> Result<VideoInfo, S
         was_live: None,
         live_status: None,
     })
+}
+
+#[cfg(test)]
+fn parse_basic_video_info_output(output: &str, url: &str) -> Result<VideoInfo, String> {
+    parse_basic_video_info_json_value(&parse_basic_video_info_json(output)?, url)
+}
+
+fn facebook_reel_preview_source(json: &serde_json::Value) -> Option<&str> {
+    json.get("requested_formats")?
+        .as_array()?
+        .iter()
+        .filter(|format| format.get("vcodec").and_then(|value| value.as_str()) != Some("none"))
+        .filter_map(|format| {
+            let url = format.get("url")?.as_str()?;
+            (url.starts_with("https://") || url.starts_with("http://")).then_some((
+                format.get("height").and_then(|value| value.as_u64()),
+                format.get("width").and_then(|value| value.as_u64()),
+                url,
+            ))
+        })
+        .max_by_key(|(height, width, _)| (height.unwrap_or(0), width.unwrap_or(0)))
+        .map(|(_, _, url)| url)
+}
+
+async fn generate_facebook_reel_preview(
+    app: &AppHandle,
+    reel_url: &str,
+    media_url: &str,
+) -> Option<String> {
+    let ffmpeg_path = get_ffmpeg_path(app).await?;
+    let preview_dir = app.path().app_data_dir().ok()?.join("previews");
+    tokio::fs::create_dir_all(&preview_dir).await.ok()?;
+
+    let mut hasher = DefaultHasher::new();
+    reel_url.hash(&mut hasher);
+    let thumbnail_path = preview_dir.join(format!("facebook_{:016x}.jpg", hasher.finish()));
+    if thumbnail_path.is_file() {
+        return Some(thumbnail_path.to_string_lossy().into_owned());
+    }
+
+    let thumbnail_arg = thumbnail_path.to_string_lossy().into_owned();
+    let mut command = Command::new(ffmpeg_path);
+    command
+        .args([
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            "1",
+            "-i",
+            media_url,
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=-2:720",
+            "-q:v",
+            "3",
+            &thumbnail_arg,
+        ])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    command.kill_on_drop(true);
+    command.hide_window();
+
+    match timeout(Duration::from_secs(4), command.output()).await {
+        Ok(Ok(output)) if output.status.success() && thumbnail_path.is_file() => {
+            Some(thumbnail_arg)
+        }
+        _ => {
+            tokio::fs::remove_file(thumbnail_path).await.ok();
+            None
+        }
+    }
 }
 
 /// Get video transcript/subtitles for AI summarization
@@ -953,9 +1037,12 @@ pub async fn get_video_basic_info(
     }
 
     args.push("--print".to_string());
-    args.push(
-        "%(.{id,title,thumbnail,duration,extractor,channel,uploader,description})j".to_string(),
-    );
+    args.push(if is_facebook_reel_url(&url) {
+        "%(.{id,title,thumbnail,duration,extractor,channel,uploader,description,requested_formats})j"
+            .to_string()
+    } else {
+        "%(.{id,title,thumbnail,duration,extractor,channel,uploader,description})j".to_string()
+    });
     args.push("--".to_string());
     args.push(url.clone());
 
@@ -1014,8 +1101,15 @@ pub async fn get_video_basic_info(
         return Err(parsed_error.to_wire_string());
     }
 
-    let info = parse_basic_video_info_output(&output.stdout, &url)
+    let json = parse_basic_video_info_json(&output.stdout)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
+    let mut info = parse_basic_video_info_json_value(&json, &url)
+        .map_err(|e| BackendError::from_message(e).to_wire_string())?;
+    if info.thumbnail.is_none() && is_facebook_reel_url(&url) {
+        if let Some(media_url) = facebook_reel_preview_source(&json) {
+            info.thumbnail = generate_facebook_reel_preview(&app, &url, media_url).await;
+        }
+    }
 
     add_log_internal(
         "info",
@@ -1647,5 +1741,34 @@ mod tests {
         let truncated =
             parse_basic_video_info_output(&output, "https://www.facebook.com/reel/123").unwrap();
         assert_eq!(truncated.title.chars().count(), 180);
+    }
+
+    #[test]
+    fn facebook_preview_source_prefers_highest_selected_video_format() {
+        let json = serde_json::json!({
+            "requested_formats": [
+                {
+                    "url": "https://cdn.example/audio",
+                    "vcodec": "none",
+                },
+                {
+                    "url": "https://cdn.example/720p",
+                    "vcodec": "h264",
+                    "width": 720,
+                    "height": 1280,
+                },
+                {
+                    "url": "https://cdn.example/1080p",
+                    "vcodec": "av1",
+                    "width": 1080,
+                    "height": 1920,
+                },
+            ],
+        });
+
+        assert_eq!(
+            facebook_reel_preview_source(&json),
+            Some("https://cdn.example/1080p")
+        );
     }
 }
