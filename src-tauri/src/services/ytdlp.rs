@@ -1174,10 +1174,11 @@ pub fn build_proxy_args(proxy_url: Option<&str>) -> Vec<String> {
     args
 }
 
-/// Build site-specific request header args for yt-dlp.
+/// Build site-specific browser request args for yt-dlp.
 ///
 /// Bilibili may reject the initial webpage request with HTTP 412 unless the
-/// request looks like it came from a browser.
+/// request looks like it came from a browser. Facebook Reels may fail to parse
+/// even with valid cookies unless yt-dlp impersonates a supported browser.
 pub fn build_site_header_args(url: &str) -> Vec<String> {
     if is_bilibili_host(url) {
         return vec![
@@ -1186,6 +1187,10 @@ pub fn build_site_header_args(url: &str) -> Vec<String> {
             "--referer".to_string(),
             BILIBILI_REFERER.to_string(),
         ];
+    }
+
+    if is_facebook_reel_url(url) {
+        return vec!["--impersonate".to_string(), "chrome".to_string()];
     }
 
     Vec::new()
@@ -1201,6 +1206,19 @@ fn is_bilibili_host(url: &str) -> bool {
     };
 
     host == "b23.tv" || host == "bilibili.com" || host.ends_with(".bilibili.com")
+}
+
+fn is_facebook_reel_url(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+
+    let Some(host) = parsed.host_str().map(|host| host.to_ascii_lowercase()) else {
+        return false;
+    };
+
+    (host == "facebook.com" || host.ends_with(".facebook.com"))
+        && (parsed.path() == "/reel" || parsed.path().starts_with("/reel/"))
 }
 
 fn ytdlp_url_arg(args: &[&str]) -> Option<String> {
@@ -1366,13 +1384,26 @@ mod tests {
     }
 
     #[test]
+    fn build_site_header_args_impersonates_chrome_for_facebook_reels() {
+        assert_eq!(
+            build_site_header_args("https://www.facebook.com/reel/1294507682756608"),
+            vec!["--impersonate".to_string(), "chrome".to_string()]
+        );
+    }
+
+    #[test]
     fn build_site_header_args_ignores_other_sites() {
         assert!(build_site_header_args("https://www.youtube.com/watch?v=abc").is_empty());
+        assert!(build_site_header_args("https://www.facebook.com/watch?v=abc").is_empty());
     }
 
     #[test]
     fn build_site_header_args_ignores_bilibili_text_outside_host() {
         assert!(build_site_header_args("https://example.com/watch?url=bilibili.com").is_empty());
+        assert!(
+            build_site_header_args("https://example.com/watch?url=facebook.com/reel/123")
+                .is_empty()
+        );
     }
 
     #[test]

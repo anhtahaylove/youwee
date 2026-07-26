@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirefoxProfile {
@@ -135,6 +135,36 @@ pub fn resolve_firefox_profile_from_ini(content: &str, selected_profile: &str) -
         .map(|profile| profile.folder_name)
 }
 
+fn resolve_firefox_profile_or_default(
+    content: &str,
+    selected_profile: &str,
+    selected_profile_exists: bool,
+) -> String {
+    resolve_firefox_profile_from_ini(content, selected_profile)
+        .or_else(|| {
+            (!selected_profile_exists)
+                .then(|| firefox_profiles_from_ini(content).into_iter().next())
+                .flatten()
+                .map(|profile| profile.folder_name)
+        })
+        .unwrap_or_else(|| selected_profile.to_string())
+}
+
+fn firefox_profile_path_exists(profiles_ini: &Path, selected_profile: &str) -> bool {
+    let selected_path = Path::new(selected_profile);
+    if selected_path.is_absolute()
+        || selected_profile.contains('/')
+        || selected_profile.contains('\\')
+    {
+        return true;
+    }
+
+    profiles_ini.parent().is_some_and(|root| {
+        root.join(selected_profile).is_dir()
+            || root.join("Profiles").join(selected_profile).is_dir()
+    })
+}
+
 pub fn firefox_profiles_ini_path() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -179,9 +209,13 @@ pub fn resolve_firefox_profile_for_cookies(selected_profile: &str) -> String {
         return selected_profile.to_string();
     };
 
-    std::fs::read_to_string(profiles_ini)
+    std::fs::read_to_string(&profiles_ini)
         .ok()
-        .and_then(|content| resolve_firefox_profile_from_ini(&content, selected_profile))
+        .map(|content| {
+            let selected_profile_exists =
+                firefox_profile_path_exists(&profiles_ini, selected_profile);
+            resolve_firefox_profile_or_default(&content, selected_profile, selected_profile_exists)
+        })
         .unwrap_or_else(|| selected_profile.to_string())
 }
 
@@ -189,7 +223,7 @@ pub fn resolve_firefox_profile_for_cookies(selected_profile: &str) -> String {
 mod tests {
     use super::{
         firefox_profile_cookie_value, firefox_profile_folder_name, firefox_profiles_from_ini,
-        resolve_firefox_profile_from_ini,
+        resolve_firefox_profile_from_ini, resolve_firefox_profile_or_default,
     };
 
     #[test]
@@ -270,6 +304,28 @@ Path=Profiles/i879pxds.default-release
         assert_eq!(
             resolve_firefox_profile_from_ini(content, "i879pxds.default-release"),
             Some("i879pxds.default-release".to_string())
+        );
+    }
+
+    #[test]
+    fn firefox_profile_resolution_replaces_a_missing_saved_profile_with_current_default() {
+        let content = r#"
+[Install308046B0AF4A39CB]
+Default=Profiles/i879pxds.default-release
+
+[Profile0]
+Name=default-release
+IsRelative=1
+Path=Profiles/i879pxds.default-release
+"#;
+
+        assert_eq!(
+            resolve_firefox_profile_or_default(content, "8o6s3zj8.default-release", false),
+            "i879pxds.default-release"
+        );
+        assert_eq!(
+            resolve_firefox_profile_or_default(content, "custom.default", true),
+            "custom.default"
         );
     }
 }
