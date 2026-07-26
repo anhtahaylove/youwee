@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.50] - 2026-07-26
+
+### Added
+
+- **Queue URL actions** - Copy the source URL directly from YouTube and Universal queue items with localized confirmation.
+
+### Fixed
+
+- **Facebook Reel placeholder metadata** - Recover a readable Reel title from the existing uploader or media ID when yt-dlp returns only `Facebook`, keeping Queue, filenames, and Library consistent without another metadata request.
+
 ## [0.20.0-custom.49] - 2026-07-26
 
 ### Fixed

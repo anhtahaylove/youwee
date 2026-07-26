@@ -7,6 +7,16 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.50] - 2026-07-26
+
+### Thêm mới
+
+- **Thao tác URL trong hàng đợi** - Sao chép URL nguồn trực tiếp từ item hàng đợi YouTube và Đa nền tảng với xác nhận đã bản địa hóa.
+
+### Sửa lỗi
+
+- **Metadata placeholder của Facebook Reel** - Khôi phục tiêu đề Reel dễ đọc từ uploader hoặc media ID đã có khi yt-dlp chỉ trả về `Facebook`, giúp Queue, tên file và Library nhất quán mà không cần thêm lượt metadata.
+
 ## [0.20.0-custom.49] - 2026-07-26
 
 ### Sửa lỗi
