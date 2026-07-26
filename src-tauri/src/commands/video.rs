@@ -102,6 +102,7 @@ fn is_placeholder_video_title(title: Option<&str>) -> bool {
         return true;
     };
     title.eq_ignore_ascii_case("video")
+        || title.eq_ignore_ascii_case("facebook")
         || title.eq_ignore_ascii_case("facebook video")
         || reqwest::Url::parse(title).is_ok()
 }
@@ -1613,7 +1614,7 @@ mod tests {
     #[test]
     fn facebook_placeholder_title_falls_back_to_uploader_then_media_id() {
         let uploader_info = parse_basic_video_info_output(
-            r#"{"id":"123","title":"Facebook video","uploader":"Người phát"}"#,
+            r#"{"id":"123","title":"Facebook","uploader":"Người phát"}"#,
             "https://www.facebook.com/reel/123",
         )
         .unwrap();

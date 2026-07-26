@@ -469,6 +469,7 @@ fn is_placeholder_facebook_title(title: &str) -> bool {
     let title = title.trim();
     title.is_empty()
         || title.eq_ignore_ascii_case("video")
+        || title.eq_ignore_ascii_case("facebook")
         || title.eq_ignore_ascii_case("facebook video")
         || reqwest::Url::parse(title).is_ok()
 }
@@ -491,7 +492,7 @@ fn push_facebook_title_replacement_args(args: &mut Vec<String>, url: &str, title
     args.extend([
         "--replace-in-metadata".to_string(),
         "title".to_string(),
-        r"(?is)^\s*(?:video|facebook video|https?://\S+|(?:(?:\d+(?:[.,]\d+)?[kmb]?\s*(?:comments?|reactions?|views?|likes?|shares?))\s*(?:[|·•—–-]\s*)?)+.*)$"
+        r"(?is)^\s*(?:video|facebook(?: video)?|https?://\S+|(?:(?:\d+(?:[.,]\d+)?[kmb]?\s*(?:comments?|reactions?|views?|likes?|shares?))\s*(?:[|·•—–-]\s*)?)+.*)$"
             .to_string(),
         escape_metadata_replacement(title),
     ]);
@@ -3803,6 +3804,7 @@ mod tests {
         assert_eq!(replacement[1], "title");
         let title_pattern = regex::Regex::new(&replacement[2]).expect("valid title pattern");
         assert!(title_pattern.is_match("Video"));
+        assert!(title_pattern.is_match("Facebook"));
         assert!(title_pattern
             .is_match("4 comments | Tool Text-to-Speech ElevenLabs cho ae làm content"));
         assert!(!title_pattern.is_match("Một tiêu đề thật"));
