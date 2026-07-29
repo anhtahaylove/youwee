@@ -31,7 +31,8 @@
     "es": "Испанский",
     "label": "Язык",
     "select": "Выберите язык",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "uz": "O‘zbekcha"
   },
   "actions": {
     "cancel": "Отмена"

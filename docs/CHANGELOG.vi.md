@@ -8,6 +8,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thêm mới
+- **Ngôn ngữ tiếng Uzbek** - Thêm bản dịch tiếng Uzbek cho giao diện ứng dụng
 - **Ngôn ngữ tiếng Thổ Nhĩ Kỳ** - Thêm bản dịch tiếng Thổ Nhĩ Kỳ cho giao diện ứng dụng
 
 ### Sửa lỗi

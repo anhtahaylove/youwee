@@ -31,7 +31,8 @@
     "es": "Tiếng Tây Ban Nha",
     "label": "Ngôn ngữ",
     "select": "Chọn ngôn ngữ",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "uz": "O‘zbekcha"
   },
   "actions": {
     "cancel": "Hủy"

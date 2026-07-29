@@ -31,7 +31,8 @@
     "es": "Spanish",
     "label": "Dil",
     "select": "Dil seçin",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "uz": "O‘zbekcha"
   },
   "actions": {
     "cancel": "İptal"

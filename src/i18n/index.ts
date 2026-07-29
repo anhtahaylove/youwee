@@ -84,6 +84,15 @@ import trPages from './locales/tr/pages.json';
 import trSettings from './locales/tr/settings.json';
 import trSubtitles from './locales/tr/subtitles.json';
 import trUniversal from './locales/tr/universal.json';
+import uzChannels from './locales/uz/channels.json';
+import uzCommon from './locales/uz/common.json';
+import uzDownload from './locales/uz/download.json';
+import uzGallery from './locales/uz/gallery.json';
+import uzMetadata from './locales/uz/metadata.json';
+import uzPages from './locales/uz/pages.json';
+import uzSettings from './locales/uz/settings.json';
+import uzSubtitles from './locales/uz/subtitles.json';
+import uzUniversal from './locales/uz/universal.json';
 import viChannels from './locales/vi/channels.json';
 import viCommon from './locales/vi/common.json';
 import viDownload from './locales/vi/download.json';
@@ -224,6 +233,17 @@ const resources = {
     pages: trPages,
     settings: trSettings,
     subtitles: trSubtitles,
+  },
+  uz: {
+    common: uzCommon,
+    channels: uzChannels,
+    download: uzDownload,
+    gallery: uzGallery,
+    metadata: uzMetadata,
+    universal: uzUniversal,
+    pages: uzPages,
+    settings: uzSettings,
+    subtitles: uzSubtitles,
   },
 };
 

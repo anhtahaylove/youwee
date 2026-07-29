@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Uzbek language** - Added Uzbek translations for the app interface
 - **Turkish language** - Added Turkish translations for the app interface
 
 ### Fixed

@@ -31,7 +31,8 @@
     "es": "สเปน",
     "label": "ภาษา",
     "select": "เลือกภาษา",
-    "tr": "Türkçe"
+    "tr": "Türkçe",
+    "uz": "O‘zbekcha"
   },
   "actions": {
     "cancel": "ยกเลิก"
