@@ -7,6 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Thêm mới
+- **Ngôn ngữ tiếng Romania** - Thêm bản dịch tiếng Romania cho giao diện ứng dụng
+- **Ngôn ngữ tiếng Uzbek** - Thêm bản dịch tiếng Uzbek cho giao diện ứng dụng
+- **Ngôn ngữ tiếng Thổ Nhĩ Kỳ** - Thêm bản dịch tiếng Thổ Nhĩ Kỳ cho giao diện ứng dụng
+
 ### Sửa lỗi
 - **Icon AppImage** - Cập nhật Tauri build tooling và các dependency tương thích để gói AppImage Linux giữ đúng metadata icon desktop
 

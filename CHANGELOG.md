@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Romanian language** - Added Romanian translations for the app interface
+- **Uzbek language** - Added Uzbek translations for the app interface
+- **Turkish language** - Added Turkish translations for the app interface
+
 ### Fixed
 - **AppImage icons** - Updated Tauri build tooling and compatible dependencies so Linux AppImage packages keep their desktop icon metadata
 
