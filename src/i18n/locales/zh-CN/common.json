@@ -30,7 +30,8 @@
     "ja": "日语",
     "es": "西班牙语",
     "label": "语言",
-    "select": "选择语言"
+    "select": "选择语言",
+    "tr": "Türkçe"
   },
   "actions": {
     "cancel": "取消"

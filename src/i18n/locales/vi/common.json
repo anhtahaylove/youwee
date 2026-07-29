@@ -30,7 +30,8 @@
     "ja": "Tiếng Nhật",
     "es": "Tiếng Tây Ban Nha",
     "label": "Ngôn ngữ",
-    "select": "Chọn ngôn ngữ"
+    "select": "Chọn ngôn ngữ",
+    "tr": "Türkçe"
   },
   "actions": {
     "cancel": "Hủy"

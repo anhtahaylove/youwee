@@ -30,7 +30,8 @@
     "ja": "Japonais",
     "es": "Espagnol",
     "label": "Langue",
-    "select": "Choisir la langue"
+    "select": "Choisir la langue",
+    "tr": "Türkçe"
   },
   "actions": {
     "cancel": "Annuler"
