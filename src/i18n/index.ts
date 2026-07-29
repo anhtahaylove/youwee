@@ -56,6 +56,15 @@ import ptPages from './locales/pt/pages.json';
 import ptSettings from './locales/pt/settings.json';
 import ptSubtitles from './locales/pt/subtitles.json';
 import ptUniversal from './locales/pt/universal.json';
+import roChannels from './locales/ro/channels.json';
+import roCommon from './locales/ro/common.json';
+import roDownload from './locales/ro/download.json';
+import roGallery from './locales/ro/gallery.json';
+import roMetadata from './locales/ro/metadata.json';
+import roPages from './locales/ro/pages.json';
+import roSettings from './locales/ro/settings.json';
+import roSubtitles from './locales/ro/subtitles.json';
+import roUniversal from './locales/ro/universal.json';
 
 import ruChannels from './locales/ru/channels.json';
 import ruCommon from './locales/ru/common.json';
@@ -200,6 +209,17 @@ const resources = {
     pages: ptPages,
     settings: ptSettings,
     subtitles: ptSubtitles,
+  },
+  ro: {
+    common: roCommon,
+    channels: roChannels,
+    download: roDownload,
+    gallery: roGallery,
+    metadata: roMetadata,
+    universal: roUniversal,
+    pages: roPages,
+    settings: roSettings,
+    subtitles: roSubtitles,
   },
   ru: {
     common: ruCommon,

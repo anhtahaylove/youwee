@@ -32,7 +32,8 @@
     "label": "اللغة",
     "select": "اختر اللغة",
     "tr": "Türkçe",
-    "uz": "O‘zbekcha"
+    "uz": "O‘zbekcha",
+    "ro": "Română"
   },
   "actions": {
     "cancel": "إلغاء"

@@ -32,7 +32,8 @@
     "tr": "Türkçe",
     "uz": "O‘zbekcha",
     "label": "Til",
-    "select": "Tilni tanlang"
+    "select": "Tilni tanlang",
+    "ro": "Română"
   },
   "actions": {
     "cancel": "Bekor qilish"
