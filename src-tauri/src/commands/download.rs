@@ -825,6 +825,7 @@ fn push_unique_filepath(paths: &mut Vec<String>, path: &str) {
 fn output_filepaths(
     printed_filepaths: &[String],
     chapter_filepaths: &[String],
+    recovered_filepaths: &[String],
     final_filepath: &Option<String>,
 ) -> Vec<String> {
     let mut paths = Vec::new();
@@ -840,14 +841,23 @@ fn output_filepaths(
     for filepath in chapter_filepaths {
         push_unique_filepath(&mut paths, filepath);
     }
+    for filepath in recovered_filepaths {
+        push_unique_filepath(&mut paths, filepath);
+    }
     paths
 }
 
-fn newest_media_filepath_in_dir(output_directory: &str) -> Option<String> {
-    let mut newest: Option<(std::time::SystemTime, String)> = None;
-    for entry in std::fs::read_dir(output_directory).ok()?.flatten() {
+type MediaFileSnapshot = BTreeMap<PathBuf, (Option<SystemTime>, u64)>;
+
+fn snapshot_media_files(output_directory: &str) -> MediaFileSnapshot {
+    let mut snapshot = BTreeMap::new();
+    let Ok(entries) = std::fs::read_dir(output_directory) else {
+        return snapshot;
+    };
+
+    for entry in entries.flatten() {
         let path = entry.path();
-        let path_text = path.to_string_lossy().to_string();
+        let path_text = path.to_string_lossy();
         if !is_media_filepath(&path_text) {
             continue;
         }
@@ -855,21 +865,41 @@ fn newest_media_filepath_in_dir(output_directory: &str) -> Option<String> {
         let Ok(metadata) = entry.metadata() else {
             continue;
         };
-        if !metadata.is_file() {
-            continue;
-        }
-
-        let modified = metadata.modified().unwrap_or(std::time::UNIX_EPOCH);
-        if newest
-            .as_ref()
-            .map(|(current_modified, _)| modified > *current_modified)
-            .unwrap_or(true)
-        {
-            newest = Some((modified, path_text));
+        if metadata.is_file() {
+            snapshot.insert(path, (metadata.modified().ok(), metadata.len()));
         }
     }
 
-    newest.map(|(_, path)| path)
+    snapshot
+}
+
+fn changed_media_filepaths_since(
+    output_directory: &str,
+    before: &MediaFileSnapshot,
+) -> Vec<String> {
+    let mut changed = snapshot_media_files(output_directory)
+        .into_iter()
+        .filter(|(path, state)| before.get(path) != Some(state))
+        .map(|(path, (modified, _))| (modified.unwrap_or(UNIX_EPOCH), path))
+        .collect::<Vec<_>>();
+    changed.sort_by(|(left_time, left_path), (right_time, right_path)| {
+        left_time
+            .cmp(right_time)
+            .then_with(|| left_path.cmp(right_path))
+    });
+    changed
+        .into_iter()
+        .map(|(_, path)| path.to_string_lossy().to_string())
+        .collect()
+}
+
+fn newest_changed_media_filepath(
+    output_directory: &str,
+    before: &MediaFileSnapshot,
+) -> (Option<String>, Vec<String>) {
+    let changed = changed_media_filepaths_since(output_directory, before);
+    let newest = changed.last().cloned();
+    (newest, changed)
 }
 
 fn title_from_filepath(filepath: &str) -> Option<String> {
@@ -1763,6 +1793,7 @@ pub async fn download_video(
             cmd.spawn()
         };
         let mut active_binary_label = binary_path_str.clone();
+        let output_snapshot = snapshot_media_files(&output_directory);
         let process_result = match spawn_ytdlp(&binary_path) {
             Ok(process) => Ok(process),
             Err(primary_error) => {
@@ -1862,7 +1893,8 @@ pub async fn download_video(
             download_sections,
             history_id.clone(),
             filepath_tmp.clone(),
-            sanitized_path.clone(),
+            output_directory.clone(),
+            output_snapshot,
             completed_workflow_steps.clone(),
             failed_workflow_steps.clone(),
             emit_failed_workflow,
@@ -1908,6 +1940,7 @@ pub async fn download_video(
 
     match sidecar_result {
         Ok(sidecar) => {
+            let output_snapshot = snapshot_media_files(&output_directory);
             let (mut rx, child) = match sidecar.args(&args).spawn() {
                 Ok(result) => result,
                 Err(error) => {
@@ -1961,6 +1994,7 @@ pub async fn download_video(
             let mut current_stream_size: Option<u64> = None;
             let mut final_filepath: Option<String> = None;
             let mut printed_filepaths: Vec<String> = Vec::new();
+            let mut recovered_filepaths: Vec<String> = Vec::new();
             let mut recent_output: VecDeque<String> = VecDeque::new();
 
             let quality_display = match quality.as_str() {
@@ -2199,11 +2233,16 @@ pub async fn download_video(
                                 .map(|path| Path::new(path).is_file())
                                 .unwrap_or(false);
                             if !final_path_exists {
-                                final_filepath = newest_media_filepath_in_dir(&sanitized_path);
+                                (final_filepath, recovered_filepaths) =
+                                    newest_changed_media_filepath(
+                                        &output_directory,
+                                        &output_snapshot,
+                                    );
                             }
                             let output_paths = output_filepaths(
                                 &printed_filepaths,
                                 &chapter_filepaths,
+                                &recovered_filepaths,
                                 &final_filepath,
                             );
                             let actual_filesize = output_paths
@@ -2430,6 +2469,7 @@ pub async fn download_video(
                 .stderr(Stdio::piped());
             cmd.hide_window();
 
+            let output_snapshot = snapshot_media_files(&output_directory);
             let process = match cmd.spawn() {
                 Ok(process) => process,
                 Err(error) => {
@@ -2488,7 +2528,8 @@ pub async fn download_video(
                 download_sections,
                 history_id.clone(),
                 filepath_tmp,
-                sanitized_path,
+                output_directory,
+                output_snapshot,
                 completed_workflow_steps,
                 failed_workflow_steps,
                 emit_failed_workflow,
@@ -2520,6 +2561,7 @@ async fn handle_tokio_download(
     history_id: Option<String>,
     filepath_tmp: std::path::PathBuf,
     output_directory: String,
+    output_snapshot: MediaFileSnapshot,
     completed_workflow_steps: Vec<PluginWorkflowStepSnapshot>,
     failed_workflow_steps: Vec<PluginWorkflowStepSnapshot>,
     emit_failed_workflow: bool,
@@ -2547,6 +2589,7 @@ async fn handle_tokio_download(
     let mut current_stream_size: Option<u64> = None;
     let mut final_filepath: Option<String> = None;
     let mut printed_filepaths: Vec<String> = Vec::new();
+    let mut recovered_filepaths: Vec<String> = Vec::new();
     let recent_output = Arc::new(Mutex::new(VecDeque::new()));
     let stderr_filepath: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
 
@@ -2841,10 +2884,15 @@ async fn handle_tokio_download(
             .map(|path| Path::new(path).is_file())
             .unwrap_or(false);
         if !final_path_exists {
-            final_filepath = newest_media_filepath_in_dir(&output_directory);
+            (final_filepath, recovered_filepaths) =
+                newest_changed_media_filepath(&output_directory, &output_snapshot);
         }
-        let output_paths =
-            output_filepaths(&printed_filepaths, &chapter_filepaths, &final_filepath);
+        let output_paths = output_filepaths(
+            &printed_filepaths,
+            &chapter_filepaths,
+            &recovered_filepaths,
+            &final_filepath,
+        );
         let actual_filesize = output_paths
             .first()
             .and_then(|fp| std::fs::metadata(fp).ok())
@@ -2998,6 +3046,7 @@ async fn handle_tokio_download(
                 let fallback_title = fallback_metadata.title.or_else(|| current_title.clone());
                 let fallback_thumbnail = fallback_metadata.thumbnail.or_else(|| thumbnail.clone());
 
+                let fallback_output_snapshot = snapshot_media_files(&output_directory);
                 match spawn_core_download(fallback, &fallback_args) {
                     Ok(process) => {
                         return Box::pin(handle_tokio_download(
@@ -3015,6 +3064,7 @@ async fn handle_tokio_download(
                             history_id,
                             filepath_tmp,
                             output_directory,
+                            fallback_output_snapshot,
                             completed_workflow_steps,
                             failed_workflow_steps,
                             emit_failed_workflow,
@@ -3530,22 +3580,31 @@ mod tests {
     }
 
     #[test]
-    fn newest_media_filepath_scans_output_directory() {
+    fn output_fallback_only_returns_files_changed_by_this_job() {
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .expect("system time should be after epoch")
             .as_nanos();
         let root = std::env::temp_dir().join(format!("youwee-output-scan-{nonce}"));
         std::fs::create_dir_all(&root).expect("test output directory should be created");
+        let existing = root.join("existing.mp4");
+        let changed = root.join("changed.webm");
+        let created = root.join("created.mkv");
         let ignored = root.join("thumbnail.jpg");
-        let media = root.join("video.mp4");
-        std::fs::write(&ignored, b"thumbnail").expect("thumbnail should be written");
-        std::fs::write(&media, b"video").expect("media should be written");
+        std::fs::write(&existing, b"existing").expect("existing media should be written");
+        std::fs::write(&changed, b"before").expect("changed media should be written");
+        let snapshot = snapshot_media_files(&root.to_string_lossy());
 
-        assert_eq!(
-            newest_media_filepath_in_dir(&root.to_string_lossy()).as_deref(),
-            Some(media.to_string_lossy().as_ref())
-        );
+        std::fs::write(&changed, b"after update").expect("changed media should be updated");
+        std::fs::write(&created, b"created").expect("new media should be written");
+        std::fs::write(&ignored, b"thumbnail").expect("thumbnail should be written");
+
+        let (_, recovered) = newest_changed_media_filepath(&root.to_string_lossy(), &snapshot);
+        assert_eq!(recovered.len(), 2);
+        assert!(recovered.contains(&changed.to_string_lossy().to_string()));
+        assert!(recovered.contains(&created.to_string_lossy().to_string()));
+        assert!(!recovered.contains(&existing.to_string_lossy().to_string()));
+        assert!(!recovered.contains(&ignored.to_string_lossy().to_string()));
 
         std::fs::remove_dir_all(root).ok();
     }
@@ -3576,6 +3635,7 @@ mod tests {
                     "C:/Downloads/01 - Intro.mp4".to_string(),
                     "C:/Downloads/02 - Setup.mp4".to_string()
                 ],
+                &[],
                 &None,
             ),
             vec![
