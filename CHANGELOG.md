@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.52] - 2026-07-30
+
+### Added
+
+- **Facebook Story links** - Resolve authenticated Facebook Story URLs to their source Reel or video before metadata and download, reusing Firefox profile cookies without requiring the browser to close.
+
+### Fixed
+
+- **Deterministic output recovery** - Recover only media files created or modified by the current download job, preserving split chapter outputs and preventing unrelated files from being attached to Library history.
+
 ## [0.20.0-custom.51] - 2026-07-26
 
 ### Fixed

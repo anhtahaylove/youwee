@@ -7,6 +7,16 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.52] - 2026-07-30
+
+### Thêm mới
+
+- **Liên kết Facebook Story** - Phân giải URL Facebook Story cần xác thực về Reel hoặc video nguồn trước bước metadata và tải xuống, tái sử dụng cookie profile Firefox mà không yêu cầu đóng trình duyệt.
+
+### Sửa lỗi
+
+- **Khôi phục output xác định** - Chỉ khôi phục file media được tạo hoặc thay đổi bởi đúng lượt tải hiện tại, giữ đầy đủ output chia chapter và tránh gắn nhầm file không liên quan vào lịch sử Library.
+
 ## [0.20.0-custom.51] - 2026-07-26
 
 ### Sửa lỗi
