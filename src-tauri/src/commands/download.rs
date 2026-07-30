@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::utils::{normalize_url, validate_url};
+use crate::utils::validate_url;
 use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::CommandEvent;
@@ -32,7 +32,8 @@ use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
     calc_trim_filenames_bytes, enqueue_post_download_workflow, get_bundled_ytdlp_fallback_path,
     get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
-    resolve_download_workflow_snapshot, run_ytdlp_with_stderr, system_ytdlp_not_found_message,
+    resolve_download_workflow_snapshot, resolve_facebook_media_url, run_ytdlp_with_stderr,
+    system_ytdlp_not_found_message,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -1448,7 +1449,34 @@ pub async fn download_video(
 ) -> Result<(), String> {
     CANCEL_FLAG.store(false, Ordering::SeqCst);
     validate_url(&url).map_err(|e| BackendError::from_message(e).to_wire_string())?;
-    let url = normalize_url(&url);
+    let requested_url = url.clone();
+    let url = resolve_facebook_media_url(
+        &url,
+        cookie_mode.as_deref(),
+        cookie_browser.as_deref(),
+        cookie_browser_profile.as_deref(),
+        cookie_file_path.as_deref(),
+        cookie_skip_patterns.as_deref(),
+        proxy_url.as_deref(),
+    )
+    .await
+    .map_err(|error| {
+        add_log_internal("error", &error, None, Some(&requested_url)).ok();
+        BackendError::from_message(error).to_wire_string()
+    })?;
+    if url != requested_url
+        && requested_url
+            .to_ascii_lowercase()
+            .contains("facebook.com/stories/")
+    {
+        add_log_internal(
+            "info",
+            &format!("Resolved Facebook Story to downloadable media: {url}"),
+            None,
+            Some(&requested_url),
+        )
+        .ok();
+    }
     let post_download_plugins = post_download_plugins.unwrap_or_default();
     let mut plugin_workflow_snapshots = plugin_workflow_snapshots.unwrap_or_default();
     if !plugin_workflow_snapshots.contains_key("download.completed") {

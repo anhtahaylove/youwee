@@ -1,8 +1,8 @@
 use crate::database::add_log_internal;
 use crate::services::{
     build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ffmpeg_path,
-    get_ytdlp_path, parse_ytdlp_error, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr,
-    run_ytdlp_with_stderr_and_cookies,
+    get_ytdlp_path, parse_ytdlp_error, resolve_facebook_media_url, run_ytdlp_json_with_cookies,
+    run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
 };
 use crate::types::{
     parse_wire_error_string, BackendError, FormatOption, PlaylistVideoEntry, SubtitleInfo,
@@ -1015,7 +1015,34 @@ pub async fn get_video_basic_info(
     proxy_url: Option<String>,
 ) -> Result<VideoInfoResponse, String> {
     validate_url(&url).map_err(|e| BackendError::from_message(e).to_wire_string())?;
-    let url = normalize_url(&url);
+    let requested_url = url.clone();
+    let url = resolve_facebook_media_url(
+        &url,
+        cookie_mode.as_deref(),
+        cookie_browser.as_deref(),
+        cookie_browser_profile.as_deref(),
+        cookie_file_path.as_deref(),
+        cookie_skip_patterns.as_deref(),
+        proxy_url.as_deref(),
+    )
+    .await
+    .map_err(|error| {
+        add_log_internal("error", &error, None, Some(&requested_url)).ok();
+        BackendError::from_message(error).to_wire_string()
+    })?;
+    if url != requested_url
+        && requested_url
+            .to_ascii_lowercase()
+            .contains("facebook.com/stories/")
+    {
+        add_log_internal(
+            "info",
+            &format!("Resolved Facebook Story to downloadable media: {url}"),
+            None,
+            Some(&requested_url),
+        )
+        .ok();
+    }
 
     let mut args = vec![
         "--skip-download".to_string(),
@@ -1137,7 +1164,34 @@ pub async fn get_video_info(
     proxy_url: Option<String>,
 ) -> Result<VideoInfoResponse, String> {
     validate_url(&url).map_err(|e| BackendError::from_message(e).to_wire_string())?;
-    let url = normalize_url(&url);
+    let requested_url = url.clone();
+    let url = resolve_facebook_media_url(
+        &url,
+        cookie_mode.as_deref(),
+        cookie_browser.as_deref(),
+        cookie_browser_profile.as_deref(),
+        cookie_file_path.as_deref(),
+        cookie_skip_patterns.as_deref(),
+        proxy_url.as_deref(),
+    )
+    .await
+    .map_err(|error| {
+        add_log_internal("error", &error, None, Some(&requested_url)).ok();
+        BackendError::from_message(error).to_wire_string()
+    })?;
+    if url != requested_url
+        && requested_url
+            .to_ascii_lowercase()
+            .contains("facebook.com/stories/")
+    {
+        add_log_internal(
+            "info",
+            &format!("Resolved Facebook Story to downloadable media: {url}"),
+            None,
+            Some(&requested_url),
+        )
+        .ok();
+    }
 
     let mut args = vec![
         "--dump-json".to_string(),

@@ -1,5 +1,7 @@
 mod ai;
+mod browser_cookies;
 mod deno;
+mod facebook;
 mod ffmpeg;
 mod gallerydl;
 mod plugin;
@@ -56,7 +58,9 @@ pub(super) fn select_dependency_path_for_source(
 }
 
 pub use ai::*;
+pub(crate) use browser_cookies::*;
 pub use deno::*;
+pub use facebook::*;
 pub use ffmpeg::*;
 pub use gallerydl::*;
 pub use plugin::*;
