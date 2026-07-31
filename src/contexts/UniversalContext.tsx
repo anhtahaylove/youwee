@@ -872,7 +872,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
   const renameCompletedItem = useCallback(async (id: string, newName: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
-    if (!item || item.status !== 'completed') {
+    if (item?.status !== 'completed') {
       throw new Error('Only completed items can be renamed');
     }
 
