@@ -375,9 +375,7 @@ mod playlist_chapter_tests {
         let fields = vec!["uploadDate".to_string(), "viewCount".to_string()];
 
         assert_eq!(
-            build_output_template(
-                "/tmp/out", false, None, None, false, None, None, true, &fields
-            ),
+            build_output_template("/tmp/out", false, None, None, false, None, None, true, &fields),
             "/tmp/out/%(upload_date>%Y-%m-%d)s_%(view_count)sviews_%(title)s.%(ext)s"
         );
     }
@@ -412,9 +410,7 @@ mod playlist_chapter_tests {
         ];
 
         assert_eq!(
-            build_output_template(
-                "/tmp/out", false, None, None, false, None, None, true, &fields
-            ),
+            build_output_template("/tmp/out", false, None, None, false, None, None, true, &fields),
             "/tmp/out/%(upload_date>%Y-%m-%d)s_%(title)s.%(ext)s"
         );
     }

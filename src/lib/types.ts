@@ -558,6 +558,51 @@ export interface PluginPackageInspection {
   signedAt?: string | null;
 }
 
+export type PluginStorePublisherKind = 'official' | 'third-party';
+export type PluginStoreInstalledStatus = 'not-installed' | 'installed';
+
+export interface PluginStorePublisher {
+  kind: PluginStorePublisherKind;
+  name: string;
+  repositoryOwner: string;
+}
+
+export interface PluginStoreVersion {
+  version: string;
+  releaseTag: string;
+  assetName: string;
+  packageUrl: string;
+  packageSize: number;
+  sha256: string;
+  signerFingerprint: string;
+  minAppVersion: string;
+}
+
+export interface PluginStoreEntry {
+  pluginId: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon?: string | null;
+  publisher: PluginStorePublisher;
+  repository: string;
+  categories: string[];
+  tags: string[];
+  triggers: string[];
+  permissionsSummary: string[];
+  latestVersion: string;
+  versions: PluginStoreVersion[];
+  installedStatus: PluginStoreInstalledStatus;
+  installedVersion?: string | null;
+}
+
+export interface PreparedPluginStorePackage {
+  path: string;
+  entry: PluginStoreEntry;
+  version: PluginStoreVersion;
+  inspection: PluginPackageInspection;
+}
+
 export interface PluginWorkspaceSummary {
   pluginId: string;
   slug: string;

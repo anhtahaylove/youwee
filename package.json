@@ -13,6 +13,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "plugin-store:validate": "bun run scripts/validate-plugin-store.mjs",
     "ext:build": "bun run extensions/youwee-webext/scripts/build.mjs",
     "ext:package": "bun run ext:build && bun run extensions/youwee-webext/scripts/package.mjs"
   },
