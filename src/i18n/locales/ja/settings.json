@@ -56,6 +56,16 @@
     "numberPlaylistItemsDesc": "プレイリストのダウンロードファイル名の先頭に順序番号を付与する",
     "numberQueueItems": "キューの項目に番号を付ける",
     "numberQueueItemsDesc": "通常のキュー項目ファイル名の先頭に順序番号を付与する",
+    "filenameMetadata": "ファイル名メタデータ",
+    "filenameMetadataDesc": "選択した動画情報をタイトルの前に追加します",
+    "filenameMetadataFields": {
+      "uploadDate": "アップロード日",
+      "viewCount": "再生回数",
+      "uploader": "投稿者",
+      "duration": "再生時間",
+      "resolution": "解像度",
+      "videoId": "動画 ID"
+    },
     "splitEmbeddedChapters": "チャプターを分割する",
     "splitEmbeddedChaptersDesc": "動画内のチャプターごとに個別のファイルを作成する",
     "numberChapterFiles": "チャプターファイルに番号を付ける",

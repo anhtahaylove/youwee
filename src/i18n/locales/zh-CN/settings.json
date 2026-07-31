@@ -56,6 +56,16 @@
     "numberPlaylistItemsDesc": "为展开的播放列表下载文件添加播放列表顺序前缀",
     "numberQueueItems": "为队列项目编号",
     "numberQueueItemsDesc": "为普通队列下载文件添加队列顺序前缀",
+    "filenameMetadata": "文件名元数据",
+    "filenameMetadataDesc": "在标题前添加所选视频信息",
+    "filenameMetadataFields": {
+      "uploadDate": "上传日期",
+      "viewCount": "观看次数",
+      "uploader": "上传者",
+      "duration": "时长",
+      "resolution": "分辨率",
+      "videoId": "视频 ID"
+    },
     "splitEmbeddedChapters": "拆分内嵌章节",
     "splitEmbeddedChaptersDesc": "根据视频中已有的章节创建单独文件",
     "numberChapterFiles": "为章节文件编号",

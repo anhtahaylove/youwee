@@ -56,6 +56,16 @@
     "numberPlaylistItemsDesc": "Genişletilmiş oynatma listesi indirmelerine oynatma listesi sırasını önek olarak ekleyin",
     "numberQueueItems": "Kuyruktaki öğeleri numaralandır",
     "numberQueueItemsDesc": "Normal sıraya alınmış indirme işlemlerine kuyruk sırasını önek olarak ekleyin",
+    "filenameMetadata": "Dosya adı metadatası",
+    "filenameMetadataDesc": "Seçilen video bilgilerini başlığın önüne ekleyin",
+    "filenameMetadataFields": {
+      "uploadDate": "Yükleme tarihi",
+      "viewCount": "Görüntülenme",
+      "uploader": "Yükleyen",
+      "duration": "Süre",
+      "resolution": "Çözünürlük",
+      "videoId": "Video ID"
+    },
     "splitEmbeddedChapters": "Gömülü bölümleri böl",
     "splitEmbeddedChaptersDesc": "Videoda yer alan bölümlerden ayrı dosyalar oluşturun",
     "numberChapterFiles": "Chapter dosyalarını numaralandır",

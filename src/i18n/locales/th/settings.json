@@ -55,6 +55,16 @@
     "numberPlaylistItemsDesc": "เติมเลขลำดับเพลย์ลิสต์นำหน้าชื่อไฟล์เมื่อดาวน์โหลดเพลย์ลิสต์แบบแยกรายการ",
     "numberQueueItems": "ใส่เลขรายการในคิว",
     "numberQueueItemsDesc": "เติมเลขลำดับคิวนำหน้าชื่อไฟล์สำหรับวิดีโอทั่วไปหลายรายการ",
+    "filenameMetadata": "เมตาดาต้าในชื่อไฟล์",
+    "filenameMetadataDesc": "เพิ่มรายละเอียดวิดีโอที่เลือกไว้หน้าชื่อเรื่อง",
+    "filenameMetadataFields": {
+      "uploadDate": "วันที่อัปโหลด",
+      "viewCount": "ยอดดู",
+      "uploader": "ผู้อัปโหลด",
+      "duration": "ความยาว",
+      "resolution": "ความละเอียด",
+      "videoId": "ID วิดีโอ"
+    },
     "splitEmbeddedChapters": "แยก chapter ที่ฝังอยู่",
     "splitEmbeddedChaptersDesc": "สร้างไฟล์แยกจาก chapter ที่มีอยู่ในวิดีโอ",
     "numberChapterFiles": "ใส่เลขไฟล์ chapter",

@@ -55,6 +55,16 @@
     "numberPlaylistItemsDesc": "Добавлять номер из плейлиста к файлам раскрытой загрузки плейлиста",
     "numberQueueItems": "Нумеровать элементы очереди",
     "numberQueueItemsDesc": "Добавлять порядок в очереди к обычным загрузкам",
+    "filenameMetadata": "Метаданные в имени файла",
+    "filenameMetadataDesc": "Добавлять выбранные сведения о видео перед названием",
+    "filenameMetadataFields": {
+      "uploadDate": "Дата загрузки",
+      "viewCount": "Просмотры",
+      "uploader": "Автор",
+      "duration": "Длительность",
+      "resolution": "Разрешение",
+      "videoId": "ID видео"
+    },
     "splitEmbeddedChapters": "Разделять встроенные главы",
     "splitEmbeddedChaptersDesc": "Создавать отдельные файлы из глав, включенных в видео",
     "numberChapterFiles": "Нумеровать файлы глав",

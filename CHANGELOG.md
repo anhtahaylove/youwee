@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Filename metadata** - Added an optional Download setting to prefix filenames with selected video details such as upload date, views, uploader, duration, resolution, or video ID
 - **Romanian language** - Added Romanian translations for the app interface
 - **Uzbek language** - Added Uzbek translations for the app interface
 - **Turkish language** - Added Turkish translations for the app interface

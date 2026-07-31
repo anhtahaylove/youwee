@@ -5,6 +5,13 @@ export type AudioBitrate = 'auto' | '128';
 export type PreferredFps = 'original' | '30';
 export type SubtitleMode = 'off' | 'auto' | 'manual';
 export type SubtitleFormat = 'srt' | 'vtt' | 'ass';
+export type FilenameMetadataField =
+  | 'uploadDate'
+  | 'viewCount'
+  | 'uploader'
+  | 'duration'
+  | 'resolution'
+  | 'videoId';
 export type YtdlpAdvancedOptionId =
   | 'impersonate'
   | 'forceIpv4'
@@ -103,6 +110,8 @@ export interface ItemDownloadSettings {
   skipLive?: boolean;
   numberPlaylistItems?: boolean;
   numberQueueItems?: boolean;
+  filenameMetadataEnabled?: boolean;
+  filenameMetadataFields?: FilenameMetadataField[];
   splitEmbeddedChapters?: boolean;
   numberChapterFiles?: boolean;
   autoOrganizeCollections?: boolean;
@@ -131,6 +140,8 @@ export interface ItemUniversalSettings {
   liveFromStart?: boolean;
   skipLive?: boolean;
   numberQueueItems?: boolean;
+  filenameMetadataEnabled?: boolean;
+  filenameMetadataFields?: FilenameMetadataField[];
   splitEmbeddedChapters?: boolean;
   numberChapterFiles?: boolean;
   autoOrganizeCollections?: boolean;
@@ -319,6 +330,8 @@ export interface DownloadSettings {
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
   numberPlaylistItems: boolean; // Prefix expanded playlist items with their playlist number
   numberQueueItems: boolean; // Prefix regular queued items with their queue order
+  filenameMetadataEnabled: boolean; // Prefix downloaded files with selected yt-dlp metadata fields
+  filenameMetadataFields: FilenameMetadataField[]; // Structured allowlisted metadata fields for filenames
   splitEmbeddedChapters: boolean; // Split downloaded media into embedded chapter files
   numberChapterFiles: boolean; // Prefix chapter files with chapter numbers when splitting
   autoOrganizeCollections: boolean; // Create library collections for expanded playlists, channel downloads, and split chapters

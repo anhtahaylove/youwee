@@ -1397,6 +1397,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            filenameMetadataEnabled: itemSettings?.filenameMetadataEnabled ?? false,
+            filenameMetadataFields: itemSettings?.filenameMetadataFields ?? [],
             splitEmbeddedChapters: itemSettings?.splitEmbeddedChapters ?? false,
             numberChapterFiles: itemSettings?.numberChapterFiles ?? true,
             autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,
