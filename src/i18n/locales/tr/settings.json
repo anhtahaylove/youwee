@@ -11,7 +11,8 @@
     "ai": "AI Özellikleri",
     "network": "Ağ ve Kimlik Doğrulama",
     "system": "Sistem",
-    "about": "Hakkında"
+    "about": "Hakkında",
+    "pluginStore": "Plugin Store"
   },
   "search": {
     "placeholder": "Ayarlarda ara...",
@@ -56,6 +57,16 @@
     "numberPlaylistItemsDesc": "Genişletilmiş oynatma listesi indirmelerine oynatma listesi sırasını önek olarak ekleyin",
     "numberQueueItems": "Kuyruktaki öğeleri numaralandır",
     "numberQueueItemsDesc": "Normal sıraya alınmış indirme işlemlerine kuyruk sırasını önek olarak ekleyin",
+    "filenameMetadata": "Dosya adı metadatası",
+    "filenameMetadataDesc": "Seçilen video bilgilerini başlığın önüne ekleyin",
+    "filenameMetadataFields": {
+      "uploadDate": "Yükleme tarihi",
+      "viewCount": "Görüntülenme",
+      "uploader": "Yükleyen",
+      "duration": "Süre",
+      "resolution": "Çözünürlük",
+      "videoId": "Video ID"
+    },
     "splitEmbeddedChapters": "Gömülü bölümleri böl",
     "splitEmbeddedChaptersDesc": "Videoda yer alan bölümlerden ayrı dosyalar oluşturun",
     "numberChapterFiles": "Chapter dosyalarını numaralandır",
@@ -877,5 +888,41 @@
     "hideDockOnClose": "Kapatıldığında Dock simgesini gizle",
     "hideDockOnCloseDesc": "Pencere kapatıldığında uygulamayı Dock'tan kaldırın. Yeniden açmak için sistem tepsisi simgesini kullanın.",
     "noSettingsForPlatform": "Bu platform için sistem ayarı yok."
+  },
+  "pluginStore": {
+    "title": "Plugin Store",
+    "description": "Discover and install plugins for Youwee.",
+    "searchPlaceholder": "Search plugins, permissions, or categories...",
+    "allCategories": "All categories",
+    "loading": "Loading plugin store...",
+    "loadError": "Failed to load plugin store",
+    "noResults": "No plugins match your filters.",
+    "install": "Install",
+    "installing": "Installing...",
+    "installed": "Installed",
+    "openInPlugins": "Open in Plugins",
+    "repository": "Repository",
+    "permissions": "Permissions",
+    "noPermissions": "No extra permissions",
+    "installSuccessTitle": "Plugin installed",
+    "installSuccessMessage": "{{name}} was installed. Open Plugins to enable and configure it.",
+    "installErrorTitle": "Plugin install failed",
+    "cancel": "Cancel",
+    "confirmInstall": "Install plugin",
+    "thirdPartyTitle": "Install third-party plugin?",
+    "thirdPartyDescription": "This plugin is not published by Youwee. Review its repository and requested permissions before installing.",
+    "thirdPartySecurityNote": "Youwee verified the package checksum and signature. You still need to enable the plugin and grant permissions manually after installation.",
+    "publisherFilter": {
+      "all": "All",
+      "official": "Official",
+      "third-party": "Third-party"
+    },
+    "publisherKind": {
+      "official": "Official",
+      "third-party": "Third-party"
+    },
+    "publisher": "Publisher",
+    "thirdPartyNotice": "Third-party plugins are not reviewed by Youwee. Review and trust them before installing.",
+    "refresh": "Refresh"
   }
 }

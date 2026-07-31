@@ -1262,7 +1262,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
   const renameCompletedItem = useCallback(async (id: string, newName: string) => {
     const item = itemsRef.current.find((i) => i.id === id);
-    if (!item || item.status !== 'completed') {
+    if (item?.status !== 'completed') {
       throw new Error('Only completed items can be renamed');
     }
 
@@ -1397,6 +1397,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            filenameMetadataEnabled: itemSettings?.filenameMetadataEnabled ?? false,
+            filenameMetadataFields: itemSettings?.filenameMetadataFields ?? [],
             splitEmbeddedChapters: itemSettings?.splitEmbeddedChapters ?? false,
             numberChapterFiles: itemSettings?.numberChapterFiles ?? true,
             autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,

@@ -4,6 +4,7 @@ import {
   FolderDown,
   Globe,
   Images,
+  MonitorPlay,
   Moon,
   ScrollText,
   Settings,
@@ -13,7 +14,6 @@ import {
   TableProperties,
   Tv,
   Wand2,
-  Youtube,
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -49,7 +49,7 @@ const navItems: NavItem[] = [
   {
     id: 'youtube',
     labelKey: 'sidebar.youtube',
-    icon: <Youtube className="w-5 h-5" />,
+    icon: <MonitorPlay className="w-5 h-5" />,
   },
   {
     id: 'universal',
