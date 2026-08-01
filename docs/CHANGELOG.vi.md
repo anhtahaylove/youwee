@@ -7,6 +7,9 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Sửa lỗi
+- **Thêm vào hàng đợi trên macOS Monterey** - Sửa lỗi nút Add không phản hồi trên WebView macOS cũ chưa hỗ trợ API UUID hiện đại của trình duyệt
+
 ## [0.20.1] - 2026-08-01
 
 ### Thêm mới

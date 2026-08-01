@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **macOS Monterey queue add** - Fixed the Add button doing nothing on older macOS WebViews that do not support modern browser UUID APIs
+
 ## [0.20.1] - 2026-08-01
 
 ### Added

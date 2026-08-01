@@ -14,7 +14,9 @@
   ![Español](https://img.shields.io/badge/lang-Espa%C3%B1ol-C60B1E)
   [![Vote for next language](https://img.shields.io/badge/Vote-下一个语言-orange?logo=github)](https://github.com/vanloctech/youwee/discussions/18)
 
-  <img src="../src-tauri/icons/icon.png" alt="Youwee Logo" width="128" height="128">
+  <a href="https://youwee.app">
+    <img src="../src-tauri/icons/icon.png" alt="Youwee Logo" width="128" height="128">
+  </a>
   
   **美观强大的 yt-dlp GUI、视频下载与处理工具 - 免费开源**
 
