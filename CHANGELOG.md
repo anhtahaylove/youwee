@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-08-01
+
 ### Added
 - **Plugin Store** - Added a dedicated Settings menu to discover and install verified plugin packages from the live GitHub catalog
 - **Filename metadata** - Added an optional Download setting to prefix filenames with selected video details such as upload date, views, uploader, duration, resolution, or video ID

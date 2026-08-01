@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-08-01
+
 ### Thêm mới
 - **Plugin Store** - Thêm menu riêng trong Cài đặt để tìm và cài các gói plugin đã được kiểm soát từ catalog live trên GitHub
 - **Metadata trong tên file** - Thêm tùy chọn trong Download để thêm thông tin video đã chọn như ngày đăng, lượt xem, người đăng, thời lượng, độ phân giải hoặc ID video vào đầu tên file
