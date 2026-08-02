@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
+import { createClientId } from '@/lib/client-id';
 import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import {
@@ -392,7 +393,7 @@ export function useChannelsController(): ChannelsContextType {
       const now = new Date().toISOString();
       const initialStatus = options?.initialStatus ?? 'new';
       const channelVideos: ChannelVideo[] = videos.map((v) => ({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         channel_id: channelId,
         video_id: v.id,
         title: v.title,
@@ -890,7 +891,7 @@ export function useChannelsController(): ChannelsContextType {
       const workflowSnapshots = loadPluginWorkflowSnapshots();
       const queuedDownloads = videosToDownload.map((video) => ({
         video,
-        downloadId: `channel-${video.id}-${Date.now()}-${crypto.randomUUID()}`,
+        downloadId: `channel-${video.id}-${Date.now()}-${createClientId()}`,
       }));
 
       setIsDownloading(true);
@@ -1364,7 +1365,7 @@ export function useChannelsController(): ChannelsContextType {
         const workflowSnapshots = loadPluginWorkflowSnapshots();
         const queuedAutoDownloads = videosToAutoDownload.map((video) => ({
           video,
-          downloadId: `auto-${video.video_id}-${Date.now()}-${crypto.randomUUID()}`,
+          downloadId: `auto-${video.video_id}-${Date.now()}-${createClientId()}`,
         }));
 
         for (const { video, downloadId } of queuedAutoDownloads) {

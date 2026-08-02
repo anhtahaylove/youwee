@@ -30,6 +30,7 @@ import {
   localizeBackendError,
   localizeProgressError,
 } from '@/lib/backend-error';
+import { createClientId } from '@/lib/client-id';
 import {
   buildDownloadDuplicateIdentity,
   getDownloadDuplicateIdentityKey,
@@ -979,7 +980,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       );
       const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
       const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         url: candidate.url,
         title: candidate.title,
         status: 'pending' as const,
@@ -1102,7 +1103,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       if (!candidate) return { added: false, itemId: null };
 
       const newItem: DownloadItem = {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         url: normalizedUrl,
         title: candidate.title,
         status: 'pending',
@@ -1223,7 +1224,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           currentYoutubeIdsAfterReview.add(videoId);
         }
         newItems.push({
-          id: crypto.randomUUID(),
+          id: createClientId(),
           url: candidate.url,
           title: candidate.title,
           status: 'pending',
@@ -1333,7 +1334,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             ),
         );
         const newItems: DownloadItem[] = enqueueCandidates.map((candidate) => ({
-          id: crypto.randomUUID(),
+          id: createClientId(),
           url: candidate.url,
           title: candidate.title,
           status: 'pending' as const,

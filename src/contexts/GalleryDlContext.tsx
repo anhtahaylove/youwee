@@ -14,6 +14,7 @@ import {
 } from 'react';
 import { usePersistedDownloadQueue } from '@/hooks/usePersistedDownloadQueue';
 import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
+import { createClientId } from '@/lib/client-id';
 import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import {
   AUTO_RETRY_LIMITS,
@@ -218,7 +219,7 @@ export function GalleryDlProvider({ children }: { children: ReactNode }) {
         (candidate) => !currentItemsAfterReview.some((item) => item.url === candidate.url),
       );
       const newItems: DownloadItem[] = enqueueCandidates.map((candidate) => ({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         url: candidate.url,
         title: candidate.title,
         status: 'pending' as const,

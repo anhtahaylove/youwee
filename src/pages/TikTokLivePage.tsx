@@ -59,6 +59,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cacheRemoteThumbnailUrl } from '@/lib/asset-access';
 import { extractBackendError, localizeBackendError } from '@/lib/backend-error';
+import { createClientId } from '@/lib/client-id';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import { openFileLocation } from '@/lib/open-file-location';
 import { extractUrls } from '@/lib/sources';
@@ -613,7 +614,7 @@ export function TikTokLivePage() {
 
   const inspectLive = useCallback(async () => {
     if (!input.trim()) return;
-    const jobId = crypto.randomUUID();
+    const jobId = createClientId();
     activeInspectJobIdRef.current = jobId;
     setIsInspecting(true);
     setError('');
@@ -650,7 +651,7 @@ export function TikTokLivePage() {
 
   const startRecording = useCallback(async () => {
     if (!input.trim()) return;
-    const jobId = crypto.randomUUID();
+    const jobId = createClientId();
     activeJobIdRef.current = jobId;
     recordingStartedAtRef.current = null;
     setRecordingStartedAt(null);

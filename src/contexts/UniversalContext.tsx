@@ -31,6 +31,7 @@ import {
   localizeBackendError,
   localizeProgressError,
 } from '@/lib/backend-error';
+import { createClientId } from '@/lib/client-id';
 import {
   buildDownloadDuplicateIdentity,
   isActiveDownloadQueueItem,
@@ -839,7 +840,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       );
       const queueTotal = currentItemsAfterReview.length + enqueueCandidates.length;
       const newItems: DownloadItem[] = enqueueCandidates.map((candidate, index) => ({
-        id: crypto.randomUUID(),
+        id: createClientId(),
         url: candidate.url,
         title: candidate.title,
         status: 'pending' as const,
@@ -977,7 +978,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       };
 
       const newItem: DownloadItem = {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         url: normalizedUrl,
         title: candidate.title,
         status: 'pending',
