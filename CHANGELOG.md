@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0-custom.53] - 2026-08-02
+
+### Fixed
+
+- **Client ID compatibility** - Added a secure fallback for WebViews without `crypto.randomUUID`, keeping Add and queue actions functional.
+
 ## [0.20.0-custom.52] - 2026-07-30
 
 ### Added

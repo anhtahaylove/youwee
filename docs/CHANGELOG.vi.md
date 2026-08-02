@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.0-custom.53] - 2026-08-02
+
+### Sửa lỗi
+
+- **Tương thích Client ID** - Thêm phương án dự phòng an toàn cho WebView không có `crypto.randomUUID`, giúp thao tác Add và hàng đợi tiếp tục hoạt động.
+
 ## [0.20.0-custom.52] - 2026-07-30
 
 ### Thêm mới
