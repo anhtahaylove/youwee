@@ -19,9 +19,9 @@
     },
     {
       "name": "FFmpeg",
-      "version": "n8.1.2-22-g94138f6973-2026-07-17",
-      "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-07-17-01-38/ffmpeg-n8.1.2-22-g94138f6973-win64-gpl-8.1.zip",
-      "sha256": "cbf81edae95efd621fb2ee14a92ad609a490f0d11701bf55b80aebc71f2d5535",
+      "version": "n8.1.2-34-g9b6c8969e0-2026-08-01",
+      "url": "https://github.com/anhtahaylove/youwee/releases/download/deps-windows-ffmpeg-20260801/ffmpeg-n8.1.2-34-g9b6c8969e0-win64-gpl-8.1.zip",
+      "sha256": "da6b04aeaeab2a061be5356c7a945f4d80c7cecc3f976f17dd83b23827d96330",
       "archive": "zip",
       "files": [
         {
