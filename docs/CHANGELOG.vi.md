@@ -7,6 +7,17 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1-custom.1] - 2026-08-11
+
+### Thêm mới
+
+- **Tiền tố metadata cho tên file** - Cho phép thêm tùy chọn ngày đăng, người đăng, lượt xem, thời lượng, độ phân giải và ID video vào đầu tên file mà vẫn giữ thứ tự hàng đợi, playlist và chapter.
+- **Bộ sưu tập ảnh Xiaohongshu** - Nhận diện bài Xiaohongshu chỉ có ảnh, tải ảnh gốc vào thư mục riêng và giữ Queue, phát hiện trùng lặp cùng lịch sử Library nhất quán.
+
+### Sửa lỗi
+
+- **An toàn số liệu lịch sử** - Loại bỏ filesize và duration âm từ SQLite, đồng thời giới hạn an toàn giá trị unsigned quá lớn trước khi lưu.
+
 ## [0.20.0-custom.53] - 2026-08-02
 
 ### Sửa lỗi

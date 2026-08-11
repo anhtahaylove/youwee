@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1-custom.1] - 2026-08-11
+
+### Added
+
+- **Filename metadata prefixes** - Optionally prefix downloads with upload date, uploader, view count, duration, resolution, and video ID while preserving queue, playlist, and chapter numbering.
+- **Xiaohongshu image galleries** - Detect image-only Xiaohongshu posts, download their original images into a dedicated folder, and keep Queue, duplicate detection, and Library history consistent.
+
+### Fixed
+
+- **History numeric safety** - Reject negative SQLite filesize and duration values and safely clamp oversized unsigned values before storing them.
+
 ## [0.20.0-custom.53] - 2026-08-02
 
 ### Fixed
