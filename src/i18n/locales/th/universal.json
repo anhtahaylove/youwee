@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "คิว",
+    "imageCount": "{{count}} รูป",
     "pending": "รออยู่ {{count}}",
     "clearDone": "ล้างที่เสร็จแล้ว",
     "loadingInfo": "กำลังโหลดข้อมูล...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "เริ่มดาวน์โหลด",
+    "downloadImages": "ดาวน์โหลดรูปภาพ",
     "stopDownload": "หยุดดาวน์โหลด",
     "clearAll": "ล้างรายการทั้งหมดในคิว"
   },

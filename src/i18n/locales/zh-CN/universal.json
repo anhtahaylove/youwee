@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "队列",
+    "imageCount": "{{count}} 张图片",
     "pending": "{{count}} 个待处理",
     "clearDone": "清除已完成",
     "loadingInfo": "正在加载信息...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "开始下载",
+    "downloadImages": "下载图片",
     "stopDownload": "停止下载",
     "clearAll": "清空队列中的所有项目"
   },

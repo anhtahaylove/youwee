@@ -13,6 +13,7 @@ import {
   FolderSearch,
   HardDrive,
   Hash,
+  Images,
   Loader2,
   Pause,
   Pencil,
@@ -156,6 +157,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const redownloadSpeed = redownloadTask?.speed || '';
 
   const isDataExport = entry.source === 'data_export' || entry.quality === 'data export';
+  const isImageGallery = entry.format === 'image-gallery';
   const sourceConfig = detectSource(isDataExport ? 'data_export' : entry.source);
   const sourceLabel = isDataExport ? t('library.toolbar.filterDataExport') : sourceConfig.label;
   const canPlayAudio = isPlayableAudioEntry(entry);
@@ -191,8 +193,8 @@ export function HistoryItem({ entry }: HistoryItemProps) {
   const isGeneratingSummary = task?.status === 'fetching' || task?.status === 'generating';
   // Don't show AI errors if AI is disabled (user didn't explicitly use AI)
   const summaryError = aiEnabled && task?.status === 'error' ? task.error : null;
-  const canDeleteMediaFile = Boolean(entry.file_exists && entry.filepath.trim());
-  const canSplitMedia = canDeleteMediaFile && !isDataExport;
+  const canDeleteMediaFile = Boolean(entry.file_exists && entry.filepath.trim() && !isImageGallery);
+  const canSplitMedia = canDeleteMediaFile && !isDataExport && !isImageGallery;
 
   // Update local summary when task completes
   useEffect(() => {
@@ -375,7 +377,9 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/50">
-            {canPlayAudio ? (
+            {isImageGallery ? (
+              <Images className="w-10 h-10 text-muted-foreground/30" />
+            ) : canPlayAudio ? (
               <FileAudio className="w-10 h-10 text-muted-foreground/30" />
             ) : (
               <FileVideo className="w-10 h-10 text-muted-foreground/30" />
@@ -503,7 +507,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           )}
 
           {/* AI Summary */}
-          {!isDataExport && (
+          {!isDataExport && !isImageGallery && (
             <div className="mt-2">
               {localSummary ? (
                 <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
@@ -635,17 +639,19 @@ export function HistoryItem({ entry }: HistoryItemProps) {
                 <FolderOpen className="w-3.5 h-3.5" />
                 {t('library.item.openFolder')}
               </button>
-              <button
-                type="button"
-                onClick={handleOpenRenameEditor}
-                className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
-                  'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
-                )}
-              >
-                <Pencil className="w-3.5 h-3.5" />
-                {t('library.item.rename')}
-              </button>
+              {!isImageGallery && (
+                <button
+                  type="button"
+                  onClick={handleOpenRenameEditor}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium',
+                    'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors',
+                  )}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  {t('library.item.rename')}
+                </button>
+              )}
               {canSplitMedia && (
                 <button
                   type="button"
@@ -662,23 +668,25 @@ export function HistoryItem({ entry }: HistoryItemProps) {
             </>
           ) : !isDataExport ? (
             <>
-              <button
-                type="button"
-                onClick={handleLocateMovedFile}
-                disabled={isRelinking || isRedownloading}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-md border border-dashed px-2.5 py-1.5 text-xs font-medium',
-                  'border-border text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary',
-                  (isRelinking || isRedownloading) && 'opacity-50',
-                )}
-              >
-                {isRelinking ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <FolderSearch className="w-3.5 h-3.5" />
-                )}
-                {t('library.item.locateMovedFile')}
-              </button>
+              {!isImageGallery && (
+                <button
+                  type="button"
+                  onClick={handleLocateMovedFile}
+                  disabled={isRelinking || isRedownloading}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-md border border-dashed px-2.5 py-1.5 text-xs font-medium',
+                    'border-border text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary',
+                    (isRelinking || isRedownloading) && 'opacity-50',
+                  )}
+                >
+                  {isRelinking ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <FolderSearch className="w-3.5 h-3.5" />
+                  )}
+                  {t('library.item.locateMovedFile')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleRedownload}
@@ -764,7 +772,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           </button>
         </div>
 
-        {isRenameEditorOpen && entry.file_exists && (
+        {!isImageGallery && isRenameEditorOpen && entry.file_exists && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/50 p-2">
             <Pencil className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
             <input
@@ -807,7 +815,7 @@ export function HistoryItem({ entry }: HistoryItemProps) {
           open={isCollectionsManagerOpen}
           onOpenChange={setIsCollectionsManagerOpen}
         />
-        {localSummary && (
+        {!isImageGallery && localSummary && (
           <HistorySummaryDialog
             entry={entry}
             open={isSummaryDialogOpen}

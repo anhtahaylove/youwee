@@ -9,6 +9,7 @@ import {
   FolderOpen,
   Globe,
   HardDrive,
+  Images,
   Lightbulb,
   Loader2,
   MonitorPlay,
@@ -180,6 +181,8 @@ export function UniversalQueueItem({
   const isPreparingPreview = isPending && !!item.thumbnail && !thumbError && !previewReady;
   const isUpcomingLiveError = item.errorCode === 'YT_UPCOMING_LIVE';
   const isMissingCompletedFile = isPending && item.errorCode === 'OUTPUT_FILE_MISSING';
+  const isImageGallery =
+    item.mediaKind === 'image_gallery' || item.completedFormat === 'image-gallery';
 
   // Get saved settings for pending items
   const itemSettings = item.settings as ItemUniversalSettings | undefined;
@@ -489,20 +492,27 @@ export function UniversalQueueItem({
           )}
 
           {/* Settings badges for pending/downloading items */}
-          {(isPending || isActive) && itemSettings && (
-            <>
-              <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
-                <MonitorPlay className="w-3 h-3" />
-                {formatQuality(itemSettings.quality)}
+          {(isPending || isActive) &&
+            itemSettings &&
+            (isImageGallery ? (
+              <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-400 font-medium">
+                <Images className="w-3 h-3" />
+                {t('queue.imageCount', { count: item.imageCount ?? 0 })}
               </span>
-              <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium uppercase">
-                {itemSettings.format}
-              </span>
-            </>
-          )}
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium">
+                  <MonitorPlay className="w-3 h-3" />
+                  {formatQuality(itemSettings.quality)}
+                </span>
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium uppercase">
+                  {itemSettings.format}
+                </span>
+              </>
+            ))}
 
           {/* Time range info badge (read-only, shown when time range is set and not pending) */}
-          {!isPending && hasTimeRange && itemSettings && (
+          {!isImageGallery && !isPending && hasTimeRange && itemSettings && (
             <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
               <Scissors className="w-3 h-3" />
               {itemSettings.timeRangeStart}-{itemSettings.timeRangeEnd}
@@ -514,7 +524,11 @@ export function UniversalQueueItem({
             <>
               {item.completedResolution && (
                 <span className="inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded bg-muted/50 text-muted-foreground">
-                  <MonitorPlay className="w-3 h-3" />
+                  {isImageGallery ? (
+                    <Images className="w-3 h-3" />
+                  ) : (
+                    <MonitorPlay className="w-3 h-3" />
+                  )}
                   {item.completedResolution}
                 </span>
               )}
@@ -562,7 +576,7 @@ export function UniversalQueueItem({
           )}
 
           {/* Generating Status (inline with info badges) */}
-          {isGenerating && (
+          {!isImageGallery && isGenerating && (
             <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
               <Loader2 className="w-3 h-3 animate-spin" />
               {generatingStatus === 'fetching'
@@ -595,7 +609,7 @@ export function UniversalQueueItem({
             )}
 
             {/* Time Range button (only when pending) */}
-            {isPending && itemSettings && (
+            {!isImageGallery && isPending && itemSettings && (
               <button
                 type="button"
                 onClick={handleToggleTimeRange}
@@ -614,16 +628,21 @@ export function UniversalQueueItem({
             )}
 
             {/* AI Summarize Button */}
-            {aiEnabled && !isError && !summary && !isGenerating && !summaryError && (
-              <button
-                type="button"
-                onClick={handleGenerateSummary}
-                className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-[hsl(var(--gradient-via)/0.35)] bg-[linear-gradient(135deg,hsl(var(--gradient-from)/0.08),hsl(var(--gradient-via)/0.08),hsl(var(--gradient-to)/0.08))] hover:border-[hsl(var(--gradient-via)/0.55)] hover:bg-[linear-gradient(135deg,hsl(var(--gradient-from)/0.13),hsl(var(--gradient-via)/0.13),hsl(var(--gradient-to)/0.13))] transition-colors font-medium"
-              >
-                <Sparkles className="w-3 h-3 text-[hsl(var(--gradient-via))]" />
-                <span className="gradient-text">{t('queue.summarize')}</span>
-              </button>
-            )}
+            {!isImageGallery &&
+              aiEnabled &&
+              !isError &&
+              !summary &&
+              !isGenerating &&
+              !summaryError && (
+                <button
+                  type="button"
+                  onClick={handleGenerateSummary}
+                  className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-[hsl(var(--gradient-via)/0.35)] bg-[linear-gradient(135deg,hsl(var(--gradient-from)/0.08),hsl(var(--gradient-via)/0.08),hsl(var(--gradient-to)/0.08))] hover:border-[hsl(var(--gradient-via)/0.55)] hover:bg-[linear-gradient(135deg,hsl(var(--gradient-from)/0.13),hsl(var(--gradient-via)/0.13),hsl(var(--gradient-to)/0.13))] transition-colors font-medium"
+                >
+                  <Sparkles className="w-3 h-3 text-[hsl(var(--gradient-via))]" />
+                  <span className="gradient-text">{t('queue.summarize')}</span>
+                </button>
+              )}
 
             {isCompleted && item.completedFilepath && (
               <button
@@ -646,7 +665,7 @@ export function UniversalQueueItem({
               {copiedUrl ? t('queue.copied') : t('queue.copyUrl')}
             </button>
 
-            {isCompleted && item.completedFilepath && (
+            {isCompleted && item.completedFilepath && !isImageGallery && (
               <button
                 type="button"
                 onClick={handleOpenRenameEditor}
@@ -660,7 +679,7 @@ export function UniversalQueueItem({
         )}
 
         {/* AI Summary Section */}
-        {(summary || summaryError) && (
+        {!isImageGallery && (summary || summaryError) && (
           <div className="mt-2">
             {summary ? (
               <div className="p-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
@@ -717,7 +736,7 @@ export function UniversalQueueItem({
         {renameError && <p className="mt-1 text-xs text-destructive">{renameError}</p>}
 
         {/* Time Range Inline Panel */}
-        {showTimeRange && isPending && (
+        {!isImageGallery && showTimeRange && isPending && (
           <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
             <Scissors className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <input
@@ -776,7 +795,7 @@ export function UniversalQueueItem({
           </div>
         )}
 
-        {showRenameEditor && isCompleted && (
+        {!isImageGallery && showRenameEditor && isCompleted && (
           <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-muted/50 border border-border/50">
             <Pencil className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
             <input

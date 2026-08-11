@@ -189,6 +189,9 @@ export function detectExtractorFromUrl(url: string): string | undefined {
     if (hostname.includes('facebook.com') || hostname.includes('fb.watch')) return 'facebook';
     if (hostname.includes('twitter.com') || hostname.includes('x.com')) return 'twitter';
     if (hostname.includes('bilibili.com') || hostname.includes('b23.tv')) return 'bilibili';
+    if (hostname.includes('xiaohongshu.com') || hostname.includes('xhslink.com')) {
+      return 'xiaohongshu';
+    }
     if (hostname.includes('vimeo.com')) return 'vimeo';
     if (hostname.includes('twitch.tv')) return 'twitch';
   } catch {

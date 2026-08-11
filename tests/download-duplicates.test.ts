@@ -58,6 +58,33 @@ describe('partitionDownloadQueueUrls', () => {
   });
 });
 
+describe('explicit media identities', () => {
+  test('uses a Xiaohongshu media id across different short URLs', () => {
+    const completed = {
+      id: 'gallery-1',
+      url: 'http://xhslink.com/o/first',
+      mediaId: 'xiaohongshu:6a60ada0000000000f014936',
+      status: 'completed',
+    } as const;
+    const [candidate] = markInactiveQueueDuplicatesUnique(
+      [
+        {
+          url: 'http://xhslink.com/o/second',
+          title: 'Gallery',
+          duplicateIdentity: buildDownloadDuplicateIdentity(
+            'http://xhslink.com/o/second',
+            null,
+            'xiaohongshu:6a60ada0000000000f014936',
+          ),
+        },
+      ],
+      [completed],
+    );
+
+    expect(candidate.outputCollisionPolicy).toBe('unique');
+  });
+});
+
 describe('resolveDownloadedDuplicateCandidates', () => {
   const candidate = {
     url: 'https://www.facebook.com/reel/123',

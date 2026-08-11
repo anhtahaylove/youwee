@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "キュー",
+    "imageCount": "{{count}} 枚の画像",
     "pending": "{{count}} 件が待機中",
     "clearDone": "完了済みをクリア",
     "loadingInfo": "情報を読み込み中...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "ダウンロード開始",
+    "downloadImages": "画像をダウンロード",
     "stopDownload": "ダウンロード停止",
     "clearAll": "キューの項目をすべてクリア"
   },

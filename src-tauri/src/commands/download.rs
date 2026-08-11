@@ -20,20 +20,21 @@ use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 
 use crate::database::add_log_internal;
-use crate::database::update_history_download;
 use crate::database::{
     add_history_collection_in_db, add_history_internal, ensure_collection_for_download_in_db,
 };
+use crate::database::{update_history_download, update_history_identity};
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
     calc_trim_filenames_bytes, enqueue_post_download_workflow, get_bundled_ytdlp_fallback_path,
     get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
-    resolve_download_workflow_snapshot, resolve_facebook_media_url, run_ytdlp_with_stderr,
-    system_ytdlp_not_found_message,
+    is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
+    resolve_facebook_media_url, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
+    system_ytdlp_not_found_message, XiaohongshuGalleryImage, XiaohongshuGalleryMetadata,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -49,6 +50,9 @@ const DEFAULT_FILENAME_TEMPLATE: &str = "%(title)s.%(ext)s";
 const RECENT_OUTPUT_LIMIT: usize = 30;
 const REMOTE_THUMBNAIL_MAX_BYTES: usize = 5 * 1024 * 1024;
 const REMOTE_THUMBNAIL_CACHE_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+const XIAOHONGSHU_IMAGE_MAX_BYTES: usize = 50 * 1024 * 1024;
+const XIAOHONGSHU_DOWNLOAD_CONCURRENCY: usize = 3;
+const XIAOHONGSHU_METADATA_REFRESH_LIMIT: usize = 1;
 
 #[derive(Clone)]
 struct CoreDownloadFallback {
@@ -337,6 +341,410 @@ async fn run_completed_plugins(
     };
 
     let _ = enqueue_post_download_workflow(app, workflow_steps.to_vec(), payload);
+}
+
+#[derive(Debug)]
+enum XiaohongshuImageDownloadError {
+    Cancelled,
+    RefreshMetadata(String),
+    Fatal(String),
+}
+
+impl XiaohongshuImageDownloadError {
+    fn message(&self) -> &str {
+        match self {
+            Self::Cancelled => "Download cancelled",
+            Self::RefreshMetadata(message) | Self::Fatal(message) => message,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct DownloadedXiaohongshuImage {
+    index: usize,
+    path: PathBuf,
+    size: u64,
+}
+
+fn sanitize_gallery_folder_part(value: &str, fallback: &str) -> String {
+    let sanitized = value
+        .chars()
+        .map(|character| match character {
+            '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*' | '\0' => ' ',
+            character if character.is_control() => ' ',
+            character => character,
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let trimmed = sanitized.trim_matches(['.', ' ']).trim();
+    if trimmed.is_empty() {
+        fallback.to_string()
+    } else {
+        trimmed.chars().take(120).collect()
+    }
+}
+
+fn xiaohongshu_gallery_folder(
+    output_directory: &str,
+    metadata: &XiaohongshuGalleryMetadata,
+    item_prefix: &str,
+    collision_suffix: Option<&str>,
+) -> PathBuf {
+    let title = sanitize_gallery_folder_part(&metadata.title, "Xiaohongshu post");
+    let id = sanitize_gallery_folder_part(&metadata.id, "post");
+    let suffix = collision_suffix
+        .map(|value| format!(" [{value}]"))
+        .unwrap_or_default();
+    Path::new(output_directory).join(format!("{item_prefix}{title} [{id}]{suffix}"))
+}
+
+fn should_probe_xiaohongshu_gallery(url: &str, media_kind: Option<&str>) -> bool {
+    is_xiaohongshu_url(url) && media_kind != Some("video")
+}
+
+fn xiaohongshu_image_referer(post_id: &str) -> String {
+    let mut referer = reqwest::Url::parse("https://www.xiaohongshu.com/")
+        .expect("static Xiaohongshu base URL is valid");
+    referer
+        .path_segments_mut()
+        .expect("Xiaohongshu base URL supports path segments")
+        .extend(["explore", post_id]);
+    referer.to_string()
+}
+
+fn xiaohongshu_image_extension(
+    content_type: Option<&str>,
+    url: &str,
+    header: &[u8],
+) -> &'static str {
+    if header.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]) {
+        return "png";
+    }
+    if header.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        return "jpg";
+    }
+    if header.starts_with(b"RIFF") && header.get(8..12) == Some(b"WEBP") {
+        return "webp";
+    }
+    if header.starts_with(b"GIF87a") || header.starts_with(b"GIF89a") {
+        return "gif";
+    }
+    if header
+        .get(4..12)
+        .is_some_and(|value| value.starts_with(b"ftypavif"))
+    {
+        return "avif";
+    }
+
+    match content_type
+        .unwrap_or_default()
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "image/png" => "png",
+        "image/webp" => "webp",
+        "image/gif" => "gif",
+        "image/avif" => "avif",
+        "image/jpeg" | "image/jpg" => "jpg",
+        _ if url.contains("_png_") => "png",
+        _ if url.contains("_webp_") => "webp",
+        _ => "jpg",
+    }
+}
+
+async fn fetch_xiaohongshu_gallery_metadata(
+    app: &AppHandle,
+    url: &str,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) -> Result<Option<XiaohongshuGalleryMetadata>, String> {
+    let args = [
+        "--dump-single-json",
+        "--skip-download",
+        "--ignore-no-formats-error",
+        "--no-warnings",
+        "--socket-timeout",
+        "15",
+        "--",
+        url,
+    ];
+    let binary = get_ytdlp_path(app)
+        .await
+        .map(|(path, bundled)| format!("{} (bundled: {bundled})", path.display()))
+        .unwrap_or_else(|| "yt-dlp".to_string());
+    add_log_internal(
+        "command",
+        &format!("[{binary}] yt-dlp {}", args.join(" ")),
+        None,
+        Some(url),
+    )
+    .ok();
+
+    let output = run_ytdlp_with_stderr_and_cookies(
+        app,
+        &args,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+        proxy_url,
+    )
+    .await?;
+    if !output.stderr.trim().is_empty() {
+        add_log_internal("stderr", output.stderr.trim(), None, Some(url)).ok();
+    }
+    if !output.success {
+        let message = output.stderr.trim();
+        return Err(if message.is_empty() {
+            "Failed to inspect Xiaohongshu post".to_string()
+        } else {
+            format!("Failed to inspect Xiaohongshu post: {message}")
+        });
+    }
+
+    let json = serde_json::from_str(&output.stdout)
+        .map_err(|error| format!("Failed to parse Xiaohongshu metadata: {error}"))?;
+    Ok(parse_xiaohongshu_gallery_metadata(&json))
+}
+
+async fn download_xiaohongshu_image(
+    client: reqwest::Client,
+    referer_url: String,
+    image: XiaohongshuGalleryImage,
+    index: usize,
+    number_width: usize,
+    output_folder: PathBuf,
+) -> Result<DownloadedXiaohongshuImage, XiaohongshuImageDownloadError> {
+    if CANCEL_FLAG.load(Ordering::SeqCst) {
+        return Err(XiaohongshuImageDownloadError::Cancelled);
+    }
+
+    let response = client
+        .get(&image.url)
+        .header(reqwest::header::REFERER, referer_url)
+        .send()
+        .await
+        .map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!(
+                "Failed to download Xiaohongshu image {}: {error}",
+                index + 1
+            ))
+        })?;
+    let status = response.status();
+    if matches!(status.as_u16(), 401 | 403 | 404) {
+        return Err(XiaohongshuImageDownloadError::RefreshMetadata(format!(
+            "Xiaohongshu image URL expired with HTTP {status}"
+        )));
+    }
+    let response = response.error_for_status().map_err(|error| {
+        XiaohongshuImageDownloadError::Fatal(format!(
+            "Failed to download Xiaohongshu image {}: {error}",
+            index + 1
+        ))
+    })?;
+    if response
+        .content_length()
+        .is_some_and(|length| length > XIAOHONGSHU_IMAGE_MAX_BYTES as u64)
+    {
+        return Err(XiaohongshuImageDownloadError::Fatal(format!(
+            "Xiaohongshu image {} exceeds the 50 MB safety limit",
+            index + 1
+        )));
+    }
+
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string);
+    let part_path = output_folder.join(format!("{:0number_width$}.part", index + 1));
+    let mut file = tokio::fs::File::create(&part_path).await.map_err(|error| {
+        XiaohongshuImageDownloadError::Fatal(format!(
+            "Failed to create Xiaohongshu image {}: {error}",
+            index + 1
+        ))
+    })?;
+    let mut header = Vec::with_capacity(16);
+    let mut downloaded_size = 0usize;
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        if CANCEL_FLAG.load(Ordering::SeqCst) {
+            let _ = tokio::fs::remove_file(&part_path).await;
+            return Err(XiaohongshuImageDownloadError::Cancelled);
+        }
+        let chunk = chunk.map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!(
+                "Failed to read Xiaohongshu image {}: {error}",
+                index + 1
+            ))
+        })?;
+        if downloaded_size + chunk.len() > XIAOHONGSHU_IMAGE_MAX_BYTES {
+            let _ = tokio::fs::remove_file(&part_path).await;
+            return Err(XiaohongshuImageDownloadError::Fatal(format!(
+                "Xiaohongshu image {} exceeds the 50 MB safety limit",
+                index + 1
+            )));
+        }
+        if header.len() < 16 {
+            let remaining = 16 - header.len();
+            header.extend_from_slice(&chunk[..chunk.len().min(remaining)]);
+        }
+        file.write_all(&chunk).await.map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!(
+                "Failed to write Xiaohongshu image {}: {error}",
+                index + 1
+            ))
+        })?;
+        downloaded_size += chunk.len();
+    }
+    file.flush().await.map_err(|error| {
+        XiaohongshuImageDownloadError::Fatal(format!(
+            "Failed to write Xiaohongshu image {}: {error}",
+            index + 1
+        ))
+    })?;
+    drop(file);
+
+    let extension = xiaohongshu_image_extension(content_type.as_deref(), &image.url, &header);
+    let final_path = output_folder.join(format!("{:0number_width$}.{extension}", index + 1));
+    if final_path.exists() {
+        tokio::fs::remove_file(&final_path).await.map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!(
+                "Failed to replace Xiaohongshu image {}: {error}",
+                index + 1
+            ))
+        })?;
+    }
+    tokio::fs::rename(&part_path, &final_path)
+        .await
+        .map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!(
+                "Failed to finalize Xiaohongshu image {}: {error}",
+                index + 1
+            ))
+        })?;
+
+    Ok(DownloadedXiaohongshuImage {
+        index,
+        path: final_path,
+        size: downloaded_size as u64,
+    })
+}
+
+async fn download_xiaohongshu_gallery_batch(
+    app: &AppHandle,
+    id: &str,
+    metadata: &XiaohongshuGalleryMetadata,
+    output_folder: &Path,
+    proxy_url: Option<&str>,
+) -> Result<Vec<DownloadedXiaohongshuImage>, XiaohongshuImageDownloadError> {
+    tokio::fs::create_dir_all(output_folder)
+        .await
+        .map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!(
+                "Failed to create Xiaohongshu gallery folder: {error}"
+            ))
+        })?;
+
+    let mut client_builder = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 Youwee/0.20")
+        .timeout(Duration::from_secs(45));
+    if let Some(proxy) = proxy_url
+        .filter(|value| !value.trim().is_empty() && !value.trim().eq_ignore_ascii_case("off"))
+    {
+        client_builder = client_builder.proxy(reqwest::Proxy::all(proxy).map_err(|error| {
+            XiaohongshuImageDownloadError::Fatal(format!("Invalid proxy URL: {error}"))
+        })?);
+    }
+    let client = client_builder.build().map_err(|error| {
+        XiaohongshuImageDownloadError::Fatal(format!(
+            "Failed to create Xiaohongshu image client: {error}"
+        ))
+    })?;
+
+    let total = metadata.images.len();
+    let number_width = total.max(1).to_string().len().max(2);
+    let referer_url = xiaohongshu_image_referer(&metadata.id);
+    let output_folder = output_folder.to_path_buf();
+    let mut downloads = futures_util::stream::iter(metadata.images.clone().into_iter().enumerate())
+        .map(|(index, image)| {
+            download_xiaohongshu_image(
+                client.clone(),
+                referer_url.clone(),
+                image,
+                index,
+                number_width,
+                output_folder.clone(),
+            )
+        })
+        .buffer_unordered(XIAOHONGSHU_DOWNLOAD_CONCURRENCY);
+    let mut completed: Vec<DownloadedXiaohongshuImage> = Vec::with_capacity(total);
+    let mut downloaded_size = 0u64;
+    while let Some(result) = downloads.next().await {
+        let image = match result {
+            Ok(image) => image,
+            Err(error) => {
+                drop(downloads);
+                for entry in completed {
+                    let _ = tokio::fs::remove_file(entry.path).await;
+                }
+                if let Ok(mut entries) = tokio::fs::read_dir(&output_folder).await {
+                    while let Ok(Some(entry)) = entries.next_entry().await {
+                        if entry
+                            .path()
+                            .extension()
+                            .is_some_and(|extension| extension == "part")
+                        {
+                            let _ = tokio::fs::remove_file(entry.path()).await;
+                        }
+                    }
+                }
+                return Err(error);
+            }
+        };
+        downloaded_size = downloaded_size.saturating_add(image.size);
+        completed.push(image);
+        app.emit(
+            "download-progress",
+            DownloadProgress {
+                id: id.to_string(),
+                percent: completed.len() as f64 / total as f64 * 100.0,
+                speed: format!("{}/{} images", completed.len(), total),
+                eta: String::new(),
+                status: "downloading".to_string(),
+                title: Some(metadata.title.clone()),
+                thumbnail: metadata.images.first().map(|image| image.url.clone()),
+                source: Some("xiaohongshu".to_string()),
+                playlist_index: None,
+                playlist_count: None,
+                filesize: Some(downloaded_size),
+                resolution: None,
+                format_ext: Some("image-gallery".to_string()),
+                error_message: None,
+                error_code: None,
+                error_params: None,
+                history_id: None,
+                filepath: Some(output_folder.to_string_lossy().to_string()),
+                downloaded_size: None,
+                elapsed_time: None,
+            },
+        )
+        .ok();
+    }
+
+    completed.sort_by_key(|image| image.index);
+    Ok(completed)
 }
 
 /// Decode raw bytes from a child process into a Rust String.
@@ -629,6 +1037,8 @@ fn source_directory_name(url: &str) -> &'static str {
         "twitter"
     } else if host_matches(&host, "bilibili.com") || host == "b23.tv" {
         "bilibili"
+    } else if host_matches(&host, "xiaohongshu.com") || host_matches(&host, "xhslink.com") {
+        "xiaohongshu"
     } else if host_matches(&host, "vimeo.com") {
         "vimeo"
     } else if host_matches(&host, "twitch.tv") {
@@ -1487,6 +1897,8 @@ pub async fn download_video(
     emit_failed_workflow: Option<bool>,
     // Caller context used in plugin payload
     download_kind: Option<String>,
+    // Non-video media detected by metadata inspection (for example image galleries)
+    media_kind: Option<String>,
 ) -> Result<(), String> {
     CANCEL_FLAG.store(false, Ordering::SeqCst);
     validate_url(&url).map_err(|e| BackendError::from_message(e).to_wire_string())?;
@@ -1830,6 +2242,305 @@ pub async fn download_video(
     args.push("--".to_string());
     args.push(url.clone());
 
+    let trigger_source = effective_source(&source, &url);
+    let trigger_time_range = extract_time_range(&download_sections);
+    let before_start_steps =
+        workflow_steps_for_trigger(&app, "download.beforeStart", &plugin_workflow_snapshots);
+    let completed_workflow_steps =
+        workflow_steps_for_trigger(&app, "download.completed", &plugin_workflow_snapshots);
+    let failed_workflow_steps =
+        workflow_steps_for_trigger(&app, "download.failed", &plugin_workflow_snapshots);
+
+    let requested_xiaohongshu_gallery = media_kind.as_deref() == Some("image_gallery");
+    let xiaohongshu_gallery_metadata =
+        if should_probe_xiaohongshu_gallery(&url, media_kind.as_deref()) {
+            match fetch_xiaohongshu_gallery_metadata(
+                &app,
+                &url,
+                cookie_mode.as_deref(),
+                cookie_browser.as_deref(),
+                cookie_browser_profile.as_deref(),
+                cookie_file_path.as_deref(),
+                cookie_skip_patterns.as_deref(),
+                proxy_url.as_deref(),
+            )
+            .await
+            {
+                Ok(Some(metadata)) => Some(metadata),
+                Ok(None) if requested_xiaohongshu_gallery => {
+                    return Err("Xiaohongshu post did not expose downloadable images".to_string());
+                }
+                Ok(None) => None,
+                Err(message) if requested_xiaohongshu_gallery => return Err(message),
+                Err(message) => {
+                    add_log_internal(
+                        "info",
+                        "Xiaohongshu gallery preflight unavailable; continuing with video download",
+                        Some(&message),
+                        Some(&url),
+                    )
+                    .ok();
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+    if let Some(initial_metadata) = xiaohongshu_gallery_metadata {
+        let gallery_result = async {
+            let mut metadata = initial_metadata;
+            let staging_folder = Path::new(&output_directory).join(format!(
+                ".youwee-xhs-{}",
+                sanitize_gallery_folder_part(&id, "job")
+            ));
+            if staging_folder.exists() {
+                tokio::fs::remove_dir_all(&staging_folder)
+                    .await
+                    .map_err(|error| {
+                        format!("Failed to clear Xiaohongshu staging folder: {error}")
+                    })?;
+            }
+
+            enqueue_before_start_workflow(
+                &app,
+                &before_start_steps,
+                &id,
+                Some("xiaohongshu".to_string()),
+                &output_directory,
+                Some("image-gallery".to_string()),
+                Some(format!("{} images", metadata.images.len())),
+                &url,
+                Some(metadata.title.clone()),
+                metadata.images.first().map(|image| image.url.clone()),
+                history_id.clone(),
+                None,
+                &download_kind,
+            );
+
+            let mut metadata_refreshes = 0usize;
+            let downloaded = loop {
+                match download_xiaohongshu_gallery_batch(
+                    &app,
+                    &id,
+                    &metadata,
+                    &staging_folder,
+                    proxy_url.as_deref(),
+                )
+                .await
+                {
+                    Ok(downloaded) => break downloaded,
+                    Err(XiaohongshuImageDownloadError::RefreshMetadata(message))
+                        if metadata_refreshes < XIAOHONGSHU_METADATA_REFRESH_LIMIT =>
+                    {
+                        metadata_refreshes += 1;
+                        add_log_internal(
+                            "info",
+                            "Refreshing expired Xiaohongshu image URLs once",
+                            Some(&message),
+                            Some(&url),
+                        )
+                        .ok();
+                        let _ = tokio::fs::remove_dir_all(&staging_folder).await;
+                        metadata = fetch_xiaohongshu_gallery_metadata(
+                            &app,
+                            &url,
+                            cookie_mode.as_deref(),
+                            cookie_browser.as_deref(),
+                            cookie_browser_profile.as_deref(),
+                            cookie_file_path.as_deref(),
+                            cookie_skip_patterns.as_deref(),
+                            proxy_url.as_deref(),
+                        )
+                        .await?
+                        .ok_or_else(|| {
+                            "Xiaohongshu post no longer exposes downloadable images".to_string()
+                        })?;
+                    }
+                    Err(error) => {
+                        let _ = tokio::fs::remove_dir_all(&staging_folder).await;
+                        return Err(error.message().to_string());
+                    }
+                }
+            };
+
+            if downloaded.is_empty() {
+                let _ = tokio::fs::remove_dir_all(&staging_folder).await;
+                return Err("Xiaohongshu post did not download any images".to_string());
+            }
+
+            let final_folder = xiaohongshu_gallery_folder(
+                &output_directory,
+                &metadata,
+                &item_prefix,
+                collision_suffix.as_deref(),
+            );
+            if final_folder.exists() {
+                let _ = tokio::fs::remove_dir_all(&staging_folder).await;
+                return Err(format!(
+                    "Xiaohongshu gallery folder already exists: {}",
+                    final_folder.display()
+                ));
+            }
+            tokio::fs::rename(&staging_folder, &final_folder)
+                .await
+                .map_err(|error| format!("Failed to finalize Xiaohongshu gallery: {error}"))?;
+
+            let final_paths = downloaded
+                .iter()
+                .filter_map(|image| image.path.file_name().map(|name| final_folder.join(name)))
+                .collect::<Vec<_>>();
+            let total_size = downloaded
+                .iter()
+                .fold(0u64, |total, image| total.saturating_add(image.size));
+            let image_count = final_paths.len();
+            let quality_label = format!("{image_count} images");
+            let local_thumbnail = final_paths
+                .first()
+                .map(|path| path.to_string_lossy().to_string());
+            let final_folder_string = final_folder.to_string_lossy().to_string();
+
+            let progress_history_id = if let Some(existing_id) = history_id.as_ref() {
+                update_history_download(
+                    existing_id.clone(),
+                    final_folder_string.clone(),
+                    Some(total_size),
+                    Some(quality_label.clone()),
+                    Some("image-gallery".to_string()),
+                    None,
+                    Some(metadata.title.clone()),
+                    local_thumbnail.clone(),
+                )?;
+                existing_id.clone()
+            } else {
+                add_history_internal(
+                    url.clone(),
+                    metadata.title.clone(),
+                    local_thumbnail.clone(),
+                    final_folder_string.clone(),
+                    Some(total_size),
+                    None,
+                    Some(quality_label.clone()),
+                    Some("image-gallery".to_string()),
+                    Some("xiaohongshu".to_string()),
+                    None,
+                )?
+            };
+            update_history_identity(
+                progress_history_id.clone(),
+                Some(format!("xiaohongshu:{}", metadata.id)),
+                Some(format!(
+                    "https://www.xiaohongshu.com/explore/{}",
+                    metadata.id
+                )),
+            )?;
+            assign_history_auto_collections(&progress_history_id, &auto_collection_names);
+
+            let details = format!(
+                "Size: {} · Images: {} · Format: image gallery",
+                format_size(total_size),
+                image_count
+            );
+            add_log_internal(
+                "success",
+                &format!("Downloaded image gallery: {}", metadata.title),
+                Some(&details),
+                Some(&url),
+            )
+            .ok();
+            app.emit(
+                "download-progress",
+                DownloadProgress {
+                    id: id.clone(),
+                    percent: 100.0,
+                    speed: String::new(),
+                    eta: String::new(),
+                    status: "finished".to_string(),
+                    title: Some(metadata.title.clone()),
+                    thumbnail: local_thumbnail.clone(),
+                    source: Some("xiaohongshu".to_string()),
+                    playlist_index: None,
+                    playlist_count: None,
+                    filesize: Some(total_size),
+                    resolution: Some(quality_label.clone()),
+                    format_ext: Some("image-gallery".to_string()),
+                    error_message: None,
+                    error_code: None,
+                    error_params: None,
+                    history_id: Some(progress_history_id.clone()),
+                    filepath: Some(final_folder_string),
+                    downloaded_size: Some(format_size(total_size)),
+                    elapsed_time: None,
+                },
+            )
+            .ok();
+            if !completed_workflow_steps.is_empty() {
+                add_log_internal(
+                    "info",
+                    "Skipped completed plugin workflow for Xiaohongshu image gallery directory",
+                    None,
+                    Some(&url),
+                )
+                .ok();
+            }
+            std::fs::remove_file(&filepath_tmp).ok();
+            Ok(())
+        }
+        .await;
+
+        if let Err(message) = gallery_result {
+            let error = if CANCEL_FLAG.load(Ordering::SeqCst) {
+                download_cancelled_error()
+            } else {
+                BackendError::from_message(message)
+            };
+            add_log_internal("error", error.message(), None, Some(&url)).ok();
+            app.emit(
+                "download-progress",
+                DownloadProgress {
+                    id: id.clone(),
+                    percent: 0.0,
+                    speed: String::new(),
+                    eta: String::new(),
+                    status: "error".to_string(),
+                    title: title.clone(),
+                    thumbnail: thumbnail.clone(),
+                    source: Some("xiaohongshu".to_string()),
+                    playlist_index: None,
+                    playlist_count: None,
+                    filesize: None,
+                    resolution: None,
+                    format_ext: Some("image-gallery".to_string()),
+                    error_message: Some(error.message().to_string()),
+                    error_code: Some(error.code().to_string()),
+                    error_params: error.params().cloned(),
+                    history_id: None,
+                    filepath: None,
+                    downloaded_size: None,
+                    elapsed_time: None,
+                },
+            )
+            .ok();
+            enqueue_failed_workflow(
+                &app,
+                &failed_workflow_steps,
+                &id,
+                trigger_source,
+                &output_directory,
+                Some("image-gallery".to_string()),
+                None,
+                &url,
+                title,
+                thumbnail,
+                history_id,
+                trigger_time_range,
+                &download_kind,
+            );
+            return Err(error.to_wire_string());
+        }
+        return Ok(());
+    }
+
     // Get binary info for logging
     let binary_info = get_ytdlp_path(&app).await;
     let binary_path_str = binary_info
@@ -1840,15 +2551,6 @@ pub async fn download_video(
     // Log command with binary path
     let command_str = format!("[{}] yt-dlp {}", binary_path_str, args.join(" "));
     add_log_internal("command", &command_str, None, Some(&url)).ok();
-
-    let trigger_source = effective_source(&source, &url);
-    let trigger_time_range = extract_time_range(&download_sections);
-    let before_start_steps =
-        workflow_steps_for_trigger(&app, "download.beforeStart", &plugin_workflow_snapshots);
-    let completed_workflow_steps =
-        workflow_steps_for_trigger(&app, "download.completed", &plugin_workflow_snapshots);
-    let failed_workflow_steps =
-        workflow_steps_for_trigger(&app, "download.failed", &plugin_workflow_snapshots);
 
     // Try to get yt-dlp path (prioritizes bundled version for stability)
     if let Some((mut binary_path, selected_is_bundled)) = binary_info {
@@ -3248,6 +3950,8 @@ fn detect_source(url: &str) -> Option<String> {
         Some("twitter".to_string())
     } else if url.contains("bilibili.com") || url.contains("b23.tv") {
         Some("bilibili".to_string())
+    } else if url.contains("xiaohongshu.com") || url.contains("xhslink.com") {
+        Some("xiaohongshu".to_string())
     } else if url.contains("youku.com") {
         Some("youku".to_string())
     } else {
@@ -3264,7 +3968,13 @@ fn effective_source(source: &Option<String>, url: &str) -> Option<String> {
                 && !value.eq_ignore_ascii_case("direct")
                 && !value.eq_ignore_ascii_case("other")
         })
-        .map(str::to_string)
+        .map(|value| {
+            if value.to_ascii_lowercase().contains("xiaohongshu") {
+                "xiaohongshu".to_string()
+            } else {
+                value.to_string()
+            }
+        })
         .or_else(|| detect_source(url))
 }
 
@@ -3525,6 +4235,76 @@ pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xiaohongshu_gallery_folder_keeps_item_prefix_and_collision_suffix() {
+        let metadata = XiaohongshuGalleryMetadata {
+            id: "6a60ada0000000000f014936".to_string(),
+            title: "Outfit / ideas".to_string(),
+            images: Vec::new(),
+        };
+
+        let folder =
+            xiaohongshu_gallery_folder("C:/Downloads", &metadata, "03 - ", Some("copy-12345678"));
+
+        assert_eq!(
+            folder.file_name().and_then(|value| value.to_str()),
+            Some("03 - Outfit ideas [6a60ada0000000000f014936] [copy-12345678]")
+        );
+    }
+
+    #[test]
+    fn xiaohongshu_image_extension_prefers_magic_bytes() {
+        assert_eq!(
+            xiaohongshu_image_extension(
+                Some("image/jpeg"),
+                "https://example.com/image",
+                b"\x89PNG\r\n\x1a\n"
+            ),
+            "png"
+        );
+        assert_eq!(
+            xiaohongshu_image_extension(None, "https://example.com/image.webp", b"RIFF0000WEBP"),
+            "webp"
+        );
+    }
+
+    #[test]
+    fn xiaohongshu_signed_urls_refresh_at_most_once() {
+        assert_eq!(XIAOHONGSHU_METADATA_REFRESH_LIMIT, 1);
+    }
+
+    #[test]
+    fn xiaohongshu_gallery_preflight_covers_cli_items_without_media_kind() {
+        assert!(should_probe_xiaohongshu_gallery(
+            "http://xhslink.com/o/2a0DQhp7i1Q",
+            None
+        ));
+        assert!(should_probe_xiaohongshu_gallery(
+            "https://www.xiaohongshu.com/explore/6a60ada0000000000f014936",
+            Some("image_gallery")
+        ));
+        assert!(!should_probe_xiaohongshu_gallery(
+            "http://xhslink.com/o/55aJaVYxZb0",
+            Some("video")
+        ));
+        assert!(!should_probe_xiaohongshu_gallery(
+            "https://example.com/post",
+            None
+        ));
+    }
+
+    #[test]
+    fn xiaohongshu_images_use_canonical_referer_instead_of_short_link() {
+        assert_eq!(
+            xiaohongshu_image_referer("6a60ada0000000000f014936"),
+            "https://www.xiaohongshu.com/explore/6a60ada0000000000f014936"
+        );
+        assert_eq!(
+            xiaohongshu_image_referer("post id"),
+            "https://www.xiaohongshu.com/explore/post%20id"
+        );
+    }
 
     #[test]
     fn output_template_uses_safe_custom_filename_template() {

@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "Hàng đợi",
+    "imageCount": "{{count}} ảnh",
     "pending": "{{count}} đang chờ",
     "clearDone": "Xóa đã xong",
     "loadingInfo": "Đang tải thông tin...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "Bắt đầu tải",
+    "downloadImages": "Tải ảnh",
     "stopDownload": "Dừng tải",
     "clearAll": "Xóa tất cả khỏi hàng đợi"
   },

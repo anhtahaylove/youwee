@@ -1,8 +1,9 @@
 use crate::database::add_log_internal;
 use crate::services::{
     build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ffmpeg_path,
-    get_ytdlp_path, parse_ytdlp_error, resolve_facebook_media_url, run_ytdlp_json_with_cookies,
-    run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
+    get_ytdlp_path, is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata, parse_ytdlp_error,
+    resolve_facebook_media_url, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr,
+    run_ytdlp_with_stderr_and_cookies,
 };
 use crate::types::{
     parse_wire_error_string, BackendError, FormatOption, PlaylistVideoEntry, SubtitleInfo,
@@ -181,10 +182,18 @@ fn parse_basic_video_info_json_value(
             .or_else(|| value.as_str()?.trim().parse::<f64>().ok())
     });
 
+    let image_gallery = parse_xiaohongshu_gallery_metadata(json);
+    let thumbnail = string_field("thumbnail").or_else(|| {
+        image_gallery
+            .as_ref()
+            .and_then(|gallery| gallery.images.first())
+            .map(|image| image.url.clone())
+    });
+
     Ok(VideoInfo {
         id: id.unwrap_or_default(),
         title,
-        thumbnail: string_field("thumbnail"),
+        thumbnail,
         duration,
         channel: string_field("channel").or_else(|| uploader.clone()),
         uploader,
@@ -195,6 +204,10 @@ fn parse_basic_video_info_json_value(
         playlist_count: None,
         extractor: string_field("extractor"),
         extractor_key: None,
+        media_kind: image_gallery.as_ref().map(|_| "image_gallery".to_string()),
+        image_count: image_gallery
+            .as_ref()
+            .and_then(|gallery| u32::try_from(gallery.images.len()).ok()),
         is_live: None,
         was_live: None,
         live_status: None,
@@ -1067,6 +1080,9 @@ pub async fn get_video_basic_info(
     args.push(if is_facebook_reel_url(&url) {
         "%(.{id,title,thumbnail,duration,extractor,channel,uploader,description,requested_formats})j"
             .to_string()
+    } else if is_xiaohongshu_url(&url) {
+        "%(.{id,title,thumbnail,thumbnails,formats,duration,extractor,channel,uploader,description})j"
+            .to_string()
     } else {
         "%(.{id,title,thumbnail,duration,extractor,channel,uploader,description})j".to_string()
     });
@@ -1286,6 +1302,7 @@ pub async fn get_video_info(
         None
     };
 
+    let image_gallery = parse_xiaohongshu_gallery_metadata(&json);
     let info = VideoInfo {
         id: json
             .get("id")
@@ -1300,7 +1317,13 @@ pub async fn get_video_info(
         thumbnail: json
             .get("thumbnail")
             .and_then(|v| v.as_str())
-            .map(|s| s.to_string()),
+            .map(|s| s.to_string())
+            .or_else(|| {
+                image_gallery
+                    .as_ref()
+                    .and_then(|gallery| gallery.images.first())
+                    .map(|image| image.url.clone())
+            }),
         duration: json.get("duration").and_then(|v| v.as_f64()),
         channel: json
             .get("channel")
@@ -1332,6 +1355,10 @@ pub async fn get_video_info(
             .get("extractor_key")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string()),
+        media_kind: image_gallery.as_ref().map(|_| "image_gallery".to_string()),
+        image_count: image_gallery
+            .as_ref()
+            .and_then(|gallery| u32::try_from(gallery.images.len()).ok()),
         // Live stream fields
         is_live: json.get("is_live").and_then(|v| v.as_bool()),
         was_live: json.get("was_live").and_then(|v| v.as_bool()),

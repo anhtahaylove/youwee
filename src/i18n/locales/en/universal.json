@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "Queue",
+    "imageCount": "{{count}} images",
     "pending": "{{count}} pending",
     "clearDone": "Clear done",
     "loadingInfo": "Loading info...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "Start Download",
+    "downloadImages": "Download images",
     "stopDownload": "Stop Download",
     "clearAll": "Clear all items from queue"
   },

@@ -175,6 +175,9 @@ export interface DownloadItem {
   outputCollisionPolicy?: OutputCollisionPolicy;
   // Source detection
   extractor?: string; // e.g. "youtube", "tiktok", "instagram"
+  mediaKind?: 'video' | 'image_gallery';
+  mediaId?: string;
+  imageCount?: number;
   // Settings snapshot when item was added to queue
   settings?: ItemDownloadSettings | ItemUniversalSettings;
   // Auto retry status while waiting between attempts
@@ -773,6 +776,8 @@ export interface VideoInfo {
   // Source detection
   extractor?: string;
   extractor_key?: string;
+  media_kind?: 'video' | 'image_gallery';
+  image_count?: number;
   // Live stream fields
   is_live?: boolean; // true if currently live streaming
   was_live?: boolean; // true if was a live stream (now ended)

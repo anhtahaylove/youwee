@@ -19,7 +19,16 @@ function stripUrlFragment(url: string): string {
 export function buildDownloadDuplicateIdentity(
   url: string,
   youtubeVideoId?: string | null,
+  explicitMediaId?: string | null,
 ): DownloadDuplicateIdentity {
+  const mediaId = explicitMediaId?.trim();
+  if (mediaId) {
+    return {
+      mediaId,
+      canonicalUrl: stripUrlFragment(url),
+    };
+  }
+
   const videoId = youtubeVideoId || extractYouTubeVideoId(url);
 
   if (videoId) {
@@ -97,13 +106,15 @@ export function isActiveDownloadQueueItem(item: { status?: string }): boolean {
 
 export function markInactiveQueueDuplicatesUnique<T extends DownloadDuplicateCandidate>(
   candidates: T[],
-  items: Array<{ url: string; status?: string }>,
+  items: Array<{ url: string; mediaId?: string; status?: string }>,
 ): T[] {
   const inactiveIdentityKeys = new Set(
     items
       .filter((item) => !isActiveDownloadQueueItem(item))
       .flatMap((item) =>
-        getDownloadDuplicateIdentityKeys(buildDownloadDuplicateIdentity(item.url)),
+        getDownloadDuplicateIdentityKeys(
+          buildDownloadDuplicateIdentity(item.url, null, item.mediaId),
+        ),
       ),
   );
 
@@ -118,17 +129,18 @@ export function markInactiveQueueDuplicatesUnique<T extends DownloadDuplicateCan
   );
 }
 
-export function partitionDownloadQueueUrls<T extends { id: string; url: string; status?: string }>(
-  urls: string[],
-  items: T[],
-): { alreadyQueuedItems: T[]; newUrls: string[] } {
+export function partitionDownloadQueueUrls<
+  T extends { id: string; url: string; mediaId?: string; status?: string },
+>(urls: string[], items: T[]): { alreadyQueuedItems: T[]; newUrls: string[] } {
   const itemByIdentity = new Map(
     items
       .filter(isActiveDownloadQueueItem)
       .map(
         (item) =>
           [
-            getDownloadDuplicateIdentityKey(buildDownloadDuplicateIdentity(item.url)),
+            getDownloadDuplicateIdentityKey(
+              buildDownloadDuplicateIdentity(item.url, null, item.mediaId),
+            ),
             item,
           ] as const,
       )

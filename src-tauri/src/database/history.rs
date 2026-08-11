@@ -902,6 +902,32 @@ pub fn update_history_filepath_by_id(id: String, filepath: String) -> Result<(),
     Ok(())
 }
 
+pub fn update_history_identity(
+    id: String,
+    media_id: Option<String>,
+    canonical_url: Option<String>,
+) -> Result<(), String> {
+    let conn = get_db()?;
+    let media_id = media_id.and_then(|value| {
+        let value = value.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    });
+    let canonical_url = canonical_url.and_then(|value| {
+        let value = value.trim().to_string();
+        (!value.is_empty()).then_some(value)
+    });
+    let updated = conn
+        .execute(
+            "UPDATE history SET media_id = ?1, canonical_url = ?2 WHERE id = ?3",
+            params![media_id, canonical_url, id],
+        )
+        .map_err(|e| format!("Failed to update history identity: {}", e))?;
+    if updated == 0 {
+        return Err("History entry not found".to_string());
+    }
+    Ok(())
+}
+
 pub fn add_history_with_summary(
     url: String,
     title: String,
@@ -1575,6 +1601,46 @@ mod tests {
             params![id, "https://example.com/v", title, "", 0_i64, summary],
         )
             .expect("insert searchable history row");
+    }
+
+    #[test]
+    fn update_history_identity_updates_only_the_requested_row() {
+        let _guard = db_test_guard();
+        ensure_test_history_tables();
+        insert_history_row("gallery-history", "C:/Downloads/gallery");
+        insert_history_row("other-history", "C:/Downloads/other.mp4");
+
+        update_history_identity(
+            "gallery-history".to_string(),
+            Some("xiaohongshu:6a60ada0000000000f014936".to_string()),
+            Some("https://www.xiaohongshu.com/explore/6a60ada0000000000f014936".to_string()),
+        )
+        .expect("update gallery identity");
+
+        let conn = get_db().expect("get db");
+        let identity: (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT media_id, canonical_url FROM history WHERE id = ?1",
+                params!["gallery-history"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query gallery identity");
+        let untouched: (Option<String>, Option<String>) = conn
+            .query_row(
+                "SELECT media_id, canonical_url FROM history WHERE id = ?1",
+                params!["other-history"],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("query untouched identity");
+
+        assert_eq!(
+            identity,
+            (
+                Some("xiaohongshu:6a60ada0000000000f014936".to_string()),
+                Some("https://www.xiaohongshu.com/explore/6a60ada0000000000f014936".to_string()),
+            )
+        );
+        assert_eq!(untouched, (None, None));
     }
 
     #[test]

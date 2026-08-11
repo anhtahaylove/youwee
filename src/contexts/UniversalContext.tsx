@@ -643,6 +643,12 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
                     extractor:
                       info.extractor || detectExtractorFromUrl(item.url) || i.extractor || 'direct',
                     channel: info.channel || i.channel,
+                    mediaKind: info.media_kind || i.mediaKind,
+                    mediaId:
+                      info.media_kind === 'image_gallery' && info.id
+                        ? `xiaohongshu:${info.id}`
+                        : i.mediaId,
+                    imageCount: info.image_count || i.imageCount,
                     metadataStage: undefined,
                   }
                 : i,
@@ -1387,6 +1393,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
               itemSettings?.postDownloadWorkflowSteps ?? loadPostDownloadWorkflowSteps(),
             emitFailedWorkflow: false,
             downloadKind: 'universal',
+            mediaKind: item.mediaKind || null,
           });
 
           setItems((items) =>

@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "الطابور",
+    "imageCount": "{{count}} صور",
     "pending": "{{count}} بانتظار التنفيذ",
     "clearDone": "مسح المنتهي",
     "loadingInfo": "جارٍ تحميل المعلومات...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "بدء التنزيل",
+    "downloadImages": "تنزيل الصور",
     "stopDownload": "إيقاف التنزيل",
     "clearAll": "مسح جميع العناصر من الطابور"
   },

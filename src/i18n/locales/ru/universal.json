@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "Очередь",
+    "imageCount": "Изображений: {{count}}",
     "pending": "{{count}} ожидает",
     "clearDone": "Очистить завершённые",
     "loadingInfo": "Загрузка информации...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "Начать загрузку",
+    "downloadImages": "Скачать изображения",
     "stopDownload": "Остановить загрузку",
     "clearAll": "Очистить все элементы из очереди"
   },

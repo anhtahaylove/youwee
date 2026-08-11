@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "File",
+    "imageCount": "{{count}} images",
     "pending": "{{count}} en attente",
     "clearDone": "Effacer les terminés",
     "loadingInfo": "Chargement des infos...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "Démarrer le téléchargement",
+    "downloadImages": "Télécharger les images",
     "stopDownload": "Arrêter le téléchargement",
     "clearAll": "Effacer tous les éléments de la file"
   },

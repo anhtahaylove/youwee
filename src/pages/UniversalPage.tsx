@@ -1,4 +1,4 @@
-import { Play, Square, Trash2 } from 'lucide-react';
+import { Images, Play, Square, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BrowserCookieErrorDialog } from '@/components/BrowserCookieErrorDialog';
@@ -78,11 +78,16 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
   });
 
   const pendingCount = items.filter((i) => i.status !== 'completed').length;
+  const pendingItems = items.filter((item) => item.status !== 'completed');
+  const onlyPendingImageGalleries =
+    pendingItems.length > 0 && pendingItems.every((item) => item.mediaKind === 'image_gallery');
   const hasItems = items.length > 0;
 
   // Check if FFmpeg is required for current quality setting
   const ffmpegRequired =
-    FFMPEG_REQUIRED_QUALITIES.includes(settings.quality) && ffmpegStatus?.installed === false;
+    !onlyPendingImageGalleries &&
+    FFMPEG_REQUIRED_QUALITIES.includes(settings.quality) &&
+    ffmpegStatus?.installed === false;
 
   // Handle start download with FFmpeg check
   const handleStartDownload = () => {
@@ -185,10 +190,22 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
                     )}
                     onClick={handleStartDownload}
                     disabled={pendingCount === 0}
-                    title={t('actions.startDownload')}
+                    title={
+                      onlyPendingImageGalleries
+                        ? t('actions.downloadImages')
+                        : t('actions.startDownload')
+                    }
                   >
-                    <Play className="w-5 h-5" />
-                    <span>{t('actions.startDownload')}</span>
+                    {onlyPendingImageGalleries ? (
+                      <Images className="w-5 h-5" />
+                    ) : (
+                      <Play className="w-5 h-5" />
+                    )}
+                    <span>
+                      {onlyPendingImageGalleries
+                        ? t('actions.downloadImages')
+                        : t('actions.startDownload')}
+                    </span>
                     {pendingCount > 0 && (
                       <span className="ml-1 px-2 py-0.5 rounded-full bg-white/20 text-xs">
                         {pendingCount}

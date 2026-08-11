@@ -16,6 +16,8 @@ pub struct VideoInfo {
     pub playlist_count: Option<u32>,
     pub extractor: Option<String>,
     pub extractor_key: Option<String>,
+    pub media_kind: Option<String>,
+    pub image_count: Option<u32>,
     // Live stream fields
     pub is_live: Option<bool>,       // true if currently live streaming
     pub was_live: Option<bool>,      // true if was a live stream (now ended)

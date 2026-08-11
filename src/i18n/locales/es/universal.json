@@ -82,6 +82,7 @@
   },
   "queue": {
     "title": "Cola",
+    "imageCount": "{{count}} imágenes",
     "pending": "{{count}} pendiente",
     "clearDone": "Borrar completadas",
     "loadingInfo": "Cargando información...",
@@ -143,6 +144,7 @@
   },
   "actions": {
     "startDownload": "Iniciar descarga",
+    "downloadImages": "Descargar imágenes",
     "stopDownload": "Detener descarga",
     "clearAll": "Borrar todos los elementos de la cola"
   },

@@ -716,6 +716,7 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           pluginWorkflowSnapshots: loadPluginWorkflowSnapshots(),
           postDownloadWorkflowSteps: loadPostDownloadWorkflowSteps(),
           downloadKind: 'history-redownload',
+          mediaKind: entry.format === 'image-gallery' ? 'image_gallery' : null,
         });
 
         // Mark as completed
