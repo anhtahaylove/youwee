@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { localizeProgressError, localizeUnknownError } from '@/lib/backend-error';
 import { createClientId } from '@/lib/client-id';
 import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
+import { resolveFilenameMetadataSettings } from '@/lib/filename-metadata';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import {
   enqueuePluginWorkflowTrigger,
@@ -818,6 +819,8 @@ export function useChannelsController(): ChannelsContextType {
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
+      let filenameMetadataEnabled = false;
+      let filenameMetadataFields: string[] = [];
       let skipExisting = false;
       let organizeBySource = false;
       let embedMetadata = false;
@@ -849,6 +852,12 @@ export function useChannelsController(): ChannelsContextType {
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
+          const filenameMetadata = resolveFilenameMetadataSettings(
+            parsed.filenameMetadataEnabled,
+            parsed.filenameMetadataFields,
+          );
+          filenameMetadataEnabled = filenameMetadata.enabled;
+          filenameMetadataFields = filenameMetadata.fields;
           skipExisting = parsed.skipExisting === true;
           organizeBySource = parsed.organizeBySource === true;
           embedMetadata = parsed.embedMetadata || false;
@@ -960,6 +969,8 @@ export function useChannelsController(): ChannelsContextType {
                 url: video.url,
                 outputPath: currentOutputPath,
                 filenameTemplate,
+                filenameMetadataEnabled,
+                filenameMetadataFields,
                 skipExisting,
                 organizeBySource,
                 quality,
@@ -1289,6 +1300,8 @@ export function useChannelsController(): ChannelsContextType {
         let useAria2 = false;
         let aria2Args = '';
         let filenameTemplate = '%(title)s.%(ext)s';
+        let filenameMetadataEnabled = false;
+        let filenameMetadataFields: string[] = [];
         let skipExisting = false;
         let organizeBySource = false;
         let autoOrganizeCollections = false;
@@ -1304,6 +1317,12 @@ export function useChannelsController(): ChannelsContextType {
             useAria2 = parsed.useAria2 === true;
             aria2Args = parsed.aria2Args || '';
             filenameTemplate = parsed.filenameTemplate || filenameTemplate;
+            const filenameMetadata = resolveFilenameMetadataSettings(
+              parsed.filenameMetadataEnabled,
+              parsed.filenameMetadataFields,
+            );
+            filenameMetadataEnabled = filenameMetadata.enabled;
+            filenameMetadataFields = filenameMetadata.fields;
             skipExisting = parsed.skipExisting === true;
             organizeBySource = parsed.organizeBySource === true;
             autoOrganizeCollections = parsed.autoOrganizeCollections === true;
@@ -1412,6 +1431,8 @@ export function useChannelsController(): ChannelsContextType {
               url: video.url,
               outputPath: autoOutputPath,
               filenameTemplate,
+              filenameMetadataEnabled,
+              filenameMetadataFields,
               skipExisting,
               organizeBySource,
               quality,

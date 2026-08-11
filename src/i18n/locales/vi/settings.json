@@ -64,6 +64,16 @@
     "numberPlaylistItemsDesc": "Thêm số thứ tự playlist vào đầu tên file",
     "numberQueueItems": "Đánh số item trong hàng đợi",
     "numberQueueItemsDesc": "Thêm số thứ tự hàng đợi vào đầu tên file tải thông thường",
+    "filenameMetadata": "Metadata trong tên file",
+    "filenameMetadataDesc": "Thêm thông tin video đã chọn trước tiêu đề file",
+    "filenameMetadataFields": {
+      "uploadDate": "Ngày đăng",
+      "viewCount": "Lượt xem",
+      "uploader": "Người đăng",
+      "duration": "Thời lượng",
+      "resolution": "Độ phân giải",
+      "videoId": "ID video"
+    },
     "splitEmbeddedChapters": "Tách chapter có sẵn",
     "splitEmbeddedChaptersDesc": "Tạo file riêng từ các chapter đã có trong video",
     "numberChapterFiles": "Đánh số file chapter",

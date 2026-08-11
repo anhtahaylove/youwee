@@ -698,10 +698,49 @@ fn output_path_arg(output_directory: &str) -> String {
     )
 }
 
-fn build_output_template(filename_template: Option<String>, item_prefix: &str) -> String {
+fn filename_metadata_template(field: &str) -> Option<&'static str> {
+    match field {
+        "uploadDate" => Some("%(upload_date>%Y-%m-%d)s"),
+        "viewCount" => Some("%(view_count)sviews"),
+        "uploader" => Some("%(uploader)s"),
+        "duration" => Some("%(duration_string)s"),
+        "resolution" => Some("%(height)sp"),
+        "videoId" => Some("%(id)s"),
+        _ => None,
+    }
+}
+
+fn build_filename_metadata_prefix(enabled: bool, fields: &[String]) -> Option<String> {
+    if !enabled {
+        return None;
+    }
+
+    let mut templates = Vec::new();
+    for field in fields {
+        let Some(template) = filename_metadata_template(field) else {
+            continue;
+        };
+        if !templates.contains(&template) {
+            templates.push(template);
+        }
+    }
+
+    (!templates.is_empty()).then(|| format!("{}_", templates.join("_")))
+}
+
+fn build_output_template(
+    filename_template: Option<String>,
+    item_prefix: &str,
+    filename_metadata_enabled: bool,
+    filename_metadata_fields: &[String],
+) -> String {
+    let metadata_prefix =
+        build_filename_metadata_prefix(filename_metadata_enabled, filename_metadata_fields)
+            .unwrap_or_default();
     format!(
-        "{}{}",
+        "{}{}{}",
         item_prefix,
+        metadata_prefix,
         normalize_filename_template(filename_template)
     )
 }
@@ -1388,6 +1427,8 @@ pub async fn download_video(
     queue_index: Option<u32>,
     queue_total: Option<u32>,
     number_queue_items: Option<bool>,
+    filename_metadata_enabled: Option<bool>,
+    filename_metadata_fields: Option<Vec<String>>,
     split_embedded_chapters: Option<bool>,
     number_chapter_files: Option<bool>,
     auto_organize_collections: Option<bool>,
@@ -1547,6 +1588,11 @@ pub async fn download_video(
         queue_index,
         queue_total,
     );
+    let filename_metadata_enabled = filename_metadata_enabled.unwrap_or(false);
+    let filename_metadata_fields = filename_metadata_fields.unwrap_or_default();
+    let has_filename_metadata =
+        build_filename_metadata_prefix(filename_metadata_enabled, &filename_metadata_fields)
+            .is_some();
     let split_embedded_chapters = split_embedded_chapters.unwrap_or(false);
     let number_chapter_files = number_chapter_files.unwrap_or(true);
     let auto_organize_collections_enabled = auto_organize_collections.unwrap_or(false);
@@ -1558,7 +1604,12 @@ pub async fn download_video(
         .map_err(|error| BackendError::from_message(error).to_wire_string())?;
     let output_template = constrain_title_template_for_output(
         apply_output_collision_suffix(
-            build_output_template(filename_template, &item_prefix),
+            build_output_template(
+                filename_template,
+                &item_prefix,
+                filename_metadata_enabled,
+                &filename_metadata_fields,
+            ),
             collision_suffix.as_deref(),
         ),
         &output_directory,
@@ -1595,6 +1646,11 @@ pub async fn download_video(
         "--file-access-retries".to_string(),
         "2".to_string(),
     ];
+
+    if has_filename_metadata {
+        args.push("--output-na-placeholder".to_string());
+        args.push("unknown".to_string());
+    }
 
     if split_embedded_chapters {
         args.push("--split-chapters".to_string());
@@ -3473,15 +3529,20 @@ mod tests {
     #[test]
     fn output_template_uses_safe_custom_filename_template() {
         assert_eq!(
-            build_output_template(Some("%(uploader)s - %(title)s".to_string()), ""),
+            build_output_template(Some("%(uploader)s - %(title)s".to_string()), "", false, &[]),
             "%(uploader)s - %(title)s.%(ext)s"
         );
         assert_eq!(
-            build_output_template(Some("../escape/%(title)s.%(ext)s".to_string()), ""),
+            build_output_template(
+                Some("../escape/%(title)s.%(ext)s".to_string()),
+                "",
+                false,
+                &[],
+            ),
             "%(title)s.%(ext)s"
         );
         assert_eq!(
-            build_output_template(Some("  ".to_string()), ""),
+            build_output_template(Some("  ".to_string()), "", false, &[]),
             "%(title)s.%(ext)s"
         );
         assert_eq!(output_path_arg("C:/Downloads/"), "home:C:/Downloads");
@@ -3517,16 +3578,51 @@ mod tests {
             build_item_prefix(true, false, None, None, true, Some(7), Some(42));
         assert_eq!(regular_queue_prefix, "07 - ");
         assert_eq!(
-            build_output_template(Some("%(title)s.%(ext)s".to_string()), &regular_queue_prefix,),
+            build_output_template(
+                Some("%(title)s.%(ext)s".to_string()),
+                &regular_queue_prefix,
+                false,
+                &[],
+            ),
             "07 - %(title)s.%(ext)s"
         );
+    }
+
+    #[test]
+    fn output_template_adds_allowlisted_filename_metadata_after_item_numbering() {
+        let fields = vec![
+            "uploadDate".to_string(),
+            "viewCount".to_string(),
+            "--cookies".to_string(),
+            "uploadDate".to_string(),
+        ];
+
+        assert_eq!(
+            build_output_template(
+                Some("%(title)s.%(ext)s".to_string()),
+                "07 - ",
+                true,
+                &fields,
+            ),
+            "07 - %(upload_date>%Y-%m-%d)s_%(view_count)sviews_%(title)s.%(ext)s"
+        );
+    }
+
+    #[test]
+    fn output_template_ignores_filename_metadata_when_disabled_or_empty() {
+        let fields = vec!["videoId".to_string()];
+        assert_eq!(
+            build_output_template(Some("%(title)s.%(ext)s".to_string()), "", false, &fields,),
+            "%(title)s.%(ext)s"
+        );
+        assert!(build_filename_metadata_prefix(true, &["unknown".to_string()]).is_none());
     }
 
     #[test]
     fn windows_output_template_limits_plain_titles_for_intermediate_files() {
         let output_directory = r"\\?\C:\Users\Administrator\Downloads";
         let template = constrain_title_template_for_output(
-            build_output_template(Some(DEFAULT_FILENAME_TEMPLATE.to_string()), ""),
+            build_output_template(Some(DEFAULT_FILENAME_TEMPLATE.to_string()), "", false, &[]),
             output_directory,
         );
         let explicit_precision = constrain_title_template_for_output(

@@ -63,6 +63,16 @@
     "numberPlaylistItemsDesc": "Adicionar a ordem da playlist aos nomes dos arquivos",
     "numberQueueItems": "Numerar itens da fila",
     "numberQueueItemsDesc": "Adicionar a ordem da fila aos downloads comuns",
+    "filenameMetadata": "Metadados no nome do arquivo",
+    "filenameMetadataDesc": "Adiciona detalhes do vídeo antes do título",
+    "filenameMetadataFields": {
+      "uploadDate": "Data de envio",
+      "viewCount": "Visualizações",
+      "uploader": "Publicador",
+      "duration": "Duração",
+      "resolution": "Resolução",
+      "videoId": "ID do vídeo"
+    },
     "splitEmbeddedChapters": "Dividir capítulos embutidos",
     "splitEmbeddedChaptersDesc": "Criar arquivos separados a partir dos capítulos incluídos no vídeo",
     "numberChapterFiles": "Numerar arquivos de capítulo",

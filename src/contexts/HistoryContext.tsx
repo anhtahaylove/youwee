@@ -12,6 +12,7 @@ import {
 import { syncAssetScopePaths } from '@/lib/asset-access';
 import { collectAssetScopeCandidates } from '@/lib/asset-paths';
 import { localizeUnknownError } from '@/lib/backend-error';
+import { resolveFilenameMetadataSettings } from '@/lib/filename-metadata';
 import { buildCookieProxyInvokeOptions, loadNetworkSettings } from '@/lib/network-config';
 import {
   loadPluginWorkflowSnapshots,
@@ -599,6 +600,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
+      let filenameMetadataEnabled = false;
+      let filenameMetadataFields: string[] = [];
       let organizeBySource = false;
       let savedOutputPath = '';
       try {
@@ -611,6 +614,12 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
+          const filenameMetadata = resolveFilenameMetadataSettings(
+            parsed.filenameMetadataEnabled,
+            parsed.filenameMetadataFields,
+          );
+          filenameMetadataEnabled = filenameMetadata.enabled;
+          filenameMetadataFields = filenameMetadata.fields;
           organizeBySource = parsed.organizeBySource === true;
           savedOutputPath = parsed.outputPath || '';
         }
@@ -681,6 +690,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           queueIndex: null,
           queueTotal: null,
           numberQueueItems: false,
+          filenameMetadataEnabled,
+          filenameMetadataFields,
           splitEmbeddedChapters: false,
           numberChapterFiles: true,
           autoOrganizeCollections: false,

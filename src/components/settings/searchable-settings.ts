@@ -137,6 +137,13 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     section: 'download',
   },
   {
+    id: 'filename-metadata',
+    labelKey: 'download.filenameMetadata',
+    descriptionKey: 'download.filenameMetadataDesc',
+    keywords: ['filename', 'metadata', 'date', 'views', 'uploader', 'duration', 'resolution', 'id'],
+    section: 'download',
+  },
+  {
     id: 'auto-organize-collections',
     labelKey: 'download.autoOrganizeCollections',
     descriptionKey: 'download.autoOrganizeCollectionsDesc',

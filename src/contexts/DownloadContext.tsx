@@ -47,6 +47,7 @@ import {
   isRetryableError,
   waitWithCancellation,
 } from '@/lib/download-retry';
+import { resolveFilenameMetadataSettings } from '@/lib/filename-metadata';
 import {
   buildCookieProxyInvokeOptions,
   buildProxyUrl,
@@ -209,6 +210,8 @@ function saveSettings(settings: DownloadSettings) {
         embedThumbnail: settings.embedThumbnail,
         numberPlaylistItems: settings.numberPlaylistItems,
         numberQueueItems: settings.numberQueueItems,
+        filenameMetadataEnabled: settings.filenameMetadataEnabled,
+        filenameMetadataFields: settings.filenameMetadataFields,
         splitEmbeddedChapters: settings.splitEmbeddedChapters,
         numberChapterFiles: settings.numberChapterFiles,
         autoOrganizeCollections: settings.autoOrganizeCollections,
@@ -380,6 +383,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   // Load saved settings on init
   const [settings, setSettings] = useState<DownloadSettings>(() => {
     const saved = loadSavedSettings();
+    const filenameMetadata = resolveFilenameMetadataSettings(
+      saved.filenameMetadataEnabled,
+      saved.filenameMetadataFields,
+    );
     return {
       quality: saved.quality || 'best',
       format: saved.format || 'mp4',
@@ -408,6 +415,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       embedThumbnail: saved.embedThumbnail === true, // Default to false (requires FFmpeg)
       numberPlaylistItems: saved.numberPlaylistItems === true,
       numberQueueItems: saved.numberQueueItems === true,
+      filenameMetadataEnabled: filenameMetadata.enabled,
+      filenameMetadataFields: filenameMetadata.fields,
       splitEmbeddedChapters: saved.splitEmbeddedChapters === true,
       numberChapterFiles: saved.numberChapterFiles !== false,
       autoOrganizeCollections: saved.autoOrganizeCollections === true,
@@ -954,6 +963,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipLive: currentSettings.skipLive,
         numberPlaylistItems: currentSettings.numberPlaylistItems,
         numberQueueItems: currentSettings.numberQueueItems,
+        filenameMetadataEnabled: currentSettings.filenameMetadataEnabled,
+        filenameMetadataFields: [...currentSettings.filenameMetadataFields],
         splitEmbeddedChapters: currentSettings.splitEmbeddedChapters,
         numberChapterFiles: currentSettings.numberChapterFiles,
         autoOrganizeCollections: currentSettings.autoOrganizeCollections,
@@ -1082,6 +1093,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipLive: options?.skipLive ?? currentSettings.skipLive,
         numberPlaylistItems: currentSettings.numberPlaylistItems,
         numberQueueItems: currentSettings.numberQueueItems,
+        filenameMetadataEnabled: currentSettings.filenameMetadataEnabled,
+        filenameMetadataFields: [...currentSettings.filenameMetadataFields],
         splitEmbeddedChapters: currentSettings.splitEmbeddedChapters,
         numberChapterFiles: currentSettings.numberChapterFiles,
         autoOrganizeCollections: currentSettings.autoOrganizeCollections,
@@ -1155,6 +1168,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipLive: currentSettings.skipLive,
         numberPlaylistItems: currentSettings.numberPlaylistItems,
         numberQueueItems: currentSettings.numberQueueItems,
+        filenameMetadataEnabled: currentSettings.filenameMetadataEnabled,
+        filenameMetadataFields: [...currentSettings.filenameMetadataFields],
         splitEmbeddedChapters: currentSettings.splitEmbeddedChapters,
         numberChapterFiles: currentSettings.numberChapterFiles,
         autoOrganizeCollections: currentSettings.autoOrganizeCollections,
@@ -1294,6 +1309,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           skipLive: settingsRef.current.skipLive,
           numberPlaylistItems: settingsRef.current.numberPlaylistItems,
           numberQueueItems: settingsRef.current.numberQueueItems,
+          filenameMetadataEnabled: settingsRef.current.filenameMetadataEnabled,
+          filenameMetadataFields: [...settingsRef.current.filenameMetadataFields],
           splitEmbeddedChapters: settingsRef.current.splitEmbeddedChapters,
           numberChapterFiles: settingsRef.current.numberChapterFiles,
           autoOrganizeCollections: settingsRef.current.autoOrganizeCollections,
@@ -1717,6 +1734,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             queueIndex: item.queueIndex ?? null,
             queueTotal: item.queueTotal ?? null,
             numberQueueItems: itemSettings?.numberQueueItems ?? false,
+            filenameMetadataEnabled: itemSettings?.filenameMetadataEnabled ?? false,
+            filenameMetadataFields: itemSettings?.filenameMetadataFields ?? [],
             splitEmbeddedChapters: itemSettings?.splitEmbeddedChapters ?? false,
             numberChapterFiles: itemSettings?.numberChapterFiles ?? true,
             autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,

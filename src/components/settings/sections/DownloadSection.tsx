@@ -10,6 +10,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -22,6 +23,11 @@ import { Switch } from '@/components/ui/switch';
 import { useDownload } from '@/contexts/DownloadContext';
 import { clampAutoRetryDelaySeconds, clampAutoRetryMaxAttempts } from '@/lib/download-retry';
 import {
+  DEFAULT_FILENAME_METADATA_FIELDS,
+  FILENAME_METADATA_FIELDS,
+} from '@/lib/filename-metadata';
+import {
+  type FilenameMetadataField,
   SPONSORBLOCK_CATEGORIES,
   type SponsorBlockAction,
   type SponsorBlockCategory,
@@ -50,6 +56,40 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
     updateSponsorBlockMode,
     updateSponsorBlockCategory,
   } = useDownload();
+
+  const previewParts: Record<FilenameMetadataField, string> = {
+    uploadDate: '2026-08-11',
+    viewCount: '1234567views',
+    uploader: 'Youwee Channel',
+    duration: '12m34s',
+    resolution: '1080p',
+    videoId: 'dQw4w9WgXcQ',
+  };
+  const filenameMetadataPreview = [
+    ...settings.filenameMetadataFields.map((field) => previewParts[field]),
+    'My Video.mp4',
+  ].join('_');
+
+  const updateFilenameMetadataEnabled = (filenameMetadataEnabled: boolean) => {
+    updateSettings({
+      filenameMetadataEnabled,
+      filenameMetadataFields:
+        filenameMetadataEnabled && settings.filenameMetadataFields.length === 0
+          ? DEFAULT_FILENAME_METADATA_FIELDS
+          : settings.filenameMetadataFields,
+    });
+  };
+
+  const toggleFilenameMetadataField = (field: FilenameMetadataField) => {
+    const selected = settings.filenameMetadataFields.includes(field);
+    updateSettings({
+      filenameMetadataFields: selected
+        ? settings.filenameMetadataFields.filter((value) => value !== field)
+        : FILENAME_METADATA_FIELDS.filter(
+            (value) => value === field || settings.filenameMetadataFields.includes(value),
+          ),
+    });
+  };
 
   return (
     <div className="space-y-8">
@@ -122,6 +162,49 @@ export function DownloadSection({ highlightId }: DownloadSectionProps) {
               onCheckedChange={(numberQueueItems) => updateSettings({ numberQueueItems })}
             />
           </SettingsRow>
+
+          <SettingsRow
+            id="filename-metadata"
+            label={t('download.filenameMetadata')}
+            description={t('download.filenameMetadataDesc')}
+            highlight={highlightId === 'filename-metadata'}
+          >
+            <Switch
+              checked={settings.filenameMetadataEnabled}
+              onCheckedChange={updateFilenameMetadataEnabled}
+            />
+          </SettingsRow>
+
+          {settings.filenameMetadataEnabled && (
+            <div className="space-y-3 border-b border-border/50 px-4 pb-4 pt-1">
+              <div className="flex flex-wrap gap-2">
+                {FILENAME_METADATA_FIELDS.map((field) => {
+                  const selected = settings.filenameMetadataFields.includes(field);
+                  return (
+                    <button
+                      key={field}
+                      type="button"
+                      onClick={() => toggleFilenameMetadataField(field)}
+                      className={cn(
+                        'rounded-md border border-dashed px-2.5 py-1 text-xs font-medium transition-colors',
+                        selected
+                          ? 'border-primary/50 bg-primary/10 text-primary'
+                          : 'border-border/70 bg-background/70 text-muted-foreground hover:border-primary/40 hover:text-foreground',
+                      )}
+                    >
+                      {t(`download.filenameMetadataFields.${field}`)}
+                    </button>
+                  );
+                })}
+              </div>
+              <Badge
+                variant="secondary"
+                className="rounded-md bg-muted/50 px-2 py-1 font-mono text-[11px] text-muted-foreground"
+              >
+                {filenameMetadataPreview}
+              </Badge>
+            </div>
+          )}
 
           <SettingsRow
             id="auto-organize-collections"
