@@ -9,6 +9,14 @@ use crate::types::{
 use chrono::Utc;
 use rusqlite::{params, params_from_iter, types::Value, Connection};
 
+fn sqlite_i64_to_u64(value: Option<i64>) -> Option<u64> {
+    value.and_then(|value| u64::try_from(value).ok())
+}
+
+fn u64_to_sqlite_i64(value: Option<u64>) -> Option<i64> {
+    value.map(|value| i64::try_from(value).unwrap_or(i64::MAX))
+}
+
 fn parse_history_row(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
     let filepath: String = row.get(4)?;
     let file_exists = std::path::Path::new(&filepath).exists();
@@ -16,6 +24,8 @@ fn parse_history_row(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
     let dt = chrono::DateTime::from_timestamp(downloaded_at, 0)
         .map(|d| d.to_rfc3339())
         .unwrap_or_default();
+    let filesize: Option<i64> = row.get(5)?;
+    let duration: Option<i64> = row.get(6)?;
 
     Ok(HistoryEntry {
         id: row.get(0)?,
@@ -23,8 +33,8 @@ fn parse_history_row(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
         title: row.get(2)?,
         thumbnail: row.get(3)?,
         filepath,
-        filesize: row.get(5)?,
-        duration: row.get(6)?,
+        filesize: sqlite_i64_to_u64(filesize),
+        duration: sqlite_i64_to_u64(duration),
         quality: row.get(7)?,
         format: row.get(8)?,
         source: row.get(9)?,
@@ -680,6 +690,8 @@ pub fn upsert_history_with_id_internal(
     let conn = get_db()?;
     let now = Utc::now().timestamp();
     let (media_id, canonical_url) = build_history_identity(&url, source.as_deref());
+    let filesize = u64_to_sqlite_i64(filesize);
+    let duration = u64_to_sqlite_i64(duration);
 
     conn.execute(
         "INSERT INTO history (id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, time_range, media_id, canonical_url)
@@ -752,6 +764,7 @@ pub fn update_history_download(
 ) -> Result<(), String> {
     let conn = get_db()?;
     let now = Utc::now().timestamp();
+    let filesize = u64_to_sqlite_i64(filesize);
     let title = title.and_then(|value| {
         let value = value.trim().to_string();
         (!value.is_empty()).then_some(value)
@@ -901,11 +914,12 @@ pub fn add_history_with_summary(
     let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now().timestamp();
     let filepath = "";
+    let duration = u64_to_sqlite_i64(duration);
 
     conn.execute(
         "INSERT OR REPLACE INTO history (id, url, title, thumbnail, filepath, filesize, duration, quality, format, source, downloaded_at, summary)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
-        params![id, url, title, thumbnail, filepath, Option::<u64>::None, duration, Option::<String>::None, Option::<String>::None, source, now, summary],
+        params![id, url, title, thumbnail, filepath, Option::<i64>::None, duration, Option::<String>::None, Option::<String>::None, source, now, summary],
     )
     .map_err(|e| format!("Failed to add history: {}", e))?;
 
@@ -1422,6 +1436,17 @@ mod tests {
     use crate::database::{db_test_guard, get_db, DB_CONNECTION};
     use rusqlite::params;
     use std::fs;
+
+    #[test]
+    fn sqlite_numeric_conversions_reject_negative_values_and_saturate_large_u64() {
+        assert_eq!(sqlite_i64_to_u64(Some(42)), Some(42));
+        assert_eq!(sqlite_i64_to_u64(Some(-1)), None);
+        assert_eq!(sqlite_i64_to_u64(None), None);
+
+        assert_eq!(u64_to_sqlite_i64(Some(42)), Some(42));
+        assert_eq!(u64_to_sqlite_i64(Some(u64::MAX)), Some(i64::MAX));
+        assert_eq!(u64_to_sqlite_i64(None), None);
+    }
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
 
