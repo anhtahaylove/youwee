@@ -110,19 +110,52 @@ Use Youwee only with content you own, have permission to use, or are legally all
 
 ### Download for your platform
 
-> ⚠️ **Note**: The app is not signed with an Apple Developer certificate yet. If macOS blocks the app, open terminal and run:
-> ```bash
-> xattr -cr /Applications/Youwee.app
-> ```
-
 | Platform | Download                                                                                                                                                                                                                                   |
 |----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Windows** (x64, custom fork) | [Download latest custom installer](https://github.com/anhtahaylove/youwee/releases/latest) |
-| **macOS** (Apple Silicon) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
-| **macOS** (Intel) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
+| **macOS** (Apple Silicon: M1/M2/M3/M4 or newer) | [Download latest Apple Silicon DMG](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Mac-Apple-Silicon.dmg) |
+| **macOS** (Intel) | [Download latest Intel DMG](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Mac-Intel.dmg) |
 | **Linux** (x64) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
 
-> See custom Windows releases at [anhtahaylove/youwee](https://github.com/anhtahaylove/youwee/releases). For official cross-platform releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
+> See all custom release assets at [anhtahaylove/youwee](https://github.com/anhtahaylove/youwee/releases). For official upstream releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
+
+### Install on macOS
+
+The macOS builds are ad-hoc signed, but are not yet signed and notarized with an Apple Developer ID. Download them only from the [official custom-fork releases](https://github.com/anhtahaylove/youwee/releases).
+
+1. **Choose the correct build**
+   - Open **Apple menu  → About This Mac**.
+   - If it shows **Chip: Apple M1, M2, M3, M4, or newer**, download `Youwee-Mac-Apple-Silicon.dmg`.
+   - If it shows **Processor: Intel**, download `Youwee-Mac-Intel.dmg`.
+2. **Install Youwee**
+   - Open the downloaded `.dmg` file.
+   - Drag **Youwee** into the **Applications** folder shown in the installer window.
+   - Eject the Youwee disk image, then open **Applications → Youwee**.
+3. **If macOS blocks the first launch**
+   - Try opening Youwee once so macOS records the blocked launch.
+   - Open **System Settings → Privacy & Security**, scroll to **Security**, then click **Open Anyway** next to Youwee.
+   - Confirm **Open** when prompted. This exception applies only to this copy of Youwee.
+4. **If macOS says Youwee is damaged and cannot be opened**
+   - Confirm that the app came from this repository's release page.
+   - Open **Terminal**, run the following command, then open Youwee again:
+
+     ```bash
+     xattr -dr com.apple.quarantine /Applications/Youwee.app
+     ```
+
+#### Optional: verify the download
+
+Each release includes `SHA256SUMS.txt`. In Terminal, calculate the checksum for the DMG you downloaded, then compare it with the matching entry in that file:
+
+```bash
+# Apple Silicon
+shasum -a 256 ~/Downloads/Youwee-Mac-Apple-Silicon.dmg
+
+# Intel
+shasum -a 256 ~/Downloads/Youwee-Mac-Intel.dmg
+```
+
+For Apple's explanation of these security prompts, see [Safely open apps on your Mac](https://support.apple.com/102445).
 
 ### Browser Extension (Chromium + Firefox)
 
