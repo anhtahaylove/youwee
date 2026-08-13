@@ -110,14 +110,34 @@ Use Youwee only with content you own, have permission to use, or are legally all
 
 ### Download for your platform
 
-| Platform | Download                                                                                                                                                                                                                                   |
-|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Windows** (x64, custom fork) | [Download latest custom installer](https://github.com/anhtahaylove/youwee/releases/latest) |
+| Platform | Download |
+|----------|----------|
+| **Windows** (x64) | [Full Setup `.exe` — recommended](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Windows-Full-Setup.exe) · [Full `.msi`](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Windows-Full.msi) |
 | **macOS** (Apple Silicon: M1/M2/M3/M4 or newer) | [Download latest Apple Silicon DMG](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Mac-Apple-Silicon.dmg) |
 | **macOS** (Intel) | [Download latest Intel DMG](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Mac-Intel.dmg) |
-| **Linux** (x64) | Use the upstream build from [vanloctech/youwee releases](https://github.com/vanloctech/youwee/releases/latest) |
+| **Linux** (x86_64/amd64) | [Debian/Ubuntu `.deb` — recommended](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Linux.deb) · [Portable `.AppImage`](https://github.com/anhtahaylove/youwee/releases/latest/download/Youwee-Linux.AppImage) |
 
 > See all custom release assets at [anhtahaylove/youwee](https://github.com/anhtahaylove/youwee/releases). For official upstream releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
+
+### Install on Windows
+
+The Full Setup installer is recommended for most users. It includes yt-dlp, FFmpeg/ffprobe, Deno, gallery-dl, and the Chromium/Firefox extension recovery packages, so no manual dependency setup is required.
+
+1. Download `Youwee-Windows-Full-Setup.exe` from the table above.
+2. Close Youwee first if you are upgrading an existing installation.
+3. Open the installer, approve the Windows permission prompt, and follow the setup steps.
+4. Launch **Youwee** from the Start menu or desktop shortcut.
+5. Open **Settings → Dependencies** to confirm the bundled tools are available. Use **Settings → Browser Extension** for guided browser setup.
+
+The `.msi` package contains the same Full dependency pack and is intended for users or administrators who prefer Windows Installer deployment. Do not install both formats for the same version.
+
+#### If Windows SmartScreen displays a warning
+
+Only continue if the installer came from this repository's release page. Select **More info → Run anyway**, then approve the installer. You can verify the file checksum first using the instructions below.
+
+#### Updating Youwee on Windows
+
+Youwee checks the custom release channel, not the upstream release channel. Open **Settings → About → Check for updates**, review the changelog, then select **Update Now**. The app downloads the signed update, installs it, and reopens automatically.
 
 ### Install on macOS
 
@@ -143,9 +163,56 @@ The macOS builds are ad-hoc signed, but are not yet signed and notarized with an
      xattr -dr com.apple.quarantine /Applications/Youwee.app
      ```
 
-#### Optional: verify the download
+For Apple's explanation of these security prompts, see [Safely open apps on your Mac](https://support.apple.com/102445).
 
-Each release includes `SHA256SUMS.txt`. In Terminal, calculate the checksum for the DMG you downloaded, then compare it with the matching entry in that file:
+### Install on Linux
+
+Current Linux release assets target 64-bit Intel/AMD systems (`x86_64`/`amd64`). ARM Linux builds are not currently published.
+
+#### Debian or Ubuntu 22.04 and newer — recommended
+
+1. Download `Youwee-Linux.deb`.
+2. Open a terminal in the download folder and install it with APT so required system packages are resolved automatically:
+
+   ```bash
+   cd ~/Downloads
+   sudo apt install ./Youwee-Linux.deb
+   ```
+
+3. Start Youwee from your application menu.
+
+To upgrade later, download the newer `.deb` and run the same command again. Your Youwee settings and Library database remain in your user data directory.
+
+#### Other x86_64 Linux distributions — portable AppImage
+
+1. Download `Youwee-Linux.AppImage`.
+2. Make it executable and run it:
+
+   ```bash
+   cd ~/Downloads
+   chmod +x Youwee-Linux.AppImage
+   ./Youwee-Linux.AppImage
+   ```
+
+If the AppImage reports a FUSE error, use the `.deb` package on Debian/Ubuntu or follow the [official AppImage FUSE troubleshooting guide](https://docs.appimage.org/user-guide/troubleshooting/fuse.html). As a temporary fallback, you can try:
+
+```bash
+./Youwee-Linux.AppImage --appimage-extract-and-run
+```
+
+After the first launch, check **Settings → Dependencies**. The Windows Full dependency pack is Windows-only, so availability of optional tools can differ on Linux.
+
+### Verify downloaded files — optional but recommended
+
+Every release includes [`SHA256SUMS.txt`](https://github.com/anhtahaylove/youwee/releases/latest/download/SHA256SUMS.txt). Calculate the SHA-256 checksum for your downloaded file and compare it with the matching line in that file.
+
+**Windows PowerShell**
+
+```powershell
+Get-FileHash "$HOME\Downloads\Youwee-Windows-Full-Setup.exe" -Algorithm SHA256
+```
+
+**macOS Terminal**
 
 ```bash
 # Apple Silicon
@@ -155,7 +222,15 @@ shasum -a 256 ~/Downloads/Youwee-Mac-Apple-Silicon.dmg
 shasum -a 256 ~/Downloads/Youwee-Mac-Intel.dmg
 ```
 
-For Apple's explanation of these security prompts, see [Safely open apps on your Mac](https://support.apple.com/102445).
+**Linux terminal**
+
+```bash
+sha256sum ~/Downloads/Youwee-Linux.deb
+# or
+sha256sum ~/Downloads/Youwee-Linux.AppImage
+```
+
+PowerShell's `Get-FileHash` uses SHA-256 when requested explicitly; see [Microsoft's Get-FileHash documentation](https://learn.microsoft.com/powershell/module/microsoft.powershell.utility/get-filehash). For AppImage execution details, see the [official AppImage quickstart](https://docs.appimage.org/introduction/quickstart.html).
 
 ### Browser Extension (Chromium + Firefox)
 
