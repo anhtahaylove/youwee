@@ -119,21 +119,48 @@ Use Youwee only with content you own, have permission to use, or are legally all
 
 > See all custom release assets at [anhtahaylove/youwee](https://github.com/anhtahaylove/youwee/releases). For official upstream releases, use [vanloctech/youwee](https://github.com/vanloctech/youwee/releases).
 
+**Not sure which file to choose?**
+
+- On a normal Windows 10/11 PC, choose **`Youwee-Windows-Full-Setup.exe`**.
+- On a company-managed Windows PC where an administrator deploys software, choose **`Youwee-Windows-Full.msi`**.
+- On Ubuntu, Linux Mint, Pop!_OS, Zorin OS, Debian, or another Debian-based distribution, choose **`Youwee-Linux.deb`**.
+- On another 64-bit Intel/AMD Linux distribution, try **`Youwee-Linux.AppImage`**.
+- Do not download `.sig`, `.json`, `.txt`, extension archives, or `.app.tar.gz` files unless you specifically need update verification or browser-extension recovery.
+
 ### Install on Windows
 
-The Full Setup installer is recommended for most users. It includes yt-dlp, FFmpeg/ffprobe, Deno, gallery-dl, and the Chromium/Firefox extension recovery packages, so no manual dependency setup is required.
+The Full Setup installer is recommended for most users. It includes yt-dlp, FFmpeg/ffprobe, Deno, gallery-dl, and Chromium/Firefox extension recovery packages, so a new user does not need to install command-line dependencies manually.
+
+#### First installation
 
 1. Download `Youwee-Windows-Full-Setup.exe` from the table above.
-2. Close Youwee first if you are upgrading an existing installation.
-3. Open the installer, approve the Windows permission prompt, and follow the setup steps.
+2. Open **Downloads** in File Explorer and double-click the downloaded file.
+3. Approve the Windows permission prompt, then keep the default installation options unless you have a specific reason to change them.
 4. Launch **Youwee** from the Start menu or desktop shortcut.
-5. Open **Settings → Dependencies** to confirm the bundled tools are available. Use **Settings → Browser Extension** for guided browser setup.
+5. In Youwee, open **Settings → Dependencies**. The bundled tools should show their installed versions without requiring a separate download.
+6. Optional: open **Settings → Browser Extension** for guided Firefox, Chrome, Edge, Brave, or other Chromium-browser setup.
 
 The `.msi` package contains the same Full dependency pack and is intended for users or administrators who prefer Windows Installer deployment. Do not install both formats for the same version.
+
+#### Upgrade an existing installation
+
+1. Finish or cancel active downloads and recordings.
+2. Close Youwee completely. If it is minimized to the system tray, exit it from the tray as well.
+3. Prefer **Settings → About → Check for updates** for a normal update.
+4. If updating manually, download the newer Full Setup and install it over the existing version. You do not need to uninstall the old version first.
+
+Your settings, Library, watchlist, and logs are stored separately from the application files. A normal in-place update is designed to preserve them.
 
 #### If Windows SmartScreen displays a warning
 
 Only continue if the installer came from this repository's release page. Select **More info → Run anyway**, then approve the installer. You can verify the file checksum first using the instructions below.
+
+#### If Youwee does not open or a dependency is missing
+
+1. Restart Windows once after the first installation.
+2. Reopen **Settings → Dependencies** and use the refresh button beside the affected tool.
+3. If you previously installed an older or partial build, uninstall **Youwee**, install the latest **Full Setup**, and reopen the app. Do not manually copy dependency paths from another computer.
+4. Open **Logs** in Youwee and use **Export** when reporting a problem. Remove cookies, tokens, private URLs, and other personal information before sharing the file publicly.
 
 #### Updating Youwee on Windows
 
@@ -169,10 +196,18 @@ For Apple's explanation of these security prompts, see [Safely open apps on your
 
 Current Linux release assets target 64-bit Intel/AMD systems (`x86_64`/`amd64`). ARM Linux builds are not currently published.
 
+Before downloading, you can confirm your architecture with:
+
+```bash
+uname -m
+```
+
+Continue if it prints `x86_64`. If it prints `aarch64`, `arm64`, or another value, the current Linux release is not a native build for your device.
+
 #### Debian or Ubuntu 22.04 and newer — recommended
 
 1. Download `Youwee-Linux.deb`.
-2. Open a terminal in the download folder and install it with APT so required system packages are resolved automatically:
+2. Open a terminal and install it with APT. Using APT instead of double-clicking or running `dpkg -i` lets Linux resolve required system packages automatically:
 
    ```bash
    cd ~/Downloads
@@ -180,8 +215,17 @@ Current Linux release assets target 64-bit Intel/AMD systems (`x86_64`/`amd64`).
    ```
 
 3. Start Youwee from your application menu.
+4. Open **Settings → Dependencies** and confirm the detected tools before the first download.
 
 To upgrade later, download the newer `.deb` and run the same command again. Your Youwee settings and Library database remain in your user data directory.
+
+To remove the app later:
+
+```bash
+sudo apt remove youwee
+```
+
+This removes the application package. Review your user data separately before deleting it manually.
 
 #### Other x86_64 Linux distributions — portable AppImage
 
@@ -194,6 +238,15 @@ To upgrade later, download the newer `.deb` and run the same command again. Your
    ./Youwee-Linux.AppImage
    ```
 
+The AppImage is portable: it does not run an installer or automatically add a desktop-menu entry. Keep it in a stable folder such as `~/Applications` if you plan to use it regularly:
+
+```bash
+mkdir -p ~/Applications
+mv ~/Downloads/Youwee-Linux.AppImage ~/Applications/
+chmod +x ~/Applications/Youwee-Linux.AppImage
+~/Applications/Youwee-Linux.AppImage
+```
+
 If the AppImage reports a FUSE error, use the `.deb` package on Debian/Ubuntu or follow the [official AppImage FUSE troubleshooting guide](https://docs.appimage.org/user-guide/troubleshooting/fuse.html). As a temporary fallback, you can try:
 
 ```bash
@@ -201,6 +254,14 @@ If the AppImage reports a FUSE error, use the `.deb` package on Debian/Ubuntu or
 ```
 
 After the first launch, check **Settings → Dependencies**. The Windows Full dependency pack is Windows-only, so availability of optional tools can differ on Linux.
+
+#### Linux troubleshooting
+
+- **The `.deb` reports unmet dependencies:** run `sudo apt --fix-broken install`, then repeat `sudo apt install ./Youwee-Linux.deb`.
+- **The AppImage reports a permission error:** run `chmod +x Youwee-Linux.AppImage` again and make sure the file is on a Linux filesystem that permits execution.
+- **The window does not open:** start Youwee from a terminal and include the terminal output when reporting the issue.
+- **Wayland-specific display issue:** log in to an X11/Xorg session for a comparison test before filing a bug.
+- **Need help:** open a [custom-fork issue](https://github.com/anhtahaylove/youwee/issues) and include the distribution name, version, desktop environment, output of `uname -m`, and sanitized Youwee logs.
 
 ### Verify downloaded files — optional but recommended
 
