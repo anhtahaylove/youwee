@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1-custom.3] - 2026-08-13
+
+### Fixed
+
+- **Facebook Reel Best quality** - Probe Facebook's direct HD stream for Best MP4 downloads and select it only when it provides Full HD at 50+ FPS, while preserving existing format fallbacks and explicit codec or frame-rate limits.
+
 ## [0.20.1-custom.2] - 2026-08-13
 
 ### Added

@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1-custom.3] - 2026-08-13
+
+### Sửa lỗi
+
+- **Chất lượng Best cho Facebook Reel** - Kiểm tra luồng HD trực tiếp của Facebook cho lượt tải MP4 chất lượng Best và chỉ chọn khi đạt Full HD từ 50 FPS, đồng thời giữ fallback hiện có cùng giới hạn codec hoặc tốc độ khung hình do người dùng chọn.
+
 ## [0.20.1-custom.2] - 2026-08-13
 
 ### Thêm mới
