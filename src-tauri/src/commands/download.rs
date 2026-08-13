@@ -31,8 +31,8 @@ use crate::database::{update_history_download, update_history_identity};
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
     calc_trim_filenames_bytes, enqueue_post_download_workflow, format_ytdlp_args_for_log,
-    get_bundled_ytdlp_fallback_path, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
-    get_ytdlp_source, is_upcoming_live_error, is_xiaohongshu_url,
+    get_bundled_ytdlp_fallback_path, get_deno_path, get_ffmpeg_path, get_ffprobe_path,
+    get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error, is_xiaohongshu_url,
     parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
     resolve_facebook_media_url, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
     system_ytdlp_not_found_message, XiaohongshuGalleryImage, XiaohongshuGalleryMetadata,
@@ -873,6 +873,175 @@ fn is_facebook_reel_url(url: &str) -> bool {
     let is_facebook = host == "facebook.com" || host.ends_with(".facebook.com");
     let path = parsed.path();
     is_facebook && (path == "/reel" || path.starts_with("/reel/"))
+}
+
+#[derive(Debug, PartialEq)]
+struct FacebookHdStreamProbe {
+    width: u64,
+    height: u64,
+    fps: f64,
+    bit_rate: Option<u64>,
+}
+
+fn parse_rational_rate(value: &str) -> Option<f64> {
+    let (numerator, denominator) = value.split_once('/').unwrap_or((value, "1"));
+    let numerator = numerator.parse::<f64>().ok()?;
+    let denominator = denominator.parse::<f64>().ok()?;
+    (denominator > 0.0).then_some(numerator / denominator)
+}
+
+fn parse_facebook_hd_stream_probe(output: &[u8]) -> Option<FacebookHdStreamProbe> {
+    let json: serde_json::Value = serde_json::from_slice(output).ok()?;
+    let stream = json.get("streams")?.as_array()?.first()?;
+    let width = stream.get("width")?.as_u64()?;
+    let height = stream.get("height")?.as_u64()?;
+    let fps = stream
+        .get("r_frame_rate")?
+        .as_str()
+        .and_then(parse_rational_rate)?;
+    let bit_rate = stream
+        .get("bit_rate")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|value| value.parse::<u64>().ok());
+
+    Some(FacebookHdStreamProbe {
+        width,
+        height,
+        fps,
+        bit_rate,
+    })
+}
+
+fn should_probe_facebook_hd_format(
+    url: &str,
+    fallback_format: &str,
+    preferred_fps: Option<&str>,
+) -> bool {
+    is_facebook_reel_url(url)
+        && fallback_format == "bestvideo+bestaudio/best"
+        && !preferred_fps.is_some_and(|value| value.eq_ignore_ascii_case("30"))
+}
+
+fn is_facebook_hd_stream_upgrade(probe: &FacebookHdStreamProbe) -> bool {
+    probe.width.min(probe.height) >= 1080 && probe.fps >= 50.0
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn build_download_format_string(
+    app: &AppHandle,
+    url: &str,
+    quality: &str,
+    format: &str,
+    video_codec: &str,
+    preferred_fps: Option<&str>,
+    cookie_mode: Option<&str>,
+    cookie_browser: Option<&str>,
+    cookie_browser_profile: Option<&str>,
+    cookie_file_path: Option<&str>,
+    cookie_skip_patterns: Option<&[String]>,
+    proxy_url: Option<&str>,
+) -> String {
+    let fallback = build_format_string(quality, format, video_codec, preferred_fps);
+    if !should_probe_facebook_hd_format(url, &fallback, preferred_fps) {
+        return fallback;
+    }
+
+    let args = [
+        "--no-warnings",
+        "--no-playlist",
+        "--skip-download",
+        "-f",
+        "hd",
+        "--get-url",
+        "--",
+        url,
+    ];
+    let Ok(output) = run_ytdlp_with_stderr_and_cookies(
+        app,
+        &args,
+        cookie_mode,
+        cookie_browser,
+        cookie_browser_profile,
+        cookie_file_path,
+        cookie_skip_patterns,
+        proxy_url,
+    )
+    .await
+    else {
+        return fallback;
+    };
+    if !output.success {
+        return fallback;
+    }
+
+    let Some(media_url) = output
+        .stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+    else {
+        return fallback;
+    };
+    let Ok(parsed_url) = reqwest::Url::parse(media_url) else {
+        return fallback;
+    };
+    if !matches!(parsed_url.scheme(), "http" | "https") {
+        return fallback;
+    }
+
+    let Some(ffprobe_path) = get_ffprobe_path(app).await else {
+        return fallback;
+    };
+    let mut command = Command::new(ffprobe_path);
+    command
+        .args([
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height,r_frame_rate,bit_rate",
+            "-of",
+            "json",
+            "--",
+        ])
+        .arg(media_url)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    command.kill_on_drop(true);
+    command.hide_window();
+
+    let Ok(Ok(probe_output)) = tokio::time::timeout(Duration::from_secs(8), command.output()).await
+    else {
+        return fallback;
+    };
+    if !probe_output.status.success() {
+        return fallback;
+    }
+
+    let Some(probe) = parse_facebook_hd_stream_probe(&probe_output.stdout) else {
+        return fallback;
+    };
+    if !is_facebook_hd_stream_upgrade(&probe) {
+        return fallback;
+    }
+
+    let bitrate = probe
+        .bit_rate
+        .map(|value| format!(", {:.2} Mbps", value as f64 / 1_000_000.0))
+        .unwrap_or_default();
+    add_log_internal(
+        "info",
+        &format!(
+            "Facebook Best selected the direct HD source ({}x{}, {:.0} FPS{})",
+            probe.width, probe.height, probe.fps, bitrate
+        ),
+        None,
+        Some(url),
+    )
+    .ok();
+
+    format!("hd/{fallback}")
 }
 
 fn is_placeholder_facebook_title(title: &str) -> bool {
@@ -1981,8 +2150,21 @@ pub async fn download_video(
     let should_log_stderr = log_stderr.unwrap_or(true);
     let sanitized_path = sanitize_output_path(&output_path)
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
-    let format_string =
-        build_format_string(&quality, &format, &video_codec, preferred_fps.as_deref());
+    let format_string = build_download_format_string(
+        &app,
+        &url,
+        &quality,
+        &format,
+        &video_codec,
+        preferred_fps.as_deref(),
+        cookie_mode.as_deref(),
+        cookie_browser.as_deref(),
+        cookie_browser_profile.as_deref(),
+        cookie_file_path.as_deref(),
+        cookie_skip_patterns.as_deref(),
+        proxy_url.as_deref(),
+    )
+    .await;
     let output_directory = build_output_directory(&sanitized_path, &url, organize_by_source);
     if !output_directory.is_empty() {
         tokio::fs::create_dir_all(&output_directory)
@@ -4240,6 +4422,81 @@ pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_facebook_hd_stream_probe() {
+        let output = br#"{
+            "streams": [{
+                "width": 1080,
+                "height": 1920,
+                "r_frame_rate": "60/1",
+                "bit_rate": "6360836"
+            }]
+        }"#;
+
+        assert_eq!(
+            parse_facebook_hd_stream_probe(output),
+            Some(FacebookHdStreamProbe {
+                width: 1080,
+                height: 1920,
+                fps: 60.0,
+                bit_rate: Some(6_360_836),
+            })
+        );
+    }
+
+    #[test]
+    fn facebook_hd_upgrade_requires_full_hd_and_high_frame_rate() {
+        assert!(is_facebook_hd_stream_upgrade(&FacebookHdStreamProbe {
+            width: 1080,
+            height: 1920,
+            fps: 60.0,
+            bit_rate: Some(6_360_836),
+        }));
+        assert!(!is_facebook_hd_stream_upgrade(&FacebookHdStreamProbe {
+            width: 1148,
+            height: 718,
+            fps: 30.0,
+            bit_rate: Some(151_139),
+        }));
+        assert!(!is_facebook_hd_stream_upgrade(&FacebookHdStreamProbe {
+            width: 1080,
+            height: 1920,
+            fps: 29.97,
+            bit_rate: Some(1_741_613),
+        }));
+    }
+
+    #[test]
+    fn facebook_hd_probe_respects_explicit_download_preferences() {
+        let url = "https://www.facebook.com/reel/311104511722445";
+
+        assert!(should_probe_facebook_hd_format(
+            url,
+            "bestvideo+bestaudio/best",
+            None
+        ));
+        assert!(!should_probe_facebook_hd_format(
+            url,
+            "bestvideo+bestaudio/best",
+            Some("30")
+        ));
+        assert!(!should_probe_facebook_hd_format(
+            url,
+            "bestvideo[vcodec^=avc]+bestaudio/best[vcodec^=avc]/best",
+            None
+        ));
+        assert!(!should_probe_facebook_hd_format(
+            url,
+            "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best",
+            None
+        ));
+        assert!(!should_probe_facebook_hd_format(
+            "https://www.youtube.com/watch?v=abc",
+            "bestvideo+bestaudio/best",
+            None
+        ));
+    }
 
     #[test]
     fn xiaohongshu_gallery_folder_keeps_item_prefix_and_collision_suffix() {
