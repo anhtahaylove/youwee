@@ -1,9 +1,9 @@
 use crate::database::add_log_internal;
 use crate::services::{
-    build_cookie_args, build_proxy_args, build_site_header_args, get_deno_path, get_ffmpeg_path,
-    get_ytdlp_path, is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata, parse_ytdlp_error,
-    resolve_facebook_media_url, run_ytdlp_json_with_cookies, run_ytdlp_with_stderr,
-    run_ytdlp_with_stderr_and_cookies,
+    build_cookie_args, build_proxy_args, build_site_header_args, format_ytdlp_args_for_log,
+    get_deno_path, get_ffmpeg_path, get_ytdlp_path, is_xiaohongshu_url,
+    parse_xiaohongshu_gallery_metadata, parse_ytdlp_error, resolve_facebook_media_url,
+    run_ytdlp_json_with_cookies, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
 };
 use crate::types::{
     parse_wire_error_string, BackendError, FormatOption, PlaylistVideoEntry, SubtitleInfo,
@@ -26,7 +26,7 @@ async fn ytdlp_command_for_log(app: &AppHandle, args: &[String]) -> String {
         .await
         .map(|(path, bundled)| format!("{} (bundled: {bundled})", path.display()))
         .unwrap_or_else(|| "unresolved yt-dlp dependency".to_string());
-    format!("[{binary}] yt-dlp {}", args.join(" "))
+    format!("[{binary}] yt-dlp {}", format_ytdlp_args_for_log(args))
 }
 
 fn log_metadata_execution_error(url: &str, error: &str) {
@@ -400,7 +400,7 @@ pub async fn get_video_transcript(
         let subtitle_args_ref: Vec<&str> = subtitle_args.iter().map(|s| s.as_str()).collect();
 
         if idx == 0 {
-            let subtitle_cmd = format!("yt-dlp {}", subtitle_args.join(" "));
+            let subtitle_cmd = format!("yt-dlp {}", format_ytdlp_args_for_log(&subtitle_args));
             add_log_internal("command", &subtitle_cmd, None, Some(&url)).ok();
         }
 
@@ -587,7 +587,7 @@ pub async fn get_video_transcript(
         &url_for_info,
     ];
 
-    let info_cmd = format!("yt-dlp {}", info_args.join(" "));
+    let info_cmd = format!("yt-dlp {}", format_ytdlp_args_for_log(&info_args));
     add_log_internal("command", &info_cmd, None, Some(&url)).ok();
 
     let info_result = timeout(
@@ -1851,5 +1851,32 @@ mod tests {
             facebook_reel_preview_source(&json),
             Some("https://cdn.example/1080p")
         );
+    }
+
+    #[test]
+    fn facebook_na_or_blank_thumbnail_is_treated_as_missing_for_preview_fallback() {
+        for thumbnail in ["NA", "   "] {
+            let output = serde_json::json!({
+                "id": "123",
+                "title": "Public Reel",
+                "thumbnail": thumbnail,
+                "requested_formats": [{
+                    "url": "https://cdn.example/video.mp4",
+                    "vcodec": "h264",
+                }],
+            })
+            .to_string();
+
+            let json = parse_basic_video_info_json(&output).unwrap();
+            let info =
+                parse_basic_video_info_json_value(&json, "https://www.facebook.com/reel/123")
+                    .unwrap();
+
+            assert_eq!(info.thumbnail, None);
+            assert_eq!(
+                facebook_reel_preview_source(&json),
+                Some("https://cdn.example/video.mp4")
+            );
+        }
     }
 }

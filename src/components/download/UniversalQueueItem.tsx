@@ -561,7 +561,7 @@ export function UniversalQueueItem({
             </span>
           )}
 
-          {isError && !isUpcomingLiveError && (
+          {isError && (
             <FailedLogsButton label={t('queue.status.failedHint')} onClick={onViewLogs} />
           )}
 

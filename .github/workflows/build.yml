@@ -481,6 +481,7 @@ jobs:
           
           echo "Generated latest.json:"
           cat latest.json
+          jq -e . latest.json >/dev/null
 
       - name: Validate Firefox AMO migration bridge
         run: |

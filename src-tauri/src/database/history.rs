@@ -699,7 +699,7 @@ pub fn upsert_history_with_id_internal(
          ON CONFLICT(id) DO UPDATE SET
             url = excluded.url,
             title = excluded.title,
-            thumbnail = excluded.thumbnail,
+            thumbnail = COALESCE(excluded.thumbnail, history.thumbnail),
             filepath = excluded.filepath,
             filesize = excluded.filesize,
             duration = excluded.duration,
@@ -1649,15 +1649,22 @@ mod tests {
         ensure_test_history_tables();
         let history_id = "tiktok-live:recovery-job".to_string();
 
-        for (index, (title, filepath)) in [("First write", "first.mp4"), ("Recovered", "final.mp4")]
-            .into_iter()
-            .enumerate()
+        for (index, (title, thumbnail, filepath)) in [
+            (
+                "First write",
+                Some("https://example.com/original-thumbnail.jpg"),
+                "first.mp4",
+            ),
+            ("Recovered", None, "final.mp4"),
+        ]
+        .into_iter()
+        .enumerate()
         {
             upsert_history_with_id_internal(
                 history_id.clone(),
                 "https://www.tiktok.com/@creator/live".to_string(),
                 title.to_string(),
-                None,
+                thumbnail.map(str::to_string),
                 filepath.to_string(),
                 Some(42),
                 None,
@@ -1681,15 +1688,24 @@ mod tests {
                 |row| row.get(0),
             )
             .expect("count stable history rows");
-        let (title, filepath, summary): (String, String, Option<String>) = conn
+        let (title, thumbnail, filepath, summary): (
+            String,
+            Option<String>,
+            String,
+            Option<String>,
+        ) = conn
             .query_row(
-                "SELECT title, filepath, summary FROM history WHERE id = ?1",
+                "SELECT title, thumbnail, filepath, summary FROM history WHERE id = ?1",
                 params![history_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
             )
             .expect("read stable history row");
         assert_eq!(count, 1);
         assert_eq!(title, "Recovered");
+        assert_eq!(
+            thumbnail.as_deref(),
+            Some("https://example.com/original-thumbnail.jpg")
+        );
         assert_eq!(filepath, "final.mp4");
         assert_eq!(summary.as_deref(), Some("keep this summary"));
     }

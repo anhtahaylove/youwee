@@ -30,9 +30,10 @@ use crate::database::{
 use crate::database::{update_history_download, update_history_identity};
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
-    calc_trim_filenames_bytes, enqueue_post_download_workflow, get_bundled_ytdlp_fallback_path,
-    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
-    is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
+    calc_trim_filenames_bytes, enqueue_post_download_workflow, format_ytdlp_args_for_log,
+    get_bundled_ytdlp_fallback_path, get_deno_path, get_ffmpeg_path, get_ytdlp_path,
+    get_ytdlp_source, is_upcoming_live_error, is_xiaohongshu_url,
+    parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
     resolve_facebook_media_url, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
     system_ytdlp_not_found_message, XiaohongshuGalleryImage, XiaohongshuGalleryMetadata,
 };
@@ -125,7 +126,7 @@ async fn skipped_live_status(
         args.splice(separator_index..separator_index, extra_args);
     }
 
-    let command_str = format!("yt-dlp {}", args.join(" "));
+    let command_str = format!("yt-dlp {}", format_ytdlp_args_for_log(&args));
     add_log_internal("command", &command_str, None, Some(url)).ok();
 
     let args_ref: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
@@ -484,7 +485,7 @@ async fn fetch_xiaohongshu_gallery_metadata(
         .unwrap_or_else(|| "yt-dlp".to_string());
     add_log_internal(
         "command",
-        &format!("[{binary}] yt-dlp {}", args.join(" ")),
+        &format!("[{binary}] yt-dlp {}", format_ytdlp_args_for_log(&args)),
         None,
         Some(url),
     )
@@ -2549,7 +2550,11 @@ pub async fn download_video(
         .unwrap_or_else(|| "sidecar".to_string());
 
     // Log command with binary path
-    let command_str = format!("[{}] yt-dlp {}", binary_path_str, args.join(" "));
+    let command_str = format!(
+        "[{}] yt-dlp {}",
+        binary_path_str,
+        format_ytdlp_args_for_log(&args)
+    );
     add_log_internal("command", &command_str, None, Some(&url)).ok();
 
     // Try to get yt-dlp path (prioritizes bundled version for stability)
@@ -3815,7 +3820,7 @@ async fn handle_tokio_download(
                     &format!(
                         "[{}] yt-dlp {}",
                         fallback.binary_label,
-                        fallback_args.join(" ")
+                        format_ytdlp_args_for_log(&fallback_args)
                     ),
                     None,
                     Some(&url),

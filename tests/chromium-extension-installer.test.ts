@@ -38,6 +38,16 @@ describe('Windows Chromium extension installer', () => {
     expect(script).toContain(`'${bundledExtensionResource}' = '${bundledExtensionTarget}'`);
     expect(script).toContain('firefox-amo-bridge.json');
     expect(script).toContain(`'${bundledFirefoxResource}' = '${bundledFirefoxTarget}'`);
+    for (const resource of [
+      "'resources/dependencies/windows/ffmpeg.exe' = 'dependencies/ffmpeg.exe'",
+      "'resources/dependencies/windows/ffprobe.exe' = 'dependencies/ffprobe.exe'",
+      "'resources/dependencies/windows/deno.exe' = 'dependencies/deno.exe'",
+      "'resources/dependencies/windows/gallery-dl.exe' = 'dependencies/gallery-dl.exe'",
+      "'dependencies.windows.lock.json' = 'dependencies/dependencies.windows.lock.json'",
+    ]) {
+      expect(script).toContain(resource);
+    }
+    expect(script).not.toMatch(/[A-Z]:\\Users\\[^'"\r\n]+/i);
   });
 
   test('adds an offline bilingual install guide to the Chromium bundle', async () => {

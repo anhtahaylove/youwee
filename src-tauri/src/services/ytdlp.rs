@@ -1174,6 +1174,135 @@ pub fn build_proxy_args(proxy_url: Option<&str>) -> Vec<String> {
     args
 }
 
+const REDACTED_YTDLP_ARGUMENT: &str = "<redacted>";
+
+fn redact_browser_cookie_source(source: &str) -> String {
+    match source.split_once(':') {
+        Some((browser, _)) if !browser.is_empty() => {
+            format!("{browser}:{REDACTED_YTDLP_ARGUMENT}")
+        }
+        Some(_) => REDACTED_YTDLP_ARGUMENT.to_string(),
+        None => source.to_string(),
+    }
+}
+
+fn redact_proxy_credentials(proxy: &str) -> String {
+    let Some((authority, endpoint)) = proxy.rsplit_once('@') else {
+        return proxy.to_string();
+    };
+
+    if let Some(scheme_end) = authority.find("://") {
+        return format!(
+            "{}{}@{}",
+            &proxy[..scheme_end + 3],
+            REDACTED_YTDLP_ARGUMENT,
+            endpoint
+        );
+    }
+
+    format!("{REDACTED_YTDLP_ARGUMENT}@{endpoint}")
+}
+
+fn redact_url_for_command_log(value: &str) -> String {
+    let Ok(mut url) = reqwest::Url::parse(value) else {
+        return value.to_string();
+    };
+    if !matches!(url.scheme(), "http" | "https") {
+        return value.to_string();
+    }
+
+    if !url.username().is_empty() {
+        let _ = url.set_username(REDACTED_YTDLP_ARGUMENT);
+    }
+    if url.password().is_some() {
+        let _ = url.set_password(Some(REDACTED_YTDLP_ARGUMENT));
+    }
+
+    let query_pairs = url
+        .query_pairs()
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    if !query_pairs.is_empty() {
+        url.set_query(None);
+        let mut query = url.query_pairs_mut();
+        for (key, value) in query_pairs {
+            let normalized = key.to_ascii_lowercase().replace(['-', '_'], "");
+            let sensitive = [
+                "token",
+                "signature",
+                "sig",
+                "secret",
+                "auth",
+                "credential",
+                "policy",
+                "expires",
+                "expire",
+                "session",
+                "nonce",
+                "txsecret",
+                "txtime",
+                "wssecret",
+                "wstime",
+                "xamz",
+            ]
+            .iter()
+            .any(|marker| normalized.contains(marker));
+            query.append_pair(
+                &key,
+                if sensitive {
+                    REDACTED_YTDLP_ARGUMENT
+                } else {
+                    &value
+                },
+            );
+        }
+    }
+    if url.fragment().is_some() {
+        url.set_fragment(Some(REDACTED_YTDLP_ARGUMENT));
+    }
+
+    url.to_string()
+}
+
+/// Format yt-dlp arguments for logs without exposing cookie/profile paths or proxy credentials.
+/// The original arguments are never mutated and remain suitable for process execution.
+pub fn format_ytdlp_args_for_log<T: AsRef<str>>(args: &[T]) -> String {
+    let mut formatted = Vec::with_capacity(args.len());
+    let mut sensitive_option: Option<&str> = None;
+
+    for argument in args {
+        let argument = argument.as_ref();
+        if let Some(option) = sensitive_option.take() {
+            let value = match option {
+                "--cookies" => REDACTED_YTDLP_ARGUMENT.to_string(),
+                "--cookies-from-browser" => redact_browser_cookie_source(argument),
+                "--proxy" => redact_proxy_credentials(argument),
+                _ => argument.to_string(),
+            };
+            formatted.push(value);
+            continue;
+        }
+
+        if matches!(argument, "--cookies" | "--cookies-from-browser" | "--proxy") {
+            formatted.push(argument.to_string());
+            sensitive_option = Some(argument);
+        } else if argument.starts_with("--cookies=") {
+            formatted.push(format!("--cookies={REDACTED_YTDLP_ARGUMENT}"));
+        } else if let Some(value) = argument.strip_prefix("--cookies-from-browser=") {
+            formatted.push(format!(
+                "--cookies-from-browser={}",
+                redact_browser_cookie_source(value)
+            ));
+        } else if let Some(value) = argument.strip_prefix("--proxy=") {
+            formatted.push(format!("--proxy={}", redact_proxy_credentials(value)));
+        } else {
+            formatted.push(redact_url_for_command_log(argument));
+        }
+    }
+
+    formatted.join(" ")
+}
+
 /// Build site-specific browser request args for yt-dlp.
 ///
 /// Bilibili may reject the initial webpage request with HTTP 412 unless the
@@ -1519,5 +1648,99 @@ mod tests {
             "https://m.facebook.com/reel/abc",
             &patterns
         ));
+    }
+
+    #[test]
+    fn metadata_cookie_args_cover_browser_file_and_skip_modes() {
+        assert_eq!(
+            build_cookie_args(
+                "https://example.com/video",
+                Some("browser"),
+                Some("chrome"),
+                Some("Profile 2"),
+                None,
+                None,
+            ),
+            vec!["--cookies-from-browser", "chrome:Profile 2"]
+        );
+        assert_eq!(
+            build_cookie_args(
+                "https://example.com/video",
+                Some("file"),
+                None,
+                None,
+                Some("C:/private/cookies.txt"),
+                None,
+            ),
+            vec!["--cookies", "C:/private/cookies.txt"]
+        );
+
+        let skip_patterns = vec!["example.com/video".to_string()];
+        assert!(build_cookie_args(
+            "https://example.com/video/123",
+            Some("browser"),
+            Some("chrome"),
+            Some("Profile 2"),
+            None,
+            Some(&skip_patterns),
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn command_log_redacts_sensitive_values_without_mutating_execution_args() {
+        let args = vec![
+            "--cookies".to_string(),
+            "C:/Users/private/cookies.txt".to_string(),
+            "--cookies-from-browser".to_string(),
+            "chrome:Profile 2".to_string(),
+            "--proxy".to_string(),
+            "http://alice:secret@proxy.example:8080".to_string(),
+            "--".to_string(),
+            "https://example.com/video".to_string(),
+        ];
+        let execution_args = args.clone();
+
+        let command_log = format_ytdlp_args_for_log(&args);
+
+        assert_eq!(args, execution_args);
+        for secret in ["cookies.txt", "Profile 2", "alice", "secret"] {
+            assert!(!command_log.contains(secret));
+        }
+        assert!(command_log.contains("--cookies <redacted>"));
+        assert!(command_log.contains("--cookies-from-browser chrome:<redacted>"));
+        assert!(command_log.contains("--proxy http://<redacted>@proxy.example:8080"));
+        assert!(command_log.contains("https://example.com/video"));
+    }
+
+    #[test]
+    fn command_log_redacts_equals_style_sensitive_arguments() {
+        let command_log = format_ytdlp_args_for_log(&[
+            "--cookies=C:/private/cookies.txt",
+            "--cookies-from-browser=firefox:C:/Profiles/private",
+            "--proxy=socks5://user:pass@127.0.0.1:1080",
+        ]);
+
+        assert_eq!(
+            command_log,
+            "--cookies=<redacted> --cookies-from-browser=firefox:<redacted> --proxy=socks5://<redacted>@127.0.0.1:1080"
+        );
+    }
+
+    #[test]
+    fn command_log_redacts_signed_url_values_but_keeps_public_identity_parameters() {
+        let command_log = format_ytdlp_args_for_log(&[
+            "https://www.youtube.com/watch?v=abc123&list=playlist",
+            "https://pull.example/live.flv?wsSecret=private-signature&wsTime=12345&quality=origin#private-fragment",
+        ]);
+
+        assert!(command_log.contains("v=abc123"));
+        assert!(command_log.contains("list=playlist"));
+        assert!(command_log.contains("quality=origin"));
+        for secret in ["private-signature", "12345", "private-fragment"] {
+            assert!(!command_log.contains(secret));
+        }
+        assert!(command_log.contains("wsSecret=%3Credacted%3E"));
+        assert!(command_log.contains("wsTime=%3Credacted%3E"));
     }
 }

@@ -1,5 +1,15 @@
-import { CheckCircle2, Clock, FolderOpen, Globe, Loader2, X, XCircle } from 'lucide-react';
-import { useCallback } from 'react';
+import {
+  Check,
+  CheckCircle2,
+  Clock,
+  Copy,
+  FolderOpen,
+  Globe,
+  Loader2,
+  X,
+  XCircle,
+} from 'lucide-react';
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { openFileLocation } from '@/lib/open-file-location';
 import type { DownloadItem } from '@/lib/types';
@@ -27,6 +37,7 @@ export function GalleryQueueItem({
   const isCompleted = item.status === 'completed';
   const isError = item.status === 'error';
   const isPending = item.status === 'pending';
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const handleOpenFolder = useCallback(async () => {
     if (!item.completedFilepath) return;
@@ -36,6 +47,16 @@ export function GalleryQueueItem({
       console.error('Failed to open gallery output folder:', error);
     }
   }, [item.completedFilepath]);
+
+  const handleCopyUrl = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(item.url);
+      setCopiedUrl(true);
+      window.setTimeout(() => setCopiedUrl(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy gallery queue URL:', error);
+    }
+  }, [item.url]);
 
   return (
     <div
@@ -114,7 +135,7 @@ export function GalleryQueueItem({
           )}
         </div>
 
-        {!isActive && !isError && (
+        {!isActive && (
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             {isCompleted && item.completedFilepath && (
               <button
@@ -126,6 +147,15 @@ export function GalleryQueueItem({
                 {t('queue.openFolder')}
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleCopyUrl}
+              aria-label={tDownload('queue.copyUrl')}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border border-dashed border-muted-foreground/30 text-muted-foreground hover:border-muted-foreground/50 hover:text-foreground hover:bg-muted/50 transition-colors font-medium"
+            >
+              {copiedUrl ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+              {copiedUrl ? tDownload('queue.copied') : tDownload('queue.copyUrl')}
+            </button>
           </div>
         )}
       </div>

@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { check } from '@tauri-apps/plugin-updater';
 import { useCallback, useEffect, useState } from 'react';
+import { parseUpdaterManifest } from '@/lib/updater-manifest';
 
 export interface UpdateInfo {
   version: string;
@@ -143,15 +144,16 @@ async function loadCurrentReleaseInfo(currentVersion: string): Promise<UpdateInf
   const fallback = { version: currentVersion, currentVersion: '' };
 
   try {
-    const raw = await invoke<Record<string, unknown>>('get_current_release_metadata');
-    if (raw.version !== currentVersion) return fallback;
+    const raw = await invoke<unknown>('get_current_release_metadata');
+    const manifest = parseUpdaterManifest(raw);
+    if (manifest.version !== currentVersion) return fallback;
 
     return {
       ...fallback,
-      body: typeof raw.notes === 'string' ? raw.notes : undefined,
-      bodyVi: typeof raw.notes_vi === 'string' ? raw.notes_vi : undefined,
-      bodyZhCN: typeof raw['notes_zh-CN'] === 'string' ? raw['notes_zh-CN'] : undefined,
-      date: typeof raw.pub_date === 'string' ? raw.pub_date : undefined,
+      body: manifest.notes,
+      bodyVi: manifest.notes_vi,
+      bodyZhCN: manifest['notes_zh-CN'],
+      date: manifest.pub_date,
     };
   } catch {
     return fallback;

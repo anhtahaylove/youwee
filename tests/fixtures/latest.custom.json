@@ -1,0 +1,25 @@
+{
+  "version": "0.20.1-custom.2",
+  "notes": "Reliability update",
+  "notes_vi": "Bản cập nhật độ tin cậy",
+  "notes_zh-CN": "可靠性更新",
+  "pub_date": "2026-08-13T00:00:00Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "fixture-darwin-aarch64-signature",
+      "url": "https://github.com/anhtahaylove/youwee/releases/download/v0.20.1-custom.2/Youwee-aarch64.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "fixture-darwin-x86_64-signature",
+      "url": "https://github.com/anhtahaylove/youwee/releases/download/v0.20.1-custom.2/Youwee-x86_64.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "signature": "fixture-linux-x86_64-signature",
+      "url": "https://github.com/anhtahaylove/youwee/releases/download/v0.20.1-custom.2/Youwee-Linux.AppImage"
+    },
+    "windows-x86_64": {
+      "signature": "fixture-windows-x86_64-signature",
+      "url": "https://github.com/anhtahaylove/youwee/releases/download/v0.20.1-custom.2/Youwee-Windows-Full-Setup.exe"
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { type Dispatch, type SetStateAction, useCallback, useEffect, useRef } from 'react';
+import { buildDownloadDuplicateIdentity } from '@/lib/download-duplicates';
 import {
   clearPersistedDownloadQueue,
   loadPersistedDownloadQueue,
@@ -19,18 +20,32 @@ interface UsePersistedDownloadQueueOptions {
   logLabel: string;
 }
 
-function mergeRestoredItems(
+function getQueueIdentityKeys(item: DownloadItem): string[] {
+  const identity = buildDownloadDuplicateIdentity(item.url, null, item.mediaId);
+  return [
+    identity.mediaId ? `media:${identity.mediaId}` : '',
+    identity.canonicalUrl ? `url:${identity.canonicalUrl}` : '',
+  ].filter(Boolean);
+}
+
+export function mergeRestoredItems(
   savedItems: DownloadItem[],
   currentItems: DownloadItem[],
 ): DownloadItem[] {
-  if (currentItems.length === 0) return savedItems;
+  const seenIds = new Set(currentItems.map((item) => item.id));
+  const seenIdentityKeys = new Set(currentItems.flatMap(getQueueIdentityKeys));
+  const restoredItems: DownloadItem[] = [];
 
-  const restoredItems = savedItems.filter(
-    (savedItem) =>
-      !currentItems.some(
-        (currentItem) => currentItem.id === savedItem.id || currentItem.url === savedItem.url,
-      ),
-  );
+  for (const savedItem of savedItems) {
+    const identityKeys = getQueueIdentityKeys(savedItem);
+    if (seenIds.has(savedItem.id) || identityKeys.some((key) => seenIdentityKeys.has(key))) {
+      continue;
+    }
+
+    restoredItems.push(savedItem);
+    seenIds.add(savedItem.id);
+    for (const key of identityKeys) seenIdentityKeys.add(key);
+  }
 
   return [...restoredItems, ...currentItems];
 }

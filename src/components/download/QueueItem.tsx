@@ -529,7 +529,7 @@ export function QueueItem({
             </span>
           )}
 
-          {isError && !isUpcomingLiveError && (
+          {isError && (
             <FailedLogsButton label={t('queue.status.failedHint')} onClick={onViewLogs} />
           )}
 

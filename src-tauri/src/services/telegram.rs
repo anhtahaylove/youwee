@@ -473,14 +473,13 @@ async fn handle_update(
         TelegramCommand::Stop => {
             emit_simple_command(app, "stop", &chat_id, message_thread_id);
         }
-        TelegramCommand::TikTokLive { command, target } => {
-            let reply = crate::commands::handle_tiktok_live_telegram_command(
-                app.clone(),
-                &command,
-                target.as_deref(),
-            )
-            .await
-            .unwrap_or_else(|_| "Failed to handle that TikTok Live command.".to_string());
+        parsed @ TelegramCommand::TikTokLive { .. } => {
+            let (command, target) = tiktok_live_backend_dispatch(&parsed)
+                .expect("TikTok Live command has a backend dispatch decision");
+            let reply =
+                crate::commands::handle_tiktok_live_telegram_command(app.clone(), command, target)
+                    .await
+                    .unwrap_or_else(|_| "Failed to handle that TikTok Live command.".to_string());
             let _ =
                 send_message_with_keyboard(client, bot_token, &chat_id, message_thread_id, &reply)
                     .await;
@@ -723,6 +722,15 @@ pub fn parse_command(text: &str) -> TelegramCommand {
     parse_command_with_plain_url_action(text, &TelegramPlainUrlAction::Download)
 }
 
+fn tiktok_live_backend_dispatch(command: &TelegramCommand) -> Option<(&str, Option<&str>)> {
+    match command {
+        TelegramCommand::TikTokLive { command, target } => {
+            Some((command.as_str(), target.as_deref()))
+        }
+        _ => None,
+    }
+}
+
 fn parse_command_with_plain_url_action(
     text: &str,
     plain_url_action: &TelegramPlainUrlAction,
@@ -879,26 +887,34 @@ mod tests {
     }
 
     #[test]
-    fn parses_tiktok_live_commands() {
-        assert_eq!(
-            parse_command("/tl_watchlist"),
-            TelegramCommand::TikTokLive {
-                command: "watchlist".to_string(),
-                target: None,
-            }
-        );
+    fn parses_and_dispatches_all_documented_tiktok_live_commands() {
+        let cases = [
+            ("/tl_watchlist", "watchlist", None),
+            ("/tl_status", "status", None),
+            ("/tl_status @creator", "status", Some("@creator")),
+            ("/tl_add @creator", "add", Some("@creator")),
+            ("/tl_remove @creator", "remove", Some("@creator")),
+            ("/tl_enable @creator", "enable", Some("@creator")),
+            ("/tl_disable @creator", "disable", Some("@creator")),
+            ("/tl_inspect @creator", "inspect", Some("@creator")),
+            ("/tl_record @creator", "record", Some("@creator")),
+            ("/tl_stop @creator", "stop", Some("@creator")),
+        ];
+
+        for (input, expected_command, expected_target) in cases {
+            let parsed = parse_command(input);
+            assert_eq!(
+                tiktok_live_backend_dispatch(&parsed),
+                Some((expected_command, expected_target)),
+                "{input} should dispatch to the Rust TikTok Live backend"
+            );
+        }
+
         assert_eq!(
             parse_command("📺 TL Watchlist"),
             TelegramCommand::TikTokLive {
                 command: "watchlist".to_string(),
                 target: None,
-            }
-        );
-        assert_eq!(
-            parse_command("/tl_status @creator"),
-            TelegramCommand::TikTokLive {
-                command: "status".to_string(),
-                target: Some("@creator".to_string()),
             }
         );
         assert_eq!(

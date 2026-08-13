@@ -8,7 +8,10 @@ use tokio::process::Command;
 
 use crate::database::add_history_internal;
 use crate::database::add_log_internal;
-use crate::services::{build_cookie_args, get_gallerydl_path, system_gallerydl_not_found_message};
+use crate::services::{
+    build_cookie_args, format_ytdlp_args_for_log, get_gallerydl_path,
+    system_gallerydl_not_found_message,
+};
 use crate::types::BackendError;
 use crate::utils::{normalize_url, sanitize_output_path, validate_url, CommandExt};
 
@@ -124,7 +127,11 @@ pub async fn download_gallery(
 
     args.push(url.clone());
 
-    let command_str = format!("[{}] gallery-dl {}", binary_path.display(), args.join(" "));
+    let command_str = format!(
+        "[{}] gallery-dl {}",
+        binary_path.display(),
+        format_ytdlp_args_for_log(&args)
+    );
     add_log_internal("command", &command_str, None, Some(&url)).ok();
 
     let mut cmd = Command::new(&binary_path);

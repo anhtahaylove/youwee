@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 const extensionRoot = new URL('../extensions/youwee-webext/', import.meta.url);
 const repoRoot = new URL('../', import.meta.url);
 const amoListingUrl = 'https://addons.mozilla.org/firefox/addon/youwee-download-companion/';
+const canonicalAmoId = 'youwee@anhtahaylove.com';
 
 describe('Firefox extension validation', () => {
   test('declares current-page URL transmission as browsing activity', async () => {
@@ -12,12 +13,28 @@ describe('Firefox extension validation', () => {
     );
 
     expect(manifest.browser_specific_settings.gecko.strict_min_version).toBe('140.0');
+    expect(manifest.browser_specific_settings.gecko.id).toBe(canonicalAmoId);
     expect(manifest.version).toBe('0.19.1.37');
     expect(manifest.browser_specific_settings.gecko.update_url).toBeUndefined();
     expect(manifest.browser_specific_settings.gecko_android.strict_min_version).toBe('142.0');
     expect(manifest.browser_specific_settings.gecko.data_collection_permissions).toEqual({
       required: ['browsingActivity'],
     });
+  });
+
+  test('keeps the app version separate from synchronized extension store versions', async () => {
+    const appPackage = JSON.parse(await readFile(new URL('package.json', repoRoot), 'utf8'));
+    const firefoxManifest = JSON.parse(
+      await readFile(new URL('manifest.firefox.json', extensionRoot), 'utf8'),
+    );
+    const chromiumManifest = JSON.parse(
+      await readFile(new URL('manifest.chromium.json', extensionRoot), 'utf8'),
+    );
+
+    expect(firefoxManifest.version).toBe(chromiumManifest.version);
+    expect(firefoxManifest.version).not.toBe(appPackage.version);
+    expect(appPackage.version).toContain('-custom.');
+    expect(firefoxManifest.version).not.toContain('-custom.');
   });
 
   test('requests only the permissions used by both store packages', async () => {

@@ -13,7 +13,7 @@ use tokio::process::Command;
 use crate::database::{add_history_internal, add_log_internal};
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
-    get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source,
+    format_ytdlp_args_for_log, get_deno_path, get_ffmpeg_path, get_ytdlp_path, get_ytdlp_source,
     run_ytdlp_with_stderr_and_cookies, search_youtube_videos_internal,
     system_ytdlp_not_found_message,
 };
@@ -871,7 +871,11 @@ pub async fn fetch_metadata(
 
         // Log command with binary path info (same format as download.rs)
         let binary_info = format!("{} (bundled: {})", binary_path.display(), is_bundled);
-        let command_str = format!("[{}] yt-dlp {}", binary_info, args.join(" "));
+        let command_str = format!(
+            "[{}] yt-dlp {}",
+            binary_info,
+            format_ytdlp_args_for_log(&args)
+        );
         add_log_internal("command", &command_str, None, Some(&url)).ok();
 
         let mut cmd = Command::new(&binary_path);

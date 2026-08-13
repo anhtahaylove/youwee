@@ -1182,7 +1182,10 @@ fn sdk_params_from_value(
     }
 }
 
-fn infer_tiktok_stream_fps(params: &serde_json::Map<String, serde_json::Value>) -> Option<f64> {
+fn infer_tiktok_stream_fps(
+    params: &serde_json::Map<String, serde_json::Value>,
+    quality: &str,
+) -> Option<f64> {
     json_f64(
         params
             .get("fps")
@@ -1190,6 +1193,7 @@ fn infer_tiktok_stream_fps(params: &serde_json::Map<String, serde_json::Value>) 
             .or_else(|| params.get("frame_rate"))
             .or_else(|| params.get("frameRate")),
     )
+    .or_else(|| matches!(quality.to_ascii_lowercase().as_str(), "uhd_60" | "hd_60").then_some(60.0))
 }
 
 fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTokLiveFormat> {
@@ -1236,7 +1240,7 @@ fn formats_from_tiktok_stream_data(stream_data: &serde_json::Value) -> Vec<TikTo
                     resolution: resolution.clone(),
                     width,
                     height,
-                    fps: infer_tiktok_stream_fps(&params),
+                    fps: infer_tiktok_stream_fps(&params, quality),
                     vcodec: vcodec.clone(),
                     acodec: None,
                     tbr,
@@ -5026,6 +5030,15 @@ mod tests {
             Some("https://www.tiktok.com/@some.user/live")
         );
 
+        let bare_username = parse_tiktok_live_target("some.user").expect("bare username");
+        assert_eq!(bare_username.kind, TikTokLiveTargetKind::Username);
+        assert_eq!(bare_username.input, "some.user");
+        assert_eq!(bare_username.username.as_deref(), Some("some.user"));
+        assert_eq!(
+            bare_username.url.as_deref(),
+            Some("https://www.tiktok.com/@some.user/live")
+        );
+
         let url =
             parse_tiktok_live_target("https://www.tiktok.com/@some.user/live?token=secret#frag")
                 .expect("url");
@@ -5328,16 +5341,16 @@ mod tests {
         assert_eq!(selected.variant.format_id, "uhd_60-flv");
         assert_eq!(selected.variant.width, Some(1080));
         assert_eq!(selected.variant.height, Some(1920));
-        assert_eq!(selected.variant.fps, None);
+        assert_eq!(selected.variant.fps, Some(60.0));
         assert_eq!(selected.variant.vcodec.as_deref(), Some("h265"));
         assert_eq!(
             tiktok_live_variant_label(&selected.variant),
-            "uhd_60-flv · 1080x1920 · h265 · FLV · 4000 kbps"
+            "uhd_60-flv · 1080x1920 · 60 FPS · h265 · FLV · 4000 kbps"
         );
     }
 
     #[test]
-    fn origin_quality_prefers_uhd_60_when_resolution_matches() {
+    fn origin_hevc_60fps_fixture_reports_selected_metadata() {
         let hevc_stream_data = serde_json::json!({
             "data": {
                 "origin": {
@@ -5380,7 +5393,13 @@ mod tests {
         )
         .expect("selected variant");
         assert_eq!(selected_variant.format_id, "uhd_60-flv");
-        assert_eq!(selected_variant.fps, None);
+        assert_eq!(selected_variant.quality.as_deref(), Some("uhd_60"));
+        assert_eq!(selected_variant.resolution.as_deref(), Some("1080x1920"));
+        assert_eq!(selected_variant.width, Some(1080));
+        assert_eq!(selected_variant.height, Some(1920));
+        assert_eq!(selected_variant.fps, Some(60.0));
+        assert_eq!(selected_variant.vcodec.as_deref(), Some("h265"));
+        assert_eq!(selected_variant.protocol.as_deref(), Some("flv"));
 
         let formats = formats_from_ytdlp_json(&json);
         let selected_format = select_format(
@@ -5390,10 +5409,10 @@ mod tests {
         )
         .expect("selected format");
         assert_eq!(selected_format.variant.format_id, "uhd_60-flv");
-        assert_eq!(selected_format.variant.fps, None);
+        assert_eq!(selected_format.variant.fps, Some(60.0));
         assert_eq!(
             tiktok_live_variant_label(&selected_format.variant),
-            "uhd_60-flv · 1080x1920 · h265 · FLV · 4000 kbps"
+            "uhd_60-flv · 1080x1920 · 60 FPS · h265 · FLV · 4000 kbps"
         );
     }
 
