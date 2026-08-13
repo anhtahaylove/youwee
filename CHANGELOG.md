@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1-custom.2] - 2026-08-13
+
+### Added
+
+- **Reliability regression suite** - Cover signed updater manifests, persisted queue identity merging, packaged browser-extension/dependency assets, Facebook preview fallback, TikTok Live format metadata, and Telegram controller commands.
+
+### Fixed
+
+- **Private runtime logs** - Redact cookie files, browser profile paths, proxy credentials, and signed media URL parameters without changing the arguments passed to yt-dlp.
+- **Queue recovery actions** - Keep View Logs available for every failed YouTube, Universal, and Gallery item, and allow inactive Gallery items to copy their source URL.
+- **Recovered metadata stability** - Preserve an existing Library thumbnail when a recovery update has no replacement and infer 60 FPS for TikTok Live `uhd_60` / `hd_60` variants.
+
+### Changed
+
+- **Release validation** - Run the complete Bun regression suite in CI and validate generated `latest.json` before publishing updater metadata.
+- **Extension controls** - Use native fieldset semantics for popup download options while retaining the approved AMO identity and separate extension version.
+
 ## [0.20.1-custom.1] - 2026-08-11
 
 ### Added

@@ -7,6 +7,23 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1-custom.2] - 2026-08-13
+
+### Thêm mới
+
+- **Bộ regression tăng độ tin cậy** - Bao phủ manifest updater đã ký, hợp nhất danh tính Queue được lưu, asset dependency/extension đóng gói, fallback preview Facebook, metadata định dạng TikTok Live và lệnh Telegram controller.
+
+### Sửa lỗi
+
+- **Log runtime riêng tư** - Che đường dẫn cookie, profile trình duyệt, thông tin xác thực proxy và tham số URL media đã ký mà không thay đổi đối số thực thi yt-dlp.
+- **Thao tác khôi phục Queue** - Luôn cho phép mở Logs trên mọi item YouTube, Universal và Gallery bị lỗi, đồng thời cho phép item Gallery không hoạt động sao chép URL nguồn.
+- **Metadata khôi phục ổn định** - Giữ thumbnail Library hiện có khi bản cập nhật khôi phục không có ảnh thay thế và nhận diện 60 FPS cho biến thể TikTok Live `uhd_60` / `hd_60`.
+
+### Thay đổi
+
+- **Xác minh release** - Chạy toàn bộ Bun regression trong CI và kiểm tra `latest.json` hợp lệ trước khi phát hành metadata updater.
+- **Điều khiển extension** - Dùng cấu trúc fieldset gốc cho tùy chọn tải trong popup, đồng thời giữ nguyên danh tính AMO đã duyệt và version extension độc lập.
+
 ## [0.20.1-custom.1] - 2026-08-11
 
 ### Thêm mới
