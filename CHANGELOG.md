@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1-custom.4] - 2026-08-15
+
+### Added
+
+- **H.264 compatibility output** - Add an explicit Compatible H.264 preset to YouTube and Universal downloads that converts the selected source to MP4 with H.264 video, AAC audio, source frame rate, and broadly supported pixel format while keeping Original (Best) as the default highest-quality path.
+
+### Fixed
+
+- **Compatible output history path** - Record the actual `.mp4` compatibility output in Queue and Library, avoid reusing unrelated existing files, and preserve the final converted filepath for thumbnails and file metadata.
+
 ## [0.20.1-custom.3] - 2026-08-13
 
 ### Fixed

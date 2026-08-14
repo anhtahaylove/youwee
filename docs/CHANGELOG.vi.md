@@ -7,6 +7,16 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1-custom.4] - 2026-08-15
+
+### Thêm mới
+
+- **Output tương thích H.264** - Thêm preset Compatible H.264 rõ ràng cho lượt tải YouTube và Đa nền tảng, chuyển nguồn đã chọn sang MP4 với video H.264, âm thanh AAC, giữ FPS nguồn và định dạng màu tương thích rộng, đồng thời vẫn dùng Original (Best) làm lựa chọn chất lượng cao nhất mặc định.
+
+### Sửa lỗi
+
+- **Đường dẫn lịch sử output tương thích** - Ghi đúng file `.mp4` sau chuyển đổi vào Queue và Library, không dùng nhầm file có sẵn không liên quan, đồng thời giữ đúng filepath cuối cho thumbnail và metadata file.
+
 ## [0.20.1-custom.3] - 2026-08-13
 
 ### Sửa lỗi
