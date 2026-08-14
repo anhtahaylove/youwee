@@ -56,6 +56,11 @@
     "preferredFps30": "До 30 FPS",
     "codecAdjusted": "Кодек изменен",
     "webmCodecNotice": "WebM не поддерживает H.264, поэтому видеокодек был изменен на Auto (VP9/AV1).",
+    "compatibilityPreset": "Профиль вывода",
+    "compatibilityOriginal": "Оригинал (Лучшее)",
+    "compatibilityOriginalDesc": "Скачивает выбранное максимальное качество источника без перекодирования, сохраняя исходный кодек и частоту кадров.",
+    "compatibilityH264": "Совместимый H.264",
+    "compatibilityH264Desc": "Преобразует итоговое видео в MP4 H.264/AAC для более плавного воспроизведения и монтажа. Сохраняет частоту кадров, но требует больше времени и CPU.",
     "autoRetry": "Автоповтор",
     "retryAttempts": "Попытки",
     "retryDelaySeconds": "Задержка (с)"

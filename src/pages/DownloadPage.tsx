@@ -53,6 +53,7 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
     updateQuality,
     updateFormat,
     updateVideoCodec,
+    updateVideoCompatibilityMode,
     updatePreferredFps,
     updateAudioBitrate,
     updateConcurrentDownloads,
@@ -184,6 +185,7 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
               onQualityChange={updateQuality}
               onFormatChange={updateFormat}
               onVideoCodecChange={updateVideoCodec}
+              onVideoCompatibilityModeChange={updateVideoCompatibilityMode}
               onPreferredFpsChange={updatePreferredFps}
               onAudioBitrateChange={updateAudioBitrate}
               onConcurrentChange={updateConcurrentDownloads}

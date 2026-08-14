@@ -48,6 +48,7 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
     updateQuality,
     updateFormat,
     updateVideoCodec,
+    updateVideoCompatibilityMode,
     updateAudioBitrate,
     updatePreferredFps,
     updateConcurrentDownloads,
@@ -139,6 +140,7 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
             onQualityChange={updateQuality}
             onFormatChange={updateFormat}
             onVideoCodecChange={updateVideoCodec}
+            onVideoCompatibilityModeChange={updateVideoCompatibilityMode}
             onAudioBitrateChange={updateAudioBitrate}
             onPreferredFpsChange={updatePreferredFps}
             onConcurrentChange={updateConcurrentDownloads}

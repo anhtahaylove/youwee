@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { VideoCompatibilityPreset } from '@/components/download/VideoCompatibilityPreset';
 import { FFmpegRequiredDialog } from '@/components/FFmpegRequiredDialog';
 import { SubtitlePopoverContent } from '@/components/shared/SubtitlePopoverContent';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,7 @@ import type {
   SubtitleFormat,
   SubtitleMode,
   VideoCodec,
+  VideoCompatibilityMode,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -113,6 +115,7 @@ interface SettingsPanelProps {
   onQualityChange: (quality: Quality) => void;
   onFormatChange: (format: Format) => void;
   onVideoCodecChange: (codec: VideoCodec) => void;
+  onVideoCompatibilityModeChange: (mode: VideoCompatibilityMode) => void;
   onPreferredFpsChange: (fps: PreferredFps) => void;
   onAudioBitrateChange: (bitrate: AudioBitrate) => void;
   onConcurrentChange: (concurrent: number) => void;
@@ -139,6 +142,7 @@ export function SettingsPanel({
   onQualityChange,
   onFormatChange,
   onVideoCodecChange,
+  onVideoCompatibilityModeChange,
   onPreferredFpsChange,
   onAudioBitrateChange,
   onConcurrentChange,
@@ -323,12 +327,30 @@ export function SettingsPanel({
           </SelectTrigger>
           <SelectContent>
             {formatOptions.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value} className="text-xs">
+              <SelectItem
+                key={opt.value}
+                value={opt.value}
+                className="text-xs"
+                disabled={settings.videoCompatibilityMode === 'h264' && opt.value !== 'mp4'}
+              >
                 {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+
+        {!isAudioOnly && (
+          <VideoCompatibilityPreset
+            value={settings.videoCompatibilityMode}
+            disabled={disabled}
+            label={t('settings.compatibilityPreset')}
+            originalLabel={t('settings.compatibilityOriginal')}
+            originalDescription={t('settings.compatibilityOriginalDesc')}
+            h264Label={t('settings.compatibilityH264')}
+            h264Description={t('settings.compatibilityH264Desc')}
+            onValueChange={onVideoCompatibilityModeChange}
+          />
+        )}
 
         {/* Playlist Toggle */}
         <button

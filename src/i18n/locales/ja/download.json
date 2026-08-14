@@ -151,6 +151,11 @@
     "webmCodecNotice": "WebM は H.264 をサポートしていないため、動画コーデックを自動 (VP9/AV1) に変更しました。",
     "dismissNotice": "通知を閉じる",
     "totalFileSize": "総ファイルサイズ",
+    "compatibilityPreset": "出力プリセット",
+    "compatibilityOriginal": "オリジナル（最高）",
+    "compatibilityOriginalDesc": "選択した最高のソース品質を再エンコードせずにダウンロードし、元のコーデックとフレームレートを保持します。",
+    "compatibilityH264": "H.264 互換",
+    "compatibilityH264Desc": "再生と編集を滑らかにするため、最終動画を H.264/AAC MP4 に変換します。フレームレートは保持しますが、完了まで時間と CPU を使います。",
     "autoRetry": "自動再試行",
     "retryAttempts": "試行回数",
     "retryDelaySeconds": "間隔 (秒)"

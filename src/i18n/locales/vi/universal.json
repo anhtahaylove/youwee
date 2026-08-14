@@ -56,6 +56,11 @@
     "preferredFps30": "Tối đa 30 FPS",
     "codecAdjusted": "Đã điều chỉnh codec",
     "webmCodecNotice": "WebM không hỗ trợ H.264, nên codec video đã được chuyển sang Auto (VP9/AV1).",
+    "compatibilityPreset": "Cấu hình đầu ra",
+    "compatibilityOriginal": "Bản gốc (Tốt nhất)",
+    "compatibilityOriginalDesc": "Tải chất lượng nguồn cao nhất đã chọn mà không mã hóa lại. Giữ nguyên codec và tốc độ khung hình của nguồn.",
+    "compatibilityH264": "Tương thích H.264",
+    "compatibilityH264Desc": "Chuyển video cuối sang MP4 H.264/AAC để xem và biên tập mượt hơn. Giữ nguyên tốc độ khung hình nhưng hoàn tất lâu hơn và dùng CPU.",
     "autoRetry": "Tự động thử lại",
     "retryAttempts": "Số lần",
     "retryDelaySeconds": "Độ trễ (giây)"

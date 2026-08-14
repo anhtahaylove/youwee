@@ -7,7 +7,7 @@
 //! - Subtitle handling
 
 use std::collections::{BTreeMap, HashSet, VecDeque};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -1077,6 +1077,250 @@ fn push_facebook_title_replacement_args(args: &mut Vec<String>, url: &str, title
     ]);
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct H264CompatibilityProbe {
+    video_codec: Option<String>,
+    pixel_format: Option<String>,
+    audio_codecs: Vec<String>,
+}
+
+fn parse_h264_compatibility_probe(output: &[u8]) -> Option<H264CompatibilityProbe> {
+    let json: serde_json::Value = serde_json::from_slice(output).ok()?;
+    let streams = json.get("streams")?.as_array()?;
+    let mut video_codec = None;
+    let mut pixel_format = None;
+    let mut audio_codecs = Vec::new();
+
+    for stream in streams {
+        match stream.get("codec_type").and_then(serde_json::Value::as_str) {
+            Some("video") if video_codec.is_none() => {
+                video_codec = stream
+                    .get("codec_name")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_ascii_lowercase);
+                pixel_format = stream
+                    .get("pix_fmt")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_ascii_lowercase);
+            }
+            Some("audio") => {
+                if let Some(codec) = stream.get("codec_name").and_then(serde_json::Value::as_str) {
+                    audio_codecs.push(codec.to_ascii_lowercase());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Some(H264CompatibilityProbe {
+        video_codec,
+        pixel_format,
+        audio_codecs,
+    })
+}
+
+fn requires_h264_compatibility_transcode(probe: &H264CompatibilityProbe) -> bool {
+    let compatible_video = probe.video_codec.as_deref() == Some("h264")
+        && matches!(probe.pixel_format.as_deref(), Some("yuv420p" | "yuvj420p"));
+    let compatible_audio = probe
+        .audio_codecs
+        .iter()
+        .all(|codec| codec.eq_ignore_ascii_case("aac"));
+
+    !compatible_video || !compatible_audio
+}
+
+async fn probe_h264_compatibility(
+    app: &AppHandle,
+    filepath: &Path,
+) -> Option<H264CompatibilityProbe> {
+    let ffprobe_path = get_ffprobe_path(app).await?;
+    let mut command = Command::new(ffprobe_path);
+    command
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=codec_type,codec_name,pix_fmt",
+            "-of",
+            "json",
+            "--",
+        ])
+        .arg(filepath)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    command.kill_on_drop(true);
+    command.hide_window();
+
+    let output = command.output().await.ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    parse_h264_compatibility_probe(&output.stdout)
+}
+
+fn h264_compatibility_temp_path(filepath: &Path, marker: &str) -> PathBuf {
+    let parent = filepath.parent().unwrap_or_else(|| Path::new("."));
+    let stem = filepath
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("video");
+    parent.join(format!(".{stem}.youwee-h264-{marker}.mp4"))
+}
+
+fn h264_compatibility_output_path(filepath: &Path) -> PathBuf {
+    if filepath
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("mp4"))
+    {
+        return filepath.to_path_buf();
+    }
+
+    let preferred_path = filepath.with_extension("mp4");
+    if !preferred_path.exists() {
+        return preferred_path;
+    }
+
+    let parent = filepath.parent().unwrap_or_else(|| Path::new("."));
+    let stem = filepath
+        .file_stem()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| OsStr::new("video"));
+    for index in 1.. {
+        let mut filename = stem.to_os_string();
+        filename.push(format!(" ({index}).mp4"));
+        let candidate = parent.join(filename);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+
+    unreachable!("a unique H.264 compatibility output path should be available")
+}
+
+fn h264_compatibility_ffmpeg_args(input: &Path, output: &Path) -> Vec<OsString> {
+    let mut args = [
+        "-y",
+        "-i",
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a?",
+        "-map",
+        "0:s?",
+        "-map_metadata",
+        "0",
+        "-map_chapters",
+        "0",
+        "-c:v",
+        "libx264",
+        "-preset",
+        "fast",
+        "-crf",
+        "19",
+        "-pix_fmt",
+        "yuv420p",
+        "-threads",
+        "2",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-c:s",
+        "mov_text",
+        "-movflags",
+        "+faststart",
+        "-max_muxing_queue_size",
+        "4096",
+    ]
+    .into_iter()
+    .map(OsString::from)
+    .collect::<Vec<_>>();
+    args.insert(2, input.as_os_str().to_os_string());
+    args.push(output.as_os_str().to_os_string());
+    args
+}
+
+async fn transcode_output_to_h264(app: &AppHandle, filepath: &Path) -> Result<PathBuf, String> {
+    let output_path = h264_compatibility_output_path(filepath);
+    if let Some(probe) = probe_h264_compatibility(app, filepath).await {
+        if !requires_h264_compatibility_transcode(&probe) && output_path == filepath {
+            return Ok(filepath.to_path_buf());
+        }
+    }
+
+    let ffmpeg_path = get_ffmpeg_path(app)
+        .await
+        .ok_or_else(|| "FFmpeg is required for Compatible H.264 mode.".to_string())?;
+    let marker = uuid::Uuid::new_v4().simple().to_string();
+    let temp_path = h264_compatibility_temp_path(&output_path, &marker);
+    let backup_path = filepath.with_extension(format!("youwee-original-{marker}.bak"));
+
+    let mut command = Command::new(ffmpeg_path);
+    command
+        .args(h264_compatibility_ffmpeg_args(filepath, &temp_path))
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    command.kill_on_drop(true);
+    command.hide_window();
+
+    let output = command
+        .output()
+        .await
+        .map_err(|error| format!("Failed to start FFmpeg compatibility conversion: {error}"))?;
+    if !output.status.success() {
+        tokio::fs::remove_file(&temp_path).await.ok();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr
+            .lines()
+            .rev()
+            .find(|line| !line.trim().is_empty())
+            .unwrap_or("FFmpeg exited without an error message");
+        return Err(format!("H.264 compatibility conversion failed: {detail}"));
+    }
+
+    if let Err(error) = tokio::fs::rename(filepath, &backup_path).await {
+        tokio::fs::remove_file(&temp_path).await.ok();
+        return Err(format!(
+            "Failed to prepare the original file for replacement: {error}"
+        ));
+    }
+    if let Err(error) = tokio::fs::rename(&temp_path, &output_path).await {
+        tokio::fs::rename(&backup_path, filepath).await.ok();
+        tokio::fs::remove_file(&temp_path).await.ok();
+        return Err(format!(
+            "Failed to replace the original file after H.264 conversion: {error}"
+        ));
+    }
+    tokio::fs::remove_file(&backup_path).await.ok();
+    Ok(output_path)
+}
+
+async fn apply_h264_compatibility_to_outputs(
+    app: &AppHandle,
+    output_paths: &mut [String],
+    url: &str,
+) -> Result<(), String> {
+    for filepath in output_paths {
+        let path = PathBuf::from(&*filepath);
+        if !path.is_file() {
+            continue;
+        }
+        add_log_internal(
+            "info",
+            "Preparing Compatible H.264 output (source frame rate preserved)",
+            Some(filepath),
+            Some(url),
+        )
+        .ok();
+        let output_path = transcode_output_to_h264(app, &path).await?;
+        *filepath = output_path.to_string_lossy().to_string();
+    }
+    Ok(())
+}
+
 fn is_facebook_parse_failure(recent_lines: &[String]) -> bool {
     recent_lines.iter().any(|line| {
         let lower = line.to_ascii_lowercase();
@@ -2014,6 +2258,7 @@ pub async fn download_video(
     auto_organize_collections: Option<bool>,
     playlist_collection_name: Option<String>,
     video_codec: String,
+    video_compatibility_mode: Option<String>,
     preferred_fps: Option<String>,
     audio_bitrate: String,
     playlist_limit: Option<u32>,
@@ -2367,6 +2612,10 @@ pub async fn download_video(
     // Audio formats
     let is_audio_format =
         format == "mp3" || format == "m4a" || format == "opus" || quality == "audio";
+    let h264_compatibility_enabled = video_compatibility_mode.as_deref() == Some("h264")
+        && format == "mp4"
+        && !is_audio_format
+        && media_kind.as_deref() != Some("image_gallery");
 
     if is_audio_format {
         args.push("-x".to_string());
@@ -2876,6 +3125,7 @@ pub async fn download_video(
             auto_collection_names.clone(),
             auto_organize_collections_enabled,
             split_embedded_chapters,
+            h264_compatibility_enabled,
             collision_suffix,
             Some(core_fallback),
         )
@@ -3212,12 +3462,24 @@ pub async fn download_video(
                                         &output_snapshot,
                                     );
                             }
-                            let output_paths = output_filepaths(
+                            let mut output_paths = output_filepaths(
                                 &printed_filepaths,
                                 &chapter_filepaths,
                                 &recovered_filepaths,
                                 &final_filepath,
                             );
+                            if h264_compatibility_enabled {
+                                if let Err(error) = apply_h264_compatibility_to_outputs(
+                                    &app,
+                                    &mut output_paths,
+                                    &url,
+                                )
+                                .await
+                                {
+                                    add_log_internal("error", &error, None, Some(&url)).ok();
+                                    return Err(BackendError::from_message(error).to_wire_string());
+                                }
+                            }
                             let actual_filesize = output_paths
                                 .first()
                                 .and_then(|fp| std::fs::metadata(fp).ok())
@@ -3511,6 +3773,7 @@ pub async fn download_video(
                 auto_collection_names,
                 auto_organize_collections_enabled,
                 split_embedded_chapters,
+                h264_compatibility_enabled,
                 collision_suffix,
                 None,
             )
@@ -3543,6 +3806,7 @@ async fn handle_tokio_download(
     auto_collection_names: Vec<String>,
     auto_organize_collections_enabled: bool,
     split_embedded_chapters: bool,
+    h264_compatibility_enabled: bool,
     collision_suffix: Option<String>,
     core_fallback: Option<CoreDownloadFallback>,
 ) -> Result<(), String> {
@@ -3860,12 +4124,20 @@ async fn handle_tokio_download(
             (final_filepath, recovered_filepaths) =
                 newest_changed_media_filepath(&output_directory, &output_snapshot);
         }
-        let output_paths = output_filepaths(
+        let mut output_paths = output_filepaths(
             &printed_filepaths,
             &chapter_filepaths,
             &recovered_filepaths,
             &final_filepath,
         );
+        if h264_compatibility_enabled {
+            if let Err(error) =
+                apply_h264_compatibility_to_outputs(&app, &mut output_paths, &url).await
+            {
+                add_log_internal("error", &error, None, Some(&url)).ok();
+                return Err(BackendError::from_message(error).to_wire_string());
+            }
+        }
         let actual_filesize = output_paths
             .first()
             .and_then(|fp| std::fs::metadata(fp).ok())
@@ -4046,6 +4318,7 @@ async fn handle_tokio_download(
                             auto_collection_names.clone(),
                             auto_organize_collections_enabled,
                             split_embedded_chapters,
+                            h264_compatibility_enabled,
                             collision_suffix,
                             None,
                         ))
@@ -4422,6 +4695,76 @@ pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compatibility_probe_requires_transcode_for_vp9_or_non_aac_audio() {
+        let vp9 = parse_h264_compatibility_probe(
+            br#"{"streams":[{"codec_type":"video","codec_name":"vp9","pix_fmt":"yuv420p"},{"codec_type":"audio","codec_name":"opus"}]}"#,
+        )
+        .expect("probe should parse");
+        assert!(requires_h264_compatibility_transcode(&vp9));
+
+        let h264_with_opus = H264CompatibilityProbe {
+            video_codec: Some("h264".to_string()),
+            pixel_format: Some("yuv420p".to_string()),
+            audio_codecs: vec!["opus".to_string()],
+        };
+        assert!(requires_h264_compatibility_transcode(&h264_with_opus));
+    }
+
+    #[test]
+    fn compatibility_probe_skips_already_compatible_h264_mp4_streams() {
+        let probe = parse_h264_compatibility_probe(
+            br#"{"streams":[{"codec_type":"video","codec_name":"h264","pix_fmt":"yuv420p"},{"codec_type":"audio","codec_name":"aac"}]}"#,
+        )
+        .expect("probe should parse");
+
+        assert!(!requires_h264_compatibility_transcode(&probe));
+    }
+
+    #[test]
+    fn compatibility_temp_file_stays_beside_the_download() {
+        let path = Path::new(r"C:\Downloads\Example.mp4");
+        assert_eq!(
+            h264_compatibility_temp_path(path, "test"),
+            PathBuf::from(r"C:\Downloads\.Example.youwee-h264-test.mp4")
+        );
+    }
+
+    #[test]
+    fn compatibility_output_uses_mp4_extension() {
+        let source = Path::new(r"C:\Downloads\Example.webm");
+        assert_eq!(
+            h264_compatibility_output_path(source),
+            PathBuf::from(r"C:\Downloads\Example.mp4")
+        );
+
+        let mp4 = Path::new(r"C:\Downloads\Example.mp4");
+        assert_eq!(h264_compatibility_output_path(mp4), mp4);
+    }
+
+    #[test]
+    fn compatibility_transcode_preserves_source_fps_and_limits_cpu_threads() {
+        let input = Path::new(r"C:\Downloads\Video tiếng Việt.mp4");
+        let output = Path::new(r"C:\Downloads\.Video tiếng Việt.youwee-h264-test.mp4");
+        let os_args = h264_compatibility_ffmpeg_args(input, output);
+        assert_eq!(os_args[2], input.as_os_str());
+        assert_eq!(
+            os_args.last().map(OsString::as_os_str),
+            Some(output.as_os_str())
+        );
+
+        let args = os_args
+            .into_iter()
+            .map(|arg| arg.to_string_lossy().to_string())
+            .collect::<Vec<_>>();
+
+        assert!(args.windows(2).any(|pair| pair == ["-c:v", "libx264"]));
+        assert!(args.windows(2).any(|pair| pair == ["-pix_fmt", "yuv420p"]));
+        assert!(args.windows(2).any(|pair| pair == ["-threads", "2"]));
+        assert!(args.windows(2).any(|pair| pair == ["-c:a", "aac"]));
+        assert!(!args.iter().any(|arg| arg == "-r"));
+    }
 
     #[test]
     fn parses_facebook_hd_stream_probe() {

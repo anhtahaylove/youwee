@@ -9,6 +9,7 @@ import {
   Settings2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { VideoCompatibilityPreset } from '@/components/download/VideoCompatibilityPreset';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -24,7 +25,14 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/components/ui/toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { UniversalSettings } from '@/contexts/UniversalContext';
-import type { AudioBitrate, Format, PreferredFps, Quality, VideoCodec } from '@/lib/types';
+import type {
+  AudioBitrate,
+  Format,
+  PreferredFps,
+  Quality,
+  VideoCodec,
+  VideoCompatibilityMode,
+} from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 function formatFileSize(bytes: number): string {
@@ -68,6 +76,7 @@ interface UniversalSettingsPanelProps {
   onQualityChange: (quality: Quality) => void;
   onFormatChange: (format: Format) => void;
   onVideoCodecChange: (codec: VideoCodec) => void;
+  onVideoCompatibilityModeChange: (mode: VideoCompatibilityMode) => void;
   onAudioBitrateChange: (bitrate: AudioBitrate) => void;
   onPreferredFpsChange: (fps: PreferredFps) => void;
   onConcurrentChange: (concurrent: number) => void;
@@ -83,6 +92,7 @@ export function UniversalSettingsPanel({
   onQualityChange,
   onFormatChange,
   onVideoCodecChange,
+  onVideoCompatibilityModeChange,
   onAudioBitrateChange,
   onPreferredFpsChange,
   onConcurrentChange,
@@ -227,12 +237,30 @@ export function UniversalSettingsPanel({
         </SelectTrigger>
         <SelectContent>
           {formatOptions.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value} className="text-xs">
+            <SelectItem
+              key={opt.value}
+              value={opt.value}
+              className="text-xs"
+              disabled={settings.videoCompatibilityMode === 'h264' && opt.value !== 'mp4'}
+            >
               {opt.label}
             </SelectItem>
           ))}
         </SelectContent>
       </Select>
+
+      {!isAudioOnly && (
+        <VideoCompatibilityPreset
+          value={settings.videoCompatibilityMode}
+          disabled={disabled}
+          label={t('settings.compatibilityPreset')}
+          originalLabel={t('settings.compatibilityOriginal')}
+          originalDescription={t('settings.compatibilityOriginalDesc')}
+          h264Label={t('settings.compatibilityH264')}
+          h264Description={t('settings.compatibilityH264Desc')}
+          onValueChange={onVideoCompatibilityModeChange}
+        />
+      )}
 
       {/* Advanced Settings Popover */}
       <Popover>

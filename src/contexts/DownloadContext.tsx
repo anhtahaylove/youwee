@@ -95,10 +95,17 @@ import type {
   SubtitleMode,
   TelegramStatus,
   VideoCodec,
+  VideoCompatibilityMode,
   YoutubeSearchQueueResult,
   YoutubeSearchVideo,
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
+import {
+  applyVideoCompatibilityPreset,
+  normalizeVideoCompatibilityForMedia,
+  normalizeVideoCompatibilityMode,
+  resolveItemVideoCompatibilityMode,
+} from '@/lib/video-compatibility';
 import { extractYouTubeVideoId } from '@/lib/youtube-url';
 
 const STORAGE_KEY = 'youwee-settings';
@@ -194,6 +201,7 @@ function saveSettings(settings: DownloadSettings) {
         format: settings.format,
         downloadPlaylist: settings.downloadPlaylist,
         videoCodec: settings.videoCodec,
+        videoCompatibilityMode: settings.videoCompatibilityMode,
         preferredFps: settings.preferredFps,
         audioBitrate: settings.audioBitrate,
         concurrentDownloads: settings.concurrentDownloads,
@@ -296,6 +304,7 @@ interface DownloadContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateVideoCodec: (codec: VideoCodec) => void;
+  updateVideoCompatibilityMode: (mode: VideoCompatibilityMode) => void;
   updatePreferredFps: (fps: PreferredFps) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
@@ -396,6 +405,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       organizeBySource: saved.organizeBySource === true,
       downloadPlaylist: saved.downloadPlaylist || false,
       videoCodec: saved.videoCodec || 'auto',
+      videoCompatibilityMode: normalizeVideoCompatibilityMode(saved.videoCompatibilityMode),
       preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
       audioBitrate: saved.audioBitrate || 'auto',
       concurrentDownloads: saved.concurrentDownloads || 1,
@@ -950,6 +960,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipExisting: currentSettings.skipExisting,
         organizeBySource: currentSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
+        videoCompatibilityMode: currentSettings.videoCompatibilityMode,
         preferredFps: currentSettings.preferredFps,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: currentSettings.youtubePlayerClient,
@@ -1078,6 +1089,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         downloadPlaylist: options?.downloadPlaylist ?? false,
         playlistLimit: options?.playlistLimit ?? null,
         videoCodec: currentSettings.videoCodec,
+        videoCompatibilityMode: currentSettings.videoCompatibilityMode,
         preferredFps: currentSettings.preferredFps,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         youtubePlayerClient: currentSettings.youtubePlayerClient,
@@ -1155,6 +1167,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         skipExisting: currentSettings.skipExisting,
         organizeBySource: currentSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
+        videoCompatibilityMode: currentSettings.videoCompatibilityMode,
         preferredFps: currentSettings.preferredFps,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: currentSettings.youtubePlayerClient,
@@ -1296,6 +1309,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           skipExisting: settingsRef.current.skipExisting,
           organizeBySource: settingsRef.current.organizeBySource,
           videoCodec: settingsRef.current.videoCodec,
+          videoCompatibilityMode: settingsRef.current.videoCompatibilityMode,
           preferredFps: settingsRef.current.preferredFps,
           audioBitrate: settingsRef.current.audioBitrate,
           youtubePlayerClient: settingsRef.current.youtubePlayerClient,
@@ -1741,6 +1755,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             autoOrganizeCollections: itemSettings?.autoOrganizeCollections ?? false,
             playlistCollectionName: itemSettings?.playlistCollectionName ?? null,
             videoCodec: itemSettings?.videoCodec ?? settings.videoCodec,
+            videoCompatibilityMode: resolveItemVideoCompatibilityMode(itemSettings),
             preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             playlistLimit:
@@ -2003,7 +2018,15 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
   const updateQuality = useCallback((quality: Quality) => {
     setSettings((s) => {
-      const newSettings = { ...s, quality };
+      const newSettings = {
+        ...s,
+        quality,
+        videoCompatibilityMode: normalizeVideoCompatibilityForMedia(
+          quality,
+          s.format,
+          s.videoCompatibilityMode,
+        ),
+      };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -2011,7 +2034,15 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
   const updateFormat = useCallback((format: Format) => {
     setSettings((s) => {
-      const newSettings = { ...s, format };
+      const newSettings = {
+        ...s,
+        format,
+        videoCompatibilityMode: normalizeVideoCompatibilityForMedia(
+          s.quality,
+          format,
+          s.videoCompatibilityMode,
+        ),
+      };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -2020,6 +2051,14 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   const updateVideoCodec = useCallback((videoCodec: VideoCodec) => {
     setSettings((s) => {
       const newSettings = { ...s, videoCodec };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
+  const updateVideoCompatibilityMode = useCallback((mode: VideoCompatibilityMode) => {
+    setSettings((s) => {
+      const newSettings = applyVideoCompatibilityPreset(s, mode);
       saveSettings(newSettings);
       return newSettings;
     });
@@ -2342,6 +2381,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updateVideoCompatibilityMode,
       updatePreferredFps,
       updateAudioBitrate,
       updateConcurrentDownloads,
@@ -2411,6 +2451,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updateVideoCompatibilityMode,
       updatePreferredFps,
       updateAudioBitrate,
       updateConcurrentDownloads,

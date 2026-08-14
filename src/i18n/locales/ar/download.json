@@ -151,6 +151,11 @@
     "webmCodecNotice": "لا يدعم WebM ترميز H.264، لذلك تم تغيير video codec إلى Auto (VP9/AV1).",
     "dismissNotice": "إخفاء الإشعار",
     "totalFileSize": "إجمالي حجم الملف",
+    "compatibilityPreset": "إعداد الإخراج",
+    "compatibilityOriginal": "الأصلي (الأفضل)",
+    "compatibilityOriginalDesc": "ينزّل أعلى جودة مصدر محددة من دون إعادة ترميز، مع الحفاظ على الترميز ومعدل الإطارات الأصليين.",
+    "compatibilityH264": "متوافق H.264",
+    "compatibilityH264Desc": "يحوّل الفيديو النهائي إلى MP4 بترميز H.264/AAC لتشغيل وتحرير أكثر سلاسة. يحافظ على معدل الإطارات لكنه يستغرق وقتًا أطول ويستخدم المعالج.",
     "autoRetry": "إعادة المحاولة تلقائيًا",
     "retryAttempts": "عدد المحاولات",
     "retryDelaySeconds": "التأخير (ث)"

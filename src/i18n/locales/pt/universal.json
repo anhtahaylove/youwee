@@ -56,6 +56,11 @@
     "preferredFps30": "Até 30 FPS",
     "codecAdjusted": "Codec ajustado",
     "webmCodecNotice": "WebM não oferece suporte a H.264, então o codec de vídeo foi alterado para Auto (VP9/AV1).",
+    "compatibilityPreset": "Predefinição de saída",
+    "compatibilityOriginal": "Original (Melhor)",
+    "compatibilityOriginalDesc": "Baixa a maior qualidade de origem selecionada sem recodificar. Mantém o codec e a taxa de fotogramas da origem.",
+    "compatibilityH264": "Compatível com H.264",
+    "compatibilityH264Desc": "Converte o vídeo final para MP4 H.264/AAC para reprodução e edição mais suaves. Mantém a taxa de fotogramas, mas demora mais e usa CPU ao concluir.",
     "autoRetry": "Tentar Novamente",
     "retryAttempts": "Tentativas",
     "retryDelaySeconds": "Atraso (s)"

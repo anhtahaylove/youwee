@@ -151,6 +151,11 @@
     "webmCodecNotice": "WebM does not support H.264, so the video codec was changed to Auto (VP9/AV1).",
     "dismissNotice": "Dismiss notification",
     "totalFileSize": "Total file size",
+    "compatibilityPreset": "Output preset",
+    "compatibilityOriginal": "Original (Best)",
+    "compatibilityOriginalDesc": "Downloads the highest selected source quality without re-encoding. Keeps the source codec and frame rate.",
+    "compatibilityH264": "Compatible H.264",
+    "compatibilityH264Desc": "Converts the final video to H.264/AAC MP4 for smoother playback and editing. Keeps the frame rate, but takes longer and uses CPU while finishing.",
     "autoRetry": "Auto Retry",
     "retryAttempts": "Attempts",
     "retryDelaySeconds": "Delay (s)"

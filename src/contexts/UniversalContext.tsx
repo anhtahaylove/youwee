@@ -78,12 +78,19 @@ import type {
   Quality,
   UniversalAddResult,
   VideoCodec,
+  VideoCompatibilityMode,
   VideoInfoResponse,
 } from '@/lib/types';
 import {
   normalizeUniversalFormatCodec,
   resolveUniversalVideoCodec,
 } from '@/lib/universal-settings';
+import {
+  applyVideoCompatibilityPreset,
+  normalizeVideoCompatibilityForMedia,
+  normalizeVideoCompatibilityMode,
+  resolveItemVideoCompatibilityMode,
+} from '@/lib/video-compatibility';
 import { useDownload } from './DownloadContext';
 
 const STORAGE_KEY = 'youwee-universal-settings';
@@ -140,6 +147,7 @@ export interface UniversalSettings {
   format: Format;
   outputPath: string;
   videoCodec: VideoCodec;
+  videoCompatibilityMode: VideoCompatibilityMode;
   audioBitrate: AudioBitrate;
   preferredFps: PreferredFps;
   concurrentDownloads: number;
@@ -242,6 +250,7 @@ function saveSettings(settings: UniversalSettings) {
         quality: settings.quality,
         format: settings.format,
         videoCodec: settings.videoCodec,
+        videoCompatibilityMode: settings.videoCompatibilityMode,
         audioBitrate: settings.audioBitrate,
         preferredFps: settings.preferredFps,
         concurrentDownloads: settings.concurrentDownloads,
@@ -283,6 +292,7 @@ interface UniversalContextType {
   updateQuality: (quality: Quality) => void;
   updateFormat: (format: Format) => void;
   updateVideoCodec: (codec: VideoCodec) => void;
+  updateVideoCompatibilityMode: (mode: VideoCompatibilityMode) => void;
   updateAudioBitrate: (bitrate: AudioBitrate) => void;
   updatePreferredFps: (fps: PreferredFps) => void;
   updateConcurrentDownloads: (concurrent: number) => void;
@@ -330,6 +340,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       format: saved.format || 'mp4',
       outputPath: saved.outputPath || '',
       videoCodec: normalizeUniversalFormatCodec(saved.format || 'mp4', saved.videoCodec),
+      videoCompatibilityMode: normalizeVideoCompatibilityMode(saved.videoCompatibilityMode),
       audioBitrate: saved.audioBitrate || 'auto',
       preferredFps: saved.preferredFps === '30' ? saved.preferredFps : 'original',
       concurrentDownloads: saved.concurrentDownloads || 1,
@@ -788,6 +799,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         skipExisting: downloadSettings.skipExisting,
         organizeBySource: downloadSettings.organizeBySource,
         videoCodec: currentSettings.videoCodec,
+        videoCompatibilityMode: currentSettings.videoCompatibilityMode,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: downloadSettings.youtubePlayerClient,
         preferredFps: currentSettings.preferredFps,
@@ -967,6 +979,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         skipExisting: downloadSettings.skipExisting,
         organizeBySource: downloadSettings.organizeBySource,
         videoCodec: mediaType === 'audio' ? 'auto' : currentSettings.videoCodec,
+        videoCompatibilityMode:
+          mediaType === 'audio' ? 'original' : currentSettings.videoCompatibilityMode,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         youtubePlayerClient: downloadSettings.youtubePlayerClient,
         preferredFps: currentSettings.preferredFps,
@@ -1342,6 +1356,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
               itemSettings?.autoOrganizeCollections ?? downloadSettings.autoOrganizeCollections,
             playlistCollectionName: null,
             videoCodec: resolveUniversalVideoCodec(itemSettings),
+            videoCompatibilityMode: resolveItemVideoCompatibilityMode(itemSettings),
             preferredFps: itemSettings?.preferredFps ?? settings.preferredFps,
             audioBitrate: itemSettings?.audioBitrate ?? settings.audioBitrate,
             youtubePlayerClient:
@@ -1601,7 +1616,15 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
   const updateQuality = useCallback((quality: Quality) => {
     setSettings((s) => {
-      const newSettings = { ...s, quality };
+      const newSettings = {
+        ...s,
+        quality,
+        videoCompatibilityMode: normalizeVideoCompatibilityForMedia(
+          quality,
+          s.format,
+          s.videoCompatibilityMode,
+        ),
+      };
       saveSettings(newSettings);
       return newSettings;
     });
@@ -1613,6 +1636,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         ...s,
         format,
         videoCodec: normalizeUniversalFormatCodec(format, s.videoCodec),
+        videoCompatibilityMode: normalizeVideoCompatibilityForMedia(
+          s.quality,
+          format,
+          s.videoCompatibilityMode,
+        ),
       };
       saveSettings(newSettings);
       return newSettings;
@@ -1625,6 +1653,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         ...s,
         videoCodec: normalizeUniversalFormatCodec(s.format, videoCodec),
       };
+      saveSettings(newSettings);
+      return newSettings;
+    });
+  }, []);
+
+  const updateVideoCompatibilityMode = useCallback((mode: VideoCompatibilityMode) => {
+    setSettings((s) => {
+      const newSettings = applyVideoCompatibilityPreset(s, mode);
       saveSettings(newSettings);
       return newSettings;
     });
@@ -1741,6 +1777,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updateVideoCompatibilityMode,
       updateAudioBitrate,
       updatePreferredFps,
       updateConcurrentDownloads,
@@ -1776,6 +1813,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       updateQuality,
       updateFormat,
       updateVideoCodec,
+      updateVideoCompatibilityMode,
       updateAudioBitrate,
       updatePreferredFps,
       updateConcurrentDownloads,

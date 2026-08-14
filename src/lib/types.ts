@@ -1,6 +1,7 @@
 export type Quality = 'best' | '8k' | '4k' | '2k' | '1080' | '720' | '480' | '360' | 'audio';
 export type Format = 'mp4' | 'mkv' | 'webm' | 'mp3' | 'm4a' | 'opus';
 export type VideoCodec = 'h264' | 'vp9' | 'av1' | 'auto';
+export type VideoCompatibilityMode = 'original' | 'h264';
 export type AudioBitrate = 'auto' | '128';
 export type PreferredFps = 'original' | '30';
 export type SubtitleMode = 'off' | 'auto' | 'manual';
@@ -73,6 +74,7 @@ export interface ItemDownloadSettings {
   downloadPlaylist?: boolean;
   playlistLimit?: number | null;
   videoCodec: VideoCodec;
+  videoCompatibilityMode?: VideoCompatibilityMode;
   preferredFps?: PreferredFps;
   audioBitrate: AudioBitrate;
   youtubePlayerClient: YouTubePlayerClient;
@@ -110,6 +112,7 @@ export interface ItemUniversalSettings {
   skipExisting?: boolean;
   organizeBySource?: boolean;
   videoCodec?: VideoCodec;
+  videoCompatibilityMode?: VideoCompatibilityMode;
   audioBitrate: AudioBitrate;
   youtubePlayerClient: YouTubePlayerClient;
   preferredFps?: PreferredFps;
@@ -318,6 +321,7 @@ export interface DownloadSettings {
   organizeBySource: boolean;
   downloadPlaylist: boolean;
   videoCodec: VideoCodec;
+  videoCompatibilityMode: VideoCompatibilityMode;
   preferredFps: PreferredFps; // original = no FPS filter, 30 = prefer streams up to 30 FPS
   audioBitrate: AudioBitrate;
   concurrentDownloads: number; // 1-5

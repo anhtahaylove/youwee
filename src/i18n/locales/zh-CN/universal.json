@@ -56,6 +56,11 @@
     "preferredFps30": "最高 30 FPS",
     "codecAdjusted": "已调整编码",
     "webmCodecNotice": "WebM 不支持 H.264，因此视频编码已切换为 Auto（VP9/AV1）。",
+    "compatibilityPreset": "输出预设",
+    "compatibilityOriginal": "原始（最佳）",
+    "compatibilityOriginalDesc": "下载所选的最高源质量且不重新编码，并保留源编码和帧率。",
+    "compatibilityH264": "兼容 H.264",
+    "compatibilityH264Desc": "将最终视频转换为 H.264/AAC MP4，以便更流畅地播放和编辑。保留帧率，但完成时间更长且会占用 CPU。",
     "autoRetry": "自动重试",
     "retryAttempts": "次数",
     "retryDelaySeconds": "间隔（秒）"
