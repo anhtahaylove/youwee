@@ -30,6 +30,17 @@ pub fn is_xiaohongshu_url(url: &str) -> bool {
         || host.ends_with(".xiaohongshu.com")
 }
 
+pub fn is_xiaohongshu_short_url(url: &str) -> bool {
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
+    let Some(host) = parsed.host_str().map(str::to_ascii_lowercase) else {
+        return false;
+    };
+
+    host == "xhslink.com" || host.ends_with(".xhslink.com")
+}
+
 fn is_xiaohongshu_extractor(json: &Value) -> bool {
     json.get("extractor")
         .and_then(Value::as_str)
@@ -149,6 +160,10 @@ mod tests {
         ));
         assert!(!is_xiaohongshu_url(
             "https://example.com/xhslink.com/o/example"
+        ));
+        assert!(is_xiaohongshu_short_url("http://xhslink.com/o/example"));
+        assert!(!is_xiaohongshu_short_url(
+            "https://www.xiaohongshu.com/explore/example"
         ));
     }
 

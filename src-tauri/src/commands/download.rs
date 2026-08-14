@@ -32,8 +32,8 @@ use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
     calc_trim_filenames_bytes, enqueue_post_download_workflow, format_ytdlp_args_for_log,
     get_bundled_ytdlp_fallback_path, get_deno_path, get_ffmpeg_path, get_ffprobe_path,
-    get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error, is_xiaohongshu_url,
-    parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
+    get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error, is_xiaohongshu_short_url,
+    is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
     resolve_facebook_media_url, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
     system_ytdlp_not_found_message, XiaohongshuGalleryImage, XiaohongshuGalleryMetadata,
 };
@@ -402,7 +402,7 @@ fn xiaohongshu_gallery_folder(
 }
 
 fn should_probe_xiaohongshu_gallery(url: &str, media_kind: Option<&str>) -> bool {
-    is_xiaohongshu_url(url) && media_kind != Some("video")
+    is_xiaohongshu_url(url) && (media_kind != Some("video") || is_xiaohongshu_short_url(url))
 }
 
 fn xiaohongshu_image_referer(post_id: &str) -> String {
@@ -4537,7 +4537,7 @@ mod tests {
     }
 
     #[test]
-    fn xiaohongshu_gallery_preflight_covers_cli_items_without_media_kind() {
+    fn xiaohongshu_gallery_preflight_covers_short_links_and_unknown_media() {
         assert!(should_probe_xiaohongshu_gallery(
             "http://xhslink.com/o/2a0DQhp7i1Q",
             None
@@ -4546,8 +4546,12 @@ mod tests {
             "https://www.xiaohongshu.com/explore/6a60ada0000000000f014936",
             Some("image_gallery")
         ));
-        assert!(!should_probe_xiaohongshu_gallery(
+        assert!(should_probe_xiaohongshu_gallery(
             "http://xhslink.com/o/55aJaVYxZb0",
+            Some("video")
+        ));
+        assert!(!should_probe_xiaohongshu_gallery(
+            "https://www.xiaohongshu.com/explore/video-post",
             Some("video")
         ));
         assert!(!should_probe_xiaohongshu_gallery(
