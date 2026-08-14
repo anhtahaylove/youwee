@@ -4724,23 +4724,23 @@ mod tests {
 
     #[test]
     fn compatibility_temp_file_stays_beside_the_download() {
-        let path = Path::new(r"C:\Downloads\Example.mp4");
+        let path = PathBuf::from("Downloads").join("Example.mp4");
         assert_eq!(
-            h264_compatibility_temp_path(path, "test"),
-            PathBuf::from(r"C:\Downloads\.Example.youwee-h264-test.mp4")
+            h264_compatibility_temp_path(&path, "test"),
+            PathBuf::from("Downloads").join(".Example.youwee-h264-test.mp4")
         );
     }
 
     #[test]
     fn compatibility_output_uses_mp4_extension() {
-        let source = Path::new(r"C:\Downloads\Example.webm");
+        let source = PathBuf::from("Downloads").join("Example.webm");
         assert_eq!(
-            h264_compatibility_output_path(source),
-            PathBuf::from(r"C:\Downloads\Example.mp4")
+            h264_compatibility_output_path(&source),
+            PathBuf::from("Downloads").join("Example.mp4")
         );
 
-        let mp4 = Path::new(r"C:\Downloads\Example.mp4");
-        assert_eq!(h264_compatibility_output_path(mp4), mp4);
+        let mp4 = PathBuf::from("Downloads").join("Example.mp4");
+        assert_eq!(h264_compatibility_output_path(&mp4), mp4);
     }
 
     #[test]
