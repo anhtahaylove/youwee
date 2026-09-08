@@ -56,6 +56,8 @@ struct SummaryProgressPayload {
     chunk_count: usize,
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 async fn generate_summary_with_progress(
     app: &AppHandle,
     config: &AIConfig,
@@ -196,6 +198,8 @@ pub async fn generate_video_summary(
     Ok(result.summary)
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Generate summary with custom style and language options
 #[tauri::command]
 pub async fn generate_summary_with_options(

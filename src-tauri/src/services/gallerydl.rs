@@ -28,7 +28,7 @@ pub fn system_gallerydl_not_found_message() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        return "System gallery-dl not found. Install it with a package manager (e.g. `choco install gallery-dl` or `scoop install gallery-dl`) and ensure `gallery-dl` is available in PATH.".to_string();
+        "System gallery-dl not found. Install it with a package manager (e.g. `choco install gallery-dl` or `scoop install gallery-dl`) and ensure `gallery-dl` is available in PATH.".to_string()
     }
     #[cfg(target_os = "linux")]
     {
@@ -232,7 +232,7 @@ pub async fn check_gallerydl_update_internal(
 
 async fn ensure_app_managed_gallerydl(app: &AppHandle, source: &Path) -> Result<PathBuf, String> {
     let target = get_app_gallerydl_target_path(app)?;
-    if source == &target || target.is_file() {
+    if source == target || target.is_file() {
         return Ok(target);
     }
 

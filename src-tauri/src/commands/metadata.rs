@@ -712,6 +712,8 @@ fn split_info_json_and_comments(
     Ok(())
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn fetch_metadata(
     app: AppHandle,
@@ -742,10 +744,7 @@ pub async fn fetch_metadata(
         .map_err(|e| BackendError::from_message(e).to_wire_string())?;
     // Use title only without extension - yt-dlp will add .info.json, .description, .jpg etc
     let output_template = "%(title)s".to_string();
-    let output_path_arg = format!(
-        "home:{}",
-        sanitized_path.trim_end_matches(|ch| ch == '/' || ch == '\\')
-    );
+    let output_path_arg = format!("home:{}", sanitized_path.trim_end_matches(['/', '\\']));
 
     let mut args = vec![
         "--skip-download".to_string(),

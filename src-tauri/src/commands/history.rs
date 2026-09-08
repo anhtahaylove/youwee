@@ -14,6 +14,8 @@ use crate::types::{
     HistoryEntry, HistoryFileState, HistorySort, HistoryTag,
 };
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn add_history(
     url: String,

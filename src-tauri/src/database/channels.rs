@@ -3,6 +3,8 @@ use crate::types::{ChannelVideo, FollowedChannel};
 use chrono::Utc;
 use rusqlite::{params, params_from_iter, types::Value};
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 /// Follow a channel
 pub fn follow_channel_db(
     url: String,
@@ -144,6 +146,8 @@ pub fn get_followed_channel_db(id: String) -> Result<FollowedChannel, String> {
     .map_err(|e| format!("Channel not found: {}", e))
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 /// Update channel settings
 pub fn update_channel_settings_db(
     id: String,
@@ -316,8 +320,7 @@ pub fn get_channel_videos_by_video_ids_db(
     let conn = get_db()?;
     sync_channel_video_statuses_from_history(&conn, &channel_id, &video_ids)?;
 
-    let placeholders = std::iter::repeat("?")
-        .take(video_ids.len())
+    let placeholders = std::iter::repeat_n("?", video_ids.len())
         .collect::<Vec<_>>()
         .join(", ");
     let query = format!(
@@ -365,8 +368,7 @@ fn sync_channel_video_statuses_from_history(
         return Ok(());
     }
 
-    let placeholders = std::iter::repeat("?")
-        .take(video_ids.len())
+    let placeholders = std::iter::repeat_n("?", video_ids.len())
         .collect::<Vec<_>>()
         .join(", ");
     let query = format!(

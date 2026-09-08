@@ -328,7 +328,7 @@ pub fn run() {
             }
 
             // Initialize the database
-            if let Err(error) = database::init_database(&app.handle()) {
+            if let Err(error) = database::init_database(app.handle()) {
                 log::error!("Failed to initialize database: {}", error);
             } else {
                 if let Err(error) = commands::load_tiktok_live_recorder_config_after_restart() {
@@ -350,7 +350,7 @@ pub fn run() {
             setup_tray(app)?;
 
             if has_initial_links || !has_cli_request {
-                show_main_window(&app.handle());
+                show_main_window(app.handle());
             }
 
             if cfg!(debug_assertions) {
@@ -680,7 +680,7 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     tray_builder.build(app)?;
 
     // Populate tray menu with channel info
-    rebuild_tray_menu(&app.handle());
+    rebuild_tray_menu(app.handle());
 
     Ok(())
 }

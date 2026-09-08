@@ -7,8 +7,11 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-### Sửa lỗi
+### Thêm mới
+- **Chặn cài plugin theo phiên bản tối thiểu** - Từ chối tải plugin khai báo `minAppVersion` mới hơn phiên bản đang chạy, thay vì cài xong rồi lỗi lúc chạy.
 
+### Sửa lỗi
+- **Hiệu năng phân tích phụ đề và tiến trình tải** - Biên dịch regex một lần thay vì dựng lại cho từng dòng đầu ra.
 - **Lỗi sập dev server trên Windows** - Không cho Vite theo dõi thư mục build của Rust, vốn làm `tauri dev` sập với lỗi `EBUSY` ở `app_lib.dll` khi cargo đang link.
 
 ## [0.20.1-custom.5] - 2026-09-08

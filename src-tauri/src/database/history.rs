@@ -640,6 +640,8 @@ fn ensure_tag_id(conn: &Connection, raw_name: &str) -> Result<Option<String>, St
     Ok(Some(id))
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 /// Add a history entry (internal use)
 pub fn add_history_internal(
     url: String,
@@ -752,6 +754,8 @@ pub fn update_history_summary(id: String, summary: String) -> Result<(), String>
     Ok(())
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 pub fn update_history_download(
     id: String,
     filepath: String,

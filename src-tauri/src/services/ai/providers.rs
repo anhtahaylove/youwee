@@ -325,16 +325,31 @@ fn parse_openai_compatible_response(
     Ok(text)
 }
 
+/// Shared inputs for every AI provider call. Grouping them keeps the seven
+/// provider functions on one signature instead of repeating six parameters.
+#[derive(Clone, Copy)]
+pub struct SummaryRequest<'a> {
+    pub transcript: &'a str,
+    pub style: &'a SummaryStyle,
+    pub language: &'a str,
+    pub title: Option<&'a str>,
+    pub timeout_seconds: Option<u64>,
+    pub summary_max_tokens: Option<u32>,
+}
+
 pub async fn generate_with_gemini(
     api_key: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let max_tokens = normalized_summary_max_tokens(summary_max_tokens);
@@ -466,13 +481,16 @@ pub async fn generate_with_gemini(
 pub async fn generate_with_openai(
     api_key: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let max_tokens = normalized_summary_max_tokens(summary_max_tokens);
@@ -502,13 +520,16 @@ pub async fn generate_with_openai(
 pub async fn generate_with_ollama(
     ollama_url: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let url = format!("{}/api/generate", ollama_url.trim_end_matches('/'));
@@ -567,13 +588,16 @@ pub async fn generate_with_ollama(
 pub async fn generate_with_deepseek(
     api_key: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let max_tokens = normalized_summary_max_tokens(summary_max_tokens);
@@ -610,13 +634,16 @@ pub async fn generate_with_deepseek(
 pub async fn generate_with_qwen(
     api_key: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let max_tokens = normalized_summary_max_tokens(summary_max_tokens);
@@ -654,13 +681,16 @@ pub async fn generate_with_proxy(
     proxy_url: &str,
     api_key: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let max_tokens = normalized_summary_max_tokens(summary_max_tokens);
@@ -697,13 +727,16 @@ pub async fn generate_with_proxy(
 pub async fn generate_with_lmstudio(
     lmstudio_url: &str,
     model: &str,
-    transcript: &str,
-    style: &SummaryStyle,
-    language: &str,
-    title: Option<&str>,
-    timeout_seconds: Option<u64>,
-    summary_max_tokens: Option<u32>,
+    req: SummaryRequest<'_>,
 ) -> Result<SummaryResult, AIError> {
+    let SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds,
+        summary_max_tokens,
+    } = req;
     let client = ai_client(timeout_seconds)?;
     let prompt = build_prompt(transcript, style, language, title);
     let max_tokens = normalized_summary_max_tokens(summary_max_tokens);

@@ -309,13 +309,13 @@ pub async fn get_ytdlp_source_cmd(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn set_ytdlp_source_cmd(app: AppHandle, source: String) -> Result<(), String> {
-    let source_enum = DependencySource::from_str(&source);
+    let source_enum = DependencySource::from_label(&source);
     set_ytdlp_source(&app, &source_enum).await
 }
 
 #[tauri::command]
 pub async fn set_ytdlp_channel_cmd(app: AppHandle, channel: String) -> Result<(), String> {
-    let channel_enum = YtdlpChannel::from_str(&channel);
+    let channel_enum = YtdlpChannel::from_label(&channel);
     set_ytdlp_channel(&app, &channel_enum).await
 }
 
@@ -329,7 +329,7 @@ pub async fn check_ytdlp_channel_update(
     app: AppHandle,
     channel: String,
 ) -> Result<YtdlpChannelUpdateInfo, String> {
-    let channel_enum = YtdlpChannel::from_str(&channel);
+    let channel_enum = YtdlpChannel::from_label(&channel);
 
     // Get API URL for the channel
     let api_url =
@@ -391,7 +391,7 @@ pub async fn download_ytdlp_channel(app: AppHandle, channel: String) -> Result<S
         return Err(BackendError::new(crate::types::code::YTDLP_SYSTEM_MANAGED, "System yt-dlp is managed externally. Switch source to App managed to install channel binaries.").with_retryable(false).to_wire_string());
     }
 
-    let channel_enum = YtdlpChannel::from_str(&channel);
+    let channel_enum = YtdlpChannel::from_label(&channel);
 
     // Get download URL for the channel
     let (download_url, checksum_filename) =
@@ -549,7 +549,7 @@ pub async fn get_ffmpeg_source_cmd(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn set_ffmpeg_source_cmd(app: AppHandle, source: String) -> Result<(), String> {
-    let source_enum = DependencySource::from_str(&source);
+    let source_enum = DependencySource::from_label(&source);
     set_ffmpeg_source(&app, &source_enum).await
 }
 
@@ -1278,8 +1278,8 @@ pub async fn get_browser_profiles(browser: String) -> Result<Vec<BrowserProfile>
                         let after_colon = &after_name[colon_pos + 1..];
                         // Skip whitespace and find opening quote
                         let trimmed = after_colon.trim_start();
-                        if trimmed.starts_with('"') {
-                            let value_start = &trimmed[1..]; // skip opening quote
+                        if let Some(value_start) = trimmed.strip_prefix('"') {
+                            // skip opening quote
                             if let Some(end_quote) = value_start.find('"') {
                                 let name = &value_start[..end_quote];
                                 if !name.is_empty() {

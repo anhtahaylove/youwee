@@ -19,7 +19,7 @@ impl DependencySource {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_label(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "app" => DependencySource::App,
             "system" => DependencySource::System,
@@ -49,7 +49,7 @@ impl YtdlpChannel {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_label(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "stable" => YtdlpChannel::Stable,
             "nightly" => YtdlpChannel::Nightly,

@@ -451,15 +451,11 @@ pub struct PluginExecutionResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum PluginWorkflowFailurePolicy {
+    #[default]
     Continue,
     StopChain,
-}
-
-impl Default for PluginWorkflowFailurePolicy {
-    fn default() -> Self {
-        Self::Continue
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -703,15 +699,11 @@ pub struct PluginStoreVersion {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum PluginStoreInstalledStatus {
+    #[default]
     NotInstalled,
     Installed,
-}
-
-impl Default for PluginStoreInstalledStatus {
-    fn default() -> Self {
-        Self::NotInstalled
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

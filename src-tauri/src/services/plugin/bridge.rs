@@ -753,6 +753,43 @@ fn parse_content_length(headers: &[u8]) -> Result<usize, String> {
     Ok(0)
 }
 
+async fn write_json_response<T: Serialize>(
+    stream: &mut TcpStream,
+    status: u16,
+    result: Option<T>,
+    error: Option<&str>,
+) -> Result<(), String> {
+    let response = BridgeResponse {
+        ok: error.is_none() && status < 400,
+        result,
+        error: error.map(str::to_string),
+    };
+    let body = serde_json::to_vec(&response)
+        .map_err(|e| format!("Failed to serialize plugin bridge response: {e}"))?;
+    let reason = match status {
+        200 => "OK",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        404 => "Not Found",
+        405 => "Method Not Allowed",
+        413 => "Payload Too Large",
+        _ => "Internal Server Error",
+    };
+    let header = format!(
+        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    stream
+        .write_all(header.as_bytes())
+        .await
+        .map_err(|e| format!("Failed to write plugin bridge response: {e}"))?;
+    stream
+        .write_all(&body)
+        .await
+        .map_err(|e| format!("Failed to write plugin bridge response: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1013,41 +1050,4 @@ mod tests {
         std::fs::remove_dir_all(&outside).ok();
         assert!(result.is_err());
     }
-}
-
-async fn write_json_response<T: Serialize>(
-    stream: &mut TcpStream,
-    status: u16,
-    result: Option<T>,
-    error: Option<&str>,
-) -> Result<(), String> {
-    let response = BridgeResponse {
-        ok: error.is_none() && status < 400,
-        result,
-        error: error.map(str::to_string),
-    };
-    let body = serde_json::to_vec(&response)
-        .map_err(|e| format!("Failed to serialize plugin bridge response: {e}"))?;
-    let reason = match status {
-        200 => "OK",
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        404 => "Not Found",
-        405 => "Method Not Allowed",
-        413 => "Payload Too Large",
-        _ => "Internal Server Error",
-    };
-    let header = format!(
-        "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
-    );
-    stream
-        .write_all(header.as_bytes())
-        .await
-        .map_err(|e| format!("Failed to write plugin bridge response: {e}"))?;
-    stream
-        .write_all(&body)
-        .await
-        .map_err(|e| format!("Failed to write plugin bridge response: {e}"))?;
-    Ok(())
 }

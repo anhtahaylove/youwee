@@ -84,7 +84,6 @@ pub async fn execute_ffmpeg_command(
             if line.starts_with("frame=") {
                 if let Some(val) = line.strip_prefix("frame=") {
                     current_frame = val
-                        .trim()
                         .split_whitespace()
                         .next()
                         .and_then(|s| s.parse().ok())
@@ -93,7 +92,6 @@ pub async fn execute_ffmpeg_command(
             } else if line.starts_with("fps=") {
                 if let Some(val) = line.strip_prefix("fps=") {
                     current_fps = val
-                        .trim()
                         .split_whitespace()
                         .next()
                         .and_then(|s| s.parse().ok())

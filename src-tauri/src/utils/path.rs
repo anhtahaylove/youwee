@@ -308,7 +308,7 @@ where
 
         let mut var_name = String::new();
         let mut found_end = false;
-        while let Some(next) = chars.next() {
+        for next in chars.by_ref() {
             if next == '%' {
                 found_end = true;
                 break;

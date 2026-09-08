@@ -67,6 +67,8 @@ pub async fn stop_gallery_download() -> Result<(), String> {
     Ok(())
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn download_gallery(
     app: AppHandle,
@@ -179,7 +181,7 @@ pub async fn download_gallery(
     })?;
 
     let mut recent_lines: Vec<String> = stdout_task.await.unwrap_or_default().into_iter().collect();
-    recent_lines.extend(stderr_task.await.unwrap_or_default().into_iter());
+    recent_lines.extend(stderr_task.await.unwrap_or_default());
 
     if !status.success() {
         let reason = recent_lines

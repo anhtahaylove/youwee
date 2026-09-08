@@ -199,7 +199,7 @@ pub async fn detect_shot_changes(
     for value in detected_ms {
         let keep = filtered
             .last()
-            .map_or(true, |last| value - *last >= min_interval);
+            .is_none_or(|last| value - *last >= min_interval);
         if keep {
             filtered.push(value);
         }

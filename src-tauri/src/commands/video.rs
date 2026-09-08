@@ -288,6 +288,8 @@ async fn generate_facebook_reel_preview(
     }
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Get video transcript/subtitles for AI summarization
 #[tauri::command]
 pub async fn get_video_transcript(
@@ -303,14 +305,14 @@ pub async fn get_video_transcript(
 ) -> Result<String, String> {
     // Log the URL being processed
     #[cfg(debug_assertions)]
-    println!("[TRANSCRIPT] Fetching transcript for URL: {}", &url);
+    println!("[TRANSCRIPT] Fetching transcript for URL: {}", url);
 
     validate_url(&url).map_err(|e| BackendError::from_message(e).to_wire_string())?;
     let url = normalize_url(&url);
 
     add_log_internal(
         "info",
-        &format!("Fetching transcript for AI summary"),
+        "Fetching transcript for AI summary",
         None,
         Some(&url),
     )
@@ -457,10 +459,8 @@ pub async fn get_video_transcript(
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if let Some(ext) = path.extension() {
-                            if ext == "vtt" || ext == "srt" {
-                                if !subtitle_files.contains(&path) {
-                                    subtitle_files.push(path);
-                                }
+                            if (ext == "vtt" || ext == "srt") && !subtitle_files.contains(&path) {
+                                subtitle_files.push(path);
                             }
                         }
                     }
@@ -558,7 +558,7 @@ pub async fn get_video_transcript(
     #[cfg(debug_assertions)]
     println!(
         "[TRANSCRIPT] No subtitles found, trying description fallback for URL: {}",
-        &url_for_info
+        url_for_info
     );
 
     add_log_internal(
@@ -594,7 +594,7 @@ pub async fn get_video_transcript(
         Duration::from_secs(45), // Increased from 15
         run_ytdlp_json_with_cookies(
             &app,
-            &info_args.iter().map(|s| *s).collect::<Vec<_>>(),
+            &info_args.to_vec(),
             cookie_mode.as_deref(),
             cookie_browser.as_deref(),
             cookie_browser_profile.as_deref(),
@@ -711,7 +711,7 @@ pub async fn get_video_transcript(
             Duration::from_secs(45),
             run_ytdlp_json_with_cookies(
                 &app,
-                &metadata_args.iter().copied().collect::<Vec<_>>(),
+                &metadata_args.to_vec(),
                 cookie_mode.as_deref(),
                 cookie_browser.as_deref(),
                 cookie_browser_profile.as_deref(),
@@ -1001,10 +1001,11 @@ fn parse_subtitle_file(content: &str) -> String {
             continue;
         }
 
-        // Remove HTML-like tags
-        let clean_line = regex::Regex::new(r"<[^>]+>")
-            .map(|re| re.replace_all(line, "").to_string())
-            .unwrap_or_else(|_| line.to_string());
+        // Remove HTML-like tags. Compile the pattern once: this runs for every
+        // subtitle line and recompiling it per line dominated the parse cost.
+        static TAG_RE: LazyLock<regex::Regex> =
+            LazyLock::new(|| regex::Regex::new(r"<[^>]+>").expect("static subtitle tag regex"));
+        let clean_line = TAG_RE.replace_all(line, "").to_string();
 
         let clean_line = clean_line.trim();
 
@@ -1016,6 +1017,8 @@ fn parse_subtitle_file(content: &str) -> String {
     texts.join(" ")
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn get_video_basic_info(
     app: AppHandle,
@@ -1168,6 +1171,8 @@ pub async fn get_video_basic_info(
     })
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn get_video_info(
     app: AppHandle,
@@ -1419,6 +1424,8 @@ pub async fn get_video_info(
     Ok(VideoInfoResponse { info, formats })
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn get_playlist_entries(
     app: AppHandle,
@@ -1571,6 +1578,8 @@ pub async fn get_playlist_entries(
     Ok(entries)
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn get_available_subtitles(
     app: AppHandle,

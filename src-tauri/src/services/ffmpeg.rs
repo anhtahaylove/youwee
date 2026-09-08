@@ -16,7 +16,7 @@ pub fn system_ffmpeg_upgrade_message() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        return "System FFmpeg is managed externally. Update it with your package manager (e.g. `winget`, `choco`, or `scoop`) or switch source to App managed.".to_string();
+        "System FFmpeg is managed externally. Update it with your package manager (e.g. `winget`, `choco`, or `scoop`) or switch source to App managed.".to_string()
     }
     #[cfg(target_os = "linux")]
     {
@@ -77,7 +77,7 @@ pub async fn write_app_ffmpeg_release_version(
 pub async fn get_ffmpeg_source(app: &AppHandle) -> DependencySource {
     if let Some(config_path) = get_ffmpeg_source_config_path(app) {
         if let Ok(content) = tokio::fs::read_to_string(&config_path).await {
-            return DependencySource::from_str(content.trim());
+            return DependencySource::from_label(content.trim());
         }
     }
     DependencySource::Auto

@@ -7,18 +7,14 @@ use tokio::fs;
 /// Whisper API response format
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum WhisperResponseFormat {
     Json,
+    #[default]
     Text,
     Srt,
     Vtt,
     VerboseJson,
-}
-
-impl Default for WhisperResponseFormat {
-    fn default() -> Self {
-        WhisperResponseFormat::Text
-    }
 }
 
 impl std::fmt::Display for WhisperResponseFormat {

@@ -182,10 +182,10 @@ pub async fn cleanup_previews(app: AppHandle) -> Result<u32, String> {
             if let Ok(metadata) = entry.metadata() {
                 if let Ok(modified) = metadata.modified() {
                     if let Ok(elapsed) = modified.elapsed() {
-                        if elapsed.as_secs() > 7 * 24 * 60 * 60 {
-                            if std::fs::remove_file(entry.path()).is_ok() {
-                                count += 1;
-                            }
+                        if elapsed.as_secs() > 7 * 24 * 60 * 60
+                            && std::fs::remove_file(entry.path()).is_ok()
+                        {
+                            count += 1;
                         }
                     }
                 }

@@ -119,6 +119,8 @@ pub(super) fn shorten_for_event(text: Option<String>) -> Option<String> {
     text.map(|value| truncate_text(&value, 1500))
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn emit_plugin_runtime_output(
     app: &AppHandle,
     plugin_id: &str,
@@ -192,6 +194,8 @@ pub(super) fn should_persist_plugin_runtime_output(
     !matches!(log_type, "info")
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn capture_process_stream<R>(
     app: AppHandle,
     stream_name: &str,
@@ -410,6 +414,8 @@ pub(super) fn plugin_exit_reason(status: &std::process::ExitStatus) -> String {
         .unwrap_or_else(|| "terminated".to_string())
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 pub(super) async fn capture_process_stream_err<R>(
     app: AppHandle,
     stream_name: &str,

@@ -463,6 +463,8 @@ async fn try_build_merge_command(
     }))
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn generate_processing_command(
     app: AppHandle,
@@ -989,7 +991,7 @@ pub async fn generate_quick_action_command(
             let output =
                 output_base_dir.join(format!("{}_{}x_{}.mp4", input_stem, speed, timestamp));
             let pts = 1.0 / speed;
-            let atempo = speed.min(2.0).max(0.5);
+            let atempo = speed.clamp(0.5, 2.0);
 
             let args = vec![
                 "-y".to_string(),

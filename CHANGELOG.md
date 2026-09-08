@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Added
+- **Plugin store minimum app version gate** - Refuse to download a plugin build that declares a `minAppVersion` newer than the running app, instead of installing it and failing at runtime.
 
+### Fixed
+- **Subtitle and progress parsing performance** - Compile the subtitle tag and yt-dlp progress regexes once instead of rebuilding them for every output line.
 - **Dev server crash on Windows** - Stop Vite from watching the Rust build tree, which crashed `tauri dev` with an `EBUSY` error on `app_lib.dll` while cargo was linking.
 
 ## [0.20.1-custom.5] - 2026-09-08

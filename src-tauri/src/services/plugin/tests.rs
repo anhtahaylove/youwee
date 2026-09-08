@@ -460,3 +460,37 @@ fn plugin_store_catalog_rejects_invalid_security_metadata() {
     let err = validate_plugin_store_catalog(&catalog).unwrap_err();
     assert!(err.contains("invalid package SHA256"));
 }
+
+#[test]
+fn plugin_store_min_app_version_gate_matches_current_app_version() {
+    // The gate in prepare_plugin_store_package_internal compares the running
+    // app version against each catalog entry's minAppVersion. The custom
+    // prerelease suffix must not make a compatible package look incompatible.
+    let app_version = env!("CARGO_PKG_VERSION");
+    assert!(
+        satisfies_version_range(app_version, ">=0.15.0").unwrap(),
+        "current app version {} should satisfy the bundled catalog minimums",
+        app_version
+    );
+
+    // A package requiring a future release must be refused.
+    assert!(!satisfies_version_range(app_version, ">=99.0.0").unwrap());
+
+    // Every bundled catalog entry must be installable by this build.
+    let catalog: crate::types::PluginStoreCatalog =
+        serde_json::from_str(include_str!("../../../../plugin-store/catalog.json"))
+            .expect("bundled catalog parses");
+    for entry in &catalog.plugins {
+        for version in &entry.versions {
+            let range = format!(">={}", version.min_app_version);
+            assert!(
+                satisfies_version_range(app_version, &range).unwrap(),
+                "{} {} declares minAppVersion {} which this build ({}) does not satisfy",
+                entry.name,
+                version.version,
+                version.min_app_version,
+                app_version
+            );
+        }
+    }
+}

@@ -244,7 +244,7 @@ pub(super) fn build_installation_from_registry(
         .map(|field| {
             let is_set = entry
                 .and_then(|value| value.config_values.get(&field.key))
-                .or_else(|| field.default_value.as_ref())
+                .or(field.default_value.as_ref())
                 .is_some();
             (field.key.clone(), is_set)
         })

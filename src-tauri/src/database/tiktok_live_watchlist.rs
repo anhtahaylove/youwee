@@ -47,7 +47,9 @@ impl TryFrom<&str> for TikTokLiveWatchStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum TikTokLiveRecordMode {
+    #[default]
     OncePerLive,
     AlwaysAfterCooldown,
     ManualOnly,
@@ -60,12 +62,6 @@ impl TikTokLiveRecordMode {
             Self::AlwaysAfterCooldown => "always_after_cooldown",
             Self::ManualOnly => "manual_only",
         }
-    }
-}
-
-impl Default for TikTokLiveRecordMode {
-    fn default() -> Self {
-        Self::OncePerLive
     }
 }
 

@@ -33,7 +33,7 @@ pub fn system_ytdlp_not_found_message() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        return "System yt-dlp not found. Install it with your package manager (e.g. `winget`, `choco`, or `scoop`) and ensure `yt-dlp` is available in PATH, or switch to App managed in Settings > Dependencies.".to_string();
+        "System yt-dlp not found. Install it with your package manager (e.g. `winget`, `choco`, or `scoop`) and ensure `yt-dlp` is available in PATH, or switch to App managed in Settings > Dependencies.".to_string()
     }
     #[cfg(target_os = "linux")]
     {
@@ -52,7 +52,7 @@ pub fn system_ytdlp_upgrade_message() -> String {
     }
     #[cfg(target_os = "windows")]
     {
-        return "System yt-dlp is managed externally. Update it with your package manager (e.g. `winget`, `choco`, or `scoop`) or switch source to App managed.".to_string();
+        "System yt-dlp is managed externally. Update it with your package manager (e.g. `winget`, `choco`, or `scoop`) or switch source to App managed.".to_string()
     }
     #[cfg(target_os = "linux")]
     {
@@ -76,7 +76,7 @@ fn get_source_config_path(app: &AppHandle) -> Option<PathBuf> {
 pub async fn get_ytdlp_source(app: &AppHandle) -> DependencySource {
     if let Some(config_path) = get_source_config_path(app) {
         if let Ok(content) = tokio::fs::read_to_string(&config_path).await {
-            return DependencySource::from_str(content.trim());
+            return DependencySource::from_label(content.trim());
         }
     }
     DependencySource::Auto
@@ -120,7 +120,7 @@ fn get_channel_config_path(app: &AppHandle) -> Option<PathBuf> {
 pub async fn get_ytdlp_channel(app: &AppHandle) -> YtdlpChannel {
     if let Some(config_path) = get_channel_config_path(app) {
         if let Ok(content) = tokio::fs::read_to_string(&config_path).await {
-            return YtdlpChannel::from_str(content.trim());
+            return YtdlpChannel::from_label(content.trim());
         }
     }
     YtdlpChannel::Bundled
@@ -823,15 +823,14 @@ pub async fn run_ytdlp_json(app: &AppHandle, args: &[&str]) -> Result<String, St
                                 .to_wire_string(),
                         );
                     }
-                    CommandEvent::Terminated(status) => {
-                        if status.code != Some(0) {
-                            // Parse stderr for user-friendly error
-                            if let Some(parsed_error) = parse_ytdlp_error(&stderr_output) {
-                                return Err(parsed_error.to_wire_string());
-                            }
-                            return Err(BackendError::from_message("yt-dlp command failed")
-                                .to_wire_string());
+                    CommandEvent::Terminated(status) if status.code != Some(0) => {
+                        // Parse stderr for user-friendly error
+                        if let Some(parsed_error) = parse_ytdlp_error(&stderr_output) {
+                            return Err(parsed_error.to_wire_string());
                         }
+                        return Err(
+                            BackendError::from_message("yt-dlp command failed").to_wire_string()
+                        );
                     }
                     _ => {}
                 }
@@ -1080,7 +1079,7 @@ const DEFAULT_TRIM_FILENAMES: u32 = 180;
 /// Compute a safe `--trim-filenames` byte limit from the output directory length.
 pub fn calc_trim_filenames_bytes(output_path: &str) -> u32 {
     let available = WINDOWS_MAX_PATH
-        .saturating_sub(output_path.as_bytes().len())
+        .saturating_sub(output_path.len())
         .saturating_sub(RESERVED_FILENAME_SUFFIX_BYTES);
 
     (available as u32).clamp(MIN_TRIM_FILENAMES, MAX_TRIM_FILENAMES)
@@ -1389,6 +1388,8 @@ fn merge_ytdlp_args(base_args: &[&str], extra_args: &[String]) -> Vec<String> {
     merged
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 /// Helper to run yt-dlp command with cookie and proxy support and get JSON output
 pub async fn run_ytdlp_json_with_cookies(
     app: &AppHandle,
@@ -1426,6 +1427,8 @@ pub async fn run_ytdlp_json_with_cookies(
     run_ytdlp_json(app, &args_ref).await
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 /// Helper to run yt-dlp command with cookie and proxy support and get output with stderr
 pub async fn run_ytdlp_with_stderr_and_cookies(
     app: &AppHandle,
@@ -1575,7 +1578,7 @@ mod tests {
     fn safe_filename_args_trim_from_output_path_bytes() {
         let path = "G:\\\u{4e0b}\u{8f7d}\\Youwee\\very-long-non-ascii-output-directory-name";
         let expected = (WINDOWS_MAX_PATH
-            .saturating_sub(path.as_bytes().len())
+            .saturating_sub(path.len())
             .saturating_sub(RESERVED_FILENAME_SUFFIX_BYTES) as u32)
             .clamp(MIN_TRIM_FILENAMES, MAX_TRIM_FILENAMES);
 

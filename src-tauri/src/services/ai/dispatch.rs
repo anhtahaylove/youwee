@@ -39,6 +39,8 @@ pub async fn generate_summary_custom(
     .await
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 pub async fn generate_summary_custom_with_hooks(
     config: &AIConfig,
     transcript: &str,
@@ -174,96 +176,45 @@ async fn generate_summary_custom_once(
     language: &str,
     title: Option<&str>,
 ) -> Result<SummaryResult, AIError> {
+    let req = SummaryRequest {
+        transcript,
+        style,
+        language,
+        title,
+        timeout_seconds: config.timeout_seconds,
+        summary_max_tokens: config.summary_max_tokens,
+    };
+
     match config.provider {
         AIProvider::Gemini => {
             let api_key = config.api_key.as_ref().ok_or(AIError::NoApiKey)?;
-            generate_with_gemini(
-                api_key,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_gemini(api_key, &config.model, req).await
         }
         AIProvider::OpenAI => {
             let api_key = config.api_key.as_ref().ok_or(AIError::NoApiKey)?;
-            generate_with_openai(
-                api_key,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_openai(api_key, &config.model, req).await
         }
         AIProvider::DeepSeek => {
             let api_key = config.api_key.as_ref().ok_or(AIError::NoApiKey)?;
-            generate_with_deepseek(
-                api_key,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_deepseek(api_key, &config.model, req).await
         }
         AIProvider::Qwen => {
             let api_key = config.api_key.as_ref().ok_or(AIError::NoApiKey)?;
-            generate_with_qwen(
-                api_key,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_qwen(api_key, &config.model, req).await
         }
         AIProvider::Ollama => {
             let ollama_url = config
                 .ollama_url
                 .as_deref()
                 .unwrap_or("http://localhost:11434");
-            generate_with_ollama(
-                ollama_url,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_ollama(ollama_url, &config.model, req).await
         }
         AIProvider::LmStudio => {
             let lmstudio_url = config
                 .lmstudio_url
                 .as_deref()
                 .unwrap_or("http://localhost:1234");
-            generate_with_lmstudio(
-                lmstudio_url,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_lmstudio(lmstudio_url, &config.model, req).await
         }
         AIProvider::Proxy => {
             let api_key = config.api_key.as_ref().ok_or(AIError::NoApiKey)?;
@@ -271,18 +222,7 @@ async fn generate_summary_custom_once(
                 .proxy_url
                 .as_deref()
                 .unwrap_or("https://api.openai.com");
-            generate_with_proxy(
-                proxy_url,
-                api_key,
-                &config.model,
-                transcript,
-                style,
-                language,
-                title,
-                config.timeout_seconds,
-                config.summary_max_tokens,
-            )
-            .await
+            generate_with_proxy(proxy_url, api_key, &config.model, req).await
         }
     }
 }

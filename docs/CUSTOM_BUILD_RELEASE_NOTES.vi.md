@@ -33,3 +33,23 @@ Các URL sau đều đi qua lỗi primary `Cannot parse data`, được core fal
 - Không xử lý video private hoặc video cần login thật sự.
 - Không fallback cho lỗi khác ngoài `[facebook] Cannot parse data`.
 - Nếu Facebook hoặc yt-dlp đổi extractor, cần test lại classifier lỗi trước khi mở rộng.
+
+## Build installer trên Windows (bản custom)
+
+Phiên bản custom dùng hậu tố dạng `0.20.1-custom.5`. Điều này ảnh hưởng tới bundler:
+
+- **NSIS chạy được ngay**: `bun run tauri build --bundles nsis` tạo
+  `src-tauri/target/release/bundle/nsis/Youwee_<version>_x64-setup.exe`.
+- **MSI cần bước chuẩn bị trước**: chạy thẳng `--bundles msi` sẽ hỏng với lỗi
+  `optional pre-release identifier in app version must be numeric-only`, vì WiX
+  không nhận chuỗi `custom.N`.
+  Chạy `./scripts/prepare-windows-dependencies.ps1` trước: script sinh
+  `src-tauri/tauri.windows.full.conf.json` (file này bị gitignore) và quy đổi
+  `0.20.1-custom.5` thành `wix.version = 0.20.1.5`.
+  CI đã làm đúng thứ tự này, nên lỗi MSI chỉ xảy ra khi build tay.
+- **Bước ký**: build tay dừng ở `A public key has been found, but no private key`.
+  Đó là hành vi mong đợi — installer đã nằm trong `bundle/nsis/`; chỉ CI có
+  `TAURI_SIGNING_PRIVATE_KEY` để ký và phát hành.
+
+Nếu `tauri.windows.full.conf.json` còn sót lại từ lần build cũ, `wix.version`
+trong đó có thể trỏ sai phiên bản; chạy lại script chuẩn bị để làm mới.

@@ -181,6 +181,8 @@ async fn run_channel_ytdlp_with_progress(
     Ok(output_result.stdout)
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Get videos from a channel URL (uses yt-dlp, supports YouTube/Bilibili/etc.)
 #[tauri::command]
 pub async fn get_channel_videos(
@@ -274,6 +276,8 @@ pub async fn get_channel_videos(
     Err(last_error)
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 /// Inner function: single attempt to fetch channel videos via yt-dlp
 async fn fetch_channel_videos_once(
     app: &AppHandle,
@@ -500,6 +504,8 @@ async fn fetch_bilibili_channel_info(uid: &str) -> Option<(String, Option<String
     Some((name, face))
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Get channel metadata (name + avatar) using yt-dlp -J
 #[tauri::command]
 pub async fn get_channel_info(
@@ -707,6 +713,8 @@ pub async fn get_channel_info(
     Ok(ChannelInfo { name, avatar_url })
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Follow a channel
 #[tauri::command]
 pub async fn follow_channel(
@@ -758,6 +766,8 @@ pub async fn get_followed_channels() -> Result<Vec<FollowedChannel>, String> {
     database::get_followed_channels_db()
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Update channel settings
 #[tauri::command]
 pub async fn update_channel_settings(

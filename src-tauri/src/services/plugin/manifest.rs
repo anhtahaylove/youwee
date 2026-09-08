@@ -403,7 +403,7 @@ pub(super) fn load_manifest_from_file(manifest_path: &Path) -> Result<PluginMani
     let manifest: PluginManifest = serde_json::from_str(&raw)
         .map_err(|e| format!("Failed to parse {}: {}", manifest_path.display(), e))?;
 
-    validate_manifest(&manifest, &manifest_path)?;
+    validate_manifest(&manifest, manifest_path)?;
     Ok(manifest)
 }
 

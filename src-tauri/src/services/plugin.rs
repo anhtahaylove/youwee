@@ -39,10 +39,9 @@ mod workflow;
 mod workspace;
 
 use bridge::{start_plugin_bridge, PluginBridgePolicy};
-#[cfg(test)]
-use compatibility::satisfies_version_range;
 use compatibility::{
-    collect_compatibility_issues, validate_execution_compatibility, validate_install_compatibility,
+    collect_compatibility_issues, satisfies_version_range, validate_execution_compatibility,
+    validate_install_compatibility,
 };
 use logging::{
     build_plugin_completion_details, capture_process_stream, capture_process_stream_err,
@@ -1833,7 +1832,7 @@ fn validate_store_package_url(
             "{plugin_id}: package URL must be a pinned GitHub release asset."
         ));
     }
-    if parts.iter().any(|part| *part == "latest") {
+    if parts.contains(&"latest") {
         return Err(format!("{plugin_id}: package URL must not use latest."));
     }
     if parts.last().copied() != Some(version.asset_name.as_str())
@@ -2060,6 +2059,22 @@ pub async fn prepare_plugin_store_package_internal(
         .find(|candidate| candidate.plugin_id == plugin_id)
         .ok_or_else(|| format!("Plugin store entry not found: {}", plugin_id))?;
     let selected_version = select_store_version(&entry, version.as_deref())?.clone();
+
+    // The catalog declares the oldest app version a package supports. Refuse
+    // incompatible packages before downloading them, otherwise the plugin
+    // installs and only fails later at runtime.
+    let app_version = env!("CARGO_PKG_VERSION");
+    if !satisfies_version_range(
+        app_version,
+        &format!(">={}", selected_version.min_app_version),
+    )
+    .unwrap_or(true)
+    {
+        return Err(format!(
+            "{} {} requires Youwee {} or newer (current version: {}).",
+            entry.name, selected_version.version, selected_version.min_app_version, app_version
+        ));
+    }
 
     let client = reqwest::Client::builder()
         .user_agent(format!("Youwee/{}", env!("CARGO_PKG_VERSION")))

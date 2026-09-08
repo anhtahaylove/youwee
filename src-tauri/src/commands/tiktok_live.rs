@@ -1897,6 +1897,8 @@ async fn complete_tiktok_live_job(
     })
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 async fn fetch_tiktok_live_json(
     app: &AppHandle,
     target_url: &str,
@@ -6445,6 +6447,10 @@ mod tests {
         assert_eq!(tiktok_live_resource_warning(2, 2), Some("multiRoomActive"));
     }
 
+    // The guard intentionally spans the awaits below: it serialises tests that
+    // mutate the global recording limit, so releasing it early would let them
+    // run concurrently and clobber each other.
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn global_tiktok_live_reservation_is_atomic() {
         let _limit_guard = RECORDING_LIMIT_TEST_LOCK
@@ -6484,6 +6490,7 @@ mod tests {
         TIKTOK_LIVE_MAX_RECORDINGS.store(1, Ordering::SeqCst);
     }
 
+    #[allow(clippy::await_holding_lock)]
     #[tokio::test]
     async fn global_tiktok_live_reservation_allows_configured_multi_room_limit() {
         let _limit_guard = RECORDING_LIMIT_TEST_LOCK

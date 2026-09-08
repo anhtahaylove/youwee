@@ -40,15 +40,11 @@ pub struct TelegramConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum TelegramPlainUrlAction {
     Add,
+    #[default]
     Download,
-}
-
-impl Default for TelegramPlainUrlAction {
-    fn default() -> Self {
-        Self::Download
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -857,7 +853,7 @@ fn clean_plain_url_token(token: &str) -> &str {
                 '<' | '>' | '(' | ')' | '[' | ']' | '{' | '}' | '"' | '\'' | ',' | ';'
             )
         })
-        .trim_end_matches(|c: char| matches!(c, '.' | '!' | '?'))
+        .trim_end_matches(['.', '!', '?'])
 }
 
 #[cfg(test)]

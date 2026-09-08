@@ -124,6 +124,8 @@ pub async fn transcribe_video_with_whisper(
     Ok(result.text)
 }
 
+// Tauri IPC command: the parameter list is the frontend contract.
+#[allow(clippy::too_many_arguments)]
 /// Transcribe a video from URL using OpenAI Whisper API
 ///
 /// This command:

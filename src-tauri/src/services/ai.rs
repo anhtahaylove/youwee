@@ -12,7 +12,9 @@ use providers::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum AIProvider {
+    #[default]
     Gemini,
     OpenAI,
     DeepSeek,
@@ -22,24 +24,14 @@ pub enum AIProvider {
     Proxy,
 }
 
-impl Default for AIProvider {
-    fn default() -> Self {
-        AIProvider::Gemini
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SummaryStyle {
     Short,
+    #[default]
     Concise,
     Detailed,
-}
-
-impl Default for SummaryStyle {
-    fn default() -> Self {
-        SummaryStyle::Concise
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -109,16 +101,12 @@ pub const LONG_SUMMARY_COMPOSE_CHARS: usize = 8000;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum LongSummaryFormat {
+    #[default]
     Auto,
     Final,
     Parts,
-}
-
-impl Default for LongSummaryFormat {
-    fn default() -> Self {
-        LongSummaryFormat::Auto
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -412,6 +400,8 @@ pub fn chunk_transcript(transcript: &str, max_chars: usize) -> Vec<String> {
     chunks
 }
 
+// Wide internal signature kept deliberately; grouping these into a struct would only move the parameters.
+#[allow(clippy::too_many_arguments)]
 pub fn build_chunk_prompt(
     transcript: &str,
     chunk_index: usize,
