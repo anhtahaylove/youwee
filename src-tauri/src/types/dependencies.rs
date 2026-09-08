@@ -126,4 +126,7 @@ pub struct GalleryDlStatus {
     pub binary_path: Option<String>,
     pub is_system: bool,
     pub is_bundled: bool,
+    /// How to install gallery-dl on this platform. Only populated when it is
+    /// missing, so the UI can say what to do instead of only that it is absent.
+    pub install_hint: Option<String>,
 }

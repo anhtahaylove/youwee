@@ -684,6 +684,7 @@
     "updatePolicySystem": "Youwee の外部でシステムのパッケージ管理ツールが管理します。",
     "updatePolicyLocalStatusOnly": "Youwee は状態とバージョンのみ確認します。更新するにはこのローカルファイルを手動で置き換えてください。",
     "updatePolicyUnavailable": "未インストールです。Youwee 同梱版またはシステム版を使用してください。",
+    "howToInstall": "インストール方法",
     "packagedWithYouwee": "Youwee に同梱",
     "refreshInstalledVersions": "インストール済みバージョンを更新",
     "refreshDependencyStatus": "依存関係の状態を更新",

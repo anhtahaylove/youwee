@@ -684,6 +684,7 @@
     "updatePolicySystem": "Se gestiona fuera de Youwee mediante el gestor de paquetes del sistema.",
     "updatePolicyLocalStatusOnly": "Youwee solo comprueba el estado y la versión; sustituye manualmente este archivo local para actualizarlo.",
     "updatePolicyUnavailable": "No está instalado. Usa la versión incluida con Youwee o una instalación del sistema.",
+    "howToInstall": "Cómo instalar",
     "packagedWithYouwee": "Incluido con Youwee",
     "refreshInstalledVersions": "Actualizar versiones instaladas",
     "refreshDependencyStatus": "Actualizar estado de la dependencia",

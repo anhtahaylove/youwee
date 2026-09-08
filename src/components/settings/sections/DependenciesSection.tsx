@@ -961,6 +961,15 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                   : t('dependencies.updatePolicyUnavailable')}
             </p>
 
+            {!galleryDlStatus?.installed && galleryDlStatus?.install_hint && (
+              <p className="mt-2 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {t('dependencies.howToInstall')}:
+                </span>{' '}
+                {galleryDlStatus.install_hint}
+              </p>
+            )}
+
             <a
               href="https://github.com/mikf/gallery-dl"
               target="_blank"

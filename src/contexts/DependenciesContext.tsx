@@ -40,6 +40,8 @@ export interface GalleryDlStatus {
   binary_path: string | null;
   is_system: boolean;
   is_bundled: boolean;
+  /** Platform-specific install instructions, present only when gallery-dl is missing. */
+  install_hint?: string | null;
 }
 
 export interface FfmpegUpdateInfo {

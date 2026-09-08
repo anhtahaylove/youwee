@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **gallery-dl install instructions** - Show how to install gallery-dl on the current platform when it is missing, instead of only reporting that it was not found.
 - **Plugin store minimum app version gate** - Refuse to download a plugin build that declares a `minAppVersion` newer than the running app, instead of installing it and failing at runtime.
 
 ### Fixed

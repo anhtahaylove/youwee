@@ -684,6 +684,7 @@
     "updatePolicySystem": "由系统包管理器在 Youwee 外部管理。",
     "updatePolicyLocalStatusOnly": "Youwee 仅检查状态和版本；请手动替换此本地文件以更新。",
     "updatePolicyUnavailable": "尚未安装。请使用 Youwee 随附版本或系统版本。",
+    "howToInstall": "如何安装",
     "packagedWithYouwee": "随 Youwee 打包",
     "refreshInstalledVersions": "刷新已安装版本",
     "refreshDependencyStatus": "刷新依赖状态",

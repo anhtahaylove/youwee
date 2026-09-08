@@ -21,6 +21,27 @@ pub struct GalleryDlUpdateInfo {
     pub release_url: Option<String>,
 }
 
+/// Install instructions only, without repeating the "not found" sentence the UI
+/// already shows above it.
+pub fn gallerydl_install_hint() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        return "Install it with Homebrew (`brew install gallery-dl`) and make sure `gallery-dl` is available in PATH.".to_string();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "Install it with a package manager (e.g. `choco install gallery-dl` or `scoop install gallery-dl`) and make sure `gallery-dl` is available in PATH.".to_string()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return "Install it with your distro package manager and make sure `gallery-dl` is available in PATH.".to_string();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        "Install it and make sure `gallery-dl` is available in PATH.".to_string()
+    }
+}
+
 pub fn system_gallerydl_not_found_message() -> String {
     #[cfg(target_os = "macos")]
     {
@@ -102,6 +123,7 @@ pub async fn check_gallerydl_internal(app: &AppHandle) -> Result<GalleryDlStatus
             binary_path: None,
             is_system: false,
             is_bundled: false,
+            install_hint: Some(gallerydl_install_hint()),
         });
     };
 
@@ -130,6 +152,7 @@ pub async fn check_gallerydl_internal(app: &AppHandle) -> Result<GalleryDlStatus
         binary_path: Some(binary_path.to_string_lossy().to_string()),
         is_system: get_system_gallerydl_path().as_ref() == Some(&binary_path),
         is_bundled: get_packaged_gallerydl_path(app).as_ref() == Some(&binary_path),
+        install_hint: None,
     })
 }
 
@@ -359,7 +382,7 @@ pub async fn update_gallerydl_internal(app: &AppHandle) -> Result<String, String
 
 #[cfg(test)]
 mod tests {
-    use super::parse_gallerydl_update_check;
+    use super::{gallerydl_install_hint, parse_gallerydl_update_check};
 
     #[test]
     fn parses_available_nightly_update() {
@@ -400,6 +423,26 @@ mod tests {
     fn rejects_unknown_update_output() {
         assert!(
             parse_gallerydl_update_check("unexpected", Some("1.32.6".to_string()), true).is_err()
+        );
+    }
+
+    #[test]
+    fn install_hint_tells_the_user_how_to_install() {
+        let hint = gallerydl_install_hint();
+
+        assert!(
+            hint.contains("gallery-dl"),
+            "hint should name the binary: {hint}"
+        );
+        assert!(
+            hint.contains("PATH"),
+            "hint should explain the PATH requirement: {hint}"
+        );
+        // The UI already renders "System gallery-dl not found" above this hint,
+        // so repeating it here would show the same sentence twice.
+        assert!(
+            !hint.contains("not found"),
+            "hint must not repeat the not-found line: {hint}"
         );
     }
 }

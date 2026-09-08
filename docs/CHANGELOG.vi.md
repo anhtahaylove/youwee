@@ -8,6 +8,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thêm mới
+- **Hướng dẫn cài gallery-dl** - Hiển thị cách cài gallery-dl theo hệ điều hành khi chưa có, thay vì chỉ báo không tìm thấy.
 - **Chặn cài plugin theo phiên bản tối thiểu** - Từ chối tải plugin khai báo `minAppVersion` mới hơn phiên bản đang chạy, thay vì cài xong rồi lỗi lúc chạy.
 
 ### Sửa lỗi
