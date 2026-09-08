@@ -5,6 +5,14 @@ import { defineConfig } from 'vite';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: {
+    watch: {
+      // Never watch the Rust build tree: Vite otherwise tries to watch
+      // src-tauri/target and crashes with EBUSY on the locked app_lib.dll
+      // while cargo is linking.
+      ignored: ['**/src-tauri/**'],
+    },
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

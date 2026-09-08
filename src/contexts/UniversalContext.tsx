@@ -62,6 +62,7 @@ import {
   refreshPluginWorkflowSnapshots,
   refreshPostDownloadWorkflowSteps,
 } from '@/lib/post-download-plugins';
+import { QueueRunGuard } from '@/lib/queue-run-guard';
 import { detectExtractorFromUrl, normalizeUniversalUrl, parseUniversalUrls } from '@/lib/sources';
 import type {
   AudioBitrate,
@@ -362,8 +363,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     };
   });
 
-  const isDownloadingRef = useRef(false);
-  const downloadRunIdRef = useRef(0);
+  const runGuardRef = useRef(new QueueRunGuard());
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<UniversalSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
@@ -1178,7 +1178,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
   const selectItemOutputFolder = useCallback(
     async (id: string) => {
-      if (isDownloadingRef.current) return;
+      if (runGuardRef.current.isRunning) return;
 
       const item = itemsRef.current.find((i) => i.id === id);
       if (!item || (item.status !== 'pending' && item.status !== 'error')) {
@@ -1270,13 +1270,11 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
     // Guard against re-entrancy: a second call while a run is active would spawn
     // an independent worker pool with its own claim set and download items twice.
-    if (isDownloadingRef.current) return;
-
-    const runId = downloadRunIdRef.current + 1;
-    downloadRunIdRef.current = runId;
+    const run = runGuardRef.current.begin();
+    if (!run.started) return;
+    const runId = run.runId as number;
 
     setIsDownloading(true);
-    isDownloadingRef.current = true;
 
     // Reset pending/error items
     setItems((items) =>
@@ -1299,7 +1297,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     const concurrentLimit = Math.max(1, settings.concurrentDownloads || 1);
 
     const downloadItem = async (item: DownloadItem) => {
-      if (!isDownloadingRef.current) return;
+      if (!runGuardRef.current.isRunning) return;
 
       // Use item's saved settings (snapshot from when it was added)
       // Fallback to current global settings if not available
@@ -1322,7 +1320,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
       let retryIndex = 0;
 
-      while (isDownloadingRef.current) {
+      while (runGuardRef.current.isRunning) {
         setItems((items) =>
           items.map((i) =>
             i.id === item.id
@@ -1467,7 +1465,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
             return;
           }
           const canRetry =
-            isDownloadingRef.current &&
+            runGuardRef.current.isRunning &&
             autoRetryEnabled &&
             retryIndex < maxRetries &&
             !isNonRetryableError(parsedError.message, parsedError.code) &&
@@ -1513,7 +1511,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
           const shouldContinue = await waitWithCancellation(
             retryDelaySeconds * 1000,
-            () => !isDownloadingRef.current,
+            () => !runGuardRef.current.isRunning,
             (remainingSeconds) => {
               setItems((items) =>
                 items.map((i) =>
@@ -1564,14 +1562,14 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
         );
 
       const processNext = async (): Promise<void> => {
-        while (isDownloadingRef.current) {
+        while (runGuardRef.current.isRunning) {
           const item = claimNextItem();
           if (!item) {
             if (activeCount === 0 && !hasUnclaimedPendingItems()) {
               await new Promise<void>((resolve) => {
                 window.setTimeout(resolve, DOWNLOAD_QUEUE_IDLE_GRACE_MS);
               });
-              if (!isDownloadingRef.current || !hasUnclaimedPendingItems()) {
+              if (!runGuardRef.current.isRunning || !hasUnclaimedPendingItems()) {
                 return;
               }
               continue;
@@ -1598,9 +1596,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     } finally {
       // Only the run that still owns the queue may clear the shared flags,
       // otherwise a stale run would stop a newer one that started after a stop.
-      if (downloadRunIdRef.current === runId) {
+      if (runGuardRef.current.finish(runId)) {
         setIsDownloading(false);
-        isDownloadingRef.current = false;
       }
     }
   }, [
@@ -1624,9 +1621,8 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
     setItems((items) => items.map((item) => ({ ...item, retryState: undefined })));
     // Invalidate the active run so its late-unwinding workers cannot clear the
     // shared flags after the user starts a new run.
-    downloadRunIdRef.current += 1;
+    runGuardRef.current.invalidate();
     setIsDownloading(false);
-    isDownloadingRef.current = false;
   }, []);
 
   const updateQuality = useCallback((quality: Quality) => {

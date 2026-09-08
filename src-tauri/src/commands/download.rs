@@ -82,6 +82,7 @@ fn extract_time_range(download_sections: &Option<String>) -> Option<String> {
     })
 }
 
+#[allow(clippy::too_many_arguments)] // forwards download_video parameters
 async fn skipped_live_status(
     app: &AppHandle,
     url: &str,
@@ -289,6 +290,7 @@ fn enqueue_before_start_workflow(
     let _ = enqueue_post_download_workflow(app, workflow_steps.to_vec(), payload);
 }
 
+#[allow(clippy::too_many_arguments)] // forwards download_video parameters
 async fn run_completed_plugins(
     app: &AppHandle,
     workflow_steps: &[PluginWorkflowStepSnapshot],
@@ -460,6 +462,7 @@ fn xiaohongshu_image_extension(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // forwards download_video parameters
 async fn fetch_xiaohongshu_gallery_metadata(
     app: &AppHandle,
     url: &str,
@@ -1511,7 +1514,7 @@ fn build_output_directory(
     url: &str,
     organize_by_source: Option<bool>,
 ) -> String {
-    let base = output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\');
+    let base = output_directory.trim_end_matches(['/', '\\']);
     if organize_by_source.unwrap_or(false) {
         format!("{}/{}", base, source_directory_name(url))
     } else {
@@ -1556,10 +1559,7 @@ fn build_item_prefix(
 }
 
 fn output_path_arg(output_directory: &str) -> String {
-    format!(
-        "home:{}",
-        output_directory.trim_end_matches(|ch| ch == '/' || ch == '\\')
-    )
+    format!("home:{}", output_directory.trim_end_matches(['/', '\\']))
 }
 
 fn filename_metadata_template(field: &str) -> Option<&'static str> {
@@ -1703,20 +1703,34 @@ fn filepath_from_download_output(line: &str) -> Option<String> {
         clean_ytdlp_filepath(path)
     } else if let Some(path) = trimmed.strip_prefix("[Merger] Merging formats into ") {
         clean_ytdlp_filepath(path)
-    } else if let Some(path) = trimmed
-        .strip_prefix("[download] ")
-        .and_then(|value| value.strip_suffix(" has already been downloaded"))
-    {
-        clean_ytdlp_filepath(path)
     } else {
-        return None;
+        let path = trimmed
+            .strip_prefix("[download] ")
+            .and_then(|value| value.strip_suffix(" has already been downloaded"))?;
+        clean_ytdlp_filepath(path)
     };
 
-    if is_media_filepath(candidate) {
-        Some(candidate.to_string())
-    } else {
-        None
+    if !is_media_filepath(candidate) {
+        return None;
     }
+
+    Some(candidate.to_string())
+}
+
+/// `Downloading item N of M`, matched against every yt-dlp output line.
+fn playlist_item_regex() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(r"Downloading item (\d+) of (\d+)").expect("valid playlist item regex")
+    })
+}
+
+/// `of <size> <unit>`, matched against every yt-dlp progress line.
+fn filesize_regex() -> &'static regex::Regex {
+    static RE: OnceLock<regex::Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        regex::Regex::new(r"of\s+(\d+(?:\.\d+)?)\s*(GiB|MiB|KiB)").expect("valid filesize regex")
+    })
 }
 
 fn push_unique_filepath(paths: &mut Vec<String>, path: &str) {
@@ -2277,6 +2291,7 @@ fn build_youtube_extractor_args(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)] // Tauri IPC command invoked from the frontend
 pub async fn download_video(
     app: AppHandle,
     id: String,
@@ -3331,9 +3346,8 @@ pub async fn download_video(
 
                         // Parse playlist item info
                         if line.contains("Downloading item") {
-                            if let Some(re) =
-                                regex::Regex::new(r"Downloading item (\d+) of (\d+)").ok()
                             {
+                                let re = playlist_item_regex();
                                 if let Some(caps) = re.captures(&line) {
                                     current_index =
                                         caps.get(1).and_then(|m| m.as_str().parse().ok());
@@ -3379,9 +3393,8 @@ pub async fn download_video(
                                 || line.contains("GiB")
                                 || line.contains("KiB"))
                         {
-                            if let Some(re) =
-                                regex::Regex::new(r"of\s+(\d+(?:\.\d+)?)\s*(GiB|MiB|KiB)").ok()
                             {
+                                let re = filesize_regex();
                                 if let Some(caps) = re.captures(&line) {
                                     if let (Some(num), Some(unit)) = (caps.get(1), caps.get(2)) {
                                         if let Ok(size) = num.as_str().parse::<f64>() {
@@ -3873,6 +3886,7 @@ pub async fn download_video(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // forwards download_video parameters
 async fn handle_tokio_download(
     app: AppHandle,
     id: String,
@@ -3942,8 +3956,8 @@ async fn handle_tokio_download(
     let stderr_source = effective_source(&source, &url);
     let stderr_recent_output = recent_output.clone();
     let stderr_fp_clone = stderr_filepath.clone();
-    let stderr_task = if let Some(stderr_handle) = stderr {
-        Some(tokio::spawn(async move {
+    let stderr_task = stderr.map(|stderr_handle| {
+        tokio::spawn(async move {
             let mut stderr_reader = BufReader::new(stderr_handle);
             let mut line_buf = Vec::new();
             loop {
@@ -3953,7 +3967,7 @@ async fn handle_tokio_download(
                     Ok(_) => {}
                     Err(_) => break,
                 }
-                while line_buf.last().map_or(false, |&b| b == b'\n' || b == b'\r') {
+                while line_buf.last().is_some_and(|&b| b == b'\n' || b == b'\r') {
                     line_buf.pop();
                 }
                 let line = decode_process_output(&line_buf);
@@ -4025,10 +4039,8 @@ async fn handle_tokio_download(
                     add_log_internal("stderr", line.trim(), None, Some(&stderr_url)).ok();
                 }
             }
-        }))
-    } else {
-        None
-    };
+        })
+    });
 
     // Read stdout — use raw byte reading + decode_process_output to handle
     // non-UTF-8 encodings (e.g. GBK on Chinese Windows).
@@ -4042,7 +4054,7 @@ async fn handle_tokio_download(
         }
         while stdout_line_buf
             .last()
-            .map_or(false, |&b| b == b'\n' || b == b'\r')
+            .is_some_and(|&b| b == b'\n' || b == b'\r')
         {
             stdout_line_buf.pop();
         }
@@ -4126,7 +4138,8 @@ async fn handle_tokio_download(
 
         // Parse filesize
         if line.contains(" of ") && (line.contains("MiB") || line.contains("GiB")) {
-            if let Some(re) = regex::Regex::new(r"of\s+(\d+(?:\.\d+)?)\s*(GiB|MiB|KiB)").ok() {
+            {
+                let re = filesize_regex();
                 if let Some(caps) = re.captures(&line) {
                     if let (Some(num), Some(unit)) = (caps.get(1), caps.get(2)) {
                         if let Ok(size) = num.as_str().parse::<f64>() {
@@ -5257,7 +5270,7 @@ mod tests {
 
     #[test]
     fn split_chapter_filepaths_are_parsed_from_ytdlp_output() {
-        let lines = vec![
+        let lines = [
             "[SplitChapters] Chapter 001; Destination: C:/Downloads/01 - Intro.mp4".to_string(),
             "[SplitChapters] Chapter 002; Destination: C:/Downloads/02 - Setup.mp4".to_string(),
             "[info] Writing '%(filepath)s' to: C:/Downloads/paths.txt".to_string(),

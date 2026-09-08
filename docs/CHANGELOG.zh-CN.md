@@ -7,6 +7,10 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+### 修复
+
+- **Windows 上开发服务器崩溃** - 不再让 Vite 监视 Rust 构建目录，此前在 cargo 链接时会因 `app_lib.dll` 的 `EBUSY` 错误导致 `tauri dev` 崩溃。
+
 ## [0.20.1-custom.5] - 2026-09-08
 
 ### 新增

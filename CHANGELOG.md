@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Dev server crash on Windows** - Stop Vite from watching the Rust build tree, which crashed `tauri dev` with an `EBUSY` error on `app_lib.dll` while cargo was linking.
+
 ## [0.20.1-custom.5] - 2026-09-08
 
 ### Added
