@@ -104,6 +104,7 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
     checkDenoUpdate,
     downloadDeno,
     galleryDlStatus,
+    installGalleryDl,
     galleryDlLoading,
     galleryDlUpdating,
     galleryDlCheckingUpdate,
@@ -913,6 +914,15 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {galleryDlStatus && !galleryDlStatus.installed && (
+                  <Button size="sm" onClick={installGalleryDl} disabled={galleryDlUpdating}>
+                    {galleryDlUpdating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      t('dependencies.install')
+                    )}
+                  </Button>
+                )}
                 {galleryDlUpdateInfo?.has_update && !galleryDlStatus?.is_system && (
                   <Button size="sm" onClick={updateGalleryDl} disabled={galleryDlUpdating}>
                     {galleryDlUpdating ? (

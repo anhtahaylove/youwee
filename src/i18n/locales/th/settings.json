@@ -612,7 +612,7 @@
     "updatePolicyBundled": "อัปเดตพร้อมกับรุ่นของ Youwee",
     "updatePolicySystem": "จัดการภายนอก Youwee โดยตัวจัดการแพ็กเกจของระบบ",
     "updatePolicyLocalStatusOnly": "Youwee ตรวจสอบเฉพาะสถานะและเวอร์ชัน หากต้องการอัปเดตให้แทนที่ไฟล์ภายในเครื่องนี้ด้วยตนเอง",
-    "updatePolicyUnavailable": "ยังไม่ได้ติดตั้ง ให้ใช้เวอร์ชันที่มาพร้อม Youwee หรือเวอร์ชันจากระบบ",
+    "updatePolicyUnavailable": "ยังไม่ได้ติดตั้ง ดาวน์โหลดผ่าน Youwee หรือติดตั้งในระบบของคุณ",
     "howToInstall": "วิธีติดตั้ง",
     "packagedWithYouwee": "รวมมากับ Youwee",
     "refreshInstalledVersions": "รีเฟรชรุ่นที่ติดตั้ง",

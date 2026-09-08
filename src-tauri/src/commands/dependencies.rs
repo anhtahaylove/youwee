@@ -5,10 +5,10 @@ use crate::services::{
     get_ffmpeg_download_info, get_ffmpeg_path, get_ffmpeg_source, get_latest_ffmpeg_release_info,
     get_ytdlp_channel, get_ytdlp_channel_download_url, get_ytdlp_channel_version,
     get_ytdlp_download_info, get_ytdlp_source, get_ytdlp_version_internal,
-    parse_deno_checksum_response, parse_ffmpeg_version, set_ffmpeg_source, set_ytdlp_channel,
-    set_ytdlp_source, system_ffmpeg_upgrade_message, system_ytdlp_upgrade_message,
-    update_gallerydl_internal, verify_sha256, write_app_ffmpeg_release_version, DenoUpdateInfo,
-    FfmpegUpdateInfo, GalleryDlUpdateInfo,
+    install_gallerydl_internal, parse_deno_checksum_response, parse_ffmpeg_version,
+    set_ffmpeg_source, set_ytdlp_channel, set_ytdlp_source, system_ffmpeg_upgrade_message,
+    system_ytdlp_upgrade_message, update_gallerydl_internal, verify_sha256,
+    write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo, GalleryDlUpdateInfo,
 };
 use crate::types::{
     BackendError, DenoStatus, DependencySource, FfmpegStatus, GalleryDlStatus, YtdlpAllVersions,
@@ -883,6 +883,11 @@ pub async fn check_gallerydl_update(app: AppHandle) -> Result<GalleryDlUpdateInf
 #[tauri::command]
 pub async fn update_gallerydl(app: AppHandle) -> Result<String, String> {
     update_gallerydl_internal(&app).await
+}
+
+#[tauri::command]
+pub async fn install_gallerydl(app: AppHandle) -> Result<String, String> {
+    install_gallerydl_internal(&app).await
 }
 
 #[tauri::command]

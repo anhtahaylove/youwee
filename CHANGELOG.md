@@ -8,10 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **gallery-dl installer** - Download gallery-dl from inside Youwee, with SHA-256 verification against upstream checksums, instead of requiring a manual install.
 - **gallery-dl install instructions** - Show how to install gallery-dl on the current platform when it is missing, instead of only reporting that it was not found.
 - **Plugin store minimum app version gate** - Refuse to download a plugin build that declares a `minAppVersion` newer than the running app, instead of installing it and failing at runtime.
 
 ### Fixed
+- **gallery-dl update policy wording** - Stop pointing at a packaged copy that only ships in the Windows full build.
+- **Ambiguous Tailwind easing class** - Replace the arbitrary cubic-bezier value with a named `ease-out-expo` utility to silence the build warning.
 - **Subtitle and progress parsing performance** - Compile the subtitle tag and yt-dlp progress regexes once instead of rebuilding them for every output line.
 - **Dev server crash on Windows** - Stop Vite from watching the Rust build tree, which crashed `tauri dev` with an `EBUSY` error on `app_lib.dll` while cargo was linking.
 

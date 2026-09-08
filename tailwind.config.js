@@ -64,6 +64,9 @@ export default {
       animation: {
         shimmer: 'shimmer 2s linear infinite',
       },
+      transitionTimingFunction: {
+        'out-expo': 'cubic-bezier(0.16, 1, 0.3, 1)',
+      },
       keyframes: {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },

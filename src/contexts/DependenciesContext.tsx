@@ -154,6 +154,7 @@ interface DependenciesContextType {
   checkGalleryDl: () => Promise<GalleryDlStatus | null>;
   checkGalleryDlUpdate: () => Promise<void>;
   updateGalleryDl: () => Promise<void>;
+  installGalleryDl: () => Promise<void>;
 }
 
 const DependenciesContext = createContext<DependenciesContextType | null>(null);
@@ -534,6 +535,22 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
     }
   }, [checkGalleryDl]);
 
+  const installGalleryDl = useCallback(async () => {
+    setGalleryDlUpdating(true);
+    setGalleryDlError(null);
+    setGalleryDlSuccess(false);
+    try {
+      await invoke<string>('install_gallerydl');
+      setGalleryDlSuccess(true);
+      await checkGalleryDl();
+      setTimeout(() => setGalleryDlSuccess(false), 3000);
+    } catch (err) {
+      setGalleryDlError(localizeUnknownError(err));
+    } finally {
+      setGalleryDlUpdating(false);
+    }
+  }, [checkGalleryDl]);
+
   // Initialize on first mount and bootstrap missing app-managed dependencies.
   useEffect(() => {
     if (!initialized) {
@@ -802,6 +819,7 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
         checkGalleryDl,
         checkGalleryDlUpdate,
         updateGalleryDl,
+        installGalleryDl,
       }}
     >
       {children}

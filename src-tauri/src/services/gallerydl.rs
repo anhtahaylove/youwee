@@ -6,11 +6,16 @@ use serde::Serialize;
 use tauri::{AppHandle, Manager};
 use tokio::process::Command;
 
+use super::verify_sha256;
 use super::{get_packaged_dependency_path, select_preferred_dependency_path};
 use crate::types::{BackendError, GalleryDlStatus};
 use crate::utils::{find_system_binary, unix_system_binary_dirs, CommandExt};
 
 const GALLERYDL_STABLE_RELEASES_URL: &str = "https://codeberg.org/mikf/gallery-dl/releases";
+/// Codeberg is upstream's own release host and, unlike the GitHub mirror, it
+/// publishes SHA256SUMS next to the binaries, so downloads can be verified.
+const GALLERYDL_DOWNLOAD_BASE_URL: &str =
+    "https://codeberg.org/mikf/gallery-dl/releases/download/latest";
 const GALLERYDL_NIGHTLY_RELEASES_URL: &str = "https://github.com/gdl-org/builds/releases/latest";
 
 #[derive(Clone, Debug, Serialize)]
@@ -380,9 +385,165 @@ pub async fn update_gallerydl_internal(app: &AppHandle) -> Result<String, String
         .to_string())
 }
 
+/// Asset name published by upstream for the current platform.
+fn gallerydl_asset_name() -> Option<&'static str> {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        Some("gallery-dl.exe")
+    }
+    #[cfg(all(target_os = "windows", target_arch = "x86"))]
+    {
+        Some("gallery-dl_x86.exe")
+    }
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        Some("gallery-dl.bin")
+    }
+    #[cfg(not(any(
+        all(target_os = "windows", target_arch = "x86_64"),
+        all(target_os = "windows", target_arch = "x86"),
+        all(target_os = "linux", target_arch = "x86_64")
+    )))]
+    {
+        None
+    }
+}
+
+/// Pick the SHA-256 recorded for `asset` in a SHA256SUMS file.
+fn find_asset_checksum(checksums: &str, asset: &str) -> Option<String> {
+    checksums.lines().find_map(|line| {
+        let mut parts = line.split_whitespace();
+        let hash = parts.next()?;
+        let name = parts.next()?;
+        (name.trim_start_matches('*') == asset).then(|| hash.to_string())
+    })
+}
+
+/// Download gallery-dl into the app's own bin directory, mirroring how yt-dlp
+/// is installed: fetch the checksum list first and refuse any binary that does
+/// not match it.
+pub async fn install_gallerydl_internal(app: &AppHandle) -> Result<String, String> {
+    let asset = gallerydl_asset_name().ok_or_else(|| {
+        BackendError::from_message(
+            "Youwee cannot download gallery-dl for this platform. Install it with your package manager instead."
+                .to_string(),
+        )
+        .with_retryable(false)
+        .to_wire_string()
+    })?;
+
+    let target_path = get_app_gallerydl_target_path(app)?;
+    let bin_dir = target_path.parent().ok_or_else(|| {
+        BackendError::from_message("Failed to resolve gallery-dl bin directory".to_string())
+            .to_wire_string()
+    })?;
+
+    tokio::fs::create_dir_all(bin_dir).await.map_err(|error| {
+        BackendError::from_message(format!("Failed to create bin directory: {error}"))
+            .to_wire_string()
+    })?;
+
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("Youwee/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|error| {
+            BackendError::from_message(format!("Failed to create HTTP client: {error}"))
+                .to_wire_string()
+        })?;
+
+    let checksums_url = format!("{GALLERYDL_DOWNLOAD_BASE_URL}/SHA256SUMS");
+    let checksums_response = client.get(&checksums_url).send().await.map_err(|error| {
+        BackendError::from_message(format!("Failed to download gallery-dl checksums: {error}"))
+            .to_wire_string()
+    })?;
+
+    if !checksums_response.status().is_success() {
+        return Err(BackendError::from_message(format!(
+            "Failed to download gallery-dl checksums: HTTP {}",
+            checksums_response.status()
+        ))
+        .to_wire_string());
+    }
+
+    let checksums_text = checksums_response.text().await.map_err(|error| {
+        BackendError::from_message(format!("Failed to read gallery-dl checksums: {error}"))
+            .to_wire_string()
+    })?;
+
+    let expected_hash = find_asset_checksum(&checksums_text, asset).ok_or_else(|| {
+        BackendError::from_message(format!("Checksum not found for {asset}")).to_wire_string()
+    })?;
+
+    let download_url = format!("{GALLERYDL_DOWNLOAD_BASE_URL}/{asset}");
+    let response = client.get(&download_url).send().await.map_err(|error| {
+        BackendError::from_message(format!("Failed to download gallery-dl: {error}"))
+            .to_wire_string()
+    })?;
+
+    if !response.status().is_success() {
+        return Err(BackendError::from_message(format!(
+            "Failed to download gallery-dl: HTTP {}",
+            response.status()
+        ))
+        .to_wire_string());
+    }
+
+    let bytes = response.bytes().await.map_err(|error| {
+        BackendError::from_message(format!("Failed to read gallery-dl download: {error}"))
+            .to_wire_string()
+    })?;
+
+    if !verify_sha256(&bytes, &expected_hash) {
+        return Err(BackendError::from_message(
+            "Security error: gallery-dl SHA256 checksum verification failed.".to_string(),
+        )
+        .with_retryable(false)
+        .to_wire_string());
+    }
+
+    // Write to a temp file first so a failed download cannot leave a partial
+    // binary behind under the name the app resolves.
+    let temp_path = target_path.with_extension("tmp");
+    tokio::fs::write(&temp_path, &bytes)
+        .await
+        .map_err(|error| {
+            BackendError::from_message(format!("Failed to write gallery-dl: {error}"))
+                .to_wire_string()
+        })?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = tokio::fs::metadata(&temp_path)
+            .await
+            .map_err(|error| {
+                BackendError::from_message(format!("Failed to read gallery-dl metadata: {error}"))
+                    .to_wire_string()
+            })?
+            .permissions();
+        perms.set_mode(0o755);
+        tokio::fs::set_permissions(&temp_path, perms)
+            .await
+            .map_err(|error| {
+                BackendError::from_message(format!("Failed to set gallery-dl permissions: {error}"))
+                    .to_wire_string()
+            })?;
+    }
+
+    tokio::fs::rename(&temp_path, &target_path)
+        .await
+        .map_err(|error| {
+            BackendError::from_message(format!("Failed to install gallery-dl: {error}"))
+                .to_wire_string()
+        })?;
+
+    Ok(target_path.to_string_lossy().to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{gallerydl_install_hint, parse_gallerydl_update_check};
+    use super::{find_asset_checksum, gallerydl_install_hint, parse_gallerydl_update_check};
 
     #[test]
     fn parses_available_nightly_update() {
@@ -424,6 +585,30 @@ mod tests {
         assert!(
             parse_gallerydl_update_check("unexpected", Some("1.32.6".to_string()), true).is_err()
         );
+    }
+
+    #[test]
+    fn picks_the_checksum_for_the_requested_asset() {
+        // Real upstream SHA256SUMS layout: several assets share one file, so the
+        // wrong line would install a binary that fails verification.
+        let sums = concat!(
+            "67fcb941083defebcf0d075e6c0c0aab84a5d8ef23e927f34bf9b9860754958b  gallery_dl-1.32.11-py3-none-any.whl\n",
+            "6b96a9d2a30923703995237384b56e1c496ffa951014feebd8f0569b869198ca  gallery-dl.bin\n",
+            "f51c739d961004961e303fb9b6146ffdbac9e022163a091319c75c02760b4523  gallery-dl.exe\n",
+            "6d126c4aecc27104b0cb86b029227a18e507357fc4ac4acf80737dc0e1152993  gallery-dl_x86.exe\n",
+        );
+
+        assert_eq!(
+            find_asset_checksum(sums, "gallery-dl.exe").as_deref(),
+            Some("f51c739d961004961e303fb9b6146ffdbac9e022163a091319c75c02760b4523")
+        );
+        // gallery-dl.exe is a prefix of gallery-dl_x86.exe, so a sloppy match
+        // would return the wrong hash here.
+        assert_eq!(
+            find_asset_checksum(sums, "gallery-dl_x86.exe").as_deref(),
+            Some("6d126c4aecc27104b0cb86b029227a18e507357fc4ac4acf80737dc0e1152993")
+        );
+        assert!(find_asset_checksum(sums, "gallery-dl.dmg").is_none());
     }
 
     #[test]

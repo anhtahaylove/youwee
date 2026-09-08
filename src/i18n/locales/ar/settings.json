@@ -612,7 +612,7 @@
     "updatePolicyBundled": "يتم التحديث مع إصدارات Youwee.",
     "updatePolicySystem": "تتم إدارته خارج Youwee بواسطة مدير حزم النظام.",
     "updatePolicyLocalStatusOnly": "يتحقق Youwee من الحالة والإصدار فقط؛ استبدل هذا الملف المحلي يدويًا لتحديثه.",
-    "updatePolicyUnavailable": "غير مثبت. استخدم الإصدار المرفق مع Youwee أو تثبيت النظام.",
+    "updatePolicyUnavailable": "غير مثبت. نزّله عبر Youwee أو ثبّته على نظامك.",
     "howToInstall": "طريقة التثبيت",
     "packagedWithYouwee": "مرفق مع Youwee",
     "refreshInstalledVersions": "تحديث معلومات الإصدارات المثبتة",

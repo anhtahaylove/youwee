@@ -683,7 +683,7 @@
     "updatePolicyBundled": "Youwee のリリースと一緒に更新されます。",
     "updatePolicySystem": "Youwee の外部でシステムのパッケージ管理ツールが管理します。",
     "updatePolicyLocalStatusOnly": "Youwee は状態とバージョンのみ確認します。更新するにはこのローカルファイルを手動で置き換えてください。",
-    "updatePolicyUnavailable": "未インストールです。Youwee 同梱版またはシステム版を使用してください。",
+    "updatePolicyUnavailable": "未インストール。Youwee でダウンロードするか、システムにインストールしてください。",
     "howToInstall": "インストール方法",
     "packagedWithYouwee": "Youwee に同梱",
     "refreshInstalledVersions": "インストール済みバージョンを更新",

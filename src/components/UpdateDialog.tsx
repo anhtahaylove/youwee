@@ -87,7 +87,7 @@ export function UpdateDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 backdrop-blur-md animate-in fade-in duration-500">
-      <div className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] bg-background/85 backdrop-blur-2xl border border-white/10 dark:border-white/5 rounded-[2rem] shadow-[0_0_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-[0.96] duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] flex flex-col">
+      <div className="relative w-full max-w-lg max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] bg-background/85 backdrop-blur-2xl border border-white/10 dark:border-white/5 rounded-[2rem] shadow-[0_0_80px_-15px_rgba(0,0,0,0.5)] overflow-hidden animate-in zoom-in-[0.96] duration-500 ease-out-expo flex flex-col">
         {/* Ambient Glow Effects */}
         <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[50%] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[50%] bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />

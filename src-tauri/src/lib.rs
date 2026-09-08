@@ -417,6 +417,7 @@ pub fn run() {
             commands::check_gallerydl,
             commands::check_gallerydl_update,
             commands::update_gallerydl,
+            commands::install_gallerydl,
             // Browser detection
             commands::detect_installed_browsers,
             commands::get_browser_profiles,

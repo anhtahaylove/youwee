@@ -8,10 +8,13 @@ Youwee 的所有重要更改都将记录在此文件中。
 ## [Unreleased]
 
 ### 新增
+- **应用内安装 gallery-dl** - 可直接在 Youwee 中下载 gallery-dl，并按上游校验和进行 SHA-256 验证，无需手动安装。
 - **gallery-dl 安装指引** - 未检测到 gallery-dl 时显示当前平台的安装方法，而不是仅提示未找到。
 - **插件最低应用版本校验** - 当插件声明的 `minAppVersion` 高于当前应用版本时拒绝下载，而不是安装后在运行时报错。
 
 ### 修复
+- **gallery-dl 更新策略文案** - 不再指向仅存在于 Windows 完整版中的随附副本。
+- **Tailwind easing 类歧义** - 用具名的 `ease-out-expo` 工具类替换任意 cubic-bezier 值，消除构建警告。
 - **字幕与进度解析性能** - 正则表达式只编译一次，不再为每一行输出重新构建。
 - **Windows 上开发服务器崩溃** - 不再让 Vite 监视 Rust 构建目录，此前在 cargo 链接时会因 `app_lib.dll` 的 `EBUSY` 错误导致 `tauri dev` 崩溃。
 

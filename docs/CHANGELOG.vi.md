@@ -8,10 +8,13 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Thêm mới
+- **Cài gallery-dl trong ứng dụng** - Tải gallery-dl ngay trong Youwee, có xác minh SHA-256 theo checksum của nhà phát hành, thay vì phải cài thủ công.
 - **Hướng dẫn cài gallery-dl** - Hiển thị cách cài gallery-dl theo hệ điều hành khi chưa có, thay vì chỉ báo không tìm thấy.
 - **Chặn cài plugin theo phiên bản tối thiểu** - Từ chối tải plugin khai báo `minAppVersion` mới hơn phiên bản đang chạy, thay vì cài xong rồi lỗi lúc chạy.
 
 ### Sửa lỗi
+- **Nội dung update policy của gallery-dl** - Không còn hướng người dùng tới bản đóng gói vốn chỉ có trong bản Windows Full.
+- **Class easing Tailwind bị mơ hồ** - Thay giá trị cubic-bezier tùy ý bằng utility `ease-out-expo` có tên để hết cảnh báo khi build.
 - **Hiệu năng phân tích phụ đề và tiến trình tải** - Biên dịch regex một lần thay vì dựng lại cho từng dòng đầu ra.
 - **Lỗi sập dev server trên Windows** - Không cho Vite theo dõi thư mục build của Rust, vốn làm `tauri dev` sập với lỗi `EBUSY` ở `app_lib.dll` khi cargo đang link.
 

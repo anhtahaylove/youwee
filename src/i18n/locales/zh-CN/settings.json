@@ -683,7 +683,7 @@
     "updatePolicyBundled": "随 Youwee 版本一起更新。",
     "updatePolicySystem": "由系统包管理器在 Youwee 外部管理。",
     "updatePolicyLocalStatusOnly": "Youwee 仅检查状态和版本；请手动替换此本地文件以更新。",
-    "updatePolicyUnavailable": "尚未安装。请使用 Youwee 随附版本或系统版本。",
+    "updatePolicyUnavailable": "未安装。可用 Youwee 下载，或在系统中自行安装。",
     "howToInstall": "如何安装",
     "packagedWithYouwee": "随 Youwee 打包",
     "refreshInstalledVersions": "刷新已安装版本",

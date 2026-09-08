@@ -683,7 +683,7 @@
     "updatePolicyBundled": "Được cập nhật cùng các bản phát hành Youwee.",
     "updatePolicySystem": "Được quản lý bên ngoài Youwee bằng trình quản lý gói của hệ thống.",
     "updatePolicyLocalStatusOnly": "Youwee chỉ kiểm tra trạng thái và phiên bản; hãy tự thay file cục bộ để cập nhật.",
-    "updatePolicyUnavailable": "Chưa cài đặt. Hãy dùng bản đóng gói cùng Youwee hoặc bản từ hệ thống.",
+    "updatePolicyUnavailable": "Chưa cài. Tải bằng Youwee hoặc tự cài trên hệ thống.",
     "howToInstall": "Cách cài đặt",
     "packagedWithYouwee": "Được đóng gói cùng Youwee",
     "refreshInstalledVersions": "Làm mới phiên bản đã cài",

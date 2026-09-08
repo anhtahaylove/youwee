@@ -598,7 +598,7 @@
     "updatePolicyBundled": "Atualizada junto com as versões do Youwee.",
     "updatePolicySystem": "Gerenciada fora do Youwee pelo gerenciador de pacotes do sistema.",
     "updatePolicyLocalStatusOnly": "O Youwee verifica apenas o status e a versão; substitua este binário local manualmente para atualizá-lo.",
-    "updatePolicyUnavailable": "Não instalado. Use a versão incluída no Youwee ou uma instalação do sistema.",
+    "updatePolicyUnavailable": "Não instalado. Baixe com o Youwee ou instale no seu sistema.",
     "howToInstall": "Como instalar",
     "packagedWithYouwee": "Incluído com o Youwee",
     "refreshInstalledVersions": "Atualizar versões instaladas",
