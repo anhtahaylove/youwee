@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1-custom.6] - 2026-09-08
+
 ### Thêm mới
 - **Cài gallery-dl trong ứng dụng** - Tải gallery-dl ngay trong Youwee, có xác minh SHA-256 theo checksum của nhà phát hành, thay vì phải cài thủ công.
 - **Hướng dẫn cài gallery-dl** - Hiển thị cách cài gallery-dl theo hệ điều hành khi chưa có, thay vì chỉ báo không tìm thấy.

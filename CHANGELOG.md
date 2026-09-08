@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1-custom.6] - 2026-09-08
+
 ### Added
 - **gallery-dl installer** - Download gallery-dl from inside Youwee, with SHA-256 verification against upstream checksums, instead of requiring a manual install.
 - **gallery-dl install instructions** - Show how to install gallery-dl on the current platform when it is missing, instead of only reporting that it was not found.

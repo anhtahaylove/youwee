@@ -7,6 +7,8 @@ Youwee 的所有重要更改都将记录在此文件中。
 
 ## [Unreleased]
 
+## [0.20.1-custom.6] - 2026-09-08
+
 ### 新增
 - **应用内安装 gallery-dl** - 可直接在 Youwee 中下载 gallery-dl，并按上游校验和进行 SHA-256 验证，无需手动安装。
 - **gallery-dl 安装指引** - 未检测到 gallery-dl 时显示当前平台的安装方法，而不是仅提示未找到。
