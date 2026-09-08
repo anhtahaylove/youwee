@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **yt-dlp install instructions** - Show how to install yt-dlp on the current platform when the source is pinned to System and yt-dlp is missing, instead of only reporting that it was not found.
 
 ### Fixed
-- **Plugin permissions** - Do not record a network approval for a plugin whose manifest never declared network access, so the plugin list no longer shows access the runtime denies.
+- **Plugin permissions** - Drop a network approval for a plugin whose manifest never declared network access, instead of storing it. The runtime already required both the declaration and the approval, so this was never an escalation; the stored state now matches what is enforced.
 
 ## [0.20.1-custom.6] - 2026-09-08
 
