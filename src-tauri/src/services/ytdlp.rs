@@ -1277,13 +1277,28 @@ pub fn format_ytdlp_args_for_log<T: AsRef<str>>(args: &[T]) -> String {
                 "--cookies" => REDACTED_YTDLP_ARGUMENT.to_string(),
                 "--cookies-from-browser" => redact_browser_cookie_source(argument),
                 "--proxy" => redact_proxy_credentials(argument),
+                // User-supplied advanced options may carry auth tokens or
+                // fingerprinting data; keep the header name, drop the value.
+                "--add-headers" => match argument.split_once(':') {
+                    Some((name, _)) => format!("{name}:{REDACTED_YTDLP_ARGUMENT}"),
+                    None => REDACTED_YTDLP_ARGUMENT.to_string(),
+                },
+                "--user-agent" | "--referer" => REDACTED_YTDLP_ARGUMENT.to_string(),
                 _ => argument.to_string(),
             };
             formatted.push(value);
             continue;
         }
 
-        if matches!(argument, "--cookies" | "--cookies-from-browser" | "--proxy") {
+        if matches!(
+            argument,
+            "--cookies"
+                | "--cookies-from-browser"
+                | "--proxy"
+                | "--add-headers"
+                | "--user-agent"
+                | "--referer"
+        ) {
             formatted.push(argument.to_string());
             sensitive_option = Some(argument);
         } else if argument.starts_with("--cookies=") {
@@ -1742,5 +1757,34 @@ mod tests {
         }
         assert!(command_log.contains("wsSecret=%3Credacted%3E"));
         assert!(command_log.contains("wsTime=%3Credacted%3E"));
+    }
+
+    #[test]
+    fn command_log_redacts_user_supplied_advanced_option_values() {
+        let header_argument = format!("Authorization:{}", "Token aaa-bbb-ccc");
+        let args = vec![
+            "--add-headers".to_string(),
+            header_argument.clone(),
+            "--user-agent".to_string(),
+            "Mozilla/5.0 (fingerprintable build 1234)".to_string(),
+            "--referer".to_string(),
+            "https://members.example.com/private-session".to_string(),
+            "--geo-bypass".to_string(),
+        ];
+        let execution_args = args.clone();
+
+        let command_log = format_ytdlp_args_for_log(&args);
+
+        // Header name stays useful for debugging, the credential never lands in logs.
+        assert!(command_log.contains("--add-headers Authorization:<redacted>"));
+        assert!(command_log.contains("--user-agent <redacted>"));
+        assert!(command_log.contains("--referer <redacted>"));
+        for sensitive in ["Token aaa-bbb-ccc", "fingerprintable", "private-session"] {
+            assert!(!command_log.contains(sensitive), "leaked {sensitive}");
+        }
+        // Non-sensitive advanced flags remain readable.
+        assert!(command_log.contains("--geo-bypass"));
+        // Redaction must not mutate the arguments actually passed to yt-dlp.
+        assert_eq!(args, execution_args);
     }
 }

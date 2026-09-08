@@ -1,12 +1,12 @@
 [package]
 name = "youwee"
-version = "0.20.1-custom.4"
+version = "0.20.1-custom.5"
 description = "Youwee - Modern YouTube Video Downloader"
 authors = ["locnguyen"]
 license = "MIT"
 repository = ""
 edition = "2021"
-rust-version = "1.77.2"
+rust-version = "1.82"
 
 [lib]
 name = "app_lib"

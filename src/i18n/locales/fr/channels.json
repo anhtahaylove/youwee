@@ -77,5 +77,11 @@
     "fetchFailed": "Échec de la récupération des vidéos de la chaîne",
     "followFailed": "Échec du suivi de la chaîne",
     "alreadyFollowing": "Vous suivez déjà cette chaîne"
+  },
+  "youtubeContentTypes": {
+    "videos": "Vidéos",
+    "shorts": "Shorts",
+    "streams": "Directs",
+    "videos_shorts": "Vidéos + Shorts"
   }
 }

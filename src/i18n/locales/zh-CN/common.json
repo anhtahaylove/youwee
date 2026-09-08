@@ -119,5 +119,11 @@
     "maximize": "最大化",
     "restore": "还原",
     "close": "关闭"
+  },
+  "clearAllDialog": {
+    "title": "清空整个队列？",
+    "description_one": "这将从队列中移除 {{count}} 个项目，且无法撤销。",
+    "description_other": "这将从队列中移除 {{count}} 个项目，且无法撤销。",
+    "confirm": "全部清除"
   }
 }

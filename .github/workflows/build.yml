@@ -135,6 +135,12 @@ jobs:
           tauriScript: bun run tauri
           args: --target ${{ matrix.target }} ${{ matrix.bundle_args }}
 
+      - name: Fix Linux deep-link desktop entry
+        if: matrix.os_name == 'linux'
+        run: |
+          bash scripts/fix-deb-deep-link-desktop-entry.sh \
+            "src-tauri/target/${{ matrix.target }}/release/bundle/deb"
+
       - name: Verify ad-hoc macOS app signature
         if: matrix.os_name == 'macos'
         run: |

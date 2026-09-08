@@ -17,8 +17,10 @@ import type {
   PlaylistVideoEntry,
   PostDownloadPluginPayload,
   YoutubeChannelContentType,
+  YtdlpAdvancedOption,
 } from '@/lib/types';
 import { DEFAULT_SPONSORBLOCK_CATEGORIES } from '@/lib/types';
+import { sanitizeYtdlpAdvancedOptions } from '@/lib/ytdlp-advanced-options';
 import { useDownload } from '../DownloadContext';
 import {
   buildChannelCollectionOptions,
@@ -816,6 +818,8 @@ export function useChannelsController(): ChannelsContextType {
       let useBunRuntime = false;
       let useActualPlayerJs = false;
       let youtubePlayerClient = 'auto';
+      let ytdlpAdvancedOptionsEnabled = false;
+      let ytdlpAdvancedOptions: YtdlpAdvancedOption[] = [];
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
@@ -849,6 +853,8 @@ export function useChannelsController(): ChannelsContextType {
           useBunRuntime = parsed.useBunRuntime || false;
           useActualPlayerJs = parsed.useActualPlayerJs || false;
           youtubePlayerClient = parsed.youtubePlayerClient || 'auto';
+          ytdlpAdvancedOptionsEnabled = parsed.ytdlpAdvancedOptionsEnabled === true;
+          ytdlpAdvancedOptions = sanitizeYtdlpAdvancedOptions(parsed.ytdlpAdvancedOptions);
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
@@ -988,6 +994,8 @@ export function useChannelsController(): ChannelsContextType {
                 useBunRuntime,
                 useActualPlayerJs,
                 youtubePlayerClient,
+                ytdlpAdvancedOptionsEnabled,
+                ytdlpAdvancedOptions,
                 ...collectionOptions,
                 ...networkOptions,
                 embedMetadata,
@@ -1297,6 +1305,8 @@ export function useChannelsController(): ChannelsContextType {
         let useBunRuntime = false;
         let useActualPlayerJs = false;
         let youtubePlayerClient = 'auto';
+        let ytdlpAdvancedOptionsEnabled = false;
+        let ytdlpAdvancedOptions: YtdlpAdvancedOption[] = [];
         let useAria2 = false;
         let aria2Args = '';
         let filenameTemplate = '%(title)s.%(ext)s';
@@ -1314,6 +1324,8 @@ export function useChannelsController(): ChannelsContextType {
             useBunRuntime = parsed.useBunRuntime || false;
             useActualPlayerJs = parsed.useActualPlayerJs || false;
             youtubePlayerClient = parsed.youtubePlayerClient || 'auto';
+            ytdlpAdvancedOptionsEnabled = parsed.ytdlpAdvancedOptionsEnabled === true;
+            ytdlpAdvancedOptions = sanitizeYtdlpAdvancedOptions(parsed.ytdlpAdvancedOptions);
             useAria2 = parsed.useAria2 === true;
             aria2Args = parsed.aria2Args || '';
             filenameTemplate = parsed.filenameTemplate || filenameTemplate;
@@ -1450,6 +1462,8 @@ export function useChannelsController(): ChannelsContextType {
               useBunRuntime,
               useActualPlayerJs,
               youtubePlayerClient,
+              ytdlpAdvancedOptionsEnabled,
+              ytdlpAdvancedOptions,
               ...collectionOptions,
               ...networkOptions,
               useAria2,

@@ -264,7 +264,10 @@
       "clearFilters": "مسح الفلاتر",
       "refresh": "تحديث",
       "clear": "مسح",
-      "clearConfirm": "هل أنت متأكد من أنك تريد مسح سجل التنزيل بالكامل؟"
+      "clearConfirm": "هل أنت متأكد من أنك تريد مسح سجل التنزيل بالكامل؟",
+      "searchScopeAll": "الكل",
+      "searchScopeMetadata": "التفاصيل",
+      "searchScopeSummary": "ملخص الذكاء الاصطناعي"
     },
     "item": {
       "fileMissing": "الملف مفقود",

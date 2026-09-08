@@ -4,6 +4,7 @@ export type SettingsSectionId =
   | 'download'
   | 'remote-download'
   | 'plugins'
+  | 'plugin-store'
   | 'extension'
   | 'ai'
   | 'network'
@@ -225,6 +226,27 @@ export const SEARCHABLE_SETTINGS: SearchableSetting[] = [
     labelKey: 'download.speedLimit',
     descriptionKey: 'download.speedLimitDesc',
     keywords: ['speed', 'limit', 'bandwidth', 'rate', 'throttle', 'slow'],
+    section: 'download',
+  },
+  {
+    id: 'ytdlp-advanced-options',
+    labelKey: 'download.ytdlpAdvanced.toggle',
+    descriptionKey: 'download.ytdlpAdvanced.toggleDesc',
+    keywords: [
+      'yt-dlp',
+      'ytdlp',
+      'advanced',
+      'impersonate',
+      'headers',
+      'user agent',
+      'referer',
+      'player client',
+      'fragments',
+      'format sort',
+      'geo bypass',
+      'throttled rate',
+      'socket timeout',
+    ],
     section: 'download',
   },
   {
@@ -494,6 +516,7 @@ export const SECTION_INFO: Record<SettingsSectionId, { label: string; icon: stri
   download: { label: 'Download', icon: 'ArrowDownToLine' },
   'remote-download': { label: 'Remote Download', icon: 'MessageCircleCode' },
   plugins: { label: 'Plugins', icon: 'Atom' },
+  'plugin-store': { label: 'Plugin Store', icon: 'ShoppingBag' },
   extension: { label: 'Extension', icon: 'Puzzle' },
   ai: { label: 'AI Features', icon: 'Sparkles' },
   network: { label: 'Network & Auth', icon: 'Globe' },

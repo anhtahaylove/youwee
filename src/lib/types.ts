@@ -14,6 +14,30 @@ export type FilenameMetadataField =
   | 'resolution'
   | 'videoId';
 export type YouTubePlayerClient = 'auto' | 'web' | 'mweb' | 'tv' | 'ios' | 'android' | 'web_safari';
+export type YtdlpAdvancedOptionId =
+  | 'impersonate'
+  | 'forceIpv4'
+  | 'forceIpv6'
+  | 'socketTimeout'
+  | 'userAgent'
+  | 'referer'
+  | 'addHeaders'
+  | 'sleepRequests'
+  | 'sleepInterval'
+  | 'maxSleepInterval'
+  | 'concurrentFragments'
+  | 'throttledRate'
+  | 'httpChunkSize'
+  | 'geoBypass'
+  | 'geoBypassCountry'
+  | 'matchFilters'
+  | 'formatSort'
+  | 'youtubePlayerClient';
+export interface YtdlpAdvancedOption {
+  id: YtdlpAdvancedOptionId;
+  value?: string;
+  secondaryValue?: string;
+}
 export type PluginTrigger =
   | 'download.queued'
   | 'download.beforeStart'
@@ -78,6 +102,8 @@ export interface ItemDownloadSettings {
   preferredFps?: PreferredFps;
   audioBitrate: AudioBitrate;
   youtubePlayerClient: YouTubePlayerClient;
+  ytdlpAdvancedOptionsEnabled?: boolean;
+  ytdlpAdvancedOptions?: YtdlpAdvancedOption[];
   useAria2: boolean;
   aria2Args: string;
   subtitleMode: SubtitleMode;
@@ -336,6 +362,8 @@ export interface DownloadSettings {
   useBunRuntime: boolean; // Deprecated - Deno is now used automatically
   useActualPlayerJs: boolean; // Use actual player.js version for YouTube (fixes some download issues)
   youtubePlayerClient: YouTubePlayerClient; // Optional yt-dlp YouTube player client preset
+  ytdlpAdvancedOptionsEnabled: boolean; // Master switch for the vetted advanced yt-dlp options
+  ytdlpAdvancedOptions: YtdlpAdvancedOption[]; // Vetted advanced yt-dlp options (validated in Rust)
   // Post-processing settings
   embedMetadata: boolean; // Embed metadata (title, artist, description) into downloaded files
   embedThumbnail: boolean; // Embed thumbnail as cover art (requires FFmpeg)
@@ -1346,4 +1374,51 @@ export interface ChannelVideo {
   upload_date?: string;
   status: 'new' | 'downloaded' | 'skipped' | 'downloading';
   created_at: string;
+}
+
+// Plugin store (ported from upstream)
+export type PluginStorePublisherKind = 'official' | 'third-party';
+
+export type PluginStoreInstalledStatus = 'not-installed' | 'installed';
+
+export interface PluginStorePublisher {
+  kind: PluginStorePublisherKind;
+  name: string;
+  repositoryOwner: string;
+}
+
+export interface PluginStoreVersion {
+  version: string;
+  releaseTag: string;
+  assetName: string;
+  packageUrl: string;
+  packageSize: number;
+  sha256: string;
+  signerFingerprint: string;
+  minAppVersion: string;
+}
+
+export interface PluginStoreEntry {
+  pluginId: string;
+  slug: string;
+  name: string;
+  description: string;
+  icon?: string | null;
+  publisher: PluginStorePublisher;
+  repository: string;
+  categories: string[];
+  tags: string[];
+  triggers: string[];
+  permissionsSummary: string[];
+  latestVersion: string;
+  versions: PluginStoreVersion[];
+  installedStatus: PluginStoreInstalledStatus;
+  installedVersion?: string | null;
+}
+
+export interface PreparedPluginStorePackage {
+  path: string;
+  entry: PluginStoreEntry;
+  version: PluginStoreVersion;
+  inspection: PluginPackageInspection;
 }

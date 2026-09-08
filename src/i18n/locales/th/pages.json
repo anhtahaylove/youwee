@@ -264,7 +264,10 @@
       "clearFilters": "ล้างตัวกรอง",
       "refresh": "รีเฟรช",
       "clear": "ล้าง",
-      "clearConfirm": "แน่ใจหรือไม่ว่าต้องการล้างประวัติการดาวน์โหลดทั้งหมด?"
+      "clearConfirm": "แน่ใจหรือไม่ว่าต้องการล้างประวัติการดาวน์โหลดทั้งหมด?",
+      "searchScopeAll": "ทั้งหมด",
+      "searchScopeMetadata": "รายละเอียด",
+      "searchScopeSummary": "สรุปโดย AI"
     },
     "item": {
       "fileMissing": "ไม่พบไฟล์",

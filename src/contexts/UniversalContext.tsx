@@ -363,6 +363,7 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
   });
 
   const isDownloadingRef = useRef(false);
+  const downloadRunIdRef = useRef(0);
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<UniversalSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
@@ -1267,6 +1268,13 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
 
     if (!hasPendingItems()) return;
 
+    // Guard against re-entrancy: a second call while a run is active would spawn
+    // an independent worker pool with its own claim set and download items twice.
+    if (isDownloadingRef.current) return;
+
+    const runId = downloadRunIdRef.current + 1;
+    downloadRunIdRef.current = runId;
+
     setIsDownloading(true);
     isDownloadingRef.current = true;
 
@@ -1588,8 +1596,12 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       const workers = Array.from({ length: concurrentLimit }, () => processNext());
       await Promise.all(workers);
     } finally {
-      setIsDownloading(false);
-      isDownloadingRef.current = false;
+      // Only the run that still owns the queue may clear the shared flags,
+      // otherwise a stale run would stop a newer one that started after a stop.
+      if (downloadRunIdRef.current === runId) {
+        setIsDownloading(false);
+        isDownloadingRef.current = false;
+      }
     }
   }, [
     downloadSettings.filenameTemplate,
@@ -1610,6 +1622,9 @@ export function UniversalProvider({ children }: { children: ReactNode }) {
       console.error('Failed to stop download:', error);
     }
     setItems((items) => items.map((item) => ({ ...item, retryState: undefined })));
+    // Invalidate the active run so its late-unwinding workers cannot clear the
+    // shared flags after the user starts a new run.
+    downloadRunIdRef.current += 1;
     setIsDownloading(false);
     isDownloadingRef.current = false;
   }, []);

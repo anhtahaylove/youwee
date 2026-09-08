@@ -13,6 +13,7 @@ import { FFmpegRequiredDialog } from '@/components/FFmpegRequiredDialog';
 import { FreshCookieRequiredDialog } from '@/components/FreshCookieRequiredDialog';
 import { ThemePicker } from '@/components/settings/ThemePicker';
 import { Button } from '@/components/ui/button';
+import { ConfirmClearAllDialog } from '@/components/ui/ConfirmClearAllDialog';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useUniversal } from '@/contexts/UniversalContext';
 import { useSchedule } from '@/hooks/useSchedule';
@@ -82,6 +83,7 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
   const pendingItems = items.filter((item) => item.status !== 'completed');
   const onlyPendingImageGalleries =
     pendingItems.length > 0 && pendingItems.every((item) => item.mediaKind === 'image_gallery');
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const hasItems = items.length > 0;
 
   // Check if FFmpeg is required for current quality setting
@@ -251,7 +253,7 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
               <Button
                 variant="outline"
                 size="icon"
-                onClick={clearAll}
+                onClick={() => setShowClearAllConfirm(true)}
                 disabled={isDownloading || items.length === 0}
                 className="h-11 w-11 rounded-xl flex-shrink-0 bg-transparent border-border/50 hover:bg-white/10"
                 title={t('actions.clearAll')}
@@ -294,6 +296,12 @@ export function UniversalPage({ onNavigateToSettings, onNavigateToLogs }: Univer
           />
         );
       })()}
+      <ConfirmClearAllDialog
+        open={showClearAllConfirm}
+        onOpenChange={setShowClearAllConfirm}
+        itemCount={items.length}
+        onConfirm={clearAll}
+      />
     </div>
   );
 }

@@ -119,5 +119,11 @@
     "maximize": "Agrandir",
     "restore": "Restaurer",
     "close": "Fermer"
+  },
+  "clearAllDialog": {
+    "title": "Vider toute la file ?",
+    "description_one": "Cela supprime {{count}} élément de la file. Action irréversible.",
+    "description_other": "Cela supprime {{count}} éléments de la file. Action irréversible.",
+    "confirm": "Tout effacer"
   }
 }

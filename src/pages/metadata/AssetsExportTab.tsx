@@ -24,6 +24,7 @@ import { useTranslation } from 'react-i18next';
 import { EmptyStateIllustration } from '@/components/shared/EmptyStateIllustration';
 import { SubtitlePopoverContent } from '@/components/shared/SubtitlePopoverContent';
 import { Button } from '@/components/ui/button';
+import { ConfirmClearAllDialog } from '@/components/ui/ConfirmClearAllDialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -94,6 +95,7 @@ export function AssetsExportTab() {
 
   const pendingCount = items.filter((item) => item.status === 'pending').length;
   const completedCount = items.filter((item) => item.status === 'completed').length;
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const hasItems = items.length > 0;
   const outputFolderName = settings.outputPath
     ? settings.outputPath.split('/').pop() || settings.outputPath
@@ -457,7 +459,7 @@ export function AssetsExportTab() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={clearAll}
+                onClick={() => setShowClearAllConfirm(true)}
                 disabled={isFetching || items.length === 0}
                 className="h-11 w-11 rounded-xl flex-shrink-0 bg-transparent border-border/50 hover:bg-white/10"
                 title={t('clearAll')}
@@ -468,6 +470,12 @@ export function AssetsExportTab() {
           </div>
         </footer>
       )}
+      <ConfirmClearAllDialog
+        open={showClearAllConfirm}
+        onOpenChange={setShowClearAllConfirm}
+        itemCount={items.length}
+        onConfirm={clearAll}
+      />
     </div>
   );
 }

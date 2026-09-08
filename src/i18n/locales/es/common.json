@@ -119,5 +119,11 @@
     "maximize": "Maximizar",
     "restore": "Restaurar",
     "close": "Cerrar"
+  },
+  "clearAllDialog": {
+    "title": "¿Vaciar toda la cola?",
+    "description_one": "Esto elimina {{count}} elemento de la cola. No se puede deshacer.",
+    "description_other": "Esto elimina {{count}} elementos de la cola. No se puede deshacer.",
+    "confirm": "Borrar todo"
   }
 }

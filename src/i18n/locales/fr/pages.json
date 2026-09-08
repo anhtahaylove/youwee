@@ -264,7 +264,10 @@
       "clearFilters": "Effacer les filtres",
       "refresh": "Actualiser",
       "clear": "Effacer",
-      "clearConfirm": "Voulez-vous vraiment effacer tout l'historique de téléchargement ?"
+      "clearConfirm": "Voulez-vous vraiment effacer tout l'historique de téléchargement ?",
+      "searchScopeAll": "Tout",
+      "searchScopeMetadata": "Détails",
+      "searchScopeSummary": "Résumé IA"
     },
     "item": {
       "fileMissing": "Fichier manquant",

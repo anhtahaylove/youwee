@@ -264,7 +264,10 @@
       "clearFilters": "Сбросить фильтры",
       "refresh": "Обновить",
       "clear": "Очистить",
-      "clearConfirm": "Вы уверены, что хотите очистить всю историю загрузок?"
+      "clearConfirm": "Вы уверены, что хотите очистить всю историю загрузок?",
+      "searchScopeAll": "Все",
+      "searchScopeMetadata": "Детали",
+      "searchScopeSummary": "AI-резюме"
     },
     "item": {
       "fileMissing": "Файл отсутствует",

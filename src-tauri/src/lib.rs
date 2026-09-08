@@ -501,6 +501,8 @@ pub fn run() {
             commands::export_data_rows_sqlite,
             // Plugin commands
             commands::list_plugins,
+            commands::list_plugin_store_entries,
+            commands::prepare_plugin_store_package,
             commands::get_plugin_details,
             commands::inspect_plugin_package,
             commands::install_plugin_package,

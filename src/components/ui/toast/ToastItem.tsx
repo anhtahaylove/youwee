@@ -71,6 +71,15 @@ export function ToastItem({ toast, onDismiss, onPause, onResume }: ToastItemProp
       )}
       onPointerEnter={() => onPause(toast.id)}
       onPointerLeave={() => onResume(toast.id)}
+      // Keyboard users must get the same reprieve as pointer users, otherwise an
+      // interactive toast can auto-dismiss while being tabbed into.
+      onFocusCapture={() => onPause(toast.id)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          onResume(toast.id);
+        }
+      }}
+      role={toast.variant === 'error' ? 'alert' : 'status'}
     >
       <div className="flex items-start gap-3">
         <div className={cn('mt-0.5 rounded-xl p-2', badgeClassName)}>{icon}</div>

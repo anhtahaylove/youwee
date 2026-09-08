@@ -119,5 +119,11 @@
     "maximize": "Phóng to",
     "restore": "Khôi phục",
     "close": "Đóng"
+  },
+  "clearAllDialog": {
+    "title": "Xóa toàn bộ hàng đợi?",
+    "description_one": "Thao tác này xóa {{count}} mục khỏi hàng đợi và không thể hoàn tác.",
+    "description_other": "Thao tác này xóa {{count}} mục khỏi hàng đợi và không thể hoàn tác.",
+    "confirm": "Xóa tất cả"
   }
 }

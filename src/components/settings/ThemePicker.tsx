@@ -1,4 +1,5 @@
 import { Check, Palette } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -18,23 +19,36 @@ const themeGradients: Record<ThemeName, string> = {
 
 export function ThemePicker() {
   const { theme, setTheme } = useTheme();
+  // The theme list below binds each item to `t`, so the translator is named
+  // `translate` here to avoid shadowing it.
+  const { t: translate } = useTranslation('settings');
 
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9">
-          <Palette className="h-4 w-4" />
-          <span className="sr-only">Change theme</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9"
+          aria-label={translate('themePicker.changeTheme')}
+          title={translate('themePicker.changeTheme')}
+        >
+          <Palette className="h-4 w-4" aria-hidden="true" />
+          <span className="sr-only">{translate('themePicker.changeTheme')}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[220px] p-3" align="end">
         <div className="space-y-2">
-          <p className="text-sm font-medium text-muted-foreground">Theme</p>
+          <p className="text-sm font-medium text-muted-foreground">
+            {translate('themePicker.title')}
+          </p>
           <div className="grid grid-cols-3 gap-2">
             {themes.map((t) => (
               <button
                 type="button"
                 key={t.name}
+                aria-pressed={theme === t.name}
+                aria-label={t.label}
                 onClick={() => setTheme(t.name)}
                 className={cn(
                   'flex flex-col items-center gap-1.5 p-2 rounded-lg border-2 transition-all',
@@ -50,7 +64,7 @@ export function ThemePicker() {
                   )}
                 >
                   {theme === t.name ? (
-                    <Check className="w-4 h-4 text-white drop-shadow" />
+                    <Check className="w-4 h-4 text-white drop-shadow" aria-hidden="true" />
                   ) : (
                     <span className="text-sm">{t.emoji}</span>
                   )}

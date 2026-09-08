@@ -23,7 +23,9 @@ export function SettingsSearch({ onNavigate }: SettingsSearchProps) {
       const searchResults = searchSettings(query, t);
       setResults(searchResults);
       setSelectedIndex(0);
-      setIsOpen(searchResults.length > 0);
+      // Stay open even with zero matches so the empty state is announced instead
+      // of the popup silently closing.
+      setIsOpen(true);
     } else {
       setResults([]);
       setIsOpen(false);
@@ -53,7 +55,15 @@ export function SettingsSearch({ onNavigate }: SettingsSearchProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (!isOpen || results.length === 0) return;
+      if (!isOpen) return;
+
+      if (results.length === 0) {
+        if (e.key === 'Escape') {
+          setIsOpen(false);
+          inputRef.current?.blur();
+        }
+        return;
+      }
 
       switch (e.key) {
         case 'ArrowDown':
@@ -78,7 +88,7 @@ export function SettingsSearch({ onNavigate }: SettingsSearchProps) {
   );
 
   return (
-    <div ref={containerRef} className="relative w-72">
+    <div ref={containerRef} className="relative w-full min-w-0 sm:w-72 sm:max-w-[50vw]">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
@@ -88,8 +98,16 @@ export function SettingsSearch({ onNavigate }: SettingsSearchProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={() => query.trim() && results.length > 0 && setIsOpen(true)}
+          onFocus={() => query.trim() && setIsOpen(true)}
           className="pl-9 pr-8 h-9 bg-muted/50 border-transparent focus:border-primary/50"
+          role="combobox"
+          aria-label={t('search.placeholder')}
+          aria-autocomplete="list"
+          aria-expanded={isOpen}
+          aria-controls="settings-search-results"
+          aria-activedescendant={
+            isOpen && results.length > 0 ? `settings-search-option-${selectedIndex}` : undefined
+          }
         />
         {query && (
           <button
@@ -99,29 +117,46 @@ export function SettingsSearch({ onNavigate }: SettingsSearchProps) {
               inputRef.current?.focus();
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground rounded"
+            aria-label={t('search.clear')}
+            title={t('search.clear')}
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
 
       {/* Results Dropdown */}
-      {isOpen && results.length > 0 && (
-        <div className="absolute top-full left-0 right-0 mt-1 py-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-80 overflow-auto">
-          {results.map((result, index) => (
-            <button
-              key={result.id}
-              type="button"
-              onClick={() => handleSelect(result)}
-              className={cn(
-                'w-full text-left px-3 py-2 transition-colors',
-                index === selectedIndex ? 'bg-accent' : 'hover:bg-accent/50',
-              )}
-            >
-              <div className="text-sm font-medium">{result.label}</div>
-              <div className="text-xs text-muted-foreground">{result.description}</div>
-            </button>
-          ))}
+      {isOpen && (
+        <div
+          id="settings-search-results"
+          role="listbox"
+          className="absolute top-full left-0 right-0 mt-1 py-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-80 overflow-auto"
+        >
+          {results.length === 0 ? (
+            <output className="block px-3 py-3 text-sm text-muted-foreground">
+              {t('search.noResults')}
+            </output>
+          ) : (
+            results.map((result, index) => (
+              <button
+                key={result.id}
+                id={`settings-search-option-${index}`}
+                role="option"
+                aria-selected={index === selectedIndex}
+                type="button"
+                onClick={() => handleSelect(result)}
+                className={cn(
+                  'w-full text-left px-3 py-2 transition-colors',
+                  index === selectedIndex ? 'bg-accent' : 'hover:bg-accent/50',
+                )}
+              >
+                <div className="text-sm font-medium truncate">{result.label}</div>
+                <div className="text-xs text-muted-foreground line-clamp-2 break-words">
+                  {result.description}
+                </div>
+              </button>
+            ))
+          )}
         </div>
       )}
     </div>

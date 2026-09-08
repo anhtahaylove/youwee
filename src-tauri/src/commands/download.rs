@@ -12,7 +12,7 @@ use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use crate::utils::validate_url;
@@ -30,12 +30,13 @@ use crate::database::{
 use crate::database::{update_history_download, update_history_identity};
 use crate::services::{
     add_safe_filename_args, build_cookie_args, build_proxy_args, build_site_header_args,
-    calc_trim_filenames_bytes, enqueue_post_download_workflow, format_ytdlp_args_for_log,
-    get_bundled_ytdlp_fallback_path, get_deno_path, get_ffmpeg_path, get_ffprobe_path,
-    get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error, is_xiaohongshu_short_url,
-    is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata, resolve_download_workflow_snapshot,
-    resolve_facebook_media_url, run_ytdlp_with_stderr, run_ytdlp_with_stderr_and_cookies,
-    system_ytdlp_not_found_message, XiaohongshuGalleryImage, XiaohongshuGalleryMetadata,
+    build_ytdlp_advanced_args, calc_trim_filenames_bytes, enqueue_post_download_workflow,
+    format_ytdlp_args_for_log, get_bundled_ytdlp_fallback_path, get_deno_path, get_ffmpeg_path,
+    get_ffprobe_path, get_ytdlp_path, get_ytdlp_source, is_upcoming_live_error,
+    is_xiaohongshu_short_url, is_xiaohongshu_url, parse_xiaohongshu_gallery_metadata,
+    resolve_download_workflow_snapshot, resolve_facebook_media_url, run_ytdlp_with_stderr,
+    run_ytdlp_with_stderr_and_cookies, system_ytdlp_not_found_message, XiaohongshuGalleryImage,
+    XiaohongshuGalleryMetadata, YtdlpAdvancedOption,
 };
 use crate::types::{
     BackendError, DependencySource, DownloadProgress, PluginWorkflowStepSnapshot,
@@ -809,33 +810,72 @@ fn decode_process_output(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// Kill all yt-dlp and ffmpeg processes
-fn kill_all_download_processes() {
-    #[cfg(unix)]
-    {
-        use std::process::Command as StdCommand;
-        StdCommand::new("pkill")
-            .args(["-9", "-f", "yt-dlp"])
-            .spawn()
-            .ok();
-        StdCommand::new("pkill")
-            .args(["-9", "-f", "ffmpeg"])
-            .spawn()
-            .ok();
-    }
-    #[cfg(windows)]
-    {
-        use crate::utils::CommandExt as _;
-        use std::process::Command as StdCommand;
-        let mut cmd1 = StdCommand::new("taskkill");
-        cmd1.args(["/F", "/IM", "yt-dlp.exe"]);
-        cmd1.hide_window();
-        cmd1.spawn().ok();
+/// PIDs of download processes this app spawned.
+///
+/// Cancellation must only touch processes Youwee itself started. Killing by image
+/// name (`pkill -f yt-dlp` / `taskkill /IM ffmpeg.exe`) also terminates unrelated
+/// user processes — other Youwee downloads, video editors, terminal jobs — so the
+/// exact PIDs are tracked instead.
+static TRACKED_DOWNLOAD_PIDS: OnceLock<Mutex<HashSet<u32>>> = OnceLock::new();
 
-        let mut cmd2 = StdCommand::new("taskkill");
-        cmd2.args(["/F", "/IM", "ffmpeg.exe"]);
-        cmd2.hide_window();
-        cmd2.spawn().ok();
+fn tracked_download_pids() -> &'static Mutex<HashSet<u32>> {
+    TRACKED_DOWNLOAD_PIDS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+pub(crate) fn track_download_pid(pid: u32) {
+    if let Ok(mut pids) = tracked_download_pids().lock() {
+        pids.insert(pid);
+    }
+}
+
+pub(crate) fn untrack_download_pid(pid: u32) {
+    if let Ok(mut pids) = tracked_download_pids().lock() {
+        pids.remove(&pid);
+    }
+}
+
+/// Untracks a download PID on every exit path, so a finished download's PID can
+/// never be reused to kill an unrelated process that later inherits that PID.
+struct TrackedPid(u32);
+
+impl Drop for TrackedPid {
+    fn drop(&mut self) {
+        untrack_download_pid(self.0);
+    }
+}
+
+/// Kill the download processes spawned by this app (and their children).
+fn kill_all_download_processes() {
+    let pids: Vec<u32> = match tracked_download_pids().lock() {
+        Ok(mut tracked) => tracked.drain().collect(),
+        Err(_) => return,
+    };
+
+    for pid in pids {
+        #[cfg(unix)]
+        {
+            use std::process::Command as StdCommand;
+            // Negative PID targets the process group, so muxing/ffmpeg children
+            // started by yt-dlp are stopped together with the parent.
+            StdCommand::new("kill")
+                .args(["-9", &format!("-{pid}")])
+                .spawn()
+                .ok();
+            StdCommand::new("kill")
+                .args(["-9", &pid.to_string()])
+                .spawn()
+                .ok();
+        }
+        #[cfg(windows)]
+        {
+            use crate::utils::CommandExt as _;
+            use std::process::Command as StdCommand;
+            let mut cmd = StdCommand::new("taskkill");
+            // /T also terminates the child processes yt-dlp spawned (ffmpeg).
+            cmd.args(["/F", "/T", "/PID", &pid.to_string()]);
+            cmd.hide_window();
+            cmd.spawn().ok();
+        }
     }
 }
 
@@ -2229,7 +2269,10 @@ fn build_youtube_extractor_args(
     if values.is_empty() {
         None
     } else {
-        Some(format!("youtube:{}", values.join(",")))
+        // yt-dlp splits `--extractor-args` on `;` into NAME=VALUE pairs, while `,`
+        // separates multiple values of a single NAME. Joining with `,` would fold
+        // `player_js_version` into `player_client` and silently drop the setting.
+        Some(format!("youtube:{}", values.join(";")))
     }
 }
 
@@ -2291,6 +2334,9 @@ pub async fn download_video(
     // External downloader settings
     use_aria2: Option<bool>,
     aria2_args: Option<String>,
+    // Vetted yt-dlp advanced options
+    ytdlp_advanced_options_enabled: Option<bool>,
+    ytdlp_advanced_options: Option<Vec<YtdlpAdvancedOption>>,
     // SponsorBlock settings
     sponsorblock_remove: Option<String>, // comma-separated categories to remove
     sponsorblock_mark: Option<String>,   // comma-separated categories to mark as chapters
@@ -2513,16 +2559,49 @@ pub async fn download_video(
         }
     }
 
+    // Vetted yt-dlp advanced options (validated server-side before reaching the CLI)
+    let ytdlp_advanced_options = ytdlp_advanced_options.unwrap_or_default();
+    let advanced_args = build_ytdlp_advanced_args(
+        &url,
+        ytdlp_advanced_options_enabled.unwrap_or(false),
+        &ytdlp_advanced_options,
+    )
+    .map_err(|e| e.to_wire_string())?;
+    if !advanced_args.skipped_options.is_empty() {
+        add_log_internal(
+            "info",
+            &format!(
+                "Skipped yt-dlp advanced option(s) because Youwee uses app-managed headers for this site: {}",
+                advanced_args.skipped_options.join(", ")
+            ),
+            None,
+            Some(&url),
+        )
+        .ok();
+    }
+    args.extend(advanced_args.args.clone());
+
     // Add YouTube extractor args if enabled (fixes some YouTube download issues)
     // See: https://github.com/yt-dlp/yt-dlp/issues/14680
     if is_youtube_url(&url) {
         if let Some(extractor_args) = build_youtube_extractor_args(
             use_actual_player_js.unwrap_or(false),
-            youtube_player_client.as_deref(),
+            advanced_args
+                .youtube_player_client
+                .as_deref()
+                .or(youtube_player_client.as_deref()),
         ) {
             args.push("--extractor-args".to_string());
             args.push(extractor_args);
         }
+    } else if advanced_args.youtube_player_client.is_some() {
+        add_log_internal(
+            "info",
+            "Skipped YouTube player client preset because the download URL is not YouTube.",
+            None,
+            Some(&url),
+        )
+        .ok();
     }
 
     // Add FFmpeg location if available
@@ -3192,6 +3271,11 @@ pub async fn download_video(
                 }
             };
 
+            // Track the PID so cancellation kills only this download.
+            let tracked_pid = child.pid();
+            track_download_pid(tracked_pid);
+            let _tracked_pid_guard = TrackedPid(tracked_pid);
+
             enqueue_before_start_workflow(
                 &app,
                 &before_start_steps,
@@ -3732,6 +3816,13 @@ pub async fn download_video(
                     .to_wire_string());
                 }
             };
+
+            // Track the PID so cancellation kills only this download.
+            let tracked_pid = process.id();
+            if let Some(pid) = tracked_pid {
+                track_download_pid(pid);
+            }
+            let _tracked_pid_guard = tracked_pid.map(TrackedPid);
 
             enqueue_before_start_workflow(
                 &app,
@@ -4694,6 +4785,48 @@ pub async fn cache_remote_thumbnail(app: AppHandle, url: String) -> Result<Strin
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn tracked_pid_guard_untracks_on_drop() {
+        use super::{track_download_pid, tracked_download_pids, TrackedPid};
+
+        // Use an implausible PID so a parallel test cannot collide with it.
+        let pid = 4_294_967_290_u32;
+        {
+            track_download_pid(pid);
+            let _guard = TrackedPid(pid);
+            assert!(
+                tracked_download_pids().lock().unwrap().contains(&pid),
+                "pid should be tracked while the download is running"
+            );
+        }
+
+        assert!(
+            !tracked_download_pids().lock().unwrap().contains(&pid),
+            "pid must be untracked once the download finishes, so a recycled pid \
+             cannot be killed later"
+        );
+    }
+
+    #[test]
+    fn untrack_download_pid_removes_only_the_given_pid() {
+        use super::{track_download_pid, tracked_download_pids, untrack_download_pid};
+
+        let kept = 4_294_967_289_u32;
+        let removed = 4_294_967_288_u32;
+        track_download_pid(kept);
+        track_download_pid(removed);
+
+        untrack_download_pid(removed);
+
+        {
+            let pids = tracked_download_pids().lock().unwrap();
+            assert!(pids.contains(&kept), "other downloads must stay tracked");
+            assert!(!pids.contains(&removed));
+        }
+
+        untrack_download_pid(kept);
+    }
+
     use super::*;
 
     #[test]
@@ -5243,9 +5376,12 @@ mod tests {
 
     #[test]
     fn youtube_extractor_args_merge_player_client_and_actual_js() {
+        // yt-dlp parses `--extractor-args` by splitting on `;` into NAME=VALUE pairs.
+        // A `,` would be read as a second value for `player_client`, dropping the
+        // `player_js_version` setting entirely.
         assert_eq!(
             build_youtube_extractor_args(true, Some("web_safari")).as_deref(),
-            Some("youtube:player_client=web_safari,player_js_version=actual")
+            Some("youtube:player_client=web_safari;player_js_version=actual")
         );
         assert_eq!(
             build_youtube_extractor_args(false, Some("web_safari")).as_deref(),

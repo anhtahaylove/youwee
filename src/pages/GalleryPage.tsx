@@ -1,10 +1,12 @@
 import { ExternalLink, Play, RefreshCw, Square, Trash2, TriangleAlert } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GalleryQueueList } from '@/components/download/GalleryQueueList';
 import { GallerySettingsPanel } from '@/components/download/GallerySettingsPanel';
 import { GalleryUrlInput } from '@/components/download/GalleryUrlInput';
 import { ThemePicker } from '@/components/settings/ThemePicker';
 import { Button } from '@/components/ui/button';
+import { ConfirmClearAllDialog } from '@/components/ui/ConfirmClearAllDialog';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useGalleryDl } from '@/contexts/GalleryDlContext';
 import { cn } from '@/lib/utils';
@@ -36,6 +38,7 @@ export function GalleryPage({ onNavigateToSettings, onNavigateToLogs }: GalleryP
   const { galleryDlStatus, galleryDlLoading, galleryDlError, checkGalleryDl } = useDependencies();
 
   const pendingCount = items.filter((i) => i.status !== 'completed').length;
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const hasItems = items.length > 0;
   const isReady = galleryDlStatus?.installed === true;
 
@@ -166,7 +169,7 @@ export function GalleryPage({ onNavigateToSettings, onNavigateToLogs }: GalleryP
                   <Button
                     variant="outline"
                     className="h-11 rounded-xl px-4 gap-2"
-                    onClick={clearAll}
+                    onClick={() => setShowClearAllConfirm(true)}
                     disabled={isDownloading}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -199,6 +202,12 @@ export function GalleryPage({ onNavigateToSettings, onNavigateToLogs }: GalleryP
           </div>
         </footer>
       )}
+      <ConfirmClearAllDialog
+        open={showClearAllConfirm}
+        onOpenChange={setShowClearAllConfirm}
+        itemCount={items.length}
+        onConfirm={clearAll}
+      />
     </div>
   );
 }

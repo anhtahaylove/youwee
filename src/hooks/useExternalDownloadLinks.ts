@@ -325,6 +325,10 @@ export function useExternalDownloadLinks(
   }, [handleExternalLink]);
 
   useEffect(() => {
+    // The effect can be torn down before onOpenUrl() resolves (Strict Mode remount or a
+    // fast dependency change). Track disposal so a late-arriving handle is released
+    // immediately instead of staying registered and firing duplicate downloads.
+    let disposed = false;
     let unlisten: (() => void) | null = null;
 
     onOpenUrl((urls) => {
@@ -333,13 +337,19 @@ export function useExternalDownloadLinks(
       }
     })
       .then((dispose) => {
+        if (disposed) {
+          dispose();
+          return;
+        }
         unlisten = dispose;
       })
       .catch(() => {});
 
     return () => {
+      disposed = true;
       if (unlisten) {
         unlisten();
+        unlisten = null;
       }
     };
   }, [handleExternalLink]);

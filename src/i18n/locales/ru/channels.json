@@ -77,5 +77,11 @@
     "fetchFailed": "Не удалось загрузить видео канала",
     "followFailed": "Не удалось подписаться на канал",
     "alreadyFollowing": "Вы уже подписаны на этот канал"
+  },
+  "youtubeContentTypes": {
+    "videos": "Видео",
+    "shorts": "Shorts",
+    "streams": "Трансляции",
+    "videos_shorts": "Видео + Shorts"
   }
 }

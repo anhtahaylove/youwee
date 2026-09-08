@@ -119,5 +119,11 @@
     "maximize": "Maximizar",
     "restore": "Restaurar",
     "close": "Fechar"
+  },
+  "clearAllDialog": {
+    "title": "Limpar toda a fila?",
+    "description_one": "Isto remove {{count}} item da fila. Não pode ser desfeito.",
+    "description_other": "Isto remove {{count}} itens da fila. Não pode ser desfeito.",
+    "confirm": "Limpar tudo"
   }
 }

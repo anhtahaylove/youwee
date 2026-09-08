@@ -77,5 +77,11 @@
     "fetchFailed": "Falha ao buscar vídeos do canal",
     "followFailed": "Falha ao seguir o canal",
     "alreadyFollowing": "Já está seguindo este canal"
+  },
+  "youtubeContentTypes": {
+    "videos": "Vídeos",
+    "shorts": "Shorts",
+    "streams": "Transmissões",
+    "videos_shorts": "Vídeos + Shorts"
   }
 }

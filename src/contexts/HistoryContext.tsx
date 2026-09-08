@@ -27,7 +27,9 @@ import type {
   HistoryFilter,
   HistorySort,
   HistoryTag,
+  YtdlpAdvancedOption,
 } from '@/lib/types';
+import { sanitizeYtdlpAdvancedOptions } from '@/lib/ytdlp-advanced-options';
 
 // Re-download task state
 interface RedownloadTask {
@@ -597,6 +599,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
       let useBunRuntime = false;
       let useActualPlayerJs = false;
       let youtubePlayerClient = 'auto';
+      let ytdlpAdvancedOptionsEnabled = false;
+      let ytdlpAdvancedOptions: YtdlpAdvancedOption[] = [];
       let useAria2 = false;
       let aria2Args = '';
       let filenameTemplate = '%(title)s.%(ext)s';
@@ -611,6 +615,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useBunRuntime = parsed.useBunRuntime || false;
           useActualPlayerJs = parsed.useActualPlayerJs || false;
           youtubePlayerClient = parsed.youtubePlayerClient || 'auto';
+          ytdlpAdvancedOptionsEnabled = parsed.ytdlpAdvancedOptionsEnabled === true;
+          ytdlpAdvancedOptions = sanitizeYtdlpAdvancedOptions(parsed.ytdlpAdvancedOptions);
           useAria2 = parsed.useAria2 === true;
           aria2Args = parsed.aria2Args || '';
           filenameTemplate = parsed.filenameTemplate || filenameTemplate;
@@ -707,6 +713,8 @@ export function HistoryProvider({ children }: { children: ReactNode }) {
           useBunRuntime,
           useActualPlayerJs,
           youtubePlayerClient,
+          ytdlpAdvancedOptionsEnabled,
+          ytdlpAdvancedOptions,
           ...buildHistoryRedownloadIdentity(entry),
           outputCollisionPolicy: 'overwrite',
           ...networkOptions,

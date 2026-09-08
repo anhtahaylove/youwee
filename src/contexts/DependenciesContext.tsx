@@ -638,26 +638,53 @@ export function DependenciesProvider({ children }: { children: ReactNode }) {
   // Listen to download progress events
   useEffect(() => {
     const unlisteners: UnlistenFn[] = [];
+    const timers: number[] = [];
+    let disposed = false;
+
+    // `listen()` resolves asynchronously: if the effect is cleaned up first, the
+    // handle must be released immediately instead of being pushed onto an array
+    // nobody drains again, which would leak a listener that keeps setting state.
+    const register = (pending: Promise<UnlistenFn>) => {
+      pending
+        .then((unlisten) => {
+          if (disposed) {
+            unlisten();
+            return;
+          }
+          unlisteners.push(unlisten);
+        })
+        .catch((error) => {
+          console.error('Failed to register dependency progress listener:', error);
+        });
+    };
 
     // FFmpeg download progress
-    listen<DownloadProgress>('ffmpeg-download-progress', (event) => {
-      setFfmpegDownloadProgress(event.payload);
-      if (event.payload.stage === 'complete') {
-        // Clear progress after completion
-        setTimeout(() => setFfmpegDownloadProgress(null), 1000);
-      }
-    }).then((unlisten) => unlisteners.push(unlisten));
+    register(
+      listen<DownloadProgress>('ffmpeg-download-progress', (event) => {
+        setFfmpegDownloadProgress(event.payload);
+        if (event.payload.stage === 'complete') {
+          // Clear progress after completion
+          timers.push(window.setTimeout(() => setFfmpegDownloadProgress(null), 1000));
+        }
+      }),
+    );
 
     // Deno download progress
-    listen<DownloadProgress>('deno-download-progress', (event) => {
-      setDenoDownloadProgress(event.payload);
-      if (event.payload.stage === 'complete') {
-        // Clear progress after completion
-        setTimeout(() => setDenoDownloadProgress(null), 1000);
-      }
-    }).then((unlisten) => unlisteners.push(unlisten));
+    register(
+      listen<DownloadProgress>('deno-download-progress', (event) => {
+        setDenoDownloadProgress(event.payload);
+        if (event.payload.stage === 'complete') {
+          // Clear progress after completion
+          timers.push(window.setTimeout(() => setDenoDownloadProgress(null), 1000));
+        }
+      }),
+    );
 
     return () => {
+      disposed = true;
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
       for (const unlisten of unlisteners) {
         unlisten();
       }

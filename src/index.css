@@ -223,6 +223,28 @@
 }
 
 @layer base {
+  /*
+   * Keyboard-focus fallback.
+   *
+   * Most interactive elements in this app are raw <button>/<a> elements with bespoke
+   * Tailwind classes rather than the shared <Button> component, so they inherited no
+   * focus ring at all and keyboard users could not tell what was focused. This gives
+   * every interactive element a themed ring by default.
+   *
+   * It only applies to :focus-visible, so it never fires on mouse clicks, and any
+   * component that defines its own focus-visible ring still wins via specificity.
+   */
+  :where(button, [role="button"], a[href], summary):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  :where(input, textarea, select):focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 1px;
+  }
+
   * {
     @apply border-border;
   }

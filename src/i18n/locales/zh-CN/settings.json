@@ -11,11 +11,13 @@
     "ai": "AI 功能",
     "network": "网络与认证",
     "system": "系统",
-    "about": "关于"
+    "about": "关于",
+    "pluginStore": "插件商店"
   },
   "search": {
     "placeholder": "搜索设置...",
-    "noResults": "未找到结果"
+    "noResults": "没有匹配的设置",
+    "clear": "清除搜索"
   },
   "general": {
     "appearance": "外观",
@@ -488,7 +490,51 @@
     "duplicateHandlingDesc": "选择当视频已存在于 Library 时 Youwee 的处理方式",
     "duplicateHandlingAsk": "添加前询问",
     "duplicateHandlingSkip": "自动跳过",
-    "duplicateHandlingAllow": "允许重复"
+    "duplicateHandlingAllow": "允许重复",
+    "ytdlpAdvanced": {
+      "title": "yt-dlp 高级选项",
+      "description": "为疑难站点和网络调优使用经过验证的 yt-dlp 选项",
+      "toggle": "启用 yt-dlp 高级选项",
+      "toggleDesc": "仅向下载命令传递受支持的 yt-dlp 选项。Aria2、Cookie、代理、输出和重试仍由 Youwee 管理。",
+      "helper": "只接受白名单中的 yt-dlp 选项。Bilibili 会在需要时使用应用管理的请求头。",
+      "addOption": "添加 yt-dlp 选项",
+      "advancedBadge": "高级",
+      "option": {
+        "impersonateDesc": "让 yt-dlp 模拟受支持的浏览器客户端，例如 chrome。",
+        "forceIpv4Desc": "让 yt-dlp 通过 IPv4 连接。",
+        "forceIpv6Desc": "让 yt-dlp 通过 IPv6 连接。",
+        "socketTimeoutDesc": "yt-dlp 在放弃网络 socket 前等待的秒数。",
+        "userAgentDesc": "为非 Bilibili 下载覆盖请求 User-Agent。",
+        "refererDesc": "为非 Bilibili 下载发送自定义 HTTP referer URL。",
+        "addHeadersDesc": "发送自定义非敏感 HTTP 请求头。敏感请求头会被阻止。",
+        "sleepRequestsDesc": "metadata/网络请求之间等待的秒数。",
+        "sleepIntervalDesc": "列表中每个下载开始前等待的秒数。",
+        "maxSleepIntervalDesc": "随机等待间隔的上限。",
+        "concurrentFragmentsDesc": "并行下载的 HLS/DASH 分片数量。",
+        "throttledRateDesc": "低于该速率时 yt-dlp 会认为连接被限速。",
+        "httpChunkSizeDesc": "基于分块的 HTTP 下载所使用的分块大小。",
+        "geoBypassDesc": "让 yt-dlp 使用默认地理绕过行为。",
+        "geoBypassCountryDesc": "使用两位国家代码进行地理绕过。",
+        "matchFiltersDesc": "跳过不符合 yt-dlp 过滤表达式的视频。",
+        "formatSortDesc": "调整 yt-dlp 格式排序，不替代 Youwee 的质量设置。",
+        "youtubePlayerClientDesc": "使用经过验证的 YouTube extractor player client 预设。"
+      },
+      "placeholder": {
+        "impersonate": "chrome",
+        "seconds": "30",
+        "userAgent": "Mozilla/5.0 ...",
+        "url": "https://example.com/",
+        "headerName": "X-Example",
+        "headerValue": "value",
+        "fragments": "4",
+        "rate": "100K",
+        "size": "10M",
+        "country": "US",
+        "matchFilters": "!is_live",
+        "formatSort": "res:1080,fps"
+      },
+      "removeOption": "移除选项"
+    }
   },
   "remoteDownload": {
     "telegramRemote": "Telegram 远程控制",
@@ -913,5 +959,45 @@
     "hideDockOnClose": "关闭时隐藏 Dock 图标",
     "hideDockOnCloseDesc": "关闭窗口时从 Dock 中移除应用。使用系统托盘图标重新打开。",
     "noSettingsForPlatform": "当前平台没有可用的系统设置。"
+  },
+  "themePicker": {
+    "changeTheme": "更换主题",
+    "title": "主题"
+  },
+  "pluginStore": {
+    "title": "插件商店",
+    "description": "发现并安装适用于 Youwee 的插件。",
+    "searchPlaceholder": "搜索插件、权限或分类...",
+    "allCategories": "全部分类",
+    "loading": "正在加载插件商店...",
+    "loadError": "无法加载插件商店",
+    "noResults": "没有符合筛选条件的插件。",
+    "install": "安装",
+    "installing": "正在安装...",
+    "installed": "已安装",
+    "openInPlugins": "在插件中打开",
+    "repository": "仓库",
+    "permissions": "权限",
+    "noPermissions": "无额外权限",
+    "installSuccessTitle": "插件已安装",
+    "installSuccessMessage": "{{name}} 已安装。打开插件页面即可启用和配置。",
+    "installErrorTitle": "插件安装失败",
+    "cancel": "取消",
+    "confirmInstall": "安装插件",
+    "thirdPartyTitle": "安装第三方插件？",
+    "thirdPartyDescription": "此插件并非由 Youwee 发布。安装前请查看仓库和请求的权限。",
+    "thirdPartySecurityNote": "Youwee 已校验软件包校验和与签名。安装后你仍需在插件页面手动启用并授予权限。",
+    "publisherFilter": {
+      "all": "全部",
+      "official": "官方",
+      "third-party": "第三方"
+    },
+    "publisherKind": {
+      "official": "官方",
+      "third-party": "第三方"
+    },
+    "publisher": "发布者",
+    "thirdPartyNotice": "第三方插件未经 Youwee 审核。安装前请自行检查并确认可信。",
+    "refresh": "刷新"
   }
 }

@@ -264,7 +264,10 @@
       "clearFilters": "Limpar filtros",
       "refresh": "Testar ambiente original e refazer coletas.",
       "clear": "Exclua tudo dos olhos localmente",
-      "clearConfirm": "Os registros apontados no ambiente visual desta tabela, deseja prosseguir na ação de remoção das exibições?"
+      "clearConfirm": "Os registros apontados no ambiente visual desta tabela, deseja prosseguir na ação de remoção das exibições?",
+      "searchScopeAll": "Tudo",
+      "searchScopeMetadata": "Detalhes",
+      "searchScopeSummary": "Resumo de IA"
     },
     "item": {
       "fileMissing": "Cadê o Arquivo Físico?",

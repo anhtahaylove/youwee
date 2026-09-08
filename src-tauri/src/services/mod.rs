@@ -11,6 +11,7 @@ mod whisper;
 mod xiaohongshu;
 mod youtube_search;
 mod ytdlp;
+mod ytdlp_args;
 
 use crate::types::DependencySource;
 use std::path::PathBuf;
@@ -69,6 +70,7 @@ pub use whisper::*;
 pub use xiaohongshu::*;
 pub use youtube_search::*;
 pub use ytdlp::*;
+pub use ytdlp_args::*;
 
 #[cfg(test)]
 mod tests {

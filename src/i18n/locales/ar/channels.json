@@ -77,5 +77,11 @@
     "fetchFailed": "فشل جلب فيديوهات القناة",
     "followFailed": "فشل متابعة القناة",
     "alreadyFollowing": "تتم متابعة هذه القناة بالفعل"
+  },
+  "youtubeContentTypes": {
+    "videos": "مقاطع الفيديو",
+    "shorts": "Shorts",
+    "streams": "البث",
+    "videos_shorts": "الفيديو + Shorts"
   }
 }

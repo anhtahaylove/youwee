@@ -10,11 +10,14 @@
     "network": "Rede e Autenticação",
     "system": "Sistema",
     "about": "Sobre",
-    "plugins": "Plugins"
+    "plugins": "Plugins",
+    "remoteDownload": "Download remoto",
+    "pluginStore": "Plugin Store"
   },
   "search": {
     "placeholder": "Pesquisar configurações...",
-    "noResults": "Nenhum resultado encontrado"
+    "noResults": "Nenhuma configuração correspondente",
+    "clear": "Limpar pesquisa"
   },
   "general": {
     "appearance": "Aparência",
@@ -483,7 +486,55 @@
     "duplicateHandlingDesc": "Escolha o que o Youwee deve fazer quando um vídeo já existe na Biblioteca",
     "duplicateHandlingAsk": "Perguntar antes de adicionar",
     "duplicateHandlingSkip": "Pular automaticamente",
-    "duplicateHandlingAllow": "Permitir duplicados"
+    "duplicateHandlingAllow": "Permitir duplicados",
+    "ytdlpAdvanced": {
+      "title": "yt-dlp Advanced Options",
+      "description": "Use vetted yt-dlp options for difficult sites and network tuning",
+      "toggle": "Enable yt-dlp advanced options",
+      "toggleDesc": "Pass supported yt-dlp options to download commands only. Aria2, cookies, proxy, output, and retry options stay managed by Youwee.",
+      "helper": "Only allowlisted yt-dlp options are accepted. Bilibili uses app-managed headers when needed.",
+      "addOption": "Add yt-dlp option",
+      "advancedBadge": "Advanced",
+      "option": {
+        "impersonateDesc": "Ask yt-dlp to impersonate a supported browser client, such as chrome.",
+        "forceIpv4Desc": "Make yt-dlp connect through IPv4.",
+        "forceIpv6Desc": "Make yt-dlp connect through IPv6.",
+        "socketTimeoutDesc": "Seconds to wait before yt-dlp gives up on a network socket.",
+        "userAgentDesc": "Override the request User-Agent for non-Bilibili downloads.",
+        "refererDesc": "Send a custom HTTP referer URL for non-Bilibili downloads.",
+        "addHeadersDesc": "Send a custom non-sensitive HTTP header. Sensitive headers are blocked.",
+        "sleepRequestsDesc": "Seconds to wait between metadata/network requests.",
+        "sleepIntervalDesc": "Seconds to wait before each download in a list.",
+        "maxSleepIntervalDesc": "Upper bound for randomized sleep interval.",
+        "concurrentFragmentsDesc": "Number of HLS/DASH fragments to download in parallel.",
+        "throttledRateDesc": "Minimum rate before yt-dlp treats the connection as throttled.",
+        "httpChunkSizeDesc": "Chunk size for chunk-based HTTP downloads.",
+        "geoBypassDesc": "Ask yt-dlp to use its default geo bypass behavior.",
+        "geoBypassCountryDesc": "Use a two-letter country code for geo bypass.",
+        "matchFiltersDesc": "Skip videos that do not match a yt-dlp filter expression.",
+        "formatSortDesc": "Adjust yt-dlp format sorting without replacing Youwee quality settings.",
+        "youtubePlayerClientDesc": "Use a vetted YouTube extractor player client preset."
+      },
+      "placeholder": {
+        "impersonate": "chrome",
+        "seconds": "30",
+        "userAgent": "Mozilla/5.0 ...",
+        "url": "https://example.com/",
+        "headerName": "X-Example",
+        "headerValue": "value",
+        "fragments": "4",
+        "rate": "100K",
+        "size": "10M",
+        "country": "US",
+        "matchFilters": "!is_live",
+        "formatSort": "res:1080,fps"
+      },
+      "removeOption": "Remover opção"
+    },
+    "persistDownloadQueue": "Salvar fila de download",
+    "persistDownloadQueueDesc": "Restaurar os itens das filas YouTube, Universal e Gallery ao abrir o aplicativo novamente",
+    "queuePersistence": "Fila de download",
+    "queuePersistenceDesc": "Manter os downloads na fila depois de fechar o Youwee"
   },
   "dependencies": {
     "title": "Dependências",
@@ -908,5 +959,45 @@
   "plugins": {
     "title": "Plugins",
     "description": "Create and manage plugins to automate tasks in Youwee"
+  },
+  "themePicker": {
+    "changeTheme": "Alterar tema",
+    "title": "Tema"
+  },
+  "pluginStore": {
+    "title": "Plugin Store",
+    "description": "Discover and install plugins for Youwee.",
+    "searchPlaceholder": "Search plugins, permissions, or categories...",
+    "allCategories": "All categories",
+    "loading": "Loading plugin store...",
+    "loadError": "Failed to load plugin store",
+    "noResults": "No plugins match your filters.",
+    "install": "Install",
+    "installing": "Installing...",
+    "installed": "Installed",
+    "openInPlugins": "Open in Plugins",
+    "repository": "Repository",
+    "permissions": "Permissions",
+    "noPermissions": "No extra permissions",
+    "installSuccessTitle": "Plugin installed",
+    "installSuccessMessage": "{{name}} was installed. Open Plugins to enable and configure it.",
+    "installErrorTitle": "Plugin install failed",
+    "cancel": "Cancel",
+    "confirmInstall": "Install plugin",
+    "thirdPartyTitle": "Install third-party plugin?",
+    "thirdPartyDescription": "This plugin is not published by Youwee. Review its repository and requested permissions before installing.",
+    "thirdPartySecurityNote": "Youwee verified the package checksum and signature. You still need to enable the plugin and grant permissions manually after installation.",
+    "publisherFilter": {
+      "all": "All",
+      "official": "Official",
+      "third-party": "Third-party"
+    },
+    "publisherKind": {
+      "official": "Official",
+      "third-party": "Third-party"
+    },
+    "publisher": "Publisher",
+    "thirdPartyNotice": "Third-party plugins are not reviewed by Youwee. Review and trust them before installing.",
+    "refresh": "Refresh"
   }
 }

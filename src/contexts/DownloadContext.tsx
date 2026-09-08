@@ -107,6 +107,7 @@ import {
   resolveItemVideoCompatibilityMode,
 } from '@/lib/video-compatibility';
 import { extractYouTubeVideoId } from '@/lib/youtube-url';
+import { sanitizeYtdlpAdvancedOptions } from '@/lib/ytdlp-advanced-options';
 
 const STORAGE_KEY = 'youwee-settings';
 const DOWNLOAD_QUEUE_IDLE_GRACE_MS = 1000;
@@ -214,6 +215,8 @@ function saveSettings(settings: DownloadSettings) {
         useBunRuntime: settings.useBunRuntime,
         useActualPlayerJs: settings.useActualPlayerJs,
         youtubePlayerClient: settings.youtubePlayerClient,
+        ytdlpAdvancedOptionsEnabled: settings.ytdlpAdvancedOptionsEnabled,
+        ytdlpAdvancedOptions: settings.ytdlpAdvancedOptions,
         embedMetadata: settings.embedMetadata,
         embedThumbnail: settings.embedThumbnail,
         numberPlaylistItems: settings.numberPlaylistItems,
@@ -420,6 +423,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       useBunRuntime: saved.useBunRuntime || false,
       useActualPlayerJs: saved.useActualPlayerJs || false,
       youtubePlayerClient: saved.youtubePlayerClient || 'auto',
+      ytdlpAdvancedOptionsEnabled: saved.ytdlpAdvancedOptionsEnabled === true,
+      ytdlpAdvancedOptions: sanitizeYtdlpAdvancedOptions(saved.ytdlpAdvancedOptions),
       // Post-processing settings
       embedMetadata: saved.embedMetadata !== false, // Default to true
       embedThumbnail: saved.embedThumbnail === true, // Default to false (requires FFmpeg)
@@ -488,6 +493,7 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   const [currentPlaylistInfo, setCurrentPlaylistInfo] = useState<PlaylistInfo | null>(null);
 
   const isDownloadingRef = useRef(false);
+  const downloadRunIdRef = useRef(0);
   const itemsRef = useRef<DownloadItem[]>([]);
   const settingsRef = useRef<DownloadSettings>(settings);
   const focusClearTimerRef = useRef<number | null>(null);
@@ -964,6 +970,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         preferredFps: currentSettings.preferredFps,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: currentSettings.youtubePlayerClient,
+        ytdlpAdvancedOptionsEnabled: currentSettings.ytdlpAdvancedOptionsEnabled,
+        ytdlpAdvancedOptions: currentSettings.ytdlpAdvancedOptions.map((o) => ({ ...o })),
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
         subtitleMode: currentSettings.subtitleMode,
@@ -1093,6 +1101,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         preferredFps: currentSettings.preferredFps,
         audioBitrate: mediaType === 'audio' ? audioBitrate : currentSettings.audioBitrate,
         youtubePlayerClient: currentSettings.youtubePlayerClient,
+        ytdlpAdvancedOptionsEnabled: currentSettings.ytdlpAdvancedOptionsEnabled,
+        ytdlpAdvancedOptions: currentSettings.ytdlpAdvancedOptions.map((o) => ({ ...o })),
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
         subtitleMode: options?.subtitleMode ?? currentSettings.subtitleMode,
@@ -1171,6 +1181,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
         preferredFps: currentSettings.preferredFps,
         audioBitrate: currentSettings.audioBitrate,
         youtubePlayerClient: currentSettings.youtubePlayerClient,
+        ytdlpAdvancedOptionsEnabled: currentSettings.ytdlpAdvancedOptionsEnabled,
+        ytdlpAdvancedOptions: currentSettings.ytdlpAdvancedOptions.map((o) => ({ ...o })),
         useAria2: currentSettings.useAria2,
         aria2Args: currentSettings.aria2Args,
         subtitleMode: currentSettings.subtitleMode,
@@ -1313,6 +1325,8 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
           preferredFps: settingsRef.current.preferredFps,
           audioBitrate: settingsRef.current.audioBitrate,
           youtubePlayerClient: settingsRef.current.youtubePlayerClient,
+          ytdlpAdvancedOptionsEnabled: settingsRef.current.ytdlpAdvancedOptionsEnabled,
+          ytdlpAdvancedOptions: settingsRef.current.ytdlpAdvancedOptions.map((o) => ({ ...o })),
           useAria2: settingsRef.current.useAria2,
           aria2Args: settingsRef.current.aria2Args,
           subtitleMode: settingsRef.current.subtitleMode,
@@ -1671,6 +1685,13 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
 
     if (!hasPendingItems()) return;
 
+    // Guard against re-entrancy: a second call while a run is active would spawn
+    // an independent worker pool with its own claim set and download items twice.
+    if (isDownloadingRef.current) return;
+
+    const runId = downloadRunIdRef.current + 1;
+    downloadRunIdRef.current = runId;
+
     setIsDownloading(true);
     isDownloadingRef.current = true;
     setCurrentPlaylistInfo(null);
@@ -1773,6 +1794,10 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
             useBunRuntime: settings.useBunRuntime,
             useActualPlayerJs: settings.useActualPlayerJs,
             youtubePlayerClient: itemSettings?.youtubePlayerClient ?? settings.youtubePlayerClient,
+            ytdlpAdvancedOptionsEnabled:
+              itemSettings?.ytdlpAdvancedOptionsEnabled ?? settings.ytdlpAdvancedOptionsEnabled,
+            ytdlpAdvancedOptions:
+              itemSettings?.ytdlpAdvancedOptions ?? settings.ytdlpAdvancedOptions,
             // Network settings
             ...buildCookieProxyInvokeOptions(cookieSettings, proxySettings),
             // Post-processing settings
@@ -1990,9 +2015,13 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       const workers = Array.from({ length: concurrentLimit }, () => processNext());
       await Promise.all(workers);
     } finally {
-      setIsDownloading(false);
-      isDownloadingRef.current = false;
-      setCurrentPlaylistInfo(null);
+      // Only the run that still owns the queue may clear the shared flags,
+      // otherwise a stale run would stop a newer one that started after a stop.
+      if (downloadRunIdRef.current === runId) {
+        setIsDownloading(false);
+        isDownloadingRef.current = false;
+        setCurrentPlaylistInfo(null);
+      }
     }
   }, [enqueueFailedWorkflowForItem, settings, cookieSettings, proxySettings]);
 
@@ -2003,6 +2032,9 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
       console.error('Failed to stop download:', error);
     }
     setItems((items) => items.map((item) => ({ ...item, retryState: undefined })));
+    // Invalidate the active run so its late-unwinding workers cannot clear the
+    // shared flags after the user starts a new run.
+    downloadRunIdRef.current += 1;
     setIsDownloading(false);
     isDownloadingRef.current = false;
     setCurrentPlaylistInfo(null);
@@ -2328,26 +2360,25 @@ export function DownloadProvider({ children }: { children: ReactNode }) {
   const retryFailedDownload = useCallback(
     (itemId: string) => {
       // Reset item status to pending
-      setItems((currentItems) =>
-        currentItems.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                status: 'pending',
-                progress: 0,
-                error: undefined,
-                errorCode: undefined,
-                retryState: undefined,
-              }
-            : item,
-        ),
-      );
+      const resetItem = (item: DownloadItem): DownloadItem =>
+        item.id === itemId
+          ? {
+              ...item,
+              status: 'pending' as const,
+              progress: 0,
+              error: undefined,
+              errorCode: undefined,
+              retryState: undefined,
+            }
+          : item;
+
+      // Update the ref synchronously: the queue reads itemsRef, which is otherwise
+      // only synced by an effect, so starting on a timer races the React commit.
+      itemsRef.current = itemsRef.current.map(resetItem);
+      setItems((currentItems) => currentItems.map(resetItem));
       // Clear cookie error
       setCookieError(null);
-      // Use a short delay to ensure state update before starting download
-      setTimeout(() => {
-        startDownload();
-      }, 100);
+      void startDownload();
     },
     [startDownload],
   );

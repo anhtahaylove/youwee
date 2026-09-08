@@ -119,5 +119,11 @@
     "maximize": "Maximize",
     "restore": "Restore",
     "close": "Close"
+  },
+  "clearAllDialog": {
+    "title": "Clear the whole queue?",
+    "description_one": "This removes {{count}} item from the queue. This cannot be undone.",
+    "description_other": "This removes {{count}} items from the queue. This cannot be undone.",
+    "confirm": "Clear all"
   }
 }

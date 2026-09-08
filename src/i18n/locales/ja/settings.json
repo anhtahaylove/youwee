@@ -11,11 +11,13 @@
     "ai": "AI 機能",
     "network": "ネットワーク＆認証",
     "system": "システム",
-    "about": "このアプリについて"
+    "about": "このアプリについて",
+    "pluginStore": "Plugin Store"
   },
   "search": {
     "placeholder": "設定を検索...",
-    "noResults": "結果が見つかりませんでした"
+    "noResults": "一致する設定はありません",
+    "clear": "検索をクリア"
   },
   "general": {
     "appearance": "外観",
@@ -488,7 +490,51 @@
     "duplicateHandlingDesc": "動画が既にライブラリに存在する場合の Youwee の動作を選択する",
     "duplicateHandlingAsk": "追加前に確認する",
     "duplicateHandlingSkip": "自動的にスキップする",
-    "duplicateHandlingAllow": "重複を許可する"
+    "duplicateHandlingAllow": "重複を許可する",
+    "ytdlpAdvanced": {
+      "title": "yt-dlp 詳細オプション",
+      "description": "難しいサイトやネットワーク調整のために検証済みの yt-dlp オプションを使用する",
+      "toggle": "yt-dlp 詳細オプションを有効にする",
+      "toggleDesc": "サポートされている yt-dlp オプションをダウンロードコマンドに渡します。Aria2、Cookie、プロキシ、保存先、再試行などのオプションは引き続き Youwee が管理します。",
+      "helper": "許可リストにある yt-dlp オプションのみが受け入れられます。Bilibili は必要に応じてアプリ管理のヘッダーを使用します。",
+      "addOption": "yt-dlp オプションを追加",
+      "advancedBadge": "詳細",
+      "option": {
+        "impersonateDesc": "Chrome などのサポートされているブラウザクライアントを偽装するよう yt-dlp に指示します。",
+        "forceIpv4Desc": "yt-dlp を IPv4 経由で接続させます。",
+        "forceIpv6Desc": "yt-dlp を IPv6 経由で接続させます。",
+        "socketTimeoutDesc": "yt-dlp がネットワークソケットを諦めるまでの秒数。",
+        "userAgentDesc": "Bilibili 以外のダウンロードでリクエストの User-Agent を上書きします。",
+        "refererDesc": "Bilibili 以外のダウンロードでカスタムの HTTP Referer URL を送信します。",
+        "addHeadersDesc": "機密ではないカスタム HTTP ヘッダーを送信します。機密ヘッダーはブロックされます。",
+        "sleepRequestsDesc": "メタデータ/ネットワークリクエスト間で待機する秒数。",
+        "sleepIntervalDesc": "リスト内の各ダウンロード前に待機する秒数。",
+        "maxSleepIntervalDesc": "ランタイム待機時間の最大上限。",
+        "concurrentFragmentsDesc": "並行してダウンロードする HLS/DASH フラグメントの数。",
+        "throttledRateDesc": "yt-dlp が接続制限を受けたと判断する最小レート。",
+        "httpChunkSizeDesc": "チャンクベースの HTTP ダウンロードのチャンクサイズ。",
+        "geoBypassDesc": "yt-dlp のデフォルトの地域制限回避動作を使用します。",
+        "geoBypassCountryDesc": "地域制限回避のために 2 文字の国コードを使用します。",
+        "matchFiltersDesc": "yt-dlp のフィルター式に一致しない動画をスキップします。",
+        "formatSortDesc": "Youwee の画質設定を置き換えることなく、yt-dlp のフォーマット並び替えを調整します。",
+        "youtubePlayerClientDesc": "検証済みの YouTube エクストラクタープレイヤークライアントプリセットを使用します。"
+      },
+      "placeholder": {
+        "impersonate": "chrome",
+        "seconds": "30",
+        "userAgent": "Mozilla/5.0 ...",
+        "url": "https://example.com/",
+        "headerName": "X-Example",
+        "headerValue": "value",
+        "fragments": "4",
+        "rate": "100K",
+        "size": "10M",
+        "country": "JP",
+        "matchFilters": "!is_live",
+        "formatSort": "res:1080,fps"
+      },
+      "removeOption": "オプションを削除"
+    }
   },
   "remoteDownload": {
     "telegramRemote": "Telegram リモート",
@@ -913,5 +959,45 @@
     "hideDockOnClose": "ウィンドウを閉じるときに Dock アイコンを非表示にする",
     "hideDockOnCloseDesc": "ウィンドウを閉じた際に Dock からアプリを削除します。再度開くにはシステムトレイアイコンを使用してください。",
     "noSettingsForPlatform": "このプラットフォームで使用できるシステム設定はありません。"
+  },
+  "themePicker": {
+    "changeTheme": "テーマを変更",
+    "title": "テーマ"
+  },
+  "pluginStore": {
+    "title": "Plugin Store",
+    "description": "Discover and install plugins for Youwee.",
+    "searchPlaceholder": "Search plugins, permissions, or categories...",
+    "allCategories": "All categories",
+    "loading": "Loading plugin store...",
+    "loadError": "Failed to load plugin store",
+    "noResults": "No plugins match your filters.",
+    "install": "Install",
+    "installing": "Installing...",
+    "installed": "Installed",
+    "openInPlugins": "Open in Plugins",
+    "repository": "Repository",
+    "permissions": "Permissions",
+    "noPermissions": "No extra permissions",
+    "installSuccessTitle": "Plugin installed",
+    "installSuccessMessage": "{{name}} was installed. Open Plugins to enable and configure it.",
+    "installErrorTitle": "Plugin install failed",
+    "cancel": "Cancel",
+    "confirmInstall": "Install plugin",
+    "thirdPartyTitle": "Install third-party plugin?",
+    "thirdPartyDescription": "This plugin is not published by Youwee. Review its repository and requested permissions before installing.",
+    "thirdPartySecurityNote": "Youwee verified the package checksum and signature. You still need to enable the plugin and grant permissions manually after installation.",
+    "publisherFilter": {
+      "all": "All",
+      "official": "Official",
+      "third-party": "Third-party"
+    },
+    "publisherKind": {
+      "official": "Official",
+      "third-party": "Third-party"
+    },
+    "publisher": "Publisher",
+    "thirdPartyNotice": "Third-party plugins are not reviewed by Youwee. Review and trust them before installing.",
+    "refresh": "Refresh"
   }
 }

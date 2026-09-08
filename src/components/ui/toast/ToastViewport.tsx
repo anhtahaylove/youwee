@@ -10,7 +10,12 @@ interface ToastViewportProps {
 
 export function ToastViewport({ toasts, onDismiss, onPause, onResume }: ToastViewportProps) {
   return (
-    <div className="pointer-events-none fixed right-4 top-4 z-50 flex w-[min(420px,calc(100vw-2rem))] flex-col gap-3">
+    <div
+      className="pointer-events-none fixed right-4 top-4 z-50 flex w-[min(420px,calc(100vw-2rem))] flex-col gap-3"
+      aria-live="polite"
+      aria-atomic="false"
+      aria-relevant="additions text"
+    >
       {toasts.map((toast) => (
         <ToastItem
           key={toast.id}

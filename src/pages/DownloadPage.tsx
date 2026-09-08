@@ -14,6 +14,7 @@ import { FFmpegRequiredDialog } from '@/components/FFmpegRequiredDialog';
 import { FreshCookieRequiredDialog } from '@/components/FreshCookieRequiredDialog';
 import { ThemePicker } from '@/components/settings/ThemePicker';
 import { Button } from '@/components/ui/button';
+import { ConfirmClearAllDialog } from '@/components/ui/ConfirmClearAllDialog';
 import { useDependencies } from '@/contexts/DependenciesContext';
 import { useDownload } from '@/contexts/DownloadContext';
 import { useSchedule } from '@/hooks/useSchedule';
@@ -101,6 +102,7 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
   });
 
   const pendingCount = items.filter((i) => i.status !== 'completed').length;
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   const hasItems = items.length > 0;
 
   // Check if FFmpeg is required for current quality setting
@@ -293,7 +295,7 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
                 <Button
                   variant="outline"
                   size="icon"
-                  onClick={clearAll}
+                  onClick={() => setShowClearAllConfirm(true)}
                   disabled={isDownloading || items.length === 0}
                   className="h-11 w-11 rounded-xl flex-shrink-0 bg-transparent border-border/50 hover:bg-white/10"
                   title={t('actions.clearAll')}
@@ -350,6 +352,12 @@ export function DownloadPage({ onNavigateToSettings, onNavigateToLogs }: Downloa
           />
         );
       })()}
+      <ConfirmClearAllDialog
+        open={showClearAllConfirm}
+        onOpenChange={setShowClearAllConfirm}
+        itemCount={items.length}
+        onConfirm={clearAll}
+      />
     </div>
   );
 }

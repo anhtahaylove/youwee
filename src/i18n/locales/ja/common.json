@@ -119,5 +119,11 @@
     "maximize": "最大化",
     "restore": "元に戻す",
     "close": "閉じる"
+  },
+  "clearAllDialog": {
+    "title": "キュー全体を消去しますか？",
+    "description_one": "キューから {{count}} 件を削除します。元に戻せません。",
+    "description_other": "キューから {{count}} 件を削除します。元に戻せません。",
+    "confirm": "すべて消去"
   }
 }
