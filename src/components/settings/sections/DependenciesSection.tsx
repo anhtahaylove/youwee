@@ -703,6 +703,19 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
               {getUpdatePolicy(isFfmpegSystemSource)}
             </p>
 
+            {/* The app-managed download button is hidden when the source is
+                pinned to "system", so tell the user how to install it. */}
+            {ffmpegStatus?.installed === false &&
+              isFfmpegSystemSource &&
+              ffmpegStatus?.install_hint && (
+                <p className="mt-2 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {t('dependencies.howToInstall')}:
+                  </span>{' '}
+                  {ffmpegStatus.install_hint}
+                </p>
+              )}
+
             <a
               href="https://ffmpeg.org"
               target="_blank"

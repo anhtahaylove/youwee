@@ -28,6 +28,28 @@ pub fn system_ffmpeg_upgrade_message() -> String {
     }
 }
 
+/// Action the user can take to install FFmpeg themselves, for the case where
+/// the app-managed download is not offered (source is pinned to "system").
+pub fn ffmpeg_install_hint() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        return "Install it with Homebrew (`brew install ffmpeg`) and make sure `ffmpeg` is available in PATH.".to_string();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "Install it with a package manager (e.g. `winget install ffmpeg`, `choco install ffmpeg`, or `scoop install ffmpeg`) and make sure `ffmpeg` is available in PATH.".to_string()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return "Install it with your distro package manager (e.g. `apt install ffmpeg` or `dnf install ffmpeg`) and make sure `ffmpeg` is available in PATH.".to_string();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        "Install it with your package manager and make sure `ffmpeg` is available in PATH."
+            .to_string()
+    }
+}
+
 fn get_ffmpeg_source_config_path(app: &AppHandle) -> Option<PathBuf> {
     app.path()
         .app_data_dir()
@@ -185,6 +207,7 @@ pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, Stri
                     binary_path: Some(ffmpeg_path.to_string_lossy().to_string()),
                     is_system,
                     is_bundled,
+                    install_hint: None,
                 });
             }
         }
@@ -196,6 +219,7 @@ pub async fn check_ffmpeg_internal(app: &AppHandle) -> Result<FfmpegStatus, Stri
         binary_path: None,
         is_system: false,
         is_bundled: false,
+        install_hint: Some(ffmpeg_install_hint()),
     })
 }
 
@@ -473,9 +497,25 @@ pub async fn check_ffmpeg_update_internal(app: &AppHandle) -> Result<FfmpegUpdat
 #[cfg(test)]
 mod tests {
     use super::{
-        ffmpeg_version_has_update, normalize_ffmpeg_release_version, parse_ffmpeg_version,
-        select_ffmpeg_release_version,
+        ffmpeg_install_hint, ffmpeg_version_has_update, normalize_ffmpeg_release_version,
+        parse_ffmpeg_version, select_ffmpeg_release_version,
     };
+
+    #[test]
+    fn install_hint_names_a_package_manager_command() {
+        // Shown when the source is pinned to "system", where the app offers no
+        // download button -- so it has to be actionable on its own.
+        let hint = ffmpeg_install_hint();
+        assert!(hint.contains("ffmpeg"), "hint should name the tool: {hint}");
+        assert!(
+            hint.contains("PATH"),
+            "hint should say where it must end up: {hint}"
+        );
+        assert!(
+            !hint.to_lowercase().contains("not found"),
+            "hint is rendered next to the status line, it should not repeat it: {hint}"
+        );
+    }
 
     #[test]
     fn normalizes_ffmpeg_macos_release_tags() {

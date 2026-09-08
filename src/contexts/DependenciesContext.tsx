@@ -24,6 +24,7 @@ export interface FfmpegStatus {
   binary_path: string | null;
   is_system: boolean;
   is_bundled: boolean;
+  install_hint?: string | null;
 }
 
 export interface DenoStatus {

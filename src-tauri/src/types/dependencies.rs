@@ -106,6 +106,9 @@ pub struct FfmpegStatus {
     pub binary_path: Option<String>,
     pub is_system: bool,
     pub is_bundled: bool,
+    /// How to install FFmpeg on this platform, when it could not be found.
+    /// `None` once it is installed.
+    pub install_hint: Option<String>,
 }
 
 /// Deno runtime installation status

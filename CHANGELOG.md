@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plugin store minimum app version gate** - Refuse to download a plugin build that declares a `minAppVersion` newer than the running app, instead of installing it and failing at runtime.
 
 ### Fixed
+- **FFmpeg install guidance** - Show how to install FFmpeg when the source is pinned to the system copy and none is found, where no download button is offered.
 - **gallery-dl update policy wording** - Stop pointing at a packaged copy that only ships in the Windows full build.
 - **Ambiguous Tailwind easing class** - Replace the arbitrary cubic-bezier value with a named `ease-out-expo` utility to silence the build warning.
 - **Subtitle and progress parsing performance** - Compile the subtitle tag and yt-dlp progress regexes once instead of rebuilding them for every output line.

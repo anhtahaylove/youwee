@@ -13,6 +13,7 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Chặn cài plugin theo phiên bản tối thiểu** - Từ chối tải plugin khai báo `minAppVersion` mới hơn phiên bản đang chạy, thay vì cài xong rồi lỗi lúc chạy.
 
 ### Sửa lỗi
+- **Hướng dẫn cài FFmpeg** - Hiện cách cài FFmpeg khi nguồn được đặt là bản hệ thống mà không tìm thấy, lúc đó không có nút tải.
 - **Nội dung update policy của gallery-dl** - Không còn hướng người dùng tới bản đóng gói vốn chỉ có trong bản Windows Full.
 - **Class easing Tailwind bị mơ hồ** - Thay giá trị cubic-bezier tùy ý bằng utility `ease-out-expo` có tên để hết cảnh báo khi build.
 - **Hiệu năng phân tích phụ đề và tiến trình tải** - Biên dịch regex một lần thay vì dựng lại cho từng dòng đầu ra.
