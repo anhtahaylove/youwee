@@ -1,5 +1,6 @@
 import { faGithub } from '@fortawesome/free-brands-svg-icons';
 import { faGlobe as faGlobeIcon } from '@fortawesome/free-solid-svg-icons';
+import { invoke } from '@tauri-apps/api/core';
 import {
   AlertCircle,
   Check,
@@ -13,7 +14,7 @@ import {
   RefreshCw,
   Terminal,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FaIcon } from '@/components/shared/FaIcon';
 import {
@@ -191,6 +192,27 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
   ];
 
   // yt-dlp keeps `auto` for backward compatibility. In UI, display it as App managed.
+  const [ytdlpInstallHint, setYtdlpInstallHint] = useState<string | null>(null);
+  const ytdlpMissingOnSystem = ytdlpSource === 'system' && !ytdlpInfo;
+
+  useEffect(() => {
+    if (!ytdlpMissingOnSystem) {
+      setYtdlpInstallHint(null);
+      return;
+    }
+    let cancelled = false;
+    invoke<string>('get_ytdlp_install_hint')
+      .then((hint) => {
+        if (!cancelled) setYtdlpInstallHint(hint);
+      })
+      .catch(() => {
+        if (!cancelled) setYtdlpInstallHint(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ytdlpMissingOnSystem]);
+
   const ytdlpSourceUi: Exclude<DependencySource, 'auto'> =
     ytdlpSource === 'system' ? 'system' : 'app';
   // Legacy FFmpeg `auto` can resolve to system FFmpeg, so display the resolved source.
@@ -536,6 +558,17 @@ export function DependenciesSection({ highlightId }: DependenciesSectionProps) {
                   ? t('dependencies.updatePolicyBundled')
                   : t('dependencies.updatePolicyAppManaged')}
             </p>
+
+            {/* The channel picker and its download button are hidden while the
+                source is pinned to "system", so tell the user how to install it. */}
+            {ytdlpMissingOnSystem && ytdlpInstallHint && (
+              <p className="mt-2 rounded-md bg-muted/40 px-2.5 py-2 text-[11px] text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  {t('dependencies.howToInstall')}:
+                </span>{' '}
+                {ytdlpInstallHint}
+              </p>
+            )}
 
             {/* Footer: GitHub link */}
             <a

@@ -7,8 +7,9 @@ use crate::services::{
     get_ytdlp_download_info, get_ytdlp_source, get_ytdlp_version_internal,
     install_gallerydl_internal, parse_deno_checksum_response, parse_ffmpeg_version,
     set_ffmpeg_source, set_ytdlp_channel, set_ytdlp_source, system_ffmpeg_upgrade_message,
-    system_ytdlp_upgrade_message, update_gallerydl_internal, verify_sha256,
-    write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo, GalleryDlUpdateInfo,
+    system_ytdlp_install_hint, system_ytdlp_upgrade_message, update_gallerydl_internal,
+    verify_sha256, write_app_ffmpeg_release_version, DenoUpdateInfo, FfmpegUpdateInfo,
+    GalleryDlUpdateInfo,
 };
 use crate::types::{
     BackendError, DenoStatus, DependencySource, FfmpegStatus, GalleryDlStatus, YtdlpAllVersions,
@@ -299,6 +300,13 @@ pub async fn update_ytdlp(app: AppHandle) -> Result<String, String> {
 pub async fn get_ytdlp_channel_cmd(app: AppHandle) -> Result<String, String> {
     let channel = get_ytdlp_channel(&app).await;
     Ok(channel.as_str().to_string())
+}
+
+/// Platform-specific instructions for installing yt-dlp by hand, for the case
+/// where the source is pinned to "system" and the app shows no download button.
+#[tauri::command]
+pub async fn get_ytdlp_install_hint() -> Result<String, String> {
+    Ok(system_ytdlp_install_hint())
 }
 
 #[tauri::command]

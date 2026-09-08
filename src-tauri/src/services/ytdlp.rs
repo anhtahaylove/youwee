@@ -26,6 +26,28 @@ const LEGACY_BUNDLED_YTDLP_BINARY_NAME: &str = "yt-dlp";
 const BILIBILI_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
 const BILIBILI_REFERER: &str = "https://www.bilibili.com/";
 
+/// Action the user can take to install yt-dlp themselves. Rendered under the
+/// status line when the source is pinned to "system", where the app offers no
+/// download button, so it deliberately omits the "not found" wording.
+pub fn system_ytdlp_install_hint() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        return "Install it with Homebrew (`brew install yt-dlp`) and make sure `yt-dlp` is available in PATH, or switch the source to App managed.".to_string();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        "Install it with a package manager (e.g. `winget install yt-dlp`, `choco install yt-dlp`, or `scoop install yt-dlp`) and make sure `yt-dlp` is available in PATH, or switch the source to App managed.".to_string()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return "Install it with your distro package manager (e.g. `apt install yt-dlp` or `dnf install yt-dlp`) and make sure `yt-dlp` is available in PATH, or switch the source to App managed.".to_string();
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        "Install it with your package manager and make sure `yt-dlp` is available in PATH, or switch the source to App managed.".to_string()
+    }
+}
+
 pub fn system_ytdlp_not_found_message() -> String {
     #[cfg(target_os = "macos")]
     {
@@ -1469,6 +1491,24 @@ pub async fn run_ytdlp_with_stderr_and_cookies(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn install_hint_is_actionable_without_repeating_the_status() {
+        // Rendered directly under the "System yt-dlp not found" line while the
+        // source is pinned to "system", where no download button is offered.
+        let hint = system_ytdlp_install_hint();
+        assert!(hint.contains("yt-dlp"), "hint should name the tool: {hint}");
+        assert!(
+            hint.contains("PATH"),
+            "hint should say where it must end up: {hint}"
+        );
+        assert!(
+            !hint.to_lowercase().contains("not found"),
+            "the status line already says that, the hint must not repeat it: {hint}"
+        );
+        // The old message did repeat it, so make sure they stayed distinct.
+        assert_ne!(hint, system_ytdlp_not_found_message());
+    }
 
     #[test]
     fn master_channel_uses_official_canary_builds() {

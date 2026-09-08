@@ -7,6 +7,12 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Thêm mới
+- **Hướng dẫn cài yt-dlp** - Hiển thị cách cài yt-dlp trên nền tảng hiện tại khi nguồn được ghim là Hệ thống và yt-dlp bị thiếu, thay vì chỉ báo không tìm thấy.
+
+### Sửa lỗi
+- **Quyền plugin** - Không lưu quyền mạng cho plugin mà manifest không khai báo, để danh sách plugin không hiển thị quyền mà runtime vẫn chặn.
+
 ## [0.20.1-custom.6] - 2026-09-08
 
 ### Thêm mới

@@ -70,18 +70,37 @@ pub fn update_plugin_trigger_workflow_internal(
     })
 }
 
+/// The effective network approval for a plugin.
+///
+/// A plugin can only ever reach the network when its manifest declares the permission
+/// *and* the user approved it, so an approval for something the manifest never asked for
+/// is dropped instead of stored. The runtime enforces the same conjunction before handing
+/// Deno `--allow-net`; clamping here keeps the registry, and the UI reading it, truthful.
+pub(crate) fn effective_network_approval(declared: bool, requested: bool) -> bool {
+    declared && requested
+}
+
 pub fn approve_plugin_permissions_internal(
     app: &AppHandle,
     plugin_id: &str,
     permissions: PluginPermissionApprovalInput,
 ) -> Result<(), String> {
+    // The runtime already gates on `manifest.permissions.network && approved`, so a
+    // stored approval that the manifest never declared can never widen access. Clamp it
+    // anyway: the registry is what the UI shows, and a plugin that cannot use the network
+    // must not be displayed as if the user had granted it.
+    let declared_network = get_plugin_details_internal(app, plugin_id)?
+        .manifest
+        .permissions
+        .network;
+
     let mut registry = read_registry(app)?;
     let entry = registry
         .installations
         .get_mut(plugin_id)
         .ok_or_else(|| format!("Plugin not found: {}", plugin_id))?;
     entry.approved_permissions = PluginPermissionApproval {
-        network: permissions.network,
+        network: effective_network_approval(declared_network, permissions.network),
         fs: permissions.fs,
         tools: permissions.tools,
     };
@@ -204,4 +223,19 @@ pub fn set_plugin_runtime_locale_internal(
     registry.app_fallback_locale = Some(input.fallback_locale.trim().to_string());
     registry.app_direction = input.direction.map(|value| value.trim().to_string());
     write_registry(app, &registry)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::effective_network_approval;
+
+    #[test]
+    fn network_approval_needs_both_the_manifest_and_the_user() {
+        assert!(effective_network_approval(true, true));
+        // The user can always say no to something the plugin asked for.
+        assert!(!effective_network_approval(true, false));
+        // And saying yes to something never declared must not grant anything.
+        assert!(!effective_network_approval(false, true));
+        assert!(!effective_network_approval(false, false));
+    }
 }

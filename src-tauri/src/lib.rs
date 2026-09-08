@@ -397,6 +397,7 @@ pub fn run() {
             commands::update_ytdlp,
             // yt-dlp channel commands
             commands::get_ytdlp_channel_cmd,
+            commands::get_ytdlp_install_hint,
             commands::get_ytdlp_source_cmd,
             commands::set_ytdlp_source_cmd,
             commands::set_ytdlp_channel_cmd,
