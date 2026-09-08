@@ -7,6 +7,8 @@ và dự án tuân theo [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.20.1-custom.7] - 2026-09-08
+
 ### Thêm mới
 - **Hướng dẫn cài yt-dlp** - Hiển thị cách cài yt-dlp trên nền tảng hiện tại khi nguồn được ghim là Hệ thống và yt-dlp bị thiếu, thay vì chỉ báo không tìm thấy.
 

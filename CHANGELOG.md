@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1-custom.7] - 2026-09-08
+
 ### Added
 - **yt-dlp install instructions** - Show how to install yt-dlp on the current platform when the source is pinned to System and yt-dlp is missing, instead of only reporting that it was not found.
 
